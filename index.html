@@ -70,6 +70,16 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
   background: var(--ember); color: #1b1208; cursor: pointer;
 }
 #namebox button:focus-visible, #namebox input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#talk {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  padding: 12px 18px; width: min(520px, calc(100% - 32px)); box-sizing: border-box;
+}
+#talk h3 { font-family: var(--display); font-size: 1.4rem; margin: 0; line-height: 1; }
+#talk h3 small { font-family: var(--body); font-size: 0.75rem; font-weight: 800; color: var(--ember); margin-left: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+#talk p { margin: 6px 0 0; font-size: 1.02rem; line-height: 1.4; }
+#talk .more { margin-top: 6px; font-size: 0.8rem; color: var(--muted); }
+#start .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+#start button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
 #start {
   position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 16, 26, 0.55); padding: 16px;
 }
@@ -90,9 +100,10 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Shift</kbd> down</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Shift</kbd> down · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
 </div>
 <div id="toast"></div>
+<div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
 <div id="cross" hidden></div>
 <div id="namebox" class="plate" hidden>
   <h2>It hatched!</h2>
@@ -104,7 +115,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
   <div class="card plate">
     <h2>Wyrmwild</h2>
     <p>Somewhere in Green Valley an egg is glowing. Find it, carry it home to your nest, and see what hatches.</p>
-    <button id="go" type="button">Start</button>
+    <div class="row"><button id="go" type="button">Start</button><button id="newGame" class="ghost" type="button" hidden>New game</button></div>
   </div>
 </div>
 
@@ -534,6 +545,10 @@ function vnoise(x, y) {
 function fbm(x, y, o = 5) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i++) { s += a * vnoise(x * f, y * f); f *= 2; a *= 0.5; } return s; }
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const NEST = new V(0, 0, 0), POND = { x: 62, z: -50, r: 30 }, WATER_Y = -1.4, EDGE = 190;
+const VIL = { x: -100, z: -35, r: 48, y: 1 };
+const COAST = { a: 0.5 };  // direction of the gap in the mountains that opens onto the ocean
+function coast(x, z) { let d = Math.abs(Math.atan2(z, x) - COAST.a); if (d > Math.PI) d = Math.PI * 2 - d; return 1 - sstep(0.4, 0.75, d); }  // the village, west of the nest
+function roadDist(x, z) { const L = Math.hypot(VIL.x, VIL.z), t = Math.max(0, Math.min(1, (x * VIL.x + z * VIL.z) / (L * L))); return Math.hypot(x - VIL.x * t, z - VIL.z * t); }
 function height(x, z) {
   const r = Math.hypot(x, z);
   let h = (fbm(x * 0.011 + 3, z * 0.011 + 7) - 0.5) * 30 + (fbm(x * 0.05, z * 0.05, 3) - 0.5) * 3;
@@ -542,7 +557,12 @@ function height(x, z) {
   h = 0.3 + (h - 0.3) * sstep(POND.r * 1.15, POND.r * 1.9, dp);  // low, gentle shore all around
   h = (-3.5) + (h + 3.5) * sstep(POND.r * 0.45, POND.r * 1.15, dp);
   const m = sstep(150, 215, r);                               // mountains ring the valley
-  h += m * m * 75 + m * (fbm(x * 0.03, z * 0.03, 4) - 0.3) * 30;
+  const cst = coast(x, z);
+  h += (m * m * 75 + m * (fbm(x * 0.03, z * 0.03, 4) - 0.3) * 30) * (1 - cst);
+  h += (Math.max(h, 1.5 + sstep(30, 110, r) * 1.5) - h) * cst;                          // dry, gentle land toward the coast
+  h += ((-9 + (fbm(x * 0.02, z * 0.02, 3) - 0.5) * 6) - h) * cst * sstep(118, 182, r);   // beach sloping into the sea
+  const dv = Math.hypot(x - VIL.x, z - VIL.z);                // flat ground for the village
+  h = VIL.y + (h - VIL.y) * sstep(VIL.r, VIL.r + 22, dv);
   return h;
 }
 const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
@@ -562,8 +582,15 @@ const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
     const m = mountain(x, z);
     c.lerp(rock, sstep(0.15, 0.5, m));
     c.lerp(snow, sstep(48, 62, h));
+    const cs = coast(x, z) * sstep(105, 125, Math.hypot(x, z));
+    c.lerp(sand, cs * sstep(4.5, 2, h));                       // sandy beach
+    c.lerp(new THREE.Color("#5a8a9a"), cs * sstep(WATER_Y - 0.5, WATER_Y - 4, h));  // sea floor
     const dn = Math.hypot(x, z);
     c.lerp(dirt, (1 - sstep(4, 9, dn)) * 0.8);                 // trodden ground at the nest
+    const dv = Math.hypot(x - VIL.x, z - VIL.z);
+    c.lerp(dirt, (1 - sstep(12, 15, dv)) * 0.7);              // village square
+    c.lerp(dirt, (1 - sstep(1.5, 3, Math.abs(dv - 22))) * 0.55 * (1 - sstep(VIL.r, VIL.r + 4, dv)));  // ring path
+    c.lerp(dirt, (1 - sstep(1.6, 3.2, roadDist(x, z))) * 0.6 * sstep(6, 12, dn));  // road from the nest
     c.convertSRGBToLinear(); col.push(c.r, c.g, c.b);
   }
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
@@ -582,7 +609,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const spots = [];
   for (let i = 0; i < 9000 && spots.length < 700; i++) {
     const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340, r = Math.hypot(x, z);
-    if (r < 26 || r > 165) continue;
+    if (r < 26 || r > 165 || (r > 108 && coast(x, z) > 0.25) || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 8 || roadDist(x, z) < 4) continue;
     const h = height(x, z);
     if (h < WATER_Y + 1.2) continue;
     if (fbm(x * 0.02 + 40, z * 0.02) < 0.5 && rnd() > 0.12) continue;  // grow in groves
@@ -607,7 +634,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const rockG = new THREE.DodecahedronGeometry(1, 0), rockM = new THREE.MeshLambertMaterial({ color: "#8a847b", flatShading: true });
   const rocks = new THREE.InstancedMesh(rockG, rockM, 140); rocks.castShadow = rocks.receiveShadow = true; scene.add(rocks);
   for (let i = 0; i < 140; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 330; z = (rnd() - 0.5) * 330; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 170);
+    let x, z; do { x = (rnd() - 0.5) * 330; z = (rnd() - 0.5) * 330; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 170 || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 6 || roadDist(x, z) < 4);
     const k = 0.4 + rnd() * 1.6;
     o.position.set(x, height(x, z) + k * 0.2, z); o.scale.set(k * 1.2, k * 0.7, k); o.rotation.set(rnd() * 3, rnd() * 3, 0); o.updateMatrix();
     rocks.setMatrixAt(i, o.matrix); if (k > 1) blockers.push({ x, z, r: k });
@@ -617,7 +644,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const fl = new THREE.InstancedMesh(flG, new THREE.MeshLambertMaterial({ color: "#ffffff" }), 1800); scene.add(fl);
   const fc = ["#ffd84a", "#ff7aa8", "#ffffff", "#b58cff", "#ff8a4a"].map(c => new THREE.Color(c).convertSRGBToLinear());
   for (let i = 0; i < 1800; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 320; z = (rnd() - 0.5) * 320; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 160 || height(x, z) < WATER_Y + 0.8);
+    let x, z; do { x = (rnd() - 0.5) * 320; z = (rnd() - 0.5) * 320; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 160 || height(x, z) < WATER_Y + 0.8 || Math.hypot(x - VIL.x, z - VIL.z) < 26 || roadDist(x, z) < 2.5 || (Math.hypot(x, z) > 112 && coast(x, z) > 0.3));
     o.position.set(x, height(x, z), z); o.scale.set(1, 1, 1); o.rotation.set(0, 0, 0); o.updateMatrix();
     fl.setMatrixAt(i, o.matrix); fl.setColorAt(i, fc[i % fc.length]);
   }
@@ -780,6 +807,64 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
   });
 })();
 
+
+// ---------- the ocean: past a gap in the mountains, south-east of the nest ----------
+const oceanAnims = [];
+(function () {
+  const lin = h => new THREE.Color(h).convertSRGBToLinear();
+  // waves: a big faceted plane whose points bob up and down
+  const S = 1300, N = 110, g = new THREE.PlaneGeometry(S, S, N, N); g.rotateX(-Math.PI / 2);
+  const cx = Math.cos(COAST.a) * 560, cz = Math.sin(COAST.a) * 560;
+  g.translate(cx, 0, cz);
+  const p = g.attributes.position, base = new Float32Array(p.count), keep = new Uint8Array(p.count);
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); keep[i] = Math.hypot(x, z) > 128 && coast(x, z) > 0.05 ? 1 : 0; base[i] = keep[i] ? WATER_Y + 0.15 : -60; p.setY(i, base[i]); }
+  const sea = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: lin("#2f86c0"), specular: lin("#5a7a90"), shininess: 35, flatShading: true, transparent: true, opacity: 0.9 }));
+  sea.receiveShadow = true; scene.add(sea);
+  oceanAnims.push(t => {
+    for (let i = 0; i < p.count; i++) if (keep[i]) { const x = p.getX(i), z = p.getZ(i); p.setY(i, base[i] + Math.sin(x * 0.07 + t * 1.3) * 0.35 + Math.sin(z * 0.09 - t * 1.1) * 0.25 + Math.sin((x + z) * 0.03 + t * 0.7) * 0.3); }
+    p.needsUpdate = true;
+  });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); return m; };
+  const rnd = (() => { let s = 99; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+  const at = (r, da) => { const a = COAST.a + da; return [Math.cos(a) * r, Math.sin(a) * r]; };
+  // palm trees along the beach
+  const trunkM = new THREE.MeshLambertMaterial({ color: "#9a7a4a" }), leafM = new THREE.MeshLambertMaterial({ color: "#3f9a3a", side: THREE.DoubleSide }), coco = new THREE.MeshLambertMaterial({ color: "#5a3a1a" });
+  let placed = 0;
+  for (let i = 0; i < 600 && placed < 34; i++) {
+    const [x, z] = at(120 + rnd() * 70, (rnd() - 0.5) * 1.1), h = height(x, z);
+    if (h < WATER_Y + 0.8 || h > 4 || coast(x, z) < 0.4) continue;
+    const palm = new THREE.Group(); palm.position.set(x, h, z); palm.rotation.y = rnd() * 6.28; scene.add(palm); placed++;
+    const lean = 0.15 + rnd() * 0.25; let top = new V(0, 0, 0);
+    for (let k = 0; k < 5; k++) { const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.22 - k * 0.025, 0.28 - k * 0.025, 1.4, 7), trunkM); seg.position.set(lean * k * k * 0.25, 0.7 + k * 1.35, 0); seg.rotation.z = -lean * k * 0.35; seg.castShadow = true; palm.add(seg); top.set(lean * k * k * 0.25, 1.4 + k * 1.35, 0); }
+    for (let k = 0; k < 7; k++) { const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 4), leafM); leaf.scale.set(1.9, 0.08, 0.45); const a = k / 7 * Math.PI * 2; leaf.position.set(top.x + Math.cos(a) * 1.5, top.y - 0.3, Math.sin(a) * 1.5); leaf.rotation.set(0, -a, -0.35); leaf.castShadow = true; palm.add(leaf); }
+    for (let k = 0; k < 3; k++) palm.add(new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), coco)).position.set(top.x + Math.cos(k * 2) * 0.25, top.y - 0.35, Math.sin(k * 2) * 0.25);
+    blockers.push({ x, z, r: 0.5 });
+  }
+  // sea stacks
+  const rockM = new THREE.MeshLambertMaterial({ color: "#8a8378", flatShading: true });
+  for (let i = 0; i < 9; i++) { const [x, z] = at(205 + rnd() * 160, (rnd() - 0.5) * 1.0), k = 3 + rnd() * 5; const r = add(new THREE.DodecahedronGeometry(1, 0), rockM, x, WATER_Y + k * 0.8, z); r.scale.set(k, k * (1.5 + rnd() * 1.5), k * 0.9); r.rotation.y = rnd() * 3; }
+  // lighthouse on its own rock out in the bay
+  const [lx, lz] = at(250, 0.18);
+  const lh = new THREE.Group(); lh.position.set(lx, WATER_Y, lz); scene.add(lh);
+  const rk = new THREE.Mesh(new THREE.CylinderGeometry(9, 13, 6, 9), rockM); rk.position.y = 2; lh.add(rk);
+  const white = new THREE.MeshLambertMaterial({ color: "#f4f0e8" }), red = new THREE.MeshLambertMaterial({ color: "#c8322a" });
+  for (let k = 0; k < 6; k++) { const s = new THREE.Mesh(new THREE.CylinderGeometry(2.6 - k * 0.2, 2.8 - k * 0.2, 3, 16), k % 2 ? red : white); s.position.y = 6.5 + k * 3; s.castShadow = true; lh.add(s); }
+  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 2.4, 12), new THREE.MeshLambertMaterial({ color: "#fff4c0", emissive: "#ffe27a", emissiveIntensity: 0.9 })); lamp.position.y = 24.7; lh.add(lamp);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.2, 2.4, 12), red); cap.position.y = 27.1; lh.add(cap);
+  const beamM = new THREE.MeshBasicMaterial({ color: "#fff2b0", transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const beamG = new THREE.ConeGeometry(6, 70, 16, 1, true); beamG.translate(0, -35, 0); beamG.rotateZ(Math.PI / 2);
+  const beams = new THREE.Group(); beams.position.y = 24.7; lh.add(beams);
+  [0, Math.PI].forEach(a => { const b = new THREE.Mesh(beamG, beamM); b.rotation.y = a; beams.add(b); });
+  oceanAnims.push(t => { beams.rotation.y = t * 0.6; });
+  // jumping fish
+  const fishM = new THREE.MeshLambertMaterial({ color: "#ff8a3a" });
+  for (let i = 0; i < 5; i++) {
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), fishM); f.scale.set(1.8, 0.7, 0.6); scene.add(f);
+    const [fx, fz] = at(175 + rnd() * 60, (rnd() - 0.5) * 0.8), dir = rnd() * 6.28, ph = rnd() * 10;
+    oceanAnims.push(t => { const k = ((t + ph) % 6) / 1.2; f.visible = k < 1; if (k < 1) { f.position.set(fx + Math.cos(dir) * (k - 0.5) * 6, WATER_Y + Math.sin(k * Math.PI) * 3, fz + Math.sin(dir) * (k - 0.5) * 6); f.rotation.set(0, -dir, Math.cos(k * Math.PI) * 0.9); } });
+  }
+})();
+
 // the nest
 const nestGroup = new THREE.Group();
 (function () {
@@ -801,6 +886,212 @@ const nestGroup = new THREE.Group();
   nestGroup.position.set(0, height(0, 0), 0); scene.add(nestGroup);
 })();
 blockers.push({ x: 3.4, z: 1.6, r: 0.4 });
+
+// ---------- the village ----------
+const npcs = [];
+function makePerson(o) {
+  const g = new THREE.Group(), lam = c => new THREE.MeshLambertMaterial({ color: c });
+  const skin = lam(o.skin || "#e8b48a"), shirt = lam(o.shirt || "#8a5a3a"), pants = lam(o.pants || "#4a3a2a"), hair = lam(o.hair || "#5a3420"), boot = lam("#3a2a1c");
+  const body = new THREE.Group(); g.add(body);
+  const mk = (geo, mat, x, y, z, parent = body) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  const legs = [], arms = [];
+  [-0.15, 0.15].forEach(z => {
+    const p = new THREE.Group(); p.position.set(0, 0.85, z); g.add(p);
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.85, 8), pants); l.position.y = -0.42; l.castShadow = true; p.add(l);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.17), boot); b.position.set(0.05, -0.82, 0); p.add(b);
+    legs.push(p);
+  });
+  const wide = o.wide || 1;
+  if (o.dress) mk(new THREE.CylinderGeometry(0.26 * wide, 0.42 * wide, 0.9, 12), shirt, 0, 1.0, 0);
+  mk(new THREE.CylinderGeometry(0.26 * wide, 0.31 * wide, 0.75, 10), shirt, 0, 1.22, 0);
+  if (o.apron) mk(new THREE.BoxGeometry(0.06, 0.7, 0.42), lam(o.apron), 0.3 * wide, 1.05, 0);
+  if (o.shawl) { const s = mk(new THREE.TorusGeometry(0.27, 0.11, 8, 16), lam(o.shawl), 0, 1.5, 0); s.rotation.x = Math.PI / 2; }
+  const head = new THREE.Group(); head.position.set(0.02, 1.85, 0); body.add(head);
+  mk(new THREE.SphereGeometry(0.24, 16, 12), skin, 0, 0, 0, head);
+  [0.08, -0.08].forEach(z => mk(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshBasicMaterial({ color: "#1a1410" }), 0.21, 0.03, z, head));
+  mk(new THREE.SphereGeometry(0.045, 8, 6), skin, 0.24, -0.03, 0, head);
+  const hs = o.hairStyle || "short";
+  if (hs === "short") mk(new THREE.SphereGeometry(0.25, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, -0.03, 0.05, 0, head);
+  if (hs === "long") { mk(new THREE.SphereGeometry(0.255, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), hair, -0.03, 0.05, 0, head); mk(new THREE.BoxGeometry(0.2, 0.5, 0.46), hair, -0.14, -0.2, 0, head); }
+  if (hs === "bun") { mk(new THREE.SphereGeometry(0.25, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, -0.03, 0.05, 0, head); mk(new THREE.SphereGeometry(0.11, 10, 8), hair, -0.2, 0.2, 0, head); }
+  if (hs === "wild") for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; mk(new THREE.SphereGeometry(0.1, 8, 6), hair, -0.05 + Math.cos(a) * 0.17, 0.12 + Math.abs(Math.sin(a * 1.7)) * 0.08, Math.sin(a) * 0.22, head); }
+  if (hs === "pigtails") { mk(new THREE.SphereGeometry(0.25, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, -0.03, 0.05, 0, head); [1, -1].forEach(s => mk(new THREE.SphereGeometry(0.09, 8, 6), hair, -0.1, 0, 0.27 * s, head)); }
+  if (o.beard) mk(new THREE.SphereGeometry(0.17, 12, 8), lam(o.beard), 0.14, -0.15, 0, head).scale.set(0.8, 1, 1.2);
+  const hat = o.hat;
+  if (hat === "straw") { mk(new THREE.CylinderGeometry(0.45, 0.45, 0.04, 16), lam("#e2c46a"), 0, 0.18, 0, head); mk(new THREE.CylinderGeometry(0.2, 0.24, 0.2, 12), lam("#e2c46a"), 0, 0.28, 0, head); }
+  if (hat === "chef") { mk(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 12), lam("#ffffff"), 0, 0.26, 0, head); mk(new THREE.SphereGeometry(0.24, 12, 8), lam("#ffffff"), 0, 0.42, 0, head); }
+  if (hat === "helmet") mk(new THREE.SphereGeometry(0.27, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), lam("#3a4a7a"), 0, 0.04, 0, head);
+  if (hat === "cap") { mk(new THREE.SphereGeometry(0.26, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), lam(o.capColor || "#c03030"), 0, 0.05, 0, head); mk(new THREE.BoxGeometry(0.22, 0.03, 0.3), lam(o.capColor || "#c03030"), 0.2, 0.08, 0, head); }
+  if (hat === "pointy") { mk(new THREE.ConeGeometry(0.24, 0.6, 12), lam(o.hatColor || "#3a4aa0"), 0, 0.4, 0, head); mk(new THREE.CylinderGeometry(0.38, 0.38, 0.03, 16), lam(o.hatColor || "#3a4aa0"), 0, 0.12, 0, head); }
+  if (hat === "crown") mk(new THREE.CylinderGeometry(0.2, 0.18, 0.14, 8, 1, true), lam("#f2c84a"), 0, 0.24, 0, head);
+  if (o.glasses) [0.08, -0.08].forEach(z => mk(new THREE.TorusGeometry(0.05, 0.012, 6, 12), lam("#222"), 0.22, 0.03, z, head).rotation.y = Math.PI / 2);
+  [-0.34 * wide, 0.34 * wide].forEach(z => {
+    const p = new THREE.Group(); p.position.set(0, 1.52, z); body.add(p);
+    const a = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.64, 8), shirt); a.position.y = -0.31; a.castShadow = true; p.add(a);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), skin); h.position.y = -0.66; p.add(h);
+    arms.push(p);
+  });
+  if (o.cane) { const c = mk(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6), lam("#6b4a2f"), 0.35, 0.65, 0.42, g); c.rotation.z = -0.15; }
+  if (o.hunch) { body.rotation.z = -0.35; body.position.x = -0.12; }
+  if (o.tool === "hammer") { const t = mk(new THREE.BoxGeometry(0.12, 0.12, 0.3), lam("#555"), 0, -0.72, 0, arms[1]); mk(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 6), lam("#6b4a2f"), 0, 0.15, 0, t).rotation.x = 0; }
+  if (o.tool === "scroll") mk(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8), lam("#efe2c0"), 0.05, -0.68, 0, arms[0]).rotation.x = Math.PI / 2;
+  if (o.tool === "pitchfork") { const t = mk(new THREE.CylinderGeometry(0.025, 0.025, 1.8, 6), lam("#6b4a2f"), 0.1, -0.4, 0, arms[1]); for (let k = -1; k <= 1; k++) mk(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 4), lam("#888"), 0, 1.0, k * 0.06, t); }
+  g.scale.setScalar(o.scale || 1);
+  return { g, legs, arms, head, body };
+}
+(function () {
+  const lam = (c, e) => new THREE.MeshLambertMaterial(e ? { color: c, emissive: c, emissiveIntensity: e } : { color: c });
+  const Y = VIL.y;
+  const glass = lam("#ffe3a0", 0.45), trim = lam("#5a3e26"), stone = lam("#9a948a"), wood = lam("#8a6440"), darkWood = lam("#5e4128");
+  const add = (parent, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+  function signTex(text, bg = "#c8a06a", fg = "#3a2614") {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 80; const x = c.getContext("2d");
+    x.fillStyle = bg; x.fillRect(0, 0, 256, 80); x.fillStyle = fg; x.font = "bold 40px Georgia"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(text, 128, 42);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return new THREE.MeshLambertMaterial({ map: t });
+  }
+  function house(o) {
+    const g = new THREE.Group(), wall = lam(o.wall || "#e8dcc0"), roof = lam(o.roof);
+    add(g, new THREE.BoxGeometry(o.w + 0.3, 0.5, o.d + 0.3), stone, 0, 0.25, 0);
+    add(g, new THREE.BoxGeometry(o.w, o.h, o.d), wall, 0, o.h / 2, 0);
+    // timber corners
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([a, b]) => add(g, new THREE.BoxGeometry(0.22, o.h, 0.22), trim, a * o.w / 2, o.h / 2, b * o.d / 2));
+    if (o.round) { add(g, new THREE.ConeGeometry(Math.max(o.w, o.d) * 0.8, o.rh || 3.5, 10), roof, 0, o.h + (o.rh || 3.5) / 2, 0); }
+    else {
+      const rh = o.rh || o.d * 0.5, sh = new THREE.Shape();
+      sh.moveTo(-o.d / 2 - 0.6, 0); sh.lineTo(o.d / 2 + 0.6, 0); sh.lineTo(0, rh); sh.closePath();
+      const rg = new THREE.ExtrudeGeometry(sh, { depth: o.w + 0.8, bevelEnabled: false }); rg.translate(0, 0, -(o.w + 0.8) / 2); rg.rotateY(Math.PI / 2);
+      add(g, rg, roof, 0, o.h, 0);
+      const gable = new THREE.Shape(); gable.moveTo(-o.d / 2, 0); gable.lineTo(o.d / 2, 0); gable.lineTo(0, rh * 0.92); gable.closePath();
+      const gg = new THREE.ShapeGeometry(gable); gg.rotateY(Math.PI / 2);
+      [1, -1].forEach(s => { const m = add(g, gg, wall, s * o.w / 2, o.h, 0); m.material = wall; if (s < 0) m.rotation.y = Math.PI; });
+    }
+    add(g, new THREE.BoxGeometry(1.1, 1.9, 0.12), darkWood, 0, 1.2, o.d / 2 + 0.05);
+    add(g, new THREE.SphereGeometry(0.06, 6, 6), lam("#d8b040"), 0.35, 1.2, o.d / 2 + 0.13);
+    const wy = Math.min(o.h * 0.62, 2.6);
+    if (o.w > 4.5) [1, -1].forEach(s => { add(g, new THREE.BoxGeometry(0.9, 0.8, 0.1), glass, s * o.w * 0.3, wy, o.d / 2 + 0.04); add(g, new THREE.BoxGeometry(1.1, 0.12, 0.2), trim, s * o.w * 0.3, wy - 0.45, o.d / 2 + 0.1); });
+    [1, -1].forEach(s => add(g, new THREE.BoxGeometry(0.1, 0.8, 0.9), glass, s * (o.w / 2 + 0.04), wy, 0));
+    if (o.chimney) {
+      add(g, new THREE.BoxGeometry(0.7, 2.4, 0.7), stone, o.w * 0.28, o.h + 1.2, -o.d * 0.2);
+      const puffs = []; const pm = new THREE.MeshLambertMaterial({ color: "#d8d8d8", transparent: true, opacity: 0.6 });
+      for (let i = 0; i < 5; i++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35, 0), pm); g.add(p); puffs.push(p); }
+      skyAnims.push(t => puffs.forEach((p, i) => { const k = (t * 0.35 + i / 5) % 1; p.position.set(o.w * 0.28 + k * 0.8, o.h + 2.5 + k * 3.5, -o.d * 0.2); p.scale.setScalar(0.5 + k * 1.4); }));
+    }
+    if (o.sign) { const s = add(g, new THREE.BoxGeometry(2.4, 0.7, 0.1), [trim, trim, trim, trim, signTex(o.sign, o.signBg), trim], 0, 2.6, o.d / 2 + 0.12); s.castShadow = false; }
+    const x = VIL.x + o.x, z = VIL.z + o.z, rot = Math.atan2(-o.x, -o.z) + (o.twist || 0);
+    g.position.set(x, Y, z); g.rotation.y = rot; scene.add(g);
+    blockers.push({ x, z, r: 0, box: { hw: o.w / 2 + 0.3, hd: o.d / 2 + 0.3, rot }, y: Y });
+    return { x, z, rot, door: new V(x + Math.sin(rot) * (o.d / 2 + 2.2), Y, z + Math.cos(rot) * (o.d / 2 + 2.2)) };
+  }
+  const at = (r, deg) => ({ x: Math.cos(deg * Math.PI / 180) * r, z: Math.sin(deg * Math.PI / 180) * r });
+  const H = {};
+  H.quest = house({ ...at(31, -90), w: 11, d: 7, h: 5, roof: "#b8322a", sign: "QUESTS", rh: 4 });
+  H.shop = house({ ...at(30, -50), w: 7, d: 6, h: 4, roof: "#2f63b8", sign: "SHOP", signBg: "#d8e4f4" });
+  H.mayor = house({ ...at(31, -10), w: 9, d: 7, h: 5, roof: "#7a2a5a", sign: "MAYOR", wall: "#f0e6d2" });
+  H.smith = house({ ...at(30, 32), w: 7, d: 6, h: 3.6, roof: "#3a3a44", wall: "#a8a29a", sign: "SMITH", chimney: true });
+  H.c1 = house({ ...at(30, 68), w: 5.5, d: 5, h: 3.4, roof: "#4a8a3a" });
+  H.map = house({ ...at(31, 104), w: 4.5, d: 4.5, h: 7, roof: "#2f8a8a", round: true, rh: 4, sign: "MAPS" });
+  H.c2 = house({ ...at(30, 140), w: 5.5, d: 5, h: 3.4, roof: "#7a4a2a" });
+  H.farm = house({ ...at(30, 176), w: 8, d: 6, h: 3.8, roof: "#c8a040", wall: "#e8d4a8" });
+  H.bakery = house({ ...at(30, 214), w: 6.5, d: 6, h: 3.8, roof: "#d9782a", sign: "BAKERY", chimney: true });
+  H.c3 = house({ ...at(30, 248), w: 5.5, d: 5, h: 3.4, roof: "#5a6ab0" });
+  H.nettle = house({ ...at(44, 120), w: 4, d: 4, h: 2.6, roof: "#6a3a9a", wall: "#8a7a6a", rh: 2.6, twist: 0.25 });
+  H.c4 = house({ ...at(42, 70), w: 5, d: 4.5, h: 3.2, roof: "#9a3a3a" });
+  VIL.houses = H;
+  // the well in the square
+  const well = new THREE.Group(); well.position.set(VIL.x, Y, VIL.z); scene.add(well);
+  add(well, new THREE.CylinderGeometry(1.4, 1.5, 1, 16, 1, true), stone, 0, 0.5, 0).material.side = THREE.DoubleSide;
+  add(well, new THREE.CylinderGeometry(1.3, 1.3, 0.1, 16), lam("#3a6a9a"), 0, 0.3, 0);
+  [1, -1].forEach(s => add(well, new THREE.BoxGeometry(0.2, 2.6, 0.2), wood, s * 1.3, 1.3, 0));
+  const wr = add(well, new THREE.ConeGeometry(2.1, 1.1, 4), lam("#b8322a"), 0, 3.0, 0); wr.rotation.y = Math.PI / 4;
+  add(well, new THREE.CylinderGeometry(0.08, 0.08, 2.6, 6), wood, 0, 2.2, 0).rotation.z = Math.PI / 2;
+  add(well, new THREE.CylinderGeometry(0.25, 0.2, 0.35, 8), wood, 0, 1.6, 0);
+  blockers.push({ x: VIL.x, z: VIL.z, r: 1.6, y: Y });
+  // lamp posts around the square
+  for (let i = 0; i < 8; i++) {
+    const p = at(17, i * 45 + 22), x = VIL.x + p.x, z = VIL.z + p.z;
+    const l = new THREE.Group(); l.position.set(x, Y, z); scene.add(l);
+    add(l, new THREE.CylinderGeometry(0.1, 0.14, 3.2, 6), darkWood, 0, 1.6, 0);
+    add(l, new THREE.BoxGeometry(0.45, 0.55, 0.45), lam("#ffd27a", 0.9), 0, 3.4, 0);
+    add(l, new THREE.ConeGeometry(0.4, 0.35, 4), darkWood, 0, 3.85, 0).rotation.y = Math.PI / 4;
+    blockers.push({ x, z, r: 0.3, y: Y });
+  }
+  // farm fields with crops and fences
+  const cropG = new THREE.ConeGeometry(0.25, 0.7, 5), crops = new THREE.InstancedMesh(cropG, lam("#ffffff"), 260); crops.castShadow = true; scene.add(crops);
+  const cc = ["#5aa83a", "#7ac04a", "#e8a030", "#d8c040"].map(c => new THREE.Color(c).convertSRGBToLinear());
+  const o3 = new THREE.Object3D(); let n = 0;
+  [[188, 40], [205, 42]].forEach(([deg, r], fi) => {
+    const c = at(r, deg), cx = VIL.x + c.x, cz = VIL.z + c.z;
+    for (let i = 0; i < 10; i++) for (let k = 0; k < 13; k++) { o3.position.set(cx - 4.5 + i, Y + 0.35, cz - 6 + k); o3.rotation.set(0, k, 0); o3.updateMatrix(); crops.setMatrixAt(n, o3.matrix); crops.setColorAt(n, cc[(fi * 2 + (i % 2))]); n++; }
+    for (let s = 0; s < 4; s++) for (let k = 0; k < 8; k++) {
+      const horiz = s < 2, sx = horiz ? cx - 6 + k * 1.7 : cx + (s === 2 ? -6 : 6), sz = horiz ? cz + (s === 0 ? -7.5 : 7.5) : cz - 7 + k * 2;
+      add(scene, new THREE.BoxGeometry(0.15, 1, 0.15), wood, sx, Y + 0.5, sz);
+      add(scene, new THREE.BoxGeometry(horiz ? 1.7 : 0.08, 0.1, horiz ? 0.08 : 2), wood, sx + (horiz ? 0.85 : 0), Y + 0.75, sz + (horiz ? 0 : 1));
+    }
+  });
+  crops.count = n; crops.instanceColor.needsUpdate = true;
+  // barrels, crates and a notice board
+  [[H.shop, 2.8], [H.smith, -2.8], [H.bakery, 2.6]].forEach(([h, side]) => {
+    const x = h.door.x + Math.cos(h.rot) * side, z = h.door.z - Math.sin(h.rot) * side;
+    add(scene, new THREE.CylinderGeometry(0.45, 0.4, 1, 10), wood, x, Y + 0.5, z);
+    add(scene, new THREE.BoxGeometry(0.8, 0.8, 0.8), lam("#a07a4a"), x + 0.6, Y + 0.4, z + 0.9);
+    blockers.push({ x, z, r: 0.8, y: Y });
+  });
+  const nb = new THREE.Group(), qd = H.quest.door; nb.position.set(qd.x + 4, Y, qd.z + 1); nb.rotation.y = H.quest.rot; scene.add(nb);
+  [1, -1].forEach(s => add(nb, new THREE.BoxGeometry(0.15, 2.2, 0.15), wood, s * 1, 1.1, 0));
+  add(nb, new THREE.BoxGeometry(2.4, 1.3, 0.1), [trim, trim, trim, trim, signTex("NOTICES", "#e8dcc0"), trim], 0, 1.7, 0);
+  // the village gate on the road to the nest
+  const ga = Math.atan2(-VIL.z, -VIL.x), gx = VIL.x + Math.cos(ga) * 46, gz = VIL.z + Math.sin(ga) * 46;
+  const gate = new THREE.Group(); gate.position.set(gx, height(gx, gz), gz); gate.rotation.y = -ga + Math.PI / 2; scene.add(gate);
+  [1, -1].forEach(s => { add(gate, new THREE.BoxGeometry(0.5, 4.5, 0.5), darkWood, s * 3, 2.25, 0); blockers.push({ x: gx + Math.cos(ga + Math.PI / 2) * 3 * s, z: gz + Math.sin(ga + Math.PI / 2) * 3 * s, r: 0.5 }); });
+  add(gate, new THREE.BoxGeometry(7, 0.5, 0.5), darkWood, 0, 4.3, 0);
+  add(gate, new THREE.BoxGeometry(3.4, 0.9, 0.12), [trim, trim, trim, trim, signTex("VILLAGE"), signTex("VILLAGE")], 0, 3.5, 0);
+
+  // ---------- villagers ----------
+  const P = (h, dx = 0, dz = 0) => new V(h.door.x + dx, Y, h.door.z + dz);
+  const people = [
+    { name: "Farmer Bo", title: "Farmer", home: P(H.farm, 0, 2), wander: 9, look: { shirt: "#5a7a3a", pants: "#4a5a8a", hair: "#7a5a3a", hat: "straw", beard: "#7a5a3a", tool: "pitchfork", wide: 1.15 }, lines: [
+      "Mornin'! These carrots won't water themselves.", "A dragon stepped on my pumpkins once. Squashed 'em flat. Still tasted good.",
+      "If you see goblins near my fields, shoo 'em off for me, will you?", "Rain's coming. My knee always knows.", "Old Nettle says my turnips are cursed. They're just lumpy!"] },
+    { name: "Baker Rose", title: "Baker", home: P(H.bakery), wander: 5, look: { shirt: "#e8e0d8", pants: "#c86a6a", hair: "#b04a2a", hairStyle: "bun", hat: "chef", apron: "#ffffff", dress: true }, lines: [
+      "Fresh bread! Well, fresh-ish. Fresh this morning.", "Don't go near Old Nettle's hut. She talks to her teapot.", "Nettle paid me in buttons yesterday. BUTTONS.",
+      "Dragons love my honey buns. Keep yours away from the window.", "They say Nettle was a great tamer once. I don't believe a word of it."] },
+    { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
+      "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
+      "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail."] },
+    { name: "Old Nettle", title: "", home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
+      "When I was young, a black dragon came out of nowhere and ate my good dragons. It had an egg, you know. It had an egg.",
+      "The sky was wrong that night. Dark, dark blue... and purple eyes looking right at me.",
+      "Under the mountains there's stone that breathes. I heard it once. Slow. Very, very slow.",
+      "Gold in the cracks, dearie. Always look for gold in the cracks.", "My teapot says you'll do great things. My teapot is usually wrong.",
+      "Do you like soup? I made soup out of a boot once.", "Hee hee! Spin around three times before bed. Keeps the goblins confused."] },
+    { name: "Mayor Tilda", title: "Mayor", home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
+      "Welcome to our village! We don't get many dragon tamers these days.", "We're very proud of our well. It's a very good well.",
+      "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably."] },
+    { name: "Gorran", title: "Quest Master", home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
+      "The quest board isn't ready yet. Monsters have been seen in the hills, though.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
+      "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon."] },
+    { name: "Mae", title: "Shopkeeper", home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
+      "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling."] },
+    { name: "Hamm", title: "Blacksmith", home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
+      "*CLANG* Oh! Didn't see you there.", "I'm working on dragon armor. Very heavy. Very shiny.", "Fire Mountain has the best metal. And the worst lava imps."] },
+    { name: "Officer Brick", title: "Officer", home: new V(VIL.x + 8, Y, VIL.z + 6), wander: 18, look: { shirt: "#3a4a7a", pants: "#2a2a3a", hair: "#3a2a1a", hat: "helmet", wide: 1.2 }, lines: [
+      "Move along. Nothing to see here. ...Actually, have you seen anything suspicious?", "I keep this village safe. Mostly from goblins. And from Pip.", "Report anything shady to me, got it?"] },
+    { name: "Odo", title: "Mapmaker", home: P(H.map), wander: 5, look: { shirt: "#2f8a8a", pants: "#4a3a2a", hair: "#c8c8c8", hat: "pointy", hatColor: "#2a5a6a", glasses: true, beard: "#d8d8d8", tool: "scroll" }, lines: [
+      "Past the mountains is Fire Mountain. Hot enough to cook an egg on the rocks!", "Beyond that, the Frost Peaks. Bring a scarf. Bring three scarves.",
+      "Look up! Those islands float because of the crystals inside them. Probably.", "Somewhere past the hills is the ocean. Big water, big waves, big fish.", "My maps are always right. The land is sometimes wrong."] },
+    { name: "Fen", title: "Twin", home: new V(VIL.x - 6, Y, VIL.z + 4), wander: 10, fast: true, look: { shirt: "#c84a3a", pants: "#4a3a2a", hair: "#d8a040", scale: 0.6 }, lines: [
+      "I'm Fen. That's Fern. She's the annoying one.", "Tag! You're it!", "We're racing to the well. Bet you can't catch us!"] },
+    { name: "Fern", title: "Twin", home: new V(VIL.x - 4, Y, VIL.z - 6), wander: 10, fast: true, look: { shirt: "#3a8ac8", pants: "#4a3a2a", hair: "#d8a040", hairStyle: "pigtails", scale: 0.6 }, lines: [
+      "I'm Fern. Fen is the annoying one.", "Is your dragon a boy or a girl? Can it breathe fire? Can it do a flip?", "Shh! We're hiding from Officer Brick."] },
+    { name: "Juno", title: "Weaver", home: P(H.c1), wander: 5, look: { shirt: "#c86aa8", pants: "#5a3a5a", hair: "#2a1a10", hairStyle: "long", dress: true }, lines: [
+      "I'm knitting a scarf for a dragon. It's taking a while.", "Dragon scales make lovely buttons. Shed ones! Only shed ones.", "Have you met Old Nettle? She's... colorful."] },
+  ];
+  people.forEach((p, i) => {
+    const m = makePerson(p.look); scene.add(m.g);
+    const n = { ...p, ...m, x: p.home.x + (i % 3) - 1, z: p.home.z + 1, face: 0, target: null, wait: Math.random() * 3, walk: 0, deck: [], talks: 0, y: Y };
+    m.g.position.set(n.x, Y, n.z); npcs.push(n);
+  });
+})();
 
 // ================= tamer (the player) =================
 function makeTamer() {
@@ -853,7 +1144,7 @@ const egg = makeEgg(PYR); scene.add(egg);
 let eggSpot = (function () {
   for (let i = 0; i < 400; i++) {
     const a = Math.random() * Math.PI * 2, d = 65 + Math.random() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
-    if (height(x, z) > WATER_Y + 1.5 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 6) return new V(x, height(x, z), z);
+    if (height(x, z) > WATER_Y + 1.5 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 6 && Math.hypot(x - VIL.x, z - VIL.z) > VIL.r + 8) return new V(x, height(x, z), z);
   }
   return new V(-80, height(-80, 30), 30);
 })();
@@ -875,15 +1166,27 @@ const eggLight = new THREE.PointLight(PYR.glow, 1.5, 12, 2); egg.add(eggLight);
 const dragon = makeDragon(PYR);
 dragon.root.visible = false; scene.add(dragon.root);
 const pet = { lastFace: 0, turnRate: 0, x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
-let hatchT = 0;
+let hatchT = 0, lastShift = -9;
+// how fast each kind of dragon is, 1 (slow) to 5 (fastest). Sky dragons are the quickest, heavy ones the slowest.
+const SPEED = { Pyrrak: 3, Smoldedrake: 2, Aquawyrm: 3, Gillwing: 4, Fernling: 2, Lichenwing: 2, Stonewyrm: 1, Volcanox: 2, Ashveil: 3,
+  Glacius: 2, Tempestra: 5, Thornwyrm: 2, Dawnwing: 4, Pearlhorn: 3, Jadewyrm: 3, Petalwyrm: 3, Blazequill: 4, Abyssar: 3, Rootwyrm: 1, Lumora: 4,
+  Driftail: 4, Aerolash: 5, Skyrune: 5, Snowpaw: 2, Rimefang: 3, Auroran: 4, Bergdrake: 1 };
+pet.kind = "Pyrrak";
+const speedMul = () => 0.55 + 0.15 * (SPEED[pet.kind] || 3);
+const speedDots = () => "●".repeat(SPEED[pet.kind] || 3) + "○".repeat(5 - (SPEED[pet.kind] || 3));
+function petLabel(stage) { petEl.hidden = false; petEl.textContent = `${pet.name} the ${pet.kind} · ${stage} · speed ${speedDots()}`; }
 
 // ================= input =================
 const keys = {};
 addEventListener("keydown", e => {
   if (document.activeElement === nameInput) return;
-  keys[e.code] = true;
+  const first = !e.repeat; keys[e.code] = true;
   if (["Space", "ArrowUp", "ArrowDown"].includes(e.code)) e.preventDefault();
-  if (e.code === "KeyE") act();
+  if ((e.code === "ShiftLeft" || e.code === "ShiftRight") && first) {
+    if (state === "ride" && pet.fly && T - lastShift < 0.35 && pet.y > groundAt(pet.x, pet.z, pet.y) + 12) { pet.dive = true; toast("Dive!", ""); }
+    lastShift = T;
+  }
+  if (e.code === "KeyE" && first) { if (!talkTo()) act(); }
   if (e.code === "KeyR") ride();
 });
 addEventListener("keyup", e => { keys[e.code] = false; });
@@ -921,14 +1224,99 @@ function prompt(html) { if (html) { promptEl.innerHTML = html; promptEl.hidden =
 let toastTimer = 0;
 function toast(big, small) { toastEl.innerHTML = big + (small ? `<small>${small}</small>` : ""); toastEl.style.opacity = 1; toastTimer = 3.5; }
 function goal(t) { goalEl.textContent = t; }
-$("go").onclick = () => { $("start").hidden = true; lockMouse(); toast("Green Valley", "Follow the arrow to the glowing egg"); };
+// ---- saving: progress is kept in this browser ----
+const SAVE_KEY = "wyrmwild-save-1";
+let started = false;
+function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+function writeSave() {
+  if (!started) return;
+  const stage = state === "ride" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
+  const d = { v: 1, stage, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
+    pet: { name: pet.name, kind: pet.kind, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
+}
+function applySave(d) {
+  eggSpot.set(d.egg.x, d.egg.y, d.egg.z); egg.position.copy(eggSpot).add(new V(0, 0.5, 0)); beam.position.copy(eggSpot).add(new V(0, 30, 0));
+  me.x = d.me.x; me.y = d.me.y; me.z = d.me.z;
+  Object.assign(seen, d.seen || {});
+  (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
+  if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
+  if (d.stage === "baby" || d.stage === "grown") {
+    egg.visible = false; beam.visible = false; dragon.root.visible = true;
+    Object.assign(pet, { name: d.pet.name, kind: d.pet.kind || "Pyrrak", age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
+    state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
+    goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
+  }
+}
+const saved = loadSave();
+if (saved) {
+  $("go").textContent = "Continue"; $("newGame").hidden = false;
+  $("start").querySelector("p").textContent = saved.pet && saved.pet.name && saved.stage !== "find" && saved.stage !== "carry"
+    ? `Welcome back! ${saved.pet.name} has been waiting for you.` : "Welcome back! Your egg hunt is right where you left it.";
+}
+function begin(fromSave) {
+  $("start").hidden = true; lockMouse(); started = true;
+  if (fromSave) { applySave(saved); toast("Welcome back!", landEl.textContent); }
+  else toast("Green Valley", "Follow the arrow to the glowing egg");
+  writeSave();
+}
+$("go").onclick = () => begin(!!saved);
+$("newGame").onclick = e => {
+  const b = e.currentTarget;
+  if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Erase my save?"; return; }
+  try { localStorage.removeItem(SAVE_KEY); } catch (er) {}
+  begin(false);
+};
+setInterval(writeSave, 3000);
+addEventListener("pagehide", writeSave);
+document.addEventListener("visibilitychange", () => { if (document.hidden) writeSave(); });
+
+// ---- talking to villagers ----
+let talking = null;
+function nearestNpc(d) { let best = null; for (const n of npcs) { const k = Math.hypot(n.x - me.x, n.z - me.z); if (k < d) { d = k; best = n; } } return best; }
+function talkTo() {
+  if (state === "ride" || state === "name" || state === "hatching") return false;
+  if (talking) { talking = null; $("talk").hidden = true; return true; }
+  const n = nearestNpc(3.2); if (!n) return false;
+  if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
+  talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : "");
+  $("talkLine").textContent = n.lines[n.deck.pop()]; $("talk").hidden = false; n.talks++;
+  return true;
+}
+function updateNpcs(dt) {
+  if (talking && (state === "ride" || Math.hypot(talking.x - me.x, talking.z - me.z) > 5)) { talking = null; $("talk").hidden = true; }
+  const close = state !== "ride" && state !== "name" ? nearestNpc(3.2) : null;
+  if (talking) prompt(""); else if (close) prompt(`Press <kbd>E</kbd> to talk to ${close.name}`);
+  for (const n of npcs) {
+    const dme = Math.hypot(n.x - me.x, n.z - me.z);
+    if (dme > 150) continue;
+    let moving = false;
+    if (n === talking || (dme < 4 && state !== "ride")) n.face = angLerp(n.face, Math.atan2(me.z - n.z, me.x - n.x), Math.min(1, dt * 5));
+    else if (n.wait > 0) n.wait -= dt;
+    else {
+      if (!n.target) { const a = Math.random() * Math.PI * 2, r = Math.random() * n.wander; n.target = [n.home.x + Math.cos(a) * r, n.home.z + Math.sin(a) * r]; }
+      const dx = n.target[0] - n.x, dz = n.target[1] - n.z, d = Math.hypot(dx, dz);
+      if (d < 0.3) { n.target = null; n.wait = 1.5 + Math.random() * (n.fast ? 1.5 : 4); }
+      else {
+        const sp = (n.fast ? 3.6 : n.slow ? 0.7 : 1.6) * dt, ox = n.x, oz = n.z;
+        moveCircle(n, dx / d * sp, dz / d * sp, 0.4);
+        if (Math.hypot(n.x - ox, n.z - oz) < sp * 0.3) { n.target = null; n.wait = 0.5; }
+        n.face = angLerp(n.face, Math.atan2(dz, dx), Math.min(1, dt * 6)); moving = true;
+      }
+    }
+    n.walk += moving ? dt * (n.fast ? 14 : n.slow ? 5 : 8) : 0;
+    const sw = moving ? Math.sin(n.walk) * 0.6 : 0;
+    n.legs[0].rotation.z = sw; n.legs[1].rotation.z = -sw; n.arms[0].rotation.z = -sw * 0.7; n.arms[1].rotation.z = sw * 0.7;
+    n.g.position.set(n.x, VIL.y + (moving ? Math.abs(Math.sin(n.walk)) * 0.04 : 0), n.z); n.g.rotation.y = -n.face;
+  }
+}
 $("nameOk").onclick = finishName;
 nameInput.addEventListener("keydown", e => { if (e.key === "Enter") finishName(); });
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   pet.name = n.charAt(0).toUpperCase() + n.slice(1);
   nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse();
-  petEl.hidden = false; petEl.textContent = `${pet.name} the Pyrrak · baby`;
+  petLabel("baby");
   goal(`Walk around with ${pet.name} so it can grow`);
   toast(`Hello, ${pet.name}!`, "Babies follow you everywhere");
   nameInput.blur();
@@ -949,10 +1337,10 @@ function act() {
 function ride() {
   if (state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5)) {
     state = "ride"; camDist = 14; $("rideKeys").hidden = false;
-    goal(`Fly ${pet.name} up to the Sky Islands! Press R on the ground to get off`);
+    goal(seen.Village ? `Fly ${pet.name} up to the Sky Islands! Press R on the ground to get off` : `Fly ${pet.name} to the village (follow the arrow)`);
     toast("Up you go!", "W to go, A/D to turn, Space to fly up");
   } else if (state === "ride" && !pet.fly) {
-    state = "grown"; camDist = 9;
+    state = "grown"; camDist = 9; pet.dive = false;
     me.x = pet.x - Math.sin(pet.face) * 2.5; me.z = pet.z + Math.cos(pet.face) * 2.5; me.y = pet.y + 0.5; me.vy = 0;
     tamer.g.rotation.set(0, 0, 0);
     goal(`Explore with ${pet.name}. Press R to ride again`);
@@ -961,17 +1349,30 @@ function ride() {
 
 // ================= movement helpers =================
 blockers.forEach(b => { if (b.y === undefined) b.y = height(b.x, b.z); });
-function blocked(x, z, r, y = 0) {
-  for (const b of blockers) { if (Math.abs(y - b.y) > 5) continue; const dx = x - b.x, dz = z - b.z, rr = b.r + r; if (dx * dx + dz * dz < rr * rr) return b; }
-  return null;
+// closest point of a blocker to (x, z): circles use their centre, boxes (houses) clamp into the box
+function closest(b, x, z) {
+  if (!b.box) return [b.x, b.z];
+  const c = Math.cos(b.box.rot), s = Math.sin(b.box.rot), dx = x - b.x, dz = z - b.z;
+  const lx = Math.max(-b.box.hw, Math.min(b.box.hw, dx * c - dz * s)), lz = Math.max(-b.box.hd, Math.min(b.box.hd, dx * s + dz * c));
+  return [b.x + lx * c + lz * s, b.z - lx * s + lz * c];
 }
 function moveCircle(o, dx, dz, r) {
   let nx = o.x + dx, nz = o.z + dz;
-  const b = blocked(nx, nz, r, o.y || 0);
-  if (b) { const ax = nx - b.x, az = nz - b.z, l = Math.hypot(ax, az) || 1; nx = b.x + ax / l * (b.r + r); nz = b.z + az / l * (b.r + r); }
+  const y = o.y || 0;
+  for (let pass = 0; pass < 2; pass++) for (const b of blockers) {
+    if (Math.abs(y - b.y) > 5) continue;
+    if (!b.box && Math.abs(nx - b.x) > b.r + r) continue;
+    if (b.box && Math.abs(nx - b.x) > b.box.hw + b.box.hd + r) continue;
+    const [cx, cz] = closest(b, nx, nz); let ax = nx - cx, az = nz - cz; const l = Math.hypot(ax, az), rr = b.r + r;
+    if (l < rr) {
+      if (l < 1e-4) { ax = nx - b.x; az = nz - b.z; const k = Math.hypot(ax, az) || 1; nx = o.x; nz = o.z; continue; }
+      nx = cx + ax / l * rr; nz = cz + az / l * rr;
+    }
+  }
   if ((o.y || 0) < 20) {
     if (Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
-    const rr = Math.hypot(nx, nz); if (rr > 172) { nx *= 172 / rr; nz *= 172 / rr; }
+    if (height(nx, nz) < WATER_Y - 1.1) return;                          // the sea is too deep too
+    const lim = 172 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (rr > lim) { nx *= lim / rr; nz *= lim / rr; }
   }
   o.x = nx; o.z = nz;
 }
@@ -1046,13 +1447,14 @@ function frame() {
         moveCircle(pet, dx / d * sp, dz / d * sp, 0.6 * pet.scale + 0.3);
         pet.face = angLerp(pet.face, Math.atan2(dz, dx), Math.min(1, dt * 6)); walkAmt = Math.min(1, d / 3);
       } else pet.face = angLerp(pet.face, Math.atan2(me.z - pet.z, me.x - pet.x), dt * 2);
-      fall(pet, dt); pet.fly = false; pet.bank = pet.pitch = 0;
+      fall(pet, dt); pet.fly = false; pet.bank = 0;
+      pet.pitch += (slopePitch() - pet.pitch) * Math.min(1, dt * 6);
       if (state === "baby") {
         pet.age += dt * (walkAmt > 0.1 ? 1 : 0.35);
         pet.scale = 0.45 + Math.min(1, pet.age / 40) * 0.25;
         if (pet.age > 40) {
           state = "grown"; growT = 0;
-          petEl.textContent = `${pet.name} the Pyrrak · grown up`;
+          petLabel("grown up");
           goal(`Ride ${pet.name}! Walk up close and press R`);
           toast(`${pet.name} grew up!`, "Now it's big enough to ride");
         }
@@ -1065,21 +1467,28 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      const target = iz > 0 ? (pet.fly ? (run ? 46 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 8 : -4) : (pet.fly ? 14 : 0);
-      pet.speed += (target - pet.speed) * Math.min(1, dt * 2);
+      let target = (iz > 0 ? (pet.fly ? (run ? 46 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 8 : -4) : (pet.fly ? 14 : 0)) * speedMul();
       let vy = 0;
-      if (keys.Space) vy = 12; else if (keys.ShiftLeft || keys.ShiftRight) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = -1.2;
+      if (pet.dive) {
+        // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
+        target = 62 * speedMul(); vy = -48 * speedMul();
+        if (!run || pet.y < groundAt(pet.x, pet.z, pet.y) + 7) { pet.dive = false; pet.speed = Math.max(pet.speed, 55 * speedMul()); burstAt(pet.x, pet.y, pet.z, "#ffffff"); }
+      }
+      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? 0.8 : 2)));
+      if (pet.dive) {} else if (keys.Space) vy = 12; else if (run) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = -1.2;
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
-      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); if (rr > 200) { pet.x *= 200 / rr; pet.z *= 200 / rr; } }
+      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
       pet.y = Math.min(230, Math.max(Math.max(ground, WATER_Y), pet.y + vy * dt));
+      // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
+      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, WATER_Y) < 3) pet.y = Math.max(ground, WATER_Y);
       const ceil = ceilingAt(pet.x, pet.z, pet.y); if (pet.y > ceil - 2.5) pet.y = ceil - 2.5;
       if (pet.y > Math.max(ground, WATER_Y) + 0.6) pet.fly = true;
       if (pet.fly && pet.y <= Math.max(ground, WATER_Y) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
       pet.bank += ((pet.fly ? -ix * 0.45 : 0) - pet.bank) * Math.min(1, dt * 4);
-      pet.pitch += ((pet.fly ? vy * 0.025 : 0) - pet.pitch) * Math.min(1, dt * 4);
+      pet.pitch += ((pet.dive ? -1.0 : pet.fly ? vy * 0.025 : slopePitch()) - pet.pitch) * Math.min(1, dt * (pet.fly ? 4 : 6));
       walkAmt = pet.fly ? 0 : Math.min(1, Math.abs(pet.speed) / 8);
-      flap = pet.fly ? (vy > 0 ? 1 : 0.55) : 0;
+      flap = pet.dive ? 0 : pet.fly ? (vy > 0 ? 1 : 0.55) : 0;
       // without the mouse locked, the camera swings behind while moving
       if (!locked && (iz || pet.fly)) camYaw = angLerp(camYaw, pet.face, Math.min(1, dt * 2.2));
     }
@@ -1108,6 +1517,7 @@ function frame() {
   if (state === "find") { gx = eggSpot.x; gz = eggSpot.z; }
   else if (state === "carry") { gx = 0; gz = 0; }
   else if (state === "grown" && !near(me.x, me.z, pet.x, pet.z, 6)) { gx = pet.x; gz = pet.z; }
+  else if ((state === "grown" || state === "ride") && !seen.Village) { gx = VIL.x; gz = VIL.z; }
   arrowEl.hidden = gx === null;
   if (gx !== null) {
     const a = Math.atan2(gz - me.z, gx - me.x) - camYaw;
@@ -1120,12 +1530,15 @@ function frame() {
   updateBurst(dt);
   skyAnims.forEach(f => f(T));
   // which land are we in?
-  const sky = inSky(me.x, me.z, state === "ride" ? pet.y : me.y);
-  if (sky !== inSkyNow) {
-    inSkyNow = sky; landEl.textContent = sky ? "Sky Islands" : "Green Valley";
-    toast(sky ? "Sky Islands" : "Green Valley", sky ? (skySeen ? "" : "Floating land high above the valley") : "");
-    skySeen = true;
+  const ly = state === "ride" ? pet.y : me.y;
+  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : (Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 && ly < 40) ? "Village" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley";
+  if (land !== landNow) {
+    const firstTime = !seen[land]; landNow = land; landEl.textContent = land; seen[land] = true;
+    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish" })[land] || "" : "");
+    if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
+  updateNpcs(dt);
+  oceanAnims.forEach(f => f(T));
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
 
   // ---- camera ----
@@ -1135,13 +1548,15 @@ function frame() {
   cam.y = Math.max(cam.y, groundAt(cam.x, cam.z, cam.y) + 0.8);
   camera.position.lerp(cam, Math.min(1, dt * 10));
   // tilting the camera low makes it look up at the sky
+  const wantFov = state === "ride" && (pet.dive || pet.speed > 40) ? 68 : 55;
+  if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 let growT = 0;
-let inSkyNow = false, skySeen = false;
+let landNow = "Green Valley"; const seen = { "Green Valley": true };
 const landEl = document.querySelector("#where h1");
 // walking things fall off the edge of a sky island
 function fall(o, dt) {
@@ -1152,6 +1567,13 @@ function fall(o, dt) {
 
 // hatch sparkle burst
 const bursts = [];
+// tilt the body to match the slope under its front and back feet
+function slopePitch() {
+  const L = 1.7 * pet.scale, cx = Math.cos(pet.face) * L, cz = Math.sin(pet.face) * L;
+  const hf = groundAt(pet.x + cx, pet.z + cz, pet.y + 1), hb = groundAt(pet.x - cx, pet.z - cz, pet.y + 1);
+  return Math.max(-0.6, Math.min(0.6, Math.atan2(Math.max(hf, WATER_Y) - Math.max(hb, WATER_Y), 2 * L)));
+}
+function burstAt(x, y, z) { burst(new V(x, y, z)); }
 function burst(at) {
   const n = 60, pos = new Float32Array(n * 3), vel = [];
   for (let i = 0; i < n; i++) { pos.set([at.x, at.y, at.z], i * 3); vel.push(new V((Math.random() - 0.5) * 6, Math.random() * 7 + 2, (Math.random() - 0.5) * 6)); }
