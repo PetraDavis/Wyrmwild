@@ -1380,7 +1380,8 @@ function frame() {
         moveCircle(pet, dx / d * sp, dz / d * sp, 0.6 * pet.scale + 0.3);
         pet.face = angLerp(pet.face, Math.atan2(dz, dx), Math.min(1, dt * 6)); walkAmt = Math.min(1, d / 3);
       } else pet.face = angLerp(pet.face, Math.atan2(me.z - pet.z, me.x - pet.x), dt * 2);
-      fall(pet, dt); pet.fly = false; pet.bank = pet.pitch = 0;
+      fall(pet, dt); pet.fly = false; pet.bank = 0;
+      pet.pitch += (slopePitch() - pet.pitch) * Math.min(1, dt * 6);
       if (state === "baby") {
         pet.age += dt * (walkAmt > 0.1 ? 1 : 0.35);
         pet.scale = 0.45 + Math.min(1, pet.age / 40) * 0.25;
@@ -1412,11 +1413,13 @@ function frame() {
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); if (rr > 200) { pet.x *= 200 / rr; pet.z *= 200 / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
       pet.y = Math.min(230, Math.max(Math.max(ground, WATER_Y), pet.y + vy * dt));
+      // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
+      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, WATER_Y) < 3) pet.y = Math.max(ground, WATER_Y);
       const ceil = ceilingAt(pet.x, pet.z, pet.y); if (pet.y > ceil - 2.5) pet.y = ceil - 2.5;
       if (pet.y > Math.max(ground, WATER_Y) + 0.6) pet.fly = true;
       if (pet.fly && pet.y <= Math.max(ground, WATER_Y) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
       pet.bank += ((pet.fly ? -ix * 0.45 : 0) - pet.bank) * Math.min(1, dt * 4);
-      pet.pitch += ((pet.dive ? -1.0 : pet.fly ? vy * 0.025 : 0) - pet.pitch) * Math.min(1, dt * 4);
+      pet.pitch += ((pet.dive ? -1.0 : pet.fly ? vy * 0.025 : slopePitch()) - pet.pitch) * Math.min(1, dt * (pet.fly ? 4 : 6));
       walkAmt = pet.fly ? 0 : Math.min(1, Math.abs(pet.speed) / 8);
       flap = pet.dive ? 0 : pet.fly ? (vy > 0 ? 1 : 0.55) : 0;
       // without the mouse locked, the camera swings behind while moving
@@ -1496,6 +1499,12 @@ function fall(o, dt) {
 
 // hatch sparkle burst
 const bursts = [];
+// tilt the body to match the slope under its front and back feet
+function slopePitch() {
+  const L = 1.7 * pet.scale, cx = Math.cos(pet.face) * L, cz = Math.sin(pet.face) * L;
+  const hf = groundAt(pet.x + cx, pet.z + cz, pet.y + 1), hb = groundAt(pet.x - cx, pet.z - cz, pet.y + 1);
+  return Math.max(-0.6, Math.min(0.6, Math.atan2(Math.max(hf, WATER_Y) - Math.max(hb, WATER_Y), 2 * L)));
+}
 function burstAt(x, y, z) { burst(new V(x, y, z)); }
 function burst(at) {
   const n = 60, pos = new Float32Array(n * 3), vel = [];
