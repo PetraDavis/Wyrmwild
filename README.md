@@ -22,7 +22,8 @@ repository and open the Pages link).
 Green Valley: find the glowing egg, carry it to your nest, hatch and name a
 Pyrrak, walk with it until it grows up, then ride and fly it.
 
-Sky Islands: eight floating islands high above Green Valley, with pink
+Sky Islands: one huge floating island (Sky Haven) and five small ones high
+above Green Valley, with pink
 blossom trees, glowing crystals, waterfalls spilling into the sky and an old
 stone ring on Sky Haven, the biggest one. Fly up on your dragon to reach them,
 land and walk around. Walk off the edge and you fall back down to the valley.

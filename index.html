@@ -644,20 +644,18 @@ const clouds = [];
 
 // ---------- Sky Islands: floating land high above the valley ----------
 const ISLANDS = [
-  { x: -70, z: 105, y: 120, r: 40, d: 38, name: "Sky Haven" },
-  { x: -135, z: 45, y: 135, r: 20, d: 22 },
-  { x: -105, z: 125, y: 98, r: 18, d: 18 },
-  { x: -10, z: 150, y: 142, r: 24, d: 26 },
-  { x: 5, z: 85, y: 158, r: 13, d: 14 },
+  { x: -50, z: 95, y: 125, r: 85, d: 62, name: "Sky Haven" },
   { x: -150, z: -10, y: 112, r: 16, d: 16 },
-  { x: 45, z: 130, y: 128, r: 14, d: 15 },
-  { x: -40, z: 40, y: 172, r: 11, d: 12 },
+  { x: 60, z: 140, y: 138, r: 16, d: 17 },
+  { x: 40, z: 20, y: 162, r: 12, d: 13 },
+  { x: -160, z: 50, y: 145, r: 12, d: 13 },
+  { x: -80, z: -40, y: 140, r: 14, d: 15 },
 ];
 ISLANDS.forEach((s, i) => { s.seed = i * 1.7 + 0.4; });
 const skyAnims = [];
 function islandRim(s, a) { return s.r * (0.84 + 0.1 * Math.sin(3 * a + s.seed) + 0.06 * Math.sin(7 * a + s.seed * 2)); }
 function islandFrac(s, x, z) { const dx = x - s.x, dz = z - s.z; return Math.hypot(dx, dz) / islandRim(s, Math.atan2(dz, dx)); }
-function islandTopAt(s, x, z, f) { return s.y + 0.3 + 2.6 * (1 - f * f) + (fbm(x * 0.08, z * 0.08, 3) - 0.5) * 2.2 * (1 - f); }
+function islandTopAt(s, x, z, f) { return s.y + 0.3 + 2.6 * Math.max(1, s.r / 30) * (1 - f * f) + (s.r > 50 ? (fbm(x * 0.025 + 9, z * 0.025, 3) - 0.5) * 9 * (1 - f * f) : 0) + (fbm(x * 0.08, z * 0.08, 3) - 0.5) * 2.2 * (1 - f); }
 function islandBottomAt(s, f) { return s.y + 0.3 - s.d * Math.pow(Math.max(0, 1 - f), 0.75); }
 // the ground under something at height y: an island top just below it, or the valley floor
 function groundAt(x, z, y) {
@@ -681,10 +679,10 @@ function ceilingAt(x, z, y) {
 function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
 (function () {
   const srnd = (() => { let s = 777; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
-  const RINGS = 12, SEGS = 56;
   const lin = h => new THREE.Color(h).convertSRGBToLinear();
   const grassA = lin("#6fb64a"), grassB = lin("#9ccc5a"), dirt = lin("#8a6a44"), rockA = lin("#8b7d70"), rockB = lin("#5d544c"), rockC = lin("#a99a86");
   function disc(s, top) {
+    const RINGS = Math.max(12, Math.round(s.r / 2.5)), SEGS = s.r > 50 ? 110 : 56;
     const pos = [], col = [], idx = [];
     for (let r = 0; r <= RINGS; r++) for (let k = 0; k < SEGS; k++) {
       const f = r / RINGS, a = k / SEGS * Math.PI * 2, rim = islandRim(s, a);
@@ -726,7 +724,7 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
   ISLANDS.forEach((s, si) => {
     scene.add(disc(s, true)); scene.add(disc(s, false));
     // trees (pink blossom trees are a sky thing)
-    const nTrees = Math.round(s.r / 5);
+    const nTrees = Math.round(s.r / (s.name ? 2.6 : 5));
     for (let i = 0; i < nTrees; i++) {
       const p = spot(s, 0.8), k = 0.8 + srnd() * 0.6, lm = leafMs[Math.floor(srnd() * leafMs.length)];
       add(trunkG, trunkM, p.x, p.y + 1.5 * k, p.z, k, k, k);
@@ -735,7 +733,7 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
       blockers.push({ x: p.x, z: p.z, r: 0.6 * k, y: p.y });
     }
     // glowing crystal clusters
-    for (let i = 0; i < (si === 7 ? 4 : 1 + (si % 2)); i++) {
+    for (let i = 0; i < (s.name ? 7 : 1 + (si % 2)); i++) {
       const p = spot(s, 0.7), m = crystalMs[(si + i) % 3];
       for (let k = 0; k < 4; k++) { const c = add(cryG, m, p.x + (srnd() - 0.5) * 1.6, p.y + 0.8, p.z + (srnd() - 0.5) * 1.6, 0.35 + srnd() * 0.3, 1 + srnd() * 1.4, 0.35 + srnd() * 0.3); c.rotation.set((srnd() - 0.5) * 0.6, srnd() * 3, (srnd() - 0.5) * 0.6); }
       blockers.push({ x: p.x, z: p.z, r: 1.2, y: p.y });
@@ -747,13 +745,13 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
       const v = add(vineG, vineM, x, islandBottomAt(s, f) + 0.5, z, 1, 3 + srnd() * 9, 1); v.castShadow = false;
     }
     // little floating rocks drifting around the island
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < (s.name ? 12 : 4); i++) {
       const a = srnd() * Math.PI * 2, dd = s.r * (1.2 + srnd() * 0.5), k = 1 + srnd() * 2;
       const r = add(leafG, rockM, s.x + Math.cos(a) * dd, s.y - 2 + srnd() * 6, s.z + Math.sin(a) * dd, k * 1.3, k, k * 1.1);
       const y0 = r.position.y, ph = srnd() * 6; skyAnims.push(t => { r.position.y = y0 + Math.sin(t * 0.6 + ph) * 0.8; r.rotation.y = t * 0.1 + ph; });
     }
     // waterfalls spilling off the edge into the sky
-    if (si === 0 || si === 3 || si === 2) {
+    for (let wf = 0; wf < (s.name ? 4 : si % 2); wf++) {
       const a = srnd() * Math.PI * 2, rim = islandRim(s, a), x = s.x + Math.cos(a) * rim * 0.97, z = s.z + Math.sin(a) * rim * 0.97;
       const top = islandTopAt(s, x, z, 0.97), len = 60;
       const wm = new THREE.MeshBasicMaterial({ color: "#bfe6ff", map: wtex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false });
@@ -903,13 +901,13 @@ document.addEventListener("pointerlockchange", () => {
 document.addEventListener("mousemove", e => {
   if (!locked) return;
   camYaw += e.movementX * 0.0035;
-  camPitch = Math.min(1.2, Math.max(-0.15, camPitch + e.movementY * 0.0028));
+  camPitch = Math.min(1.2, Math.max(-0.85, camPitch + e.movementY * 0.0028));
 });
 let drag = null;
 cv.addEventListener("pointerdown", e => { if (!locked && nameBox.hidden && $("start").hidden) lockMouse(); drag = locked ? null : { x: e.clientX, y: e.clientY }; if (drag) cv.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!drag) return;
-  camYaw += (e.clientX - drag.x) * 0.006; camPitch = Math.min(1.2, Math.max(-0.15, camPitch + (e.clientY - drag.y) * 0.004));
+  camYaw += (e.clientX - drag.x) * 0.006; camPitch = Math.min(1.2, Math.max(-0.85, camPitch + (e.clientY - drag.y) * 0.004));
   drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener("pointerup", () => { drag = null; });
@@ -1136,7 +1134,8 @@ function frame() {
   const cam = new V(focus.x - Math.cos(camYaw) * cd, focus.y + camDist * Math.sin(camPitch), focus.z - Math.sin(camYaw) * cd);
   cam.y = Math.max(cam.y, groundAt(cam.x, cam.z, cam.y) + 0.8);
   camera.position.lerp(cam, Math.min(1, dt * 10));
-  camera.lookAt(focus);
+  // tilting the camera low makes it look up at the sky
+  camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
