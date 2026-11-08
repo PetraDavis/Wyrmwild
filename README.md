@@ -12,7 +12,7 @@ repository and open the Pages link).
 
 - **W A S D** or arrow keys: move
 - **Shift**: run (on a dragon in the air: fly down)
-- **Drag the mouse**: look around, **scroll**: zoom
+- **Click the game** to look with the mouse (Esc frees the mouse), **scroll**: zoom
 - **E**: pick up / use
 - **R**: ride your dragon or get off (on the ground)
 - **Space**: take off and fly up

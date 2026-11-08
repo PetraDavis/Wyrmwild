@@ -48,6 +48,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
   position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   padding: 8px 12px; font-size: 0.82rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: calc(100% - 32px);
 }
+#cross { position: fixed; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 2px rgba(0,0,0,0.35); pointer-events: none; }
 #toast {
   position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;
   font-family: var(--display); font-size: clamp(1.8rem, 5vw, 3.2rem); text-shadow: 0 3px 18px rgba(0,0,0,0.55);
@@ -89,9 +90,10 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span>drag mouse to look</span><span><kbd>E</kbd> use</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Shift</kbd> down</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Shift</kbd> down</span>
 </div>
 <div id="toast"></div>
+<div id="cross" hidden></div>
 <div id="namebox" class="plate" hidden>
   <h2>It hatched!</h2>
   <p>A baby Pyrrak. What will you name it?</p>
@@ -263,12 +265,15 @@ const R0 = knots([[0, 0.02], [0.1, 0.07], [0.22, 0.16], [0.33, 0.32], [0.42, 0.4
                   [0.62, 0.47], [0.7, 0.33], [0.78, 0.23], [0.9, 0.2], [1, 0.23]]);
 let breath = 1;
 const rad = s => R0(s) * (s > 0.33 && s < 0.68 ? breath : 1);
-function spinePts(t) {
+// bend > 0 curves the body into a right turn: head and tail swing toward the turn, the middle stays put
+const BEND = [1.1, 0.7, 0.32, 0.06, 0, 0.06, 0.28, 0.6, 0.95];
+function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k]; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25; }
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w; v.z += Math.sin(t * 0.45) * 0.16 * w; }
+    v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
   });
   return new THREE.CatmullRomCurve3(pts, false, "centripetal").getPoints(SEGS);
@@ -442,15 +447,18 @@ const flameLight = new THREE.PointLight("#ff7a1c", 1.4, 3.5, 2); flame.add(flame
 const hb = new THREE.Matrix4(), hq = new THREE.Quaternion(), tilt = new THREE.Quaternion().setFromAxisAngle(new V(0, 0, 1), -0.12);
 const sf = at(0.56), seat = sf.p.clone().addScaledVector(sf.n, sf.r * 1.05);
 let walkT = 0;
-function update(t, walk, flap, dt) {
+let bendNow = 0;
+const headTurn = new THREE.Quaternion();
+function update(t, walk, flap, dt, bend = 0) {
+  bendNow += (Math.max(-1, Math.min(1, bend)) - bendNow) * Math.min(1, dt * 5);
   breath = 1 + Math.sin(t * (flap ? 3 : 1.7)) * 0.025;
-  frames = fillTube(spineGeo, spinePts(t), rad, 0.9, 1.05);
+  frames = fillTube(spineGeo, spinePts(t, bendNow), rad, 0.9, 1.05);
   placeFins();
   const end = frames[SEGS];
   const fwd = new V(end.T.x, end.T.y * 0.25, end.T.z).normalize();
   const side = new V().crossVectors(fwd, UP).normalize(), up = new V().crossVectors(side, fwd);
   hb.makeBasis(fwd, up, side); hq.setFromRotationMatrix(hb).multiply(tilt);
-  head.quaternion.copy(hq);
+  head.quaternion.copy(hq).multiply(headTurn.setFromAxisAngle(UP, -bendNow * 0.35)); // head looks into the turn
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
   wings.forEach(w => {
     const rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = -0.1 + Math.sin(t * 7) * 0.85;
@@ -727,7 +735,7 @@ const eggLight = new THREE.PointLight(PYR.glow, 1.5, 12, 2); egg.add(eggLight);
 })();
 const dragon = makeDragon(PYR);
 dragon.root.visible = false; scene.add(dragon.root);
-const pet = { x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
+const pet = { lastFace: 0, turnRate: 0, x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
 let hatchT = 0;
 
 // ================= input =================
@@ -741,8 +749,23 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => { keys[e.code] = false; });
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+// mouse look: click the game to lock the mouse, then moving it turns the camera (Esc frees it).
+// If the browser won't lock the mouse, dragging still works.
+const cv = renderer.domElement;
+let locked = false;
+function lockMouse() { try { const r = cv.requestPointerLock && cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+document.addEventListener("pointerlockchange", () => {
+  locked = document.pointerLockElement === cv;
+  $("cross").hidden = !locked;
+  $("lookHint").textContent = locked ? "mouse to look · Esc frees the mouse" : "click the game to look with the mouse";
+});
+document.addEventListener("mousemove", e => {
+  if (!locked) return;
+  camYaw += e.movementX * 0.0035;
+  camPitch = Math.min(1.2, Math.max(-0.15, camPitch + e.movementY * 0.0028));
+});
 let drag = null;
-renderer.domElement.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointerdown", e => { if (!locked && nameBox.hidden && $("start").hidden) lockMouse(); drag = locked ? null : { x: e.clientX, y: e.clientY }; if (drag) cv.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!drag) return;
   camYaw += (e.clientX - drag.x) * 0.006; camPitch = Math.min(1.2, Math.max(-0.15, camPitch + (e.clientY - drag.y) * 0.004));
@@ -759,13 +782,13 @@ function prompt(html) { if (html) { promptEl.innerHTML = html; promptEl.hidden =
 let toastTimer = 0;
 function toast(big, small) { toastEl.innerHTML = big + (small ? `<small>${small}</small>` : ""); toastEl.style.opacity = 1; toastTimer = 3.5; }
 function goal(t) { goalEl.textContent = t; }
-$("go").onclick = () => { $("start").hidden = true; toast("Green Valley", "Follow the arrow to the glowing egg"); };
+$("go").onclick = () => { $("start").hidden = true; lockMouse(); toast("Green Valley", "Follow the arrow to the glowing egg"); };
 $("nameOk").onclick = finishName;
 nameInput.addEventListener("keydown", e => { if (e.key === "Enter") finishName(); });
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   pet.name = n.charAt(0).toUpperCase() + n.slice(1);
-  nameBox.hidden = true; state = "baby"; pet.age = 0;
+  nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse();
   petEl.hidden = false; petEl.textContent = `${pet.name} the Pyrrak · baby`;
   goal(`Walk around with ${pet.name} so it can grow`);
   toast(`Hello, ${pet.name}!`, "Babies follow you everywhere");
@@ -862,7 +885,7 @@ function frame() {
       egg.visible = false; burst(egg.position);
       pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; dragon.root.visible = true;
     }
-    if (hatchT > 4.4 && state === "hatching") { state = "name"; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
+    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
     prompt(state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : "");
   } else if (state === "ride") {
@@ -896,8 +919,10 @@ function frame() {
     } else if (state === "ride") {
       // ---- riding and flying ----
       const ground = height(pet.x, pet.z);
-      const turn = (ix) * 1.8 * dt;
-      pet.face += turn;
+      const maxTurn = (pet.fly ? 1.5 : 2.2) * dt;
+      let want = ix * 1.8 * dt;
+      if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
+      pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
       const target = iz > 0 ? (pet.fly ? (run ? 46 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 8 : -4) : (pet.fly ? 14 : 0);
       pet.speed += (target - pet.speed) * Math.min(1, dt * 2);
       let vy = 0;
@@ -912,13 +937,17 @@ function frame() {
       pet.pitch += ((pet.fly ? vy * 0.025 : 0) - pet.pitch) * Math.min(1, dt * 4);
       walkAmt = pet.fly ? 0 : Math.min(1, Math.abs(pet.speed) / 8);
       flap = pet.fly ? (vy > 0 ? 1 : 0.55) : 0;
-      // camera follows behind while moving
-      if (iz || pet.fly) camYaw = angLerp(camYaw, pet.face, Math.min(1, dt * 2.2));
+      // without the mouse locked, the camera swings behind while moving
+      if (!locked && (iz || pet.fly)) camYaw = angLerp(camYaw, pet.face, Math.min(1, dt * 2.2));
     }
     dragon.root.position.set(pet.x, pet.y, pet.z);
     dragon.root.rotation.set(pet.bank, -pet.face, pet.pitch, "YXZ");
     dragon.root.scale.setScalar(pet.scale);
-    dragon.update(T, walkAmt, flap, dt);
+    // how fast it's turning: bends the body, and makes it step in place when turning on the spot
+    let df = ((pet.face - pet.lastFace + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    pet.turnRate += ((dt > 0 ? df / dt : 0) - pet.turnRate) * Math.min(1, dt * 8); pet.lastFace = pet.face;
+    if (!pet.fly) walkAmt = Math.max(walkAmt, Math.min(0.8, Math.abs(pet.turnRate) * 0.6));
+    dragon.update(T, walkAmt, flap, dt, pet.turnRate * 0.45);
     if (state === "ride") {
       // the tamer sits on the dragon's back
       dragon.root.updateMatrixWorld();
