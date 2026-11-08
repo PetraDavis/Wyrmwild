@@ -42,3 +42,7 @@ start screen to carry on, or New game to start over.
 
 Dragon speed: every kind of dragon has a speed from 1 to 5 (sky dragons are
 fastest). Pyrrak is a 3.
+
+The Ocean: a gap in the mountains south-east of the nest opens onto a sandy
+beach with palm trees, waves, sea stacks, jumping fish and a lighthouse out in
+the bay. You can fly far out over the water.
