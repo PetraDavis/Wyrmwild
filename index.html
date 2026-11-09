@@ -186,7 +186,7 @@ body.home #where, body.home #arrow, body.home #keys, body.home #toast, body.home
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb · <kbd>Click</kbd> claw · <kbd>Right-click</kbd> breath · <kbd>A</kbd><kbd>A</kbd>/<kbd>D</kbd><kbd>D</kbd> dodge</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>F</kbd> skill · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb · <kbd>Click</kbd> claw · <kbd>Right-click</kbd> breath · <kbd>A</kbd><kbd>A</kbd>/<kbd>D</kbd><kbd>D</kbd> dodge</span>
 </div>
 <div id="toast"></div>
 <div id="petHp" class="plate" hidden><span></span><b><i></i></b></div>
@@ -2607,7 +2607,7 @@ function writeSave() {
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
-    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(),
+    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
@@ -2626,6 +2626,7 @@ function applySave(d) {
   if (d.shop) shopLoad(d.shop);
   if (d.boss) bossLoad(d.boss);
   if (d.secret) secLoad(d.secret);
+  if (d.skill) skillLoad(d.skill);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
@@ -2763,6 +2764,7 @@ function showPane(which, msg) {
       <dt><kbd>R</kbd></dt><dd>Ride your grown-up dragon, or get off</dd>
       <dt><kbd>C</kbd></dt><dd>Tell your dragon to sit</dd>
       <dt><kbd>B</kbd></dt><dd>Open your Dragon Book</dd>
+      <dt><kbd>F</kbd></dt><dd>Use your dragon's world skill (Burn, Smash, Freeze, Gust, Wash or Grow) to open secret spots</dd>
       <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
       <dt>Left click</dt><dd>Claw attack (while riding)</dd>
       <dt>Right click</dt><dd>Breath attack (needs a few seconds to recharge)</dd>
@@ -3173,6 +3175,7 @@ function frame() {
   updateLava(dt);
   updateBosses(dt);
   updateSecrets(dt);
+  updateSkills(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -7108,7 +7111,7 @@ function bookPage(s, back) {
   if (!bookPic[s.name]) bookQueue.push([s.name, false]);
   openMenu(s.name, `<p class="who" style="color:${BOOK_COL[s.rarity] || "#ccc"}">${s.rarity} dragon</p>
     <div class="dexBig"><img data-pic="${s.name}" src="${bookPic[s.name] || ""}" alt=""></div>
-    <p><small>Lives in: ${s.land || s.home}</small></p>
+    <p><small>Lives in: ${s.land || s.home} · World skill: <b>${skillOf(s.name)}</b></small></p>
     <div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div></div>
     <p><small>Stats at level 1</small></p>
     ${(s.ad || []).length ? `<h4>How it's built for its home</h4>${s.ad.map(x => `<p>· ${x}</p>`).join("")}` : ""}
@@ -7263,6 +7266,110 @@ function sfx(name) {
   $("nameOk").addEventListener("click", () => sfx("hatch"));
   menuEl.addEventListener("click", e => { if (e.target.closest("button")) sfx("click"); });
 })();
+
+// ================= dragon world skills open secret spots (Petra's extras idea 1, 2026-11-09) =================
+// Every dragon has a world skill that matches its home: fire dragons BURN brambles, rock and cave dragons SMASH cracked boulders,
+// ice dragons FREEZE geysers, sky dragons blow away storm clouds with a GUST, water dragons WASH away mud, and valley dragons
+// make withered trees GROW again. Twelve spots around the lands hide a treasure chest behind one of these. Ride up and press F.
+const SKILL = {
+  Burn:   { verb: "burn the brambles away", need: "a fire dragon", col: "#ff7a2a", lands: ["Deep Forest", "Green Valley"] },
+  Smash:  { verb: "smash the cracked boulder", need: "a rock or cave dragon", col: "#b0a090", lands: ["Desert", "Crystal Caves"] },
+  Freeze: { verb: "freeze the geyser", need: "an ice dragon", col: "#bfe8ff", lands: ["Frost Peaks", "Ocean"] },
+  Gust:   { verb: "blow the storm cloud away", need: "a sky dragon", col: "#e8f4ff", lands: ["Sky Islands", "Sky Islands"] },
+  Wash:   { verb: "wash the mud away", need: "a water dragon", col: "#5ab8ff", lands: ["Ocean", "Desert"] },
+  Grow:   { verb: "make the old tree grow again", need: "a valley dragon", col: "#7ae05a", lands: ["Green Valley", "Deep Forest"] },
+};
+const SKILL_OF_LAND = { "Fire Mountain": "Burn", "Frost Peaks": "Freeze", "Sky Islands": "Gust", "Ocean": "Wash", "Green Valley": "Grow" };
+const SKILL_KIND = { Stonewyrm: "Smash", Bergdrake: "Smash", Starwyrm: "Burn", Scarlune: "Burn", Voltwing: "Gust", Sirocco: "Gust", Whiteout: "Freeze", Wispwyrm: "Wash" };
+const skillOf = kind => { if (!kind) return null; if (SKILL_KIND[kind]) return SKILL_KIND[kind]; const s = SP(kind); return SKILL_OF_LAND[s.land] || "Smash"; };
+const SKL = { spots: null, open: [], msgT: 0, near: null };
+const skSpots = [];
+function skMake(type) {   // the thing in the way, sitting over a chest
+  const g = new THREE.Group(), C = c => new THREE.Color(c).convertSRGBToLinear(), std = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: C(c), roughness: 0.9, flatShading: true }, o || {}));
+  const ob = new THREE.Group(); g.add(ob);
+  if (type === "Burn") { const m = std("#3a4a22"), t = std("#6a5a3a"); for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28 * 3, r = 0.8 + (i % 5) * 0.35;
+      const c = new THREE.Mesh(new THREE.TorusGeometry(0.7 + Math.random() * 0.5, 0.09, 5, 10), i % 3 ? m : t); c.position.set(Math.cos(a) * r, 0.5 + Math.random() * 1.6, Math.sin(a) * r); c.rotation.set(Math.random() * 3, Math.random() * 3, 0); ob.add(c);
+      const th = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.35, 4), t); th.position.copy(c.position).add(new V(0, 0.4, 0)); ob.add(th); } }
+  if (type === "Smash") { const b = new THREE.Mesh(new THREE.DodecahedronGeometry(2.2, 1), std("#8a8278")); b.scale.set(1.1, 0.95, 1); b.position.y = 1.6; ob.add(b);
+      for (let i = 0; i < 6; i++) { const k = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.6, 0.06), std("#2a2420")); k.position.set(Math.cos(i) * 2.0, 1.6 + Math.sin(i * 2) * 0.6, Math.sin(i) * 2.0); k.lookAt(0, 1.6, 0); k.rotateX(1.2); ob.add(k); } }
+  if (type === "Freeze") { const w = new THREE.MeshStandardMaterial({ color: C("#8ad0ff"), transparent: true, opacity: 0.6, roughness: 0.1, emissive: C("#3a8ac0"), emissiveIntensity: 0.3 });
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.3, 7, 12, 1, true), w); col.position.y = 3.5; ob.add(col); ob.userData.spout = col;
+      const pool = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 0.3, 16), w); pool.position.y = 0.15; ob.add(pool); }
+  if (type === "Gust") { const m = new THREE.MeshStandardMaterial({ color: C("#5a6070"), roughness: 1, emissive: C("#1a1e2a"), emissiveIntensity: 0.4 });
+      for (let i = 0; i < 9; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(1 + Math.random() * 0.8, 10, 8), m); s.position.set((Math.random() - 0.5) * 3, 1 + Math.random() * 1.8, (Math.random() - 0.5) * 3); ob.add(s); } }
+  if (type === "Wash") { const m = std("#6a4a2a"); for (let i = 0; i < 7; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(1 + Math.random() * 0.6, 8, 6), m); s.scale.y = 0.6; s.position.set((Math.random() - 0.5) * 2.5, 0.4 + Math.random() * 0.6, (Math.random() - 0.5) * 2.5); ob.add(s); } }
+  if (type === "Grow") { const bark = std("#7a7068"), tr = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 4, 7), bark); tr.position.y = 2; ob.add(tr);
+      for (let i = 0; i < 5; i++) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 2, 5), bark); br.position.set(Math.cos(i * 1.3) * 0.7, 3.4 + (i % 2) * 0.4, Math.sin(i * 1.3) * 0.7); br.rotation.set(Math.sin(i * 1.3) * 0.9, 0, -Math.cos(i * 1.3) * 0.9); ob.add(br); }
+      const leaves = new THREE.Group(); leaves.visible = false; ob.parent.add(leaves); g.userData.leaves = leaves;
+      const lm = std("#5ac04a"), fm = std("#ff9ad0"); for (let i = 0; i < 10; i++) { const l = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9 + Math.random() * 0.4, 0), i % 3 ? lm : fm); l.position.set(Math.cos(i) * 1.3, 4 + Math.sin(i * 3) * 0.7, Math.sin(i) * 1.3); leaves.add(l); }
+      const tr2 = tr.clone(); tr2.material = std("#6a4a2a"); leaves.add(tr2); }
+  // the chest: hidden under or behind the obstacle (the tree keeps standing; its chest sits at the roots)
+  const chest = new THREE.Group(), wood = std("#8a5a2a"), gold = std("#e8b84a", { metalness: 0.6, roughness: 0.4 });
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.8), wood); box.position.y = 0.35; chest.add(box);
+  const lid = new THREE.Group(); lid.position.set(0, 0.7, -0.4); chest.add(lid);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.2, 10, 1, false, 0, Math.PI), wood); top.rotation.z = Math.PI / 2; top.position.z = 0.4; lid.add(top);
+  [-0.45, 0.45].forEach(x => { const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.72, 0.84), gold); b.position.set(x, 0.35, 0); chest.add(b); });
+  chest.visible = false; g.add(chest); if (type === "Grow") chest.position.set(1.6, 0, 0.6);
+  g.userData = Object.assign(g.userData, { ob, chest, lid });
+  return g;
+}
+function skSetup(saved) {
+  if (SKL.spots) return;
+  if (saved && Array.isArray(saved) && saved.length) SKL.spots = saved;
+  else { SKL.spots = []; Object.entries(SKILL).forEach(([type, k]) => k.lands.forEach(land => { const p = wildSpot(land, type === "Wash" || type === "Freeze"); if (p) SKL.spots.push([type, land, +p.x.toFixed(1), +p.y.toFixed(2), +p.z.toFixed(1)]); })); }
+  SKL.spots.forEach((s, i) => {
+    const g = skMake(s[0]); g.position.set(s[2], s[3], s[4]); g.rotation.y = i * 1.7; g.scale.setScalar(1.5); scene.add(g);
+    const sp = { i, type: s[0], land: s[1], x: s[2], y: s[3], z: s[4], g, done: SKL.open.includes(i), t: 0 };
+    if (sp.done) skCleared(sp, true);
+    sp.paid = SKL.open.includes(-1 - i); if (sp.paid) g.userData.lid.rotation.x = -1.9;
+    skSpots.push(sp);
+  });
+}
+function skCleared(sp, now) {
+  const u = sp.g.userData; u.chest.visible = true;
+  if (sp.type === "Grow") { u.leaves.visible = true; u.ob.visible = false; }
+  else if (sp.type === "Freeze") { u.ob.userData.spout.material = new THREE.MeshStandardMaterial({ color: new THREE.Color("#e8f6ff").convertSRGBToLinear(), roughness: 0.2, metalness: 0.1 }); u.ob.userData.spout.scale.y = 0.35; u.ob.userData.spout.position.y = 1.2; u.chest.position.set(2.8, 0, 0); }
+  else if (now) u.ob.visible = false; else sp.t = 0.001;   // shrinks away
+}
+function skUse() {
+  const sp = SKL.near; if (!sp || sp.done || sp.t) return false;
+  const k = SKILL[sp.type], mine = skillOf(pet.kind);
+  if (mine !== sp.type) { toast(`${pet.name} can't ${k.verb}`, `This needs ${k.need}. ${pet.name}'s skill is ${mine}.`); return true; }
+  for (let n = 0; n < 14; n++) burstAt(sp.x + (Math.random() - 0.5) * 4, sp.y + Math.random() * 4, sp.z + (Math.random() - 0.5) * 4, k.col);
+  sp.done = true; if (!SKL.open.includes(sp.i)) SKL.open.push(sp.i);
+  toast(`${pet.name} used ${sp.type}!`, { Burn: "The brambles burn away... there's a chest!", Smash: "CRACK! The boulder breaks... there's a chest inside!", Freeze: "The geyser freezes solid... there's a chest behind it!",
+    Gust: "WHOOSH! The storm cloud blows away... there's a chest!", Wash: "The mud washes away... there's a chest!", Grow: "The old tree bursts into leaves and flowers... and drops a chest!" }[sp.type]);
+  skCleared(sp, false); writeSave(); return true;
+}
+function skReward(sp) {
+  sp.paid = true; let msg = "";
+  const c = 60 + Math.floor(Math.random() * 100); coins += c; showCoins(); msg = `+${c} coins`;
+  const r = Math.random(), notOwned = ACCESSORIES.filter(a => !WARD.own.includes(a.name));
+  if (r < 0.4 && notOwned.length) { const a = notOwned[Math.floor(Math.random() * notOwned.length)]; WARD.own.push(a.name); msg += ` and a ${a.name}! (wear it at your nest)`; }
+  else if (r < 0.65 && bag.length < BAG_MAX) { const kind = randomKind(Math.random() < 0.75 ? "Rare" : "Epic"); bag.push(kind); msg += ` and a ${SP(kind).rarity} egg!`; }
+  else { coins += 50; showCoins(); msg = `+${c + 50} coins!`; }
+  SKL.open.push(-1 - sp.i); toast("Treasure!", msg); sp.g.userData.lid.rotation.x = -1.9; SKL.paidN = (SKL.paidN || 0) + 1; writeSave();
+}
+function updateSkills(dt) {
+  if (!started) return;
+  if (!SKL.spots) skSetup(null);
+  SKL.msgT -= dt; SKL.near = null;
+  const rid = state === "ride", who = rid ? pet : me;
+  for (const sp of skSpots) {
+    if (sp.t > 0) { sp.t += dt; const k = Math.max(0, 1 - sp.t * 1.2); sp.g.userData.ob.scale.setScalar(Math.max(0.001, k)); if (k <= 0) { sp.t = 0; sp.g.userData.ob.visible = false; } }
+    if (sp.type === "Freeze" && !sp.done) { const s = sp.g.userData.ob.userData.spout; s.scale.y = 0.8 + Math.sin(T * 6 + sp.i) * 0.2; s.position.y = 3.5 * s.scale.y; }
+    const d = Math.hypot(who.x - sp.x, who.z - sp.z); if (d > 9 || Math.abs(who.y - sp.y) > 12) continue;
+    if (sp.done) { if (d < 5 && !sp.paid && !sp.t) { skReward(sp); } continue; }
+    SKL.near = sp;
+    if (SKL.msgT <= 0) { SKL.msgT = 12; const k = SKILL[sp.type];
+      if (rid && skillOf(pet.kind) === sp.type) toast(`Press F: ${pet.name} can ${k.verb}!`, "Something is hidden here...");
+      else toast({ Burn: "Thick thorny brambles...", Smash: "A huge cracked boulder...", Freeze: "A hot geyser blasts out of the ground...", Gust: "A dark little storm cloud sits here and won't move...", Wash: "A big pile of sticky mud...", Grow: "An old withered tree..." }[sp.type],
+        `Something is hidden here. ${k.need[0].toUpperCase() + k.need.slice(1)} could ${k.verb}${rid ? "" : " (ride it here and press F)"}.`); }
+  }
+}
+addEventListener("keydown", e => { if (e.code === "KeyF" && !e.repeat && started && !uiOpen && state === "ride") skUse(); });
+const skillSave = () => ({ spots: SKL.spots, open: SKL.open });
+function skillLoad(d) { SKL.open = Array.isArray(d.open) ? d.open : []; skSetup(d.spots); }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
