@@ -2642,10 +2642,11 @@ function applySave(d) {
   }
 }
 // ---- the home screen (Petra): your partner dragon flies behind the title; Continue, New game, Save slots, How to play, Settings; a random tip ----
-const SET = { mouse: 1, invert: false, shadows: true, keys: true };
+const SET = { mouse: 1, invert: false, shadows: true, keys: true, music: 0.5, sfx: 0.7 };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("wyrmwild-settings") || "{}")); } catch (e) {}
 function applySettings() {
   sun.castShadow = !!SET.shadows; $("keys").style.display = SET.keys ? "" : "none";
+  if (typeof auVolume === "function") auVolume();
   try { localStorage.setItem("wyrmwild-settings", JSON.stringify(SET)); } catch (e) {}
 }
 applySettings();
@@ -2769,10 +2770,14 @@ function showPane(which, msg) {
       <p>Your game saves by itself. Visit your nest to heal, swap dragons and dress them up.</p>`;
   } else if (which === "set") {
     body.innerHTML = `<h3>Settings</h3>
+      <label class="setRow"><span>Music</span><input type="range" id="sMusic" min="0" max="1" step="0.05" value="${SET.music}"></label>
+      <label class="setRow"><span>Sounds</span><input type="range" id="sSfx" min="0" max="1" step="0.05" value="${SET.sfx}"></label>
       <label class="setRow"><span>Mouse speed</span><input type="range" id="sMouse" min="0.4" max="2" step="0.1" value="${SET.mouse}"></label>
       <label class="setRow"><span>Flip looking up and down</span><input type="checkbox" id="sInv" ${SET.invert ? "checked" : ""}></label>
       <label class="setRow"><span>Shadows (turn off if the game is slow)</span><input type="checkbox" id="sShadow" ${SET.shadows ? "checked" : ""}></label>
       <label class="setRow"><span>Show the controls bar</span><input type="checkbox" id="sKeys" ${SET.keys ? "checked" : ""}></label>`;
+    $("sMusic").oninput = e => { SET.music = +e.target.value; applySettings(); };
+    $("sSfx").oninput = e => { SET.sfx = +e.target.value; applySettings(); };
     $("sMouse").oninput = e => { SET.mouse = +e.target.value; applySettings(); };
     $("sInv").onchange = e => { SET.invert = e.target.checked; applySettings(); };
     $("sShadow").onchange = e => { SET.shadows = e.target.checked; applySettings(); };
@@ -7117,6 +7122,147 @@ addEventListener("keydown", e => {   // B opens and closes the book
   if (!uiOpen && menuEl.hidden) dragonBook(false);
 });
 (function () { const k = $("keys"); if (k) { const s = document.createElement("span"); s.innerHTML = "<kbd>B</kbd> book"; k.insertBefore(s, $("rideKeys")); } })();
+
+// ================= music and sounds (Petra's extras, 2026-11-09) =================
+// Everything is made live with Web Audio (no sound files): calm music that changes with the land and the time of day,
+// fight music when monsters are on you, and little sounds for claws, breath, hits, eggs, coins and level-ups.
+// Volumes are in Settings on the home screen (SET.music, SET.sfx).
+var AU = { ctx: null, music: null, sfx: null, verb: null, next: 0, step: 0, theme: "", chord: 0, mel: 0, coins: null };
+function auStart() {
+  if (AU.ctx) { if (AU.ctx.state === "suspended") AU.ctx.resume(); return; }
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+  const ctx = AU.ctx = new C();
+  AU.master = ctx.createDynamicsCompressor(); AU.master.connect(ctx.destination);
+  AU.music = ctx.createGain(); AU.sfx = ctx.createGain(); AU.music.connect(AU.master); AU.sfx.connect(AU.master);
+  // a soft echo-y room for the music (a made-up reverb from fading noise)
+  const len = ctx.sampleRate * 2.4, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  AU.verb = ctx.createConvolver(); AU.verb.buffer = ir; const vg = ctx.createGain(); vg.gain.value = 0.55; AU.verb.connect(vg); vg.connect(AU.music);
+  AU.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const nd = AU.noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  auVolume(); AU.next = ctx.currentTime + 0.2;
+  setInterval(auTick, 100);
+}
+// AU is a var because the settings call auVolume() before this file has loaded
+function auVolume() { if (!AU || !AU.ctx) return; AU.music.gain.value = 0.8 * SET.music; AU.sfx.gain.value = 1.4 * SET.sfx; }
+["pointerdown", "keydown"].forEach(ev => addEventListener(ev, auStart, { capture: true }));
+const hz = n => 440 * Math.pow(2, (n - 69) / 12);   // MIDI note number -> frequency
+
+// ---- one note: a soft synth voice ----
+function voice(t, note, dur, o) {
+  const ctx = AU.ctx, osc = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+  osc.type = o.wave || "triangle"; osc.frequency.value = hz(note); if (o.detune) osc.detune.value = o.detune;
+  f.type = "lowpass"; f.frequency.value = o.cut || 2400; f.Q.value = 0.5;
+  const v = o.vol || 0.2, a = o.att || 0.01;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + a);
+  if (o.pad) { g.gain.setValueAtTime(v, t + dur - 0.6); g.gain.linearRampToValueAtTime(0, t + dur); }
+  else g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  osc.connect(f); f.connect(g); g.connect(o.out || AU.music); if (o.wet) g.connect(AU.verb);
+  osc.start(t); osc.stop(t + dur + 0.05);
+}
+function hit(t, kind, vol, out) {   // drums made of noise and a falling sine
+  const ctx = AU.ctx;
+  if (kind === "kick") { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(out || AU.music); o.start(t); o.stop(t + 0.3); return; }
+  const s = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter(); s.buffer = AU.noise;
+  f.type = kind === "hat" ? "highpass" : "bandpass"; f.frequency.value = kind === "hat" ? 7000 : 1800;
+  const d = kind === "hat" ? 0.05 : 0.16; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+  s.connect(f); f.connect(g); g.connect(out || AU.music); s.start(t, Math.random() * 0.5); s.stop(t + d + 0.02);
+}
+
+// ---- the music for each land: a scale, a speed and an instrument ----
+const MAJ = [0, 2, 4, 7, 9], MIN = [0, 3, 5, 7, 10], DARK = [0, 1, 5, 7, 8], LYD = [0, 2, 4, 6, 7, 9, 11], DOR = [0, 2, 3, 7, 9];
+const THEMES = {
+  "Green Valley": { root: 60, sc: MAJ, bpm: 84, wave: "triangle", chords: [0, 5, 3, 4], note: 0.55 },
+  "Village":      { root: 62, sc: MAJ, bpm: 100, wave: "square", cut: 1600, chords: [0, 3, 4, 0], note: 0.7 },
+  "Fire Mountain":{ root: 57, sc: DARK, bpm: 76, wave: "sawtooth", cut: 900, chords: [0, 1, 0, 5], note: 0.45 },
+  "Frost Peaks":  { root: 69, sc: MAJ, bpm: 66, wave: "sine", bell: true, chords: [0, 4, 5, 3], note: 0.4 },
+  "Deep Forest":  { root: 59, sc: DOR, bpm: 72, wave: "triangle", chords: [0, 3, 0, 4], note: 0.5 },
+  "Desert":       { root: 58, sc: DARK, bpm: 90, wave: "triangle", chords: [0, 1, 0, 1], note: 0.6 },
+  "Crystal Caves":{ root: 64, sc: LYD, bpm: 60, wave: "sine", bell: true, chords: [0, 2, 0, 5], note: 0.35 },
+  "Sky Islands":  { root: 67, sc: LYD, bpm: 70, wave: "sine", chords: [0, 4, 1, 5], note: 0.45 },
+  "Ocean":        { root: 62, sc: MAJ, bpm: 64, wave: "sine", chords: [0, 3, 5, 4], note: 0.4 },
+  title:          { root: 62, sc: MAJ, bpm: 72, wave: "triangle", chords: [0, 5, 3, 4], note: 0.5 },
+  fight:          { root: 57, sc: MIN, bpm: 138, wave: "sawtooth", cut: 1400, chords: [0, 0, 5, 6], note: 0.8, drums: true },
+  boss:           { root: 52, sc: DARK, bpm: 120, wave: "sawtooth", cut: 1100, chords: [0, 1, 0, 6], note: 0.75, drums: true },
+};
+const fightNow = () => state === "arena" || (state === "ride" && mons.some(m => m.aggro && !m.dead));
+function auTheme() {
+  if (!started) return "title";
+  if (fightNow()) return mons.some(m => m.aggro && !m.dead && (m.d.boss || m.d.titan)) ? "boss" : "fight";
+  return THEMES[landNow] ? landNow : "Green Valley";
+}
+const scNote = (th, deg) => { const n = th.sc.length, o = Math.floor(deg / n); return th.root + th.sc[((deg % n) + n) % n] + 12 * o; };
+function auTick() {
+  const ctx = AU.ctx; if (!ctx || ctx.state !== "running") return;
+  const want = auTheme();
+  if (want !== AU.theme) { AU.theme = want; AU.step = 0; AU.next = Math.max(AU.next, ctx.currentTime + 0.05); }
+  const th = THEMES[AU.theme], night = started && typeof isNight !== "undefined" && isNight && !th.drums;
+  const beat = 60 / (th.bpm * (night ? 0.85 : 1)) / 2;   // eighth notes
+  while (AU.next < ctx.currentTime + 0.4) {
+    const t = AU.next, s = AU.step % 32, bar = Math.floor(AU.step / 8) % 4, ch = th.chords[bar];
+    if (SET.music > 0) {
+      // a soft chord at the start of every bar
+      if (s % 8 === 0) [0, 2, 4].forEach((k, i) => voice(t, scNote(th, ch + k) - 12, beat * 8, { wave: "sine", vol: 0.05, att: 0.4, pad: true, wet: true, detune: i * 4 - 4, cut: night ? 800 : 1400 }));
+      // bass
+      if (s % 8 === 0 || (th.drums && s % 2 === 0)) voice(t, scNote(th, ch) - 24, beat * (th.drums ? 1.6 : 6), { wave: th.drums ? "sawtooth" : "triangle", vol: th.drums ? 0.09 : 0.11, cut: 500 });
+      // the tune: a gentle wander up and down the scale
+      if (Math.random() < th.note * (night ? 0.6 : 1) && (th.drums || s % 2 === 0)) {
+        AU.mel = Math.max(-2, Math.min(9, AU.mel + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
+        if (s % 8 === 0) AU.mel = ch + [0, 2, 4][Math.floor(Math.random() * 3)];
+        voice(t, scNote(th, AU.mel) + (th.bell ? 12 : 0), th.bell ? 1.6 : beat * 2.2, { wave: th.wave, vol: th.bell ? 0.07 : 0.08, cut: th.cut || 2400, wet: true });
+      }
+      if (th.drums) { if (s % 4 === 0) hit(t, "kick", 0.35); if (s % 8 === 4) hit(t, "snare", 0.12); hit(t, "hat", s % 2 ? 0.02 : 0.04); }
+    }
+    AU.next += beat; AU.step++;
+  }
+}
+
+// ---- sound effects ----
+function sfx(name) {
+  const ctx = AU.ctx; if (!ctx || ctx.state !== "running" || SET.sfx <= 0) return;
+  const t = ctx.currentTime, out = AU.sfx;
+  const whoosh = (dur, f0, f1, vol, q = 1) => { const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = AU.noise;
+    f.type = "bandpass"; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.2); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(out); s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.05); };
+  const notes = (ns, gap, o) => ns.forEach((n, i) => voice(t + i * gap, n, o.dur || 0.35, Object.assign({ out }, o)));
+  switch (name) {
+    case "claw": whoosh(0.16, 3000, 900, 0.5, 2); break;
+    case "breath": whoosh(0.7, 400, 2200, 0.55, 0.7); whoosh(0.6, 200, 600, 0.35, 0.5); break;
+    case "hitMon": hit(t, "kick", 0.5, out); whoosh(0.08, 1500, 600, 0.3, 3); break;
+    case "crit": hit(t, "kick", 0.6, out); notes([84, 91], 0.05, { wave: "square", vol: 0.06, dur: 0.15 }); break;
+    case "hurt": hit(t, "kick", 0.55, out); notes([52, 47], 0.07, { wave: "sawtooth", vol: 0.07, dur: 0.2, cut: 900 }); break;
+    case "dodge": whoosh(0.22, 800, 3500, 0.35, 1.5); break;
+    case "monAtk": whoosh(0.3, 300, 120, 0.4, 1); break;
+    case "kill": notes([72, 76, 79], 0.07, { wave: "triangle", vol: 0.1, dur: 0.3 }); break;
+    case "egg": notes([76, 81, 84, 88], 0.08, { wave: "sine", vol: 0.12, dur: 0.6, wet: true }); break;
+    case "hatch": notes([72, 76, 79, 84, 88, 91], 0.09, { wave: "triangle", vol: 0.1, dur: 0.8 }); break;
+    case "crack": hit(t, "snare", 0.35, out); break;
+    case "level": notes([67, 72, 76, 79, 84], 0.1, { wave: "square", vol: 0.07, dur: 0.4, cut: 3000 }); voice(t + 0.5, 88, 0.9, { wave: "triangle", vol: 0.1, out }); break;
+    case "coin": notes([88, 95], 0.06, { wave: "square", vol: 0.05, dur: 0.18, cut: 5000 }); break;
+    case "faint": notes([67, 63, 60, 55], 0.18, { wave: "triangle", vol: 0.1, dur: 0.5 }); break;
+    case "ride": whoosh(0.5, 300, 900, 0.4, 0.6); break;
+    case "click": voice(t, 84, 0.06, { wave: "sine", vol: 0.05, out }); break;
+  }
+}
+// hook the sounds onto what already happens in the game
+(function () {
+  const _claw = clawAttack; clawAttack = function () { const cd = clawCd; _claw.apply(this, arguments); if (clawCd > cd) sfx("claw"); };
+  const _breath = breathAttack; breathAttack = function () { const cd = breathCd; _breath.apply(this, arguments); if (breathCd > cd) sfx("breath"); };
+  const _dodge = dodge; dodge = function () { const d = dodgeT; _dodge.apply(this, arguments); if (dodgeT > d) sfx("dodge"); };
+  const _dmg = damageMon; damageMon = function (m, dmg, crit) { sfx(crit ? "crit" : "hitMon"); return _dmg.apply(this, arguments); };
+  const _hurt = hurtPet; hurtPet = function () { const h = petHp(); const r = _hurt.apply(this, arguments); if (petHp() < h) sfx("hurt"); return r; };
+  const _atk = monAttack; monAttack = function () { sfx("monAtk"); return _atk.apply(this, arguments); };
+  const _kill = killMon; killMon = function () { sfx("kill"); return _kill.apply(this, arguments); };
+  const _faint = faint; faint = function () { sfx("faint"); return _faint.apply(this, arguments); };
+  const _xp = addXp; addXp = function () { const r = _xp.apply(this, arguments); if (r) setTimeout(() => sfx("level"), 350); return r; };
+  const _pick = pickWild; pickWild = function () { const n = bag.length; const r = _pick.apply(this, arguments); if (bag.length > n) sfx("egg"); return r; };
+  const _hatch = hatchEgg; hatchEgg = function () { sfx("crack"); return _hatch.apply(this, arguments); };
+  const _ride = ride; ride = function () { const s = state; const r = _ride.apply(this, arguments); if (state !== s) sfx("ride"); return r; };
+  const _coins = showCoins; showCoins = function () { if (AU.coins !== null && coins > AU.coins) sfx("coin"); AU.coins = coins; return _coins.apply(this, arguments); };
+  $("nameOk").addEventListener("click", () => sfx("hatch"));
+  menuEl.addEventListener("click", e => { if (e.target.closest("button")) sfx("click"); });
+})();
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
