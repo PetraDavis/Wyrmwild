@@ -104,6 +104,9 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 #menu .choices { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
 #menu .choices button { text-align: left; width: 100%; }
 #menu .choices kbd { margin-right: 6px; }
+#menu .choices.tabs { flex-direction: row; flex-wrap: wrap; }
+#menu .choices.tabs button { width: auto; padding: 6px 12px; opacity: 0.75; }
+#menu .choices.tabs button[aria-pressed="true"] { opacity: 1; box-shadow: 0 0 0 2px #fff inset; }
 #menu .statbox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 4px; }
 #menu .statbox div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 6px 9px; display: flex; flex-direction: column; }
 #menu .statbox span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
@@ -2305,8 +2308,8 @@ function makePerson(o) {
     { name: "Gorran", title: "Quest Master", topics: [{ label: "Show me the quest board", fn: "quests" }, { label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
       "The quest board is right outside. Pick a job, any job! Well, one job at a time.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
       "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
-    { name: "Mae", title: "Shopkeeper", topics: [{ label: "What will you sell?", say: ["Saddles, hats, scarves, capes... and a Bubble Charm so your dragon can breathe underwater! Soon!", "Dragon treats! The crunchy kind. And accessories. Lots of accessories."] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
-      "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling.", "I'm saving a shelf for dragon treats. They'll be the crunchy kind.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Hats, saddles, scarves... soon, I promise!", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
+    { name: "Mae", title: "Shopkeeper", topics: [{ label: "Let me see the shop", fn: "shop" }, { label: "What do you sell?", say: ["Hats, scarves, saddles, capes... thirty-two things to wear! And a Bubble Charm so your dragon can swim under the sea.", "Dragon treats! The crunchy kind. They heal, too.", "Each dragon keeps its own outfit. Dress them up at your nest!"] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
+      "Welcome! Have a look around. Everything's dragon-sized!", "Saddles, hats, scarves... everything a dragon could want!", "No haggling! ...Okay, a little haggling.", "Dragon treats are the crunchy kind. Dragons love crunchy.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Try the Bubble Charm! Your dragon can swim under the sea with it.", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
     { name: "Professor Hazel", title: "Dragonologist", hazel: true, topics: [{ label: "Tell me about my dragon", fn: "hazelPet" }, { label: "Can I see your dragon books?", fn: "books" }], home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
       "Dark backs, pale bellies! From above they blend into the ground, from below into the sky. Clever, clever dragons.",
       "Ice dragons have huge paws, like snowshoes. They spread the weight so they don't sink. I measured one. It stepped on my notebook.",
@@ -2478,7 +2481,7 @@ let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
 function setKind(kind, shiny) {
   const vis = dragon.root.visible; scene.remove(dragon.root);
-  dragon = buildDragon(kind, shiny, pet.gear); dragon.root.visible = vis; scene.add(dragon.root); pet.kind = SP(kind).name; pet.shiny = shiny || null;
+  dragon = buildDragon(kind, shiny, pet.gear); dressDragon(dragon, pet.acc); dragon.root.visible = vis; scene.add(dragon.root); pet.kind = SP(kind).name; pet.shiny = shiny || null;
 }
 function setEggKind(kind) {
   eggKind = SP(kind).name; const pal = SP(eggKind).pal;
@@ -2565,8 +2568,8 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0]), wildWait,
-    shen: shenSave(), quest: questSave(),
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0]), wildWait,
+    shen: shenSave(), quest: questSave(), shop: shopSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
@@ -2581,6 +2584,7 @@ function applySave(d) {
   if (d.wildWait) Object.assign(wildWait, d.wildWait);
   if (d.shen) shenLoad(d.shen);
   if (d.quest) questLoad(d.quest);
+  if (d.shop) shopLoad(d.shop);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k)));
@@ -2590,7 +2594,7 @@ function applySave(d) {
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
-    pet.gear = d.pet.gear || null; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
+    pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
     Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
     state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
     goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
@@ -2681,6 +2685,7 @@ function npcDialog(n, say) {
       if (t.fn === "books") return bookShelf(n);
       if (t.fn === "quests") return questBoard();
       if (t.fn === "forge") return forgeMenu(n);
+      if (t.fn === "shop") return shopMenu(n);
       if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
       const pool = t.say || t.lines.map(k => n.lines[k]);
       npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
@@ -2926,12 +2931,12 @@ function frame() {
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
-      pet.y = Math.min(230, Math.max(Math.max(ground, waterTop(pet.x, pet.z)), pet.y + vy * dt));
+      pet.y = Math.min(230, Math.max(Math.max(ground, petWater()), pet.y + vy * dt));
       // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
-      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, waterTop(pet.x, pet.z)) < 3) pet.y = Math.max(ground, waterTop(pet.x, pet.z));
+      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, petWater()) < 3) pet.y = Math.max(ground, petWater());
       const ceil = ceilingAt(pet.x, pet.z, pet.y); if (pet.y > ceil - 2.5) pet.y = ceil - 2.5;
-      if (pet.y > Math.max(ground, waterTop(pet.x, pet.z)) + 0.6) pet.fly = true;
-      if (pet.fly && pet.y <= Math.max(ground, waterTop(pet.x, pet.z)) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
+      if (pet.y > Math.max(ground, petWater()) + 0.6) pet.fly = true;
+      if (pet.fly && pet.y <= Math.max(ground, petWater()) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
       pet.bank += ((pet.fly ? -ix * 0.45 : 0) - pet.bank) * Math.min(1, dt * 4);
       pet.pitch += ((pet.dive ? -1.0 : pet.fly ? vy * 0.025 : slopePitch()) - pet.pitch) * Math.min(1, dt * (pet.fly ? 4 : 6));
       walkAmt = pet.fly ? 0 : Math.min(1, Math.abs(pet.speed) / 8);
@@ -2992,6 +2997,7 @@ function frame() {
   updateMonsters(dt);
   updateShen(dt);
   updateQuest(dt);
+  animDragonAcc(dragon, T);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -3022,6 +3028,7 @@ function frame() {
   updateDay(dt, focus);
   hemi.intensity *= 1 - caveDim * 0.7; sun.intensity *= 1 - caveDim * 0.92;   // the caves are dark, even at noon
   updateEvents(dt);
+  underwaterFx(dt);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   if (window.__camOverride) window.__camOverride(camera);   // test hook only
   renderer.render(scene, camera);
@@ -3375,23 +3382,25 @@ function nestMenu() {
   const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
+    <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
   [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
   menuAct = (a, i) => {
     if (state !== "grown") return;
     if (a === "glim") return glimMenu();
+    if (a === "dress") return wardrobeMenu();
     if (a === "hatch") { const kind = bag.splice(i, 1)[0]; toPen(); closeMenu(); hatchEgg(kind); }
     if (a === "swap") { const d = pen.splice(i, 1)[0]; toPen(); takeOut(d); closeMenu(); }
   };
 }
-function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null }); }
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null }); }
 function takeOut(d) {
-  pet.gear = d.gear || null; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
+  pet.gear = d.gear || null; pet.acc = d.acc || null; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
   pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = "grown";
   petLabel("grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
 function hatchEgg(kind) {
-  pet.gear = null;
+  pet.gear = null; pet.acc = null;
   setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
   egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
   egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
@@ -5919,6 +5928,7 @@ const SHEN_ITEMS = [
   ["Dragon Insurance", 20, "Your dragons are fully insured. Trust me"],
   ["Speed Saddle", 50, "Your dragon flies faster. Zoom zoom"],
   ["Shiny Polish", 25, "Makes your dragon sparkle"],
+  ["Accessory Crate", 40, "Something nice for your dragon to wear. Probably"],
   ["Moldy Egg", 15, "Ew. Probably rotten"],
   ["Shiny Egg", 70, "Super rare. Totally worth it"],
 ];
@@ -6054,6 +6064,9 @@ function shenGive(n, box) {
     case "Egg Swap": { const j = Math.floor(Math.random() * bag.length); bag[j] = rollKind(landNow); return "Swapped! A brand new egg is in your backpack."; }
     case "Golden Coin": SHN.cursed = true; SHN.curse = 15; return "A Golden Coin! Double coins from fights. Lucky you. Heh heh.";
     case "Treasure Map": return shenMap() ? "X marks the spot! Look for the X somewhere in this land." : "The map is all smudged. Can't read it. Oh well.";
+    case "Accessory Crate": { const left = ACCESSORIES.filter(a => !WARD.own.includes(a.name));
+      if (!left.length) { coins += 25; showCoins(); return "The crate had... 25 coins in it. You already have everything else. Heh."; }
+      const a = left[Math.floor(Math.random() * left.length)]; WARD.own.push(a.name); return `A ${a.name}! Put it on your dragon at the nest.`; }
     case "Dragon Insurance": return "Your dragons are now fully insured. Trust me. I'll take care of it.";
     case "Speed Saddle": SHN.saddle = true; return "A Speed Saddle! Your dragon flies faster now. Zoom zoom. Heh.";
     case "Shiny Polish": { const real = SHN.polish ? SHN.polish.real : pet.shiny; let t = rollShiny(); setKind(pet.kind, t); SHN.polish = { real, t: 120 + Math.random() * 90 };
@@ -6295,6 +6308,275 @@ function forgeMenu(n, msg) {
     forgeMenu(n, nx === 4 ? HAMM.star : HAMM.done[Math.floor(Math.random() * HAMM.done.length)]);
   };
 }
+
+// ================= accessories: things a dragon can wear =================
+// Each one is built in the space of its socket: x = forward, y = up, z = side.
+// head: the head group (top of the head is about y 0.25); neck/back/tail: the body there (r = body radius).
+const ACC_MAT = {};
+function accMat(c, o = {}) {
+  const k = c + JSON.stringify(o); if (ACC_MAT[k]) return ACC_MAT[k];
+  const m = new THREE.MeshStandardMaterial(Object.assign({ color: new THREE.Color(c).convertSRGBToLinear(), roughness: 0.5, metalness: 0 }, o));
+  if (o.emissive) m.emissive = new THREE.Color(o.emissive).convertSRGBToLinear();
+  return (ACC_MAT[k] = m);
+}
+const GOLD = () => accMat("#f2c84a", { metalness: 0.8, roughness: 0.25 }), SILVER = () => accMat("#d8dde4", { metalness: 0.85, roughness: 0.2 });
+function mk(g, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; g.add(m); return m; }
+function ringAround(g, r, tube, mat, x = 0, scaleY = 1) { const t = mk(g, new THREE.TorusGeometry(r, tube, 10, 32), mat, x, 0, 0, 0, Math.PI / 2, 0); t.scale.set(1, scaleY, 1); return t; }
+function gem(g, c, x, y, z, s = 0.04) { return mk(g, new THREE.OctahedronGeometry(s, 0), accMat(c, { emissive: c, emissiveIntensity: 0.5, roughness: 0.1 }), x, y, z); }
+
+// a sheet of cloth or metal that wraps round the body (socket space: x forward, y up, z side).
+// u runs from the front edge (x0) back L; t runs across, from one side over the top (or under the belly) to the other.
+function wrapGeo(R, L, span, o = {}) {
+  const NU = 14, NT = 26, pos = [], idx = [], dir = o.under ? -1 : 1;
+  for (let i = 0; i <= NU; i++) for (let j = 0; j <= NT; j++) {
+    const u = i / NU, t = j / NT * 2 - 1, th = t * span / 2, rr = R * (1 + (o.flare || 0) * u);
+    const lim = o.drape || 9, a = Math.min(Math.abs(th), lim), over = Math.max(0, Math.abs(th) - lim);
+    const hang = o.round ? (0.3 + 0.7 * Math.sin(Math.min(1, u * 1.6) * Math.PI / 2)) * (1 - 0.55 * Math.max(0, (u - 0.75) / 0.25) ** 2) : 1;   // round: short at the shoulders and back corners, longest in the middle
+    let y = Math.cos(a) * rr - over * rr * (1 + (o.longer || 0) * u) * hang, z = Math.sin(a) * rr * Math.sign(th) * (o.zk || 0.9);
+    const wave = (o.waves || 0) * rr * Math.sin(t * 9 + u * 2) * u * u;
+    pos.push((o.x0 || 0) - u * L + wave * 0.6, y * dir, z + wave * Math.sign(th) * 0.3);
+  }
+  for (let i = 0; i < NU; i++) for (let j = 0; j < NT; j++) { const a = i * (NT + 1) + j, b = a + NT + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+
+const ACCESSORIES = [
+  // ---------- head ----------
+  { name: "Bow", slot: "head", desc: "A big red bow between the horns", build() { const g = new THREE.Group(), m = accMat("#e83a5a");
+    [1, -1].forEach(s => { const l = mk(g, new THREE.SphereGeometry(0.11, 14, 10), m, -0.05, 0.3, 0.1 * s); l.scale.set(0.6, 1, 1.4); l.rotation.x = s * 0.5; });
+    mk(g, new THREE.SphereGeometry(0.05, 10, 8), m, -0.05, 0.3, 0); return g; } },
+  { name: "Goggles", slot: "head", desc: "Flying goggles for wind and bugs", build() { const g = new THREE.Group();
+    [1, -1].forEach(s => { const r = mk(g, new THREE.TorusGeometry(0.1, 0.03, 10, 24), accMat("#8a5a2a"), 0.27, 0.15, 0.27 * s); r.rotation.y = s * 0.5;
+      const l = mk(g, new THREE.SphereGeometry(0.095, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), accMat("#6ad0ff", { transparent: true, opacity: 0.7, roughness: 0.05, metalness: 0.5 }), 0.27, 0.15, 0.27 * s); l.rotation.set(s * Math.PI / 2, 0, 0); l.rotation.y = s * 0.5; l.scale.set(1, 0.35, 1); });
+    const strap = mk(g, new THREE.TorusGeometry(0.3, 0.02, 6, 32), accMat("#5a3a1a"), 0.0, 0.15, 0, Math.PI / 2, 0, 0); strap.scale.set(1.0, 0.95, 1); return g; } },
+  { name: "Wizard hat", slot: "head", desc: "Tall, pointy and full of stars", build() { const g = new THREE.Group(), m = accMat("#3a3ab0");
+    mk(g, new THREE.CylinderGeometry(0.3, 0.3, 0.025, 28), m, -0.05, 0.27, 0);
+    const c = mk(g, new THREE.ConeGeometry(0.17, 0.55, 20), m, -0.1, 0.55, 0, 0, 0, 0.3);
+    for (let i = 0; i < 6; i++) gem(g, "#ffe04a", -0.05 - Math.random() * 0.12, 0.35 + i * 0.07, (Math.random() - 0.5) * 0.25, 0.022); return g; } },
+  { name: "Crown", slot: "head", desc: "Gold with red and blue gems", build() { const g = new THREE.Group();
+    mk(g, new THREE.CylinderGeometry(0.15, 0.14, 0.09, 20, 1, true), Object.assign(GOLD().clone(), { side: THREE.DoubleSide }), -0.04, 0.32, 0);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mk(g, new THREE.ConeGeometry(0.03, 0.08, 6), GOLD(), -0.04 + Math.cos(a) * 0.145, 0.4, Math.sin(a) * 0.145); gem(g, i % 2 ? "#3a6aff" : "#ff3a4a", -0.04 + Math.cos(a) * 0.15, 0.32, Math.sin(a) * 0.15, 0.025); } return g; } },
+  { name: "Party hat", slot: "head", desc: "Striped cone with a fluffy pom-pom", build() { const g = new THREE.Group();
+    const c = mk(g, new THREE.ConeGeometry(0.11, 0.32, 16), accMat("#ff6ab0"), 0, 0.43, 0, 0, 0, -0.2);
+    [0.33, 0.43, 0.52].forEach((y, i) => mk(g, new THREE.TorusGeometry(0.1 - i * 0.03, 0.012, 6, 18), accMat("#ffe04a"), 0.01 + i * 0.015, y, 0, Math.PI / 2, 0, -0.2));
+    mk(g, new THREE.SphereGeometry(0.045, 10, 8), accMat("#ffffff", { roughness: 1 }), 0.035, 0.6, 0); return g; } },
+  { name: "Top hat", slot: "head", desc: "Very fancy. Very tall.", build() { const g = new THREE.Group(), m = accMat("#1a1a1e", { roughness: 0.35 });
+    mk(g, new THREE.CylinderGeometry(0.22, 0.22, 0.02, 24), m, -0.04, 0.29, 0); mk(g, new THREE.CylinderGeometry(0.13, 0.13, 0.28, 24), m, -0.04, 0.44, 0);
+    mk(g, new THREE.CylinderGeometry(0.132, 0.132, 0.05, 24), accMat("#c8323a"), -0.04, 0.33, 0); return g; } },
+  { name: "Flower", slot: "head", desc: "A pink flower tucked behind an ear", build() { const g = new THREE.Group();
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const p = mk(g, new THREE.SphereGeometry(0.05, 10, 8), accMat("#ff8ad0"), -0.08, 0.24 + Math.sin(a) * 0.06, 0.24 + Math.cos(a) * 0.06); p.scale.set(0.4, 1, 1); }
+    mk(g, new THREE.SphereGeometry(0.035, 10, 8), accMat("#ffd84a"), -0.06, 0.24, 0.24); return g; } },
+  { name: "Viking helmet", slot: "head", desc: "Metal helmet with two big horns", build() { const g = new THREE.Group();
+    mk(g, new THREE.SphereGeometry(0.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), SILVER(), -0.04, 0.2, 0);
+    ringAround(g, 0.2, 0.025, accMat("#8a5a2a"), 0).position.set(-0.04, 0.21, 0); g.children[1].rotation.set(Math.PI / 2, 0, 0);
+    [1, -1].forEach(s => { const h = mk(g, new THREE.ConeGeometry(0.05, 0.28, 12), accMat("#f4ecd8"), -0.04, 0.38, 0.2 * s, s * -0.7, 0, 0); }); return g; } },
+  { name: "Halo", slot: "head", desc: "A glowing ring that floats above", build() { const g = new THREE.Group();
+    mk(g, new THREE.TorusGeometry(0.16, 0.022, 10, 36), accMat("#fff2a0", { emissive: "#ffe060", emissiveIntensity: 1.6 }), -0.05, 0.55, 0, Math.PI / 2, 0, 0); g.userData.spin = 1; return g; } },
+  { name: "Pirate hat", slot: "head", desc: "Arr! Black with a white skull", build() { const g = new THREE.Group(), m = accMat("#1e1a1a");
+    const b = mk(g, new THREE.CylinderGeometry(0.2, 0.22, 0.14, 3), m, -0.05, 0.34, 0, 0, Math.PI / 6, 0); b.scale.set(1.3, 1, 1);
+    mk(g, new THREE.SphereGeometry(0.035, 10, 8), accMat("#f4f0e8"), 0.08, 0.36, 0); return g; } },
+  { name: "Cowboy hat", slot: "head", desc: "Wide brim for sunny rides", build() { const g = new THREE.Group(), m = accMat("#a8743a", { roughness: 0.8 });
+    const br = mk(g, new THREE.CylinderGeometry(0.3, 0.3, 0.025, 28), m, -0.05, 0.29, 0); br.scale.set(1, 1, 0.85);
+    mk(g, new THREE.CylinderGeometry(0.12, 0.14, 0.17, 20), m, -0.05, 0.38, 0); mk(g, new THREE.CylinderGeometry(0.142, 0.142, 0.03, 20), accMat("#4a2a14"), -0.05, 0.32, 0); return g; } },
+  { name: "Bunny ears", slot: "head", desc: "Fluffy pink-and-white ears", build() { const g = new THREE.Group();
+    [1, -1].forEach(s => { const e = mk(g, new THREE.SphereGeometry(0.06, 12, 10), accMat("#ffffff", { roughness: 1 }), -0.06, 0.45, 0.09 * s, s * 0.2, 0, 0.15); e.scale.set(0.6, 3.2, 1);
+      const i = mk(g, new THREE.SphereGeometry(0.035, 10, 8), accMat("#ffb0d0"), -0.025, 0.45, 0.09 * s, s * 0.2, 0, 0.15); i.scale.set(0.4, 4, 1); }); return g; } },
+  { name: "Headphones", slot: "head", desc: "For dragons who like music", build() { const g = new THREE.Group();
+    mk(g, new THREE.TorusGeometry(0.33, 0.035, 8, 24, Math.PI), accMat("#2a2a32"), -0.04, 0.08, 0, 0, Math.PI / 2, 0);
+    [1, -1].forEach(s => mk(g, new THREE.CylinderGeometry(0.12, 0.12, 0.08, 20), accMat("#3a8aff"), -0.04, 0.08, 0.33 * s, Math.PI / 2, 0, 0)); return g; } },
+  { name: "Sunglasses", slot: "head", desc: "Too cool for the arena", build() { const g = new THREE.Group(), m = accMat("#101014", { roughness: 0.1, metalness: 0.5 });
+    [1, -1].forEach(s => { const l = mk(g, new THREE.BoxGeometry(0.03, 0.1, 0.16), m, 0.3, 0.13, 0.25 * s); l.rotation.y = s * 0.45; });
+    mk(g, new THREE.BoxGeometry(0.03, 0.025, 0.22), m, 0.36, 0.16, 0); [1, -1].forEach(s => mk(g, new THREE.BoxGeometry(0.4, 0.02, 0.02), m, 0.1, 0.15, 0.3 * s)); return g; } },
+  { name: "Tiara", slot: "head", desc: "Sparkly silver with a pink gem", build() { const g = new THREE.Group(), m = SILVER();
+    // a thin silver band curving round the front of the head, with points that rise to a tall middle one
+    const pts = []; for (let i = 0; i <= 12; i++) { const a = -1.35 + i / 12 * 2.7; pts.push(new THREE.Vector3(-0.06 + Math.cos(a) * 0.13, 0.25, Math.sin(a) * 0.14)); }
+    mk(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.011, 6), m);
+    [-1.0, -0.5, 0, 0.5, 1.0].forEach(a => { const h = a === 0 ? 0.11 : Math.abs(a) < 0.7 ? 0.075 : 0.05;
+      const c = mk(g, new THREE.ConeGeometry(0.018 + h * 0.12, h, 4), m, -0.06 + Math.cos(a) * 0.13, 0.25 + h / 2, Math.sin(a) * 0.14); c.rotation.set(-Math.sin(a) * 0.25, 0, -0.2);
+      gem(g, a === 0 ? "#ff5ab0" : "#ffd0ea", -0.06 + Math.cos(a) * 0.135, 0.26 + (a === 0 ? 0.035 : 0.012), Math.sin(a) * 0.145, a === 0 ? 0.03 : 0.013); });
+    return g; } },
+  { name: "Chef hat", slot: "head", desc: "For dragons who cook with their breath", build() { const g = new THREE.Group(), m = accMat("#ffffff", { roughness: 0.9 });
+    mk(g, new THREE.CylinderGeometry(0.13, 0.13, 0.12, 20), m, -0.05, 0.33, 0); [[0, 0], [0.07, 0.06], [-0.07, -0.05], [0.04, -0.08], [-0.05, 0.08]].forEach(([a, b]) => mk(g, new THREE.SphereGeometry(0.1, 12, 10), m, -0.05 + a, 0.45, b)); return g; } },
+  { name: "Flower crown", slot: "head", desc: "A ring of little flowers", build() { const g = new THREE.Group(), cols = ["#ff8ad0", "#ffe04a", "#8ad0ff", "#ffffff", "#c88aff"];
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; mk(g, new THREE.SphereGeometry(0.035, 8, 6), accMat(cols[i % 5]), -0.05 + Math.cos(a) * 0.17, 0.27, Math.sin(a) * 0.17); }
+    mk(g, new THREE.TorusGeometry(0.17, 0.012, 6, 30), accMat("#4a9a3a"), -0.05, 0.26, 0, Math.PI / 2, 0, 0); return g; } },
+  // ---------- neck ----------
+  { name: "Scarf", slot: "neck", desc: "A warm red scarf for cold flights", build(r) { const g = new THREE.Group(), m = accMat("#d83a3a", { roughness: 0.9 });
+    ringAround(g, r * 1.05, r * 0.3, m); const tail = mk(g, new THREE.BoxGeometry(0.08, r * 1.6, r * 0.5), m, -0.05, r * 0.2, r * 1.0, 0.25, 0, 0.35);
+    [0.25, 0.55].forEach(k => mk(g, new THREE.BoxGeometry(0.085, r * 0.12, r * 0.52), accMat("#ffffff", { roughness: 0.9 }), -0.05, r * (0.2 - k), r * 1.0, 0.25, 0, 0.35)); return g; } },
+  { name: "Bell collar", slot: "neck", desc: "Jingles when it walks", build(r) { const g = new THREE.Group();
+    ringAround(g, r * 1.05, r * 0.16, accMat("#3a6ad8")); const b = mk(g, new THREE.SphereGeometry(r * 0.25, 14, 10), GOLD(), 0, -r * 1.2, 0); return g; } },
+  { name: "Necklace", slot: "neck", desc: "Pearls with a big blue gem", build(r) { const g = new THREE.Group();
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; mk(g, new THREE.SphereGeometry(r * 0.13, 8, 6), accMat("#f4f0ea", { roughness: 0.2 }), 0, Math.cos(a) * r * 1.05, Math.sin(a) * r * 1.05); }
+    gem(g, "#3a8aff", 0, -r * 1.22, 0, r * 0.2); return g; } },
+  { name: "Bow tie", slot: "neck", desc: "Black and very proper", build(r) { const g = new THREE.Group(), m = accMat("#1a1a1e");
+    [1, -1].forEach(s => { const w = mk(g, new THREE.ConeGeometry(r * 0.25, r * 0.45, 4), m, 0, -r * 1.05, s * r * 0.22, Math.PI / 2 * s, 0, 0); });
+    mk(g, new THREE.SphereGeometry(r * 0.1, 8, 6), m, 0, -r * 1.05, 0); return g; } },
+  { name: "Medal", slot: "neck", desc: "A gold medal on a ribbon (for winners)", build(r) { const g = new THREE.Group();
+    ringAround(g, r * 1.02, r * 0.06, accMat("#c8323a")); const m = mk(g, new THREE.CylinderGeometry(r * 0.24, r * 0.24, 0.03, 20), GOLD(), r * 0.15, -r * 1.25, 0, 0, 0, Math.PI / 2);
+    gem(g, "#ffffff", r * 0.17, -r * 1.25, 0, r * 0.08); return g; } },
+  // ---------- back ----------
+  { name: "Saddle", slot: "back", wrap: true, hide: [0.42, 0.7], desc: "Leather saddle so riding is comfy", build(r) { const g = new THREE.Group(), R = r * 1.12;
+    // a red blanket with gold edges, the brown leather seat on top, a horn in front, a padded back rest and stirrups
+    const ds = { side: THREE.DoubleSide };
+    mk(g, wrapGeo(R, r * 1.7, 2.3, { x0: r * 0.85 }), accMat("#a82a32", { ...ds, roughness: 0.9 }));
+    [r * 0.85, -r * 0.85].forEach(x0 => mk(g, wrapGeo(R * 1.01, r * 0.1, 2.32, { x0: x0 + r * 0.05 }), accMat("#e8c050", { ...ds, metalness: 0.6, roughness: 0.3 })));
+    const leather = accMat("#6a3e1e", { ...ds, roughness: 0.6 });
+    mk(g, wrapGeo(R * 1.05, r * 1.05, 1.5, { x0: r * 0.52 }), leather);
+    const horn = mk(g, new THREE.CylinderGeometry(r * 0.07, r * 0.11, r * 0.32, 10), leather, r * 0.45, R * 1.15, 0); horn.rotation.z = -0.3;
+    mk(g, new THREE.SphereGeometry(r * 0.1, 10, 8), leather, r * 0.5, R * 1.3, 0);
+    const pad = mk(g, new THREE.SphereGeometry(r * 0.42, 14, 8), leather, -r * 0.45, R * 1.02, 0); pad.scale.set(0.35, 0.55, 1.1);
+    [1, -1].forEach(z => { mk(g, new THREE.BoxGeometry(r * 0.07, r * 0.6, r * 0.03), accMat("#3a2010"), 0, R * 0.25, z * R * 0.84);
+      mk(g, new THREE.TorusGeometry(r * 0.11, r * 0.025, 6, 16), accMat("#c8ccd2", { metalness: 0.8, roughness: 0.3 }), 0, -R * 0.12, z * R * 0.86); });
+    return g; } },
+  { name: "Cape", slot: "back", wrap: true, hide: [0.3, 0.75], desc: "A royal purple cape with gold trim", build(r) { const g = new THREE.Group(), R = r * 1.12, L = r * 3.0;
+    // pinned at the shoulders, it lies over the back and hangs down the sides in soft folds
+    const hinge = new THREE.Group(); hinge.position.set(r * 0.9, 0, 0); g.add(hinge);
+    mk(hinge, wrapGeo(R, L, 4.0, { flare: 0.25, drape: 1.15, longer: 0.9, waves: 0.08, zk: 0.85, round: true }), accMat("#6a2aa8", { side: THREE.DoubleSide, roughness: 0.8 }));
+    mk(hinge, wrapGeo(R * 1.01, r * 0.14, 3.62, { drape: 1.15, x0: r * 0.03 }), accMat("#f2c84a", { side: THREE.DoubleSide, metalness: 0.8, roughness: 0.25 }));
+    [1, -1].forEach(z => gem(hinge, "#ff3a5a", 0, R * Math.cos(1.0), z * R * Math.sin(1.0) * 0.92, r * 0.13));
+    g.userData.cape = hinge; return g; } },
+  { name: "Armor", slot: "chest", wrap: true, desc: "A shiny chest plate for arena fights", build(r) { const g = new THREE.Group(), R = r * 1.15;
+    // a rounded silver breastplate over the front of the chest, with a gold rim and a blue gem crest
+    const plate = new THREE.Group(); plate.rotation.z = -2.45; plate.position.set(r * 0.15, 0, 0); g.add(plate);   // its middle faces forward and down
+    const cap = 1.15, ds = { side: THREE.DoubleSide };
+    mk(plate, new THREE.SphereGeometry(R, 28, 14, 0, Math.PI * 2, 0, cap), accMat("#e4e8ee", { ...ds, metalness: 0.45, roughness: 0.25 })).scale.set(1, 1, 0.92);
+    const rim = mk(plate, new THREE.TorusGeometry(R * Math.sin(cap), r * 0.06, 8, 40), accMat("#f2c84a", { metalness: 0.6, roughness: 0.3 }), 0, R * Math.cos(cap), 0, Math.PI / 2, 0, 0); rim.scale.set(1, 0.92, 1);
+    const ridge = mk(plate, new THREE.TorusGeometry(R * 1.01, r * 0.035, 6, 30, cap * 2), accMat("#f2c84a", { metalness: 0.6, roughness: 0.3 }), 0, 0, 0, 0, 0, Math.PI / 2 - cap);   // a gold line down the middle
+    mk(plate, new THREE.CylinderGeometry(r * 0.24, r * 0.24, r * 0.05, 20), accMat("#f2c84a", { metalness: 0.6, roughness: 0.3 }), 0, R * 1.0, 0);
+    gem(plate, "#3a8aff", 0, R * 1.05, 0, r * 0.13);
+    return g; } },
+  { name: "Backpack", slot: "back", desc: "Room for snacks and eggs", build(r) { const g = new THREE.Group();
+    const b = mk(g, new THREE.BoxGeometry(r * 0.9, r * 0.75, r * 0.9), accMat("#2f8a5a", { roughness: 0.8 }), -r * 0.2, r * 1.25, 0);
+    mk(g, new THREE.BoxGeometry(r * 0.92, r * 0.25, r * 0.6), accMat("#246a46"), -r * 0.2, r * 1.62, 0); mk(g, new THREE.SphereGeometry(r * 0.06, 8, 6), GOLD(), r * 0.27, r * 1.35, 0);
+    [1, -1].forEach(z => mk(g, new THREE.BoxGeometry(r * 0.08, r * 1.6, r * 0.05), accMat("#1a4a30"), -r * 0.2, r * 0.3, z * r * 1.0)); return g; } },
+  { name: "Flag", slot: "back", desc: "Your own banner, flapping in the wind", build(r) { const g = new THREE.Group();
+    mk(g, new THREE.CylinderGeometry(r * 0.05, r * 0.05, r * 4, 8), accMat("#6a4a2a"), -r * 0.3, r * 2.8, 0); mk(g, new THREE.SphereGeometry(r * 0.1, 8, 6), GOLD(), -r * 0.3, r * 4.8, 0);
+    const f = mk(g, new THREE.PlaneGeometry(r * 1.6, r * 1.0, 8, 2), accMat("#ff9a2a", { side: THREE.DoubleSide }), -r * 1.1, r * 4.2, 0); g.userData.wave = f; return g; } },
+  { name: "Lantern", slot: "back", desc: "A glowing lantern for night flights", build(r) { const g = new THREE.Group();
+    mk(g, new THREE.CylinderGeometry(r * 0.04, r * 0.04, r * 1.6, 6), accMat("#3a2a1a"), -r * 0.4, r * 1.6, 0);
+    mk(g, new THREE.BoxGeometry(r * 0.35, r * 0.45, r * 0.35), accMat("#ffd27a", { emissive: "#ffb040", emissiveIntensity: 1.4 }), -r * 0.4, r * 2.55, 0);
+    mk(g, new THREE.ConeGeometry(r * 0.28, r * 0.2, 4), accMat("#3a2a1a"), -r * 0.4, r * 2.88, 0, 0, Math.PI / 4, 0);
+    const l = new THREE.PointLight(0xffb040, 1, 4); l.position.set(-r * 0.4, r * 2.55, 0); g.add(l); return g; } },
+  { name: "Treasure chest", slot: "back", desc: "A tiny chest of coins strapped on", build(r) { const g = new THREE.Group();
+    mk(g, new THREE.BoxGeometry(r * 0.9, r * 0.5, r * 0.7), accMat("#8a5a2a"), 0, r * 1.2, 0);
+    const lid = mk(g, new THREE.CylinderGeometry(r * 0.35, r * 0.35, r * 0.9, 12, 1, false, 0, Math.PI), accMat("#7a4a22"), 0, r * 1.45, 0, 0, 0, Math.PI / 2); lid.rotation.set(0, Math.PI / 2, Math.PI / 2);
+    mk(g, new THREE.BoxGeometry(r * 0.12, r * 0.15, r * 0.1), GOLD(), r * 0.46, r * 1.35, 0);
+    [1, -1].forEach(z => mk(g, new THREE.BoxGeometry(r * 0.08, r * 1.4, r * 0.05), accMat("#4a2a14"), 0, r * 0.4, z * r * 1.02)); return g; } },
+  // ---------- tail ----------
+  { name: "Tail ribbon", slot: "tail", desc: "A pink ribbon tied on the tail", build(r) { const g = new THREE.Group(), m = accMat("#ff6ab0");
+    ringAround(g, r * 1.1, r * 0.18, m); [1, -1].forEach(s => { const l = mk(g, new THREE.BoxGeometry(r * 0.15, r * 1.6, r * 0.5), m, -r * 0.2 * s, -r * 1.3, r * 0.3 * s, 0, 0, s * 0.4); }); return g; } },
+  { name: "Tail rings", slot: "tail", desc: "Three gold rings that clink", build(r) { const g = new THREE.Group(); [-0.6, 0, 0.6].forEach(x => ringAround(g, r * 1.12, r * 0.12, GOLD(), x * r * 2)); return g; } },
+  { name: "Tail bell", slot: "tail", desc: "So everyone hears it coming", build(r) { const g = new THREE.Group();
+    ringAround(g, r * 1.1, r * 0.12, accMat("#c8323a")); mk(g, new THREE.SphereGeometry(r * 0.45, 14, 10), GOLD(), 0, -r * 1.55, 0); return g; } }
+];
+// hats are drawn small: grow them around the top of the head; face things grow around the eyes
+const HAT_K = 1.75, FACE_K = 1.2;
+function fitAccessory(a, g) {
+  if (a.slot !== "head") { const k = a.wrap ? 1 : { neck: 1.15, back: 1.5, tail: 1.2 }[a.slot]; g.scale.setScalar(k); return g; }   // wrap = already sized to the body
+  const face = ["Goggles", "Sunglasses", "Headphones"].includes(a.name), k = face ? FACE_K : HAT_K, piv = face ? new THREE.Vector3(0.1, 0.13, 0) : new THREE.Vector3(-0.04, 0.24, 0);
+  const w = new THREE.Group(); w.add(g); g.scale.setScalar(k); g.position.copy(piv).multiplyScalar(1 - k); w.userData = g.userData; return w;
+}
+// little animations: halos spin, capes and flags wave
+function animAccessory(g, t) {
+  if (g.userData.spin) g.rotation.y = t * 1.2;
+  const w = g.userData.wave; if (w) w.rotation.x = Math.sin(t * 3) * 0.12;
+  const c = g.userData.cape; if (c) c.rotation.z = Math.sin(t * 2.2) * 0.05 - 0.03;   // the cape lifts and falls a little
+}
+
+// ================= Mae's shop: accessories to wear, dragon treats and the Bubble Charm (Petra 2026-11-09) =================
+// Accessories you buy are yours for good (the wardrobe). Each dragon wears its own set: one per slot (head, neck, chest, back, tail).
+// The Bubble Charm lets ANY of your dragons swim under water (you have to buy it to go under; Petra).
+const WARD = { own: [], bubble: false };
+const ACC = n => ACCESSORIES.find(a => a.name === n);
+const ACC_PRICE = { Bow: 30, Flower: 25, "Party hat": 40, Goggles: 60, "Bunny ears": 50, "Chef hat": 50, "Top hat": 70, "Cowboy hat": 70, "Pirate hat": 80, Headphones: 70, Sunglasses: 60,
+  "Wizard hat": 90, "Viking helmet": 100, "Flower crown": 80, Tiara: 130, Crown: 160, Halo: 200,
+  Scarf: 40, "Bell collar": 45, Necklace: 90, "Bow tie": 35, Medal: 80,
+  Saddle: 100, Cape: 110, Armor: 140, Backpack: 70, Flag: 60, Lantern: 75, "Treasure chest": 150,
+  "Tail ribbon": 30, "Tail rings": 60, "Tail bell": 40 };
+const accPrice = n => ACC_PRICE[n] || 60;
+const SLOT_NAME = { head: "Head", neck: "Neck", chest: "Chest", back: "Back", tail: "Tail" };
+const wornOf = () => pet.acc || (pet.acc = {});
+// put the worn things on a freshly built dragon
+function dressDragon(dr, acc) {
+  if (!acc || !dr || !dr.sockets) return;
+  try { dr.update(T, 0, 0, 0.001); } catch (e) {}                       // sets each socket's body size
+  const on = [];
+  for (const slot in acc) {
+    const a = ACC(acc[slot]), s = dr.sockets[slot]; if (!a || !s) continue;
+    const g = fitAccessory(a, a.build(s.userData.r || 0.4)); g.userData.acc = true; s.add(g); on.push(a);
+  }
+  (dr.spikes || []).forEach(m => { m.visible = !on.some(a => a.hide && m.userData.s > a.hide[0] && m.userData.s < a.hide[1]); });   // spikes under a saddle or cape
+}
+function animDragonAcc(dr, t) { if (!dr || !dr.sockets) return; for (const k in dr.sockets) { const s = dr.sockets[k]; if (s) s.children.forEach(c => c.userData.acc && animAccessory(c, t)); } }
+const redress = () => { if (pet.kind) setKind(pet.kind, pet.shiny); };
+
+// ---- the shop ----
+let shopTab = "head";
+function shopMenu(n, msg) {
+  const tabs = ["head", "neck", "chest", "back", "tail", "other"];
+  const tabBar = `<div class="choices tabs">${tabs.map(t => `<button data-act="tab" data-i="${tabs.indexOf(t)}" ${t === shopTab ? 'aria-pressed="true"' : ""}>${t === "other" ? "Treats & charms" : SLOT_NAME[t]}</button>`).join("")}</div>`;
+  const grown = state === "grown", worn = grown ? wornOf() : {};
+  let rows;
+  if (shopTab === "other") {
+    rows = `<div class="sec"><div><b>Bubble Charm</b> · ${WARD.bubble ? "yours!" : "250 coins"}<br><small>A magic bubble lets your dragons swim under water. Hold Q or Ctrl over water to go under</small></div>${WARD.bubble ? "<button disabled>Owned</button>" : `<button data-act="bubble" ${coins < 250 ? "disabled" : ""}>Buy</button>`}</div>
+      <div class="sec"><div><b>Dragon Treat</b> · 15 coins<br><small>Crunchy! Heals your dragon by 40 HP</small></div><button data-act="treat" ${coins < 15 || !hasDragon() ? "disabled" : ""}>Buy</button></div>`;
+  } else {
+    rows = ACCESSORIES.filter(a => a.slot === shopTab).map(a => {
+      const i = ACCESSORIES.indexOf(a), own = WARD.own.includes(a.name), on = worn[a.slot] === a.name;
+      const btn = !own ? `<button data-act="buy" data-i="${i}" ${coins < accPrice(a.name) ? "disabled" : ""}>Buy</button>` : grown ? `<button data-act="wear" data-i="${i}">${on ? "Take off" : "Wear"}</button>` : `<button disabled>Owned</button>`;
+      return `<div class="sec"><div><b>${a.name}</b> · ${own ? (on ? "wearing" : "yours") : accPrice(a.name) + " coins"}<br><small>${a.desc}</small></div>${btn}</div>`;
+    }).join("");
+  }
+  openMenu("Mae's Shop", `<p class="who">Shopkeeper</p><p class="say">${msg || "Welcome! Everything here is dragon-sized."}</p><p>You have <b>${coins}</b> coins.${grown ? ` Trying things on ${pet.name}.` : " Bring a grown-up dragon to try things on."}</p>${tabBar}${rows}`, () => lockMouse());
+  menuAct = (a, i) => {
+    if (a === "tab") { shopTab = tabs[i]; return shopMenu(n, msg); }
+    if (a === "bubble") { if (coins < 250 || WARD.bubble) return; coins -= 250; WARD.bubble = true; showCoins(); writeSave(); return shopMenu(n, "The Bubble Charm! Fly over water and hold Q or Ctrl to dive under. Your dragon can breathe down there. Magic!"); }
+    if (a === "treat") { if (coins < 15) return; coins -= 15; showCoins(); pet.hp = Math.min(petMaxHp(), petHp() + 40); writeSave(); return shopMenu(n, `${pet.name} crunches the treat happily. HP ${pet.hp} / ${petMaxHp()}`); }
+    const acc = ACCESSORIES[i]; if (!acc) return;
+    if (a === "buy") {
+      const p = accPrice(acc.name); if (coins < p || WARD.own.includes(acc.name)) return;
+      coins -= p; WARD.own.push(acc.name); showCoins();
+      if (grown) { wornOf()[acc.slot] = acc.name; redress(); }
+      writeSave(); return shopMenu(n, grown ? `${pet.name} looks great in the ${acc.name}!` : `The ${acc.name} is yours. Put it on your dragon at the nest.`);
+    }
+    if (a === "wear" && grown) { const w = wornOf(); w[acc.slot] = w[acc.slot] === acc.name ? null : acc.name; if (!w[acc.slot]) delete w[acc.slot]; redress(); writeSave(); return shopMenu(n, msg); }
+  };
+}
+// ---- the wardrobe at the nest ----
+function wardrobeMenu() {
+  if (state !== "grown") return;
+  const worn = wornOf(), slots = ["head", "neck", "chest", "back", "tail"];
+  const body = slots.map(sl => {
+    const mine = WARD.own.filter(nm => ACC(nm) && ACC(nm).slot === sl);
+    const btns = mine.map(nm => `<button data-act="wear" data-i="${ACCESSORIES.indexOf(ACC(nm))}" ${worn[sl] === nm ? 'aria-pressed="true"' : ""}>${nm}</button>`).join("");
+    return `<h4>${SLOT_NAME[sl]}${worn[sl] ? ` · wearing ${worn[sl]}` : ""}</h4>${mine.length ? `<div class="choices tabs">${btns}${worn[sl] ? `<button data-act="off" data-i="${slots.indexOf(sl)}">Nothing</button>` : ""}</div>` : "<p><small>Nothing yet. Mae's shop in the village sells these.</small></p>"}`;
+  }).join("");
+  openMenu("Dress up " + pet.name, `<p>Pick what ${pet.name} wears. Every dragon keeps its own outfit.</p>${body}`, () => lockMouse());
+  menuAct = (a, i) => {
+    if (a === "wear") { const acc = ACCESSORIES[i]; worn[acc.slot] = acc.name; }
+    if (a === "off") delete worn[slots[i]];
+    redress(); writeSave(); wardrobeMenu();
+  };
+}
+// ---- the Bubble Charm: water is like air for your dragon; under water the world turns blue ----
+const canSwim = () => WARD.bubble;
+let underAmt = 0, bubbleT = 0;
+function underwaterFx(dt) {
+  const camUnder = camera.position.y < WATER_Y - 0.1 && waterTop(camera.position.x, camera.position.z) > -Infinity;
+  underAmt += ((camUnder ? 1 : 0) - underAmt) * Math.min(1, dt * 4);
+  if (underAmt > 0.01) {
+    scene.fog.color.lerp(new THREE.Color("#1a5a7a"), underAmt);
+    scene.fog.near = 110 - 105 * underAmt; scene.fog.far = 420 - 360 * underAmt;
+  } else if (scene.fog.near !== 110) { scene.fog.near = 110; scene.fog.far = 420; }
+  if (state === "ride" && pet.y < WATER_Y - 0.5 && waterTop(pet.x, pet.z) > -Infinity) {
+    if ((bubbleT -= dt) <= 0) { bubbleT = 0.25; burstAt(pet.x + (Math.random() - 0.5), pet.y + 1.6 * pet.scale, pet.z + (Math.random() - 0.5), "#d8f4ff"); }
+    if (!pet.wasUnder) { pet.wasUnder = true; toast("Splash! Under the water", "The Bubble Charm lets your dragon breathe. Space to swim up"); }
+  } else pet.wasUnder = false;
+}
+const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble });
+function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; }
+function petWater() { return WARD.bubble ? -Infinity : waterTop(pet.x, pet.z); }   // with the Bubble Charm, water is like air for your dragon
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
