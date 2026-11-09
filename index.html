@@ -2972,8 +2972,8 @@ function hatchEgg(kind) {
 }
 
 // ================= wild eggs: eggs turn up out in the lands once you have a dragon (Petra 2026-11-09) =================
-// each land keeps up to 2 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
-const WILD_PER_LAND = 2, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
+// each land keeps up to 3 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
+const WILD_PER_LAND = 3, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
 const WILD_LANDS = ["Green Valley", "Deep Forest", "Crystal Caves", "Desert", "Fire Mountain", "Frost Peaks", "Ocean", "Sky Islands"];
 const WATER_KINDS = new Set(HOME_LAND.Ocean);
 const wild = [];                                          // { kind, land, x, y, z, g }
