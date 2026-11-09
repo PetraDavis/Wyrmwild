@@ -134,7 +134,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
 </div>
 <div id="toast"></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
@@ -909,7 +909,7 @@ function update(t, walk, flap, dt, bend = 0) {
   walkT += dt * 8 * walk;
   legs.forEach((g, i) => {
     const ph = (i === 0 || i === 3) ? 0 : Math.PI;
-    const S = (api && api.sit) || 0, target = (flap ? (i < 2 ? -0.9 : -0.55) : Math.sin(walkT + ph) * 0.45 * walk) * (1 - S) + S * (i < 2 ? SIT_HIND : SIT_FRONT);   // sitting: hind legs fold, front legs stay straight
+    const S = (api && api.sit) || 0, target = (flap ? (i < 2 ? -1.4 : -1.25) : Math.sin(walkT + ph) * 0.45 * walk) * (1 - S) + S * (i < 2 ? SIT_HIND : SIT_FRONT);   // sitting: hind legs fold, front legs stay straight
     g.rotation.z += (target - g.rotation.z) * Math.min(1, dt * 10);
   });
   const tip = frames[0];
@@ -1913,26 +1913,59 @@ const CARVINGS = [];
     m.position.set(x, y + 1.7, z); m.rotation.set(-0.08, ry, (rnd() - 0.5) * 0.12); m.castShadow = true; m.receiveShadow = true; scene.add(m);
     blockers.push({ x, z, r: 1.9 }); CARVINGS.push({ x, z, y: y + 1.7, story, seen: false });
   };
+  // carved INTO a mountainside or cliff (Petra): a flat carved face lying on the steepest rock nearby, edges fading into the stone
+  const slopeAt = (x, z) => { const gx = (height(x + 1, z) - height(x - 1, z)) / 2, gz = (height(x, z + 1) - height(x, z - 1)) / 2; return [Math.hypot(gx, gz), gx, gz]; };
+  function wallTex(i, base) {
+    const t = tabletTex(i, base), src = t.image, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height; const c = cv.getContext("2d");
+    c.drawImage(src, 0, 0);
+    c.globalCompositeOperation = "destination-in";   // soft edges so the carving melts into the rock around it
+    const g1 = c.createRadialGradient(128, 160, 90, 128, 160, 175); g1.addColorStop(0, "rgba(0,0,0,1)"); g1.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g1; c.fillRect(0, 0, cv.width, cv.height);
+    const tt = new THREE.CanvasTexture(cv); tt.encoding = THREE.sRGBEncoding; return tt;
+  }
+  const wallGeo = new THREE.PlaneGeometry(4.2, 5.2, 1, 1);
+  const carveWall = (x, z, story, base) => {
+    const [, gx, gz] = slopeAt(x, z), n = new V(-gx, 1, -gz).normalize(), y = height(x, z);
+    const m = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ map: wallTex(story, base), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    m.position.set(x + n.x * 0.35, y + n.y * 0.35, z + n.z * 0.35); m.lookAt(m.position.x + n.x, m.position.y + n.y, m.position.z + n.z); m.receiveShadow = true; scene.add(m);
+    CARVINGS.push({ x, z, y, story, seen: false });
+  };
+  // no cliff nearby: carve it into the face of a huge half-buried boulder instead
+  const carveRock = (x, z, story, base) => {
+    const y = height(x, z), ry = rnd() * 6.28, rock = new THREE.Mesh(new THREE.DodecahedronGeometry(4.2, 1), new THREE.MeshLambertMaterial({ color: lin(base), flatShading: true }));
+    rock.scale.set(1.25, 1.1, 0.8); rock.position.set(x, y + 1.6, z); rock.rotation.y = ry; rock.castShadow = rock.receiveShadow = true; scene.add(rock);
+    const m = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ map: wallTex(story, base), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    m.scale.setScalar(0.8); m.position.set(x + Math.sin(ry) * 3.45, y + 2.6, z + Math.cos(ry) * 3.45); m.rotation.y = ry; scene.add(m);
+    blockers.push({ x, z, r: 4.6 }); CARVINGS.push({ x, z, y: y + 2, story, seen: false });
+  };
+  const findWall = (b, minD, maxD, ok) => {
+    let best = null, bg = 1.1;
+    for (let k = 0; k < 500; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d;
+      if (!ok(x, z)) continue; const [s] = slopeAt(x, z); if (s > bg && s < 5) {
+        // the face must be smooth enough for a flat carving: the slope a little way around should match
+        const [s2] = slopeAt(x + 1.5, z + 1.5), [s3] = slopeAt(x - 1.5, z - 1.5); if (Math.abs(s2 - s) < 0.6 && Math.abs(s3 - s) < 0.6) { bg = s; best = [x, z]; } } }
+    return best;
+  };
   const SAND = "#c8a878", GREY = "#9a948a", DARK = "#5a4a48", ICE = "#b8c8d4";
   const tryIn = (b, minD, maxD, ok) => { for (let k = 0; k < 80; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d; if (ok(x, z)) return [x, z]; } return null; };
   const dry = (x, z) => height(x, z) > WATER_Y + 1 && waterTop(x, z) === -Infinity;
   const spots = [
-    [{ x: 0, z: 0 }, 35, 110, (x, z) => dry(x, z) && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
-    [{ x: 0, z: 0 }, 35, 110, (x, z) => dry(x, z) && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
-    [FOREST, 15, FOREST.R * 0.7, dry, "#6a7a5a", 3],
-    [FOREST, 15, FOREST.R * 0.7, dry, "#6a7a5a", 2],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 0],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 4],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 5],
-    [CAVES, 10, CAVE_IN * 0.6, dry, "#7a6a8a", 3],
+    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
+    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
+    [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 3],
+    [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 2],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 0],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 4],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 5],
+    [CAVES, 10, CAVE_IN * 1.1, dry, "#7a6a8a", 3],
     [FIRE, 30, FIRE.R * 0.8, (x, z) => height(x, z) > FIRE.LAVA + 2, DARK, 4],
     [FROST, 20, FROST.R * 0.75, dry, ICE, 1],
   ];
-  spots.forEach(([b, a, d, ok, base, story]) => { const s = tryIn(b, a, d, ok); if (s) place(s[0], s[1], height(s[0], s[1]), story, base); });
+  spots.forEach(([b, a, d, ok, base, story]) => { const w = findWall(b, a, d, ok); if (w) return carveWall(w[0], w[1], story, base); const s = tryIn(b, a, d, ok); if (s) carveRock(s[0], s[1], story, base); });
   // Sky Haven: by the old stone watch ring
   { const I = ISLANDS[0], x = I.x + 18, z = I.z - 14; place(x, z, groundAt(x, z, 1000), 6, GREY); }
   // near the Titan bones, a tablet telling of the hunters
-  if (window.__titanBones) { const [bx, bz] = window.__titanBones, x = bx + 22, z = bz + 22; place(x, z, height(x, z), 0, SAND); }
+  if (window.__titanBones) { const [bx, bz] = window.__titanBones, w = findWall({ x: bx, z: bz }, 15, 70, dry); if (w) carveWall(w[0], w[1], 0, SAND); else { const x = bx + 22, z = bz + 22; place(x, z, height(x, z), 0, SAND); } }
   biomeAnims.push((t, px, py, pz) => {
     for (const cv of CARVINGS) if (!cv.seen && Math.abs(py - cv.y) < 12 && Math.hypot(px - cv.x, pz - cv.z) < 7) { cv.seen = true; const [big, small] = STORIES[cv.story]; toast("Old carving: " + big, small); }
   });
@@ -2298,15 +2331,55 @@ function makeTamer() {
 }
 
 // ================= egg =================
-function makeEgg(pal) {
-  const c = document.createElement("canvas"); c.width = 256; c.height = 128; const x = c.getContext("2d");
-  const gr = x.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, pal.belly); gr.addColorStop(1, pal.side);
-  x.fillStyle = gr; x.fillRect(0, 0, 256, 128);
-  for (let i = 0; i < 60; i++) { x.fillStyle = i % 3 ? pal.top : pal.glow; x.beginPath(); x.ellipse(Math.random() * 256, 20 + Math.random() * 100, 4 + Math.random() * 8, 3 + Math.random() * 5, Math.random() * 3, 0, Math.PI * 2); x.fill(); }
+// eggs get fancier with rarity (Petra): Common plain, Uncommon glowing band, Rare glowing cracks,
+// Epic bright veins + sparkles, Legendary gold shimmer + rocking. Secret eggs look plain on purpose.
+function eggTier(rarity) { const t = TIER[rarity] ?? 1; return t >= 7 ? 1 : t; }
+function makeEgg(pal, rarity) {
+  const tier = eggTier(rarity), W = 256, H = 128;
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const ec = document.createElement("canvas"); ec.width = W; ec.height = H; const y = ec.getContext("2d");
+  const gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, pal.belly); gr.addColorStop(1, pal.side);
+  x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  y.fillStyle = tier ? "#1c1c1c" : "#080808"; y.fillRect(0, 0, W, H);   // faint all-over glow (junk: almost none)
+  for (let i = 0; i < 60; i++) { const sx = Math.random() * W, sy = 20 + Math.random() * 100, rx = 4 + Math.random() * 8, ry = 3 + Math.random() * 5, ro = Math.random() * 3, gl = i % 3 === 0;
+    x.fillStyle = gl ? pal.glow : pal.top; x.beginPath(); x.ellipse(sx, sy, rx, ry, ro, 0, Math.PI * 2); x.fill();
+    if (gl && tier >= 1) { y.fillStyle = "#555"; y.beginPath(); y.ellipse(sx, sy, rx, ry, ro, 0, Math.PI * 2); y.fill(); } }
+  const both = (f, col, ecol) => { x.strokeStyle = x.fillStyle = col; y.strokeStyle = y.fillStyle = ecol; f(x); f(y); };
+  if (tier >= 2) both(k => { k.fillRect(0, 58, W, 9); }, pal.glow, "#ffffff");                       // glowing band
+  if (tier >= 3) {                                                                                   // glowing cracks
+    const n = tier >= 4 ? 12 : 6, lw = tier >= 4 ? 4.2 : 2.2;
+    for (let i = 0; i < n; i++) { let px = Math.random() * W, py = Math.random() < 0.5 ? 10 + Math.random() * 40 : 75 + Math.random() * 45; const pts = [[px, py]];
+      for (let s = 0; s < 5; s++) { px += (Math.random() - 0.5) * 34; py += (Math.random() - 0.5) * 22; pts.push([px, py]); }
+      both(k => { k.lineWidth = lw; k.lineJoin = "round"; k.beginPath(); pts.forEach(([a, b], j) => j ? k.lineTo(a, b) : k.moveTo(a, b)); k.stroke(); }, pal.glow, "#ffffff"); }
+  }
+  if (tier >= 5) {                                                                                   // golden shimmer
+    for (let i = 0; i < 140; i++) { const sx = Math.random() * W, sy = Math.random() * H, s = 1 + Math.random() * 2.5;
+      both(k => { k.fillRect(sx, sy, s, s); }, "#ffe28a", "#ffe28a"); }
+    both(k => { k.fillRect(0, 54, W, 3); k.fillRect(0, 68, W, 3); }, "#ffd04a", "#ffd04a");
+  }
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 18), new THREE.MeshStandardMaterial({ map: t, roughness: 0.45, emissive: new THREE.Color(pal.glow), emissiveIntensity: 0.12 }));
+  const et = new THREE.CanvasTexture(ec); et.encoding = THREE.sRGBEncoding;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 18), new THREE.MeshStandardMaterial({ map: t, emissiveMap: et,
+    roughness: Math.max(0.15, 0.5 - tier * 0.07), metalness: tier >= 5 ? 0.35 : tier >= 3 ? 0.15 : 0.02,
+    emissive: new THREE.Color(pal.glow).convertSRGBToLinear(), emissiveIntensity: [0.25, 0.5, 0.75, 0.95, 1.15, 1.3, 1.3][Math.min(6, Math.floor(tier))] }));
+  m.material.userData.lin = true;
   m.scale.set(1, 1.3, 1); m.castShadow = true;
+  eggDecor(m, pal, tier);
   return m;
+}
+// sparkles that circle Epic and Legendary eggs
+function eggDecor(m, pal, tier) {
+  const old = m.getObjectByName("decor"); if (old) m.remove(old);
+  m.userData.tier = tier; if (tier < 4) return;
+  const d = new THREE.Group(); d.name = "decor"; m.add(d);
+  const n = tier >= 5 ? 10 : 6, mat = new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(tier >= 5 ? "#ffe28a" : pal.glow).convertSRGBToLinear(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < n; i++) { const s = new THREE.Sprite(mat); s.scale.setScalar(0.16); s.userData = { a: i / n * Math.PI * 2, h: (Math.random() - 0.5) * 0.7, r: 0.62 + Math.random() * 0.15, sp: 0.6 + Math.random() * 0.6 }; d.add(s); }
+  tickEgg(m, 0, false);
+}
+function tickEgg(m, t, rock) {
+  const d = m.getObjectByName("decor");
+  if (d) d.children.forEach((s, i) => { const u = s.userData, a = u.a + t * u.sp; s.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 2 + i) * 0.08, Math.sin(a) * u.r); s.material.opacity = 0.6 + 0.4 * Math.sin(t * 4 + i); });
+  if (rock && m.userData.tier >= 5) m.rotation.z = Math.sin(t * 2.2) * 0.12 * (Math.sin(t * 0.7) > 0.3 ? 1 : 0.2);   // legendary eggs wobble now and then
 }
 
 // ================= game state =================
@@ -2329,7 +2402,7 @@ const tamer = makeTamer(); scene.add(tamer.g);
 const me = { x: 4, z: 6, y: 0, face: -2.3, vy: 0, walk: 0 };
 let camYaw = -2.3, camPitch = 0.32, camDist = 9;
 let state = "find"; // find -> carry -> hatching -> name -> baby -> grown -> ride
-const egg = makeEgg(SP(eggKind).pal); scene.add(egg);
+const egg = makeEgg(SP(eggKind).pal, SP(eggKind).rarity); scene.add(egg);
 let eggSpot = (function () {
   for (let i = 0; i < 400; i++) {
     const a = Math.random() * Math.PI * 2, d = 65 + Math.random() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -2349,7 +2422,7 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
   const seen = new Set();
   scene.traverse(o => {
     const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
-    ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
+    ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
 function buildDragon(kind) { const s = SP(kind); return makeDragon(s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); }
@@ -2361,7 +2434,7 @@ function setKind(kind) {
 }
 function setEggKind(kind) {
   eggKind = SP(kind).name; const pal = SP(eggKind).pal;
-  egg.material = makeEgg(pal).material; beam.material.color.set(pal.glow); eggLight.color.set(pal.glow);
+  const ne = makeEgg(pal, SP(eggKind).rarity); egg.material = ne.material; eggDecor(egg, pal, ne.userData.tier); beam.material.color.set(pal.glow); eggLight.color.set(pal.glow);
 }
 const pet = { lastFace: 0, turnRate: 0, x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
 let hatchT = 0, lastShift = -9;
@@ -2521,6 +2594,7 @@ function hazelPet() {
 }
 // ----- talking with choices (villagers with topics), and Professor Hazel's bookshelf -----
 const HAZEL_BOOKS = [
+  { t: "Hazel's Field Guide (dragon stats)", guide: true, p: ["Every dragon I have studied, with its strength at level 1. HP is how much it can take. Claw and Breath are how hard it hits. Walk and Fly are its speed, out of 5. Each level adds more!"] },
   { t: "Wings of the World", p: ["Every land shapes its dragons' wings. Sky dragons grow long, thin wings for gliding. Forest dragons grow broad, round wings to twist between trees.",
     "Water dragons have fin wings, half wing and half flipper. Fire dragons have glowing cracks that let the heat out. And one beetle-like dragon hides its wings under a shell. Nobody knows why!"] },
   { t: "Why Is It Glowing?", p: ["Almost every dragon glows a little at night. My best guess: long ago, the dark was the only safe time to be out, so dragons learned to find each other by light.",
@@ -2564,9 +2638,15 @@ function bookShelf(n) {
   menuEl._dlg = ch;
   menuAct = (a, i) => { if (a === "back") npcDialog(n, "Find anything interesting?"); else if (a === "book") readBook(n, i); };
 }
+function fieldGuide() {
+  const order = ["Junk", "Common", "Uncommon", "Rare", "Epic", "Champion", "Legendary"];
+  const rows = SPECIES.filter(s => order.includes(s.rarity)).sort((a, b) => order.indexOf(a.rarity) - order.indexOf(b.rarity))
+    .map(s => `<tr><td><b>${s.name}</b><br><small>${s.rarity}${EVENT_KIND(s) ? " · event" : ""}</small></td><td><small>${s.land || s.home}</small></td><td>${s.stats.hp}</td><td>${s.stats.claw[0]}-${s.stats.claw[1]}</td><td>${s.stats.breath[0]}-${s.stats.breath[1]}</td><td>${s.walk}</td><td>${s.fly || "-"}</td></tr>`).join("");
+  return `<table class="guide"><thead><tr><th>Dragon</th><th>Home</th><th>HP</th><th>Claw</th><th>Breath</th><th>Walk</th><th>Fly</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
 function readBook(n, i) {
   const b = HAZEL_BOOKS[i], ch = [["Back to the shelf", "shelf", 0], ["Goodbye", "bye", 0]];
-  openMenu(b.t, `<p class="who">from Professor Hazel's bookshelf</p>${b.p.map(x => `<p>${x}</p>`).join("")}<div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  openMenu(b.t, `<p class="who">from Professor Hazel's bookshelf</p>${b.p.map(x => `<p>${x}</p>`).join("")}${b.guide ? fieldGuide() : ""}<div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
   menuEl._dlg = ch;
   menuAct = a => { if (a === "shelf") bookShelf(n); else closeMenu(); };
 }
@@ -2703,6 +2783,8 @@ function frame() {
       moveCircle(me, d.x * sp, d.z * sp, 0.45);
       me.face = angLerp(me.face, Math.atan2(d.z, d.x), Math.min(1, dt * 12)); moving = true;
     }
+    // Space = jump (only from the ground)
+    if (keys.Space && !uiOpen && me.y <= groundAt(me.x, me.z, me.y) + 0.06 && !(me.vy > 0)) { me.y += 0.06; me.vy = 9.5; }
     fall(me, dt);
     me.walk += moving ? dt * (run ? 13 : 9) : 0;
     const sw = moving ? Math.sin(me.walk) * 0.7 : 0;
@@ -2715,11 +2797,11 @@ function frame() {
 
   // ---- egg ----
   if (state === "find") {
-    egg.position.y = eggSpot.y + 0.55 + Math.sin(T * 2) * 0.05; egg.rotation.y += dt * 0.6;
+    egg.position.y = eggSpot.y + 0.55 + Math.sin(T * 2) * 0.05; egg.rotation.y += dt * 0.6; tickEgg(egg, T, true);
     beam.material.opacity = 0.16 + Math.sin(T * 2.5) * 0.06;
     prompt(near(me.x, me.z, eggSpot.x, eggSpot.z, 2.6) ? "Press <kbd>E</kbd> to pick up the egg" : "");
   } else if (state === "carry") {
-    tmp.set(0.55, 1.15, 0); tamer.g.localToWorld(tmp); egg.position.copy(tmp); egg.rotation.y = -me.face;
+    tmp.set(0.55, 1.15, 0); tamer.g.localToWorld(tmp); egg.position.copy(tmp); tickEgg(egg, T, false); egg.rotation.y = -me.face;
     prompt(near(me.x, me.z, 0, 0, 4.5) ? "Press <kbd>E</kbd> to put the egg in the nest" : "");
   } else if (state === "hatching") {
     hatchT += dt;
@@ -2901,7 +2983,7 @@ function slopePitch() {
   return Math.max(-0.6, Math.min(0.6, Math.atan2(Math.max(hf, WATER_Y) - Math.max(hb, WATER_Y), 2 * L)));
 }
 // a soft round dot for sparkles (plain points would be squares)
-let _dot = null;
+var _dot = _dot || null;   // var: eggs made early in loading also use this
 function dotTex() {
   if (_dot) return _dot;
   const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d");
@@ -3219,8 +3301,13 @@ function arenaCamera(dt) {
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
   const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}</div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
-  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>
+  const st = petStats(), sp = SP(pet.kind);
+  const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
+    <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
+    <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
+  const penStat = d => { const s = statsAt(d.kind, d.level || 1); return `HP ${s.hp} · Claw ${s.claw[0]}-${s.claw[1]} · Breath ${s.breath[0]}-${s.breath[1]}`; };
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
   [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
   menuAct = (a, i) => {
@@ -3290,8 +3377,7 @@ function wildKind(land) {
 }
 function addWild(kind, land, p) {
   const g = new THREE.Group(); g.position.copy(p);
-  const e = makeEgg(SP(kind).pal); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
-  e.material.emissive.convertSRGBToLinear(); e.material.emissiveIntensity = 0.25;
+  const e = makeEgg(SP(kind).pal, SP(kind).rarity); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
   // a soft glow and a short shimmer so you can spot it from a little way off
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(2.4, 2.4, 1); glow.position.y = 0.55; g.add(glow);
@@ -3313,7 +3399,7 @@ function updateWild(dt) {
     w.g.visible = show && Math.hypot(w.x - me.x, w.z - me.z) < 260;
     if (!w.g.visible) return;
     const u = w.g.userData;
-    u.e.position.y = 0.5 + Math.sin(T * 2 + u.ph) * 0.05; u.e.rotation.y += dt * 0.5;
+    u.e.position.y = 0.5 + Math.sin(T * 2 + u.ph) * 0.05; u.e.rotation.y += dt * 0.5; tickEgg(u.e, T + u.ph, true);
     u.glow.material.opacity = 0.35 + 0.2 * Math.sin(T * 2.5 + u.ph) + nightAmt * 0.3;
     u.sh.material.opacity = 0.08 + 0.05 * Math.sin(T * 2 + u.ph) + nightAmt * 0.08;
   });
