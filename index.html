@@ -120,6 +120,15 @@ body.home #where, body.home #arrow, body.home #keys, body.home #toast, body.home
 #menu h2 { font-family: var(--display); font-size: 2rem; margin: 0 0 6px; }
 #menu h4 { margin: 14px 0 4px; color: var(--ember); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; }
 #menu p { margin: 6px 0; line-height: 1.45; }
+#menu .dexGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin: 10px 0; }
+#menu .dexCard { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 8px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); cursor: pointer; }
+#menu .dexCard:disabled { cursor: default; opacity: 1; }
+#menu .dexCard img { width: 100%; aspect-ratio: 3 / 2; object-fit: contain; }
+#menu .dexCard b { font-size: 0.85rem; } #menu .dexCard small { font-size: 0.72rem; font-weight: 700; }
+#menu .dexCard.unknown b { color: var(--muted); }
+#menu .dexCount .bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,0.12); overflow: hidden; margin-top: 6px; }
+#menu .dexCount .bar i { display: block; height: 100%; background: var(--ember); }
+#menu .dexBig img { width: 100%; max-width: 384px; display: block; margin: 0 auto; aspect-ratio: 3 / 2; }
 #menu .who { color: var(--accent, #f0a040); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-top: -2px; }
 #menu .say { font-size: 1.08rem; }
 #menu .choices { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
@@ -2752,6 +2761,7 @@ function showPane(which, msg) {
       <dt><kbd>E</kbd></dt><dd>Pick up, talk, use</dd>
       <dt><kbd>R</kbd></dt><dd>Ride your grown-up dragon, or get off</dd>
       <dt><kbd>C</kbd></dt><dd>Tell your dragon to sit</dd>
+      <dt><kbd>B</kbd></dt><dd>Open your Dragon Book</dd>
       <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
       <dt>Left click</dt><dd>Claw attack (while riding)</dd>
       <dt>Right click</dt><dd>Breath attack (needs a few seconds to recharge)</dd>
@@ -3545,10 +3555,12 @@ function nestMenu() {
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" && !pet.small ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
     <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
+    <div class="sec"><div><b>Dragon Book</b><br><small>Every kind of dragon you've hatched (or press B anywhere)</small></div><button data-act="book">Open</button></div>
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${penUsed()}/${PEN_MAX})</h4>${pens}`);
   const ok = state === "grown" || (state === "baby" && pet.small), full = penUsed() + (pet.small ? 0.25 : 1) > PEN_MAX;
-  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown")) b.disabled = true; });
+  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (b.dataset.act !== "book" && (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown"))) b.disabled = true; });
   menuAct = (a, i) => {
+    if (a === "book") return dragonBook(true);
     if (!ok) return;
     if (a === "glim") return glimMenu();
     if (a === "dress") return wardrobeMenu();
@@ -7022,6 +7034,89 @@ MOVES["Stone Titan"] = {
 };
 const secSave = () => ({ open: SEC.open, beat: SEC.beat });
 function secLoad(d) { SEC.beat = !!d.beat; if (d.open && !SEC.open) openChamber(true); }
+
+// ================= the Dragon Book (Petra's extras, 2026-11-09) =================
+// Every kind of dragon gets a page. Kinds you've hatched show their picture and facts; the rest are dark silhouettes with "???".
+// The counter only counts the normal kinds. SECRET RULE: the secret dragons never get a page (or a silhouette, or a count)
+// unless you've hatched one yourself, and then they sit at the very end, uncounted.
+const BOOK_COL = { Junk: "#9a8a7a", Common: "#c8d0d8", Uncommon: "#6ad06a", Rare: "#5aa8ff", Epic: "#c07aff", Champion: "#ff8a5a", Legendary: "#ffd04a", Secret: "#e8e8ff" };
+const bookHidden = s => s.rarity === "Secret" || s.rarity === "Boss";
+const bookKnown = () => {   // everything you've hatched, plus the dragons you have now (old saves didn't keep a list)
+  const k = new Set(DEX); if (pet.kind && hasDragon()) k.add(pet.kind); pen.forEach(d => d.kind && k.add(d.kind)); return k;
+};
+const bookPic = {};
+let bookRT = null, bookScene = null, bookCam = null, bookQueue = [];
+function bookRender(kind, dark) {
+  const W = 288, H = 192;
+  if (!bookRT) {
+    bookRT = new THREE.WebGLRenderTarget(W, H); bookRT.texture.encoding = THREE.sRGBEncoding;
+    bookScene = new THREE.Scene(); bookCam = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
+    bookScene.add(new THREE.HemisphereLight("#ffffff", "#5a4a3a", 1.1));
+    const d = new THREE.DirectionalLight("#fff2dc", 1.1); d.position.set(3, 6, 5); bookScene.add(d);
+  }
+  const dr = buildDragon(kind); try { dr.update(T, 0, 0, 0.001); } catch (e) {}
+  bookScene.add(dr.root); dr.root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(dr.root), c = box.getCenter(new V()), sz = box.getSize(new V());
+  const span = Math.max(sz.x, sz.y * 1.5, sz.z) * 1.05, dist = span / (2 * Math.tan(15 * Math.PI / 180));
+  bookCam.position.copy(c).add(new V(0.45, 0.32, 1).normalize().multiplyScalar(dist)); bookCam.lookAt(c);
+  if (dark) bookScene.overrideMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color("#141a26") });
+  const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+  renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(bookRT); renderer.clear(); renderer.render(bookScene, bookCam); renderer.setRenderTarget(null);
+  renderer.setClearColor(cc, ca);
+  if (bookScene.overrideMaterial) { bookScene.overrideMaterial.dispose(); bookScene.overrideMaterial = null; }
+  const px = new Uint8Array(W * H * 4); renderer.readRenderTargetPixels(bookRT, 0, 0, W, H, px);
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d"), img = g.createImageData(W, H);
+  for (let y = 0; y < H; y++) img.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);   // the picture comes out upside down
+  g.putImageData(img, 0, 0);
+  bookScene.remove(dr.root); dr.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  return cv.toDataURL();
+}
+function bookPump() {   // draws a few pictures per frame so the book opens at once and fills in
+  if (menuEl.hidden || !bookQueue.length) { bookQueue = []; return; }
+  for (let n = 0; n < 3 && bookQueue.length; n++) {
+    const [kind, dark] = bookQueue.shift(), key = kind + (dark ? "#" : "");
+    if (!bookPic[key]) { try { bookPic[key] = bookRender(kind, dark); } catch (e) { bookPic[key] = ""; } }
+    document.querySelectorAll(`img[data-pic="${CSS.escape(key)}"]`).forEach(im => { im.src = bookPic[key]; });
+  }
+  requestAnimationFrame(bookPump);
+}
+function bookOrder(list) { return list.slice().sort((a, b) => (TIER[a.rarity] - TIER[b.rarity]) || a.name.localeCompare(b.name)); }
+function dragonBook(back) {
+  const known = bookKnown();
+  const pages = bookOrder(SPECIES.filter(s => !bookHidden(s)));
+  const extra = bookOrder(SPECIES.filter(s => s.rarity === "Secret" && known.has(s.name)));   // only ones you've hatched
+  const got = pages.filter(s => known.has(s.name)).length;
+  const card = s => { const k = known.has(s.name), key = s.name + (k ? "" : "#");
+    if (!bookPic[key]) bookQueue.push([s.name, !k]);
+    return `<button class="dexCard${k ? "" : " unknown"}" data-act="page" data-i="${SPECIES.indexOf(s)}" ${k ? "" : "disabled"}>
+      <img data-pic="${key}" src="${bookPic[key] || ""}" alt=""><b>${k ? s.name : "???"}</b><small style="color:${BOOK_COL[s.rarity] || "#ccc"}">${s.rarity}</small></button>`; };
+  openMenu("Dragon Book", `<p>${got === pages.length ? "Every page filled in. You're a true dragon expert!" : "Hatch a dragon to fill in its page."}</p>
+    <div class="dexCount"><b>${got}</b> / ${pages.length} dragons discovered<div class="bar"><i style="width:${Math.round(got / pages.length * 100)}%"></i></div></div>
+    <div class="dexGrid">${pages.map(card).join("")}</div>
+    ${extra.length ? `<h4>Pages nobody else has</h4><div class="dexGrid">${extra.map(card).join("")}</div>` : ""}
+    ${back ? `<div class="choices"><button data-act="back">Back to the nest</button></div>` : ""}`, () => lockMouse());
+  menuAct = (a, i) => { if (a === "page") bookPage(SPECIES[i], back); if (a === "back") nestMenu(); };
+  requestAnimationFrame(bookPump);
+}
+function bookPage(s, back) {
+  const st = s.stats || { hp: "?", claw: ["?", "?"], breath: ["?", "?"] };
+  if (!bookPic[s.name]) bookQueue.push([s.name, false]);
+  openMenu(s.name, `<p class="who" style="color:${BOOK_COL[s.rarity] || "#ccc"}">${s.rarity} dragon</p>
+    <div class="dexBig"><img data-pic="${s.name}" src="${bookPic[s.name] || ""}" alt=""></div>
+    <p><small>Lives in: ${s.land || s.home}</small></p>
+    <div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div></div>
+    <p><small>Stats at level 1</small></p>
+    ${(s.ad || []).length ? `<h4>How it's built for its home</h4>${s.ad.map(x => `<p>· ${x}</p>`).join("")}` : ""}
+    <div class="choices"><button data-act="back">Back to the book</button></div>`, () => lockMouse());
+  menuAct = a => { if (a === "back") dragonBook(back); };
+  requestAnimationFrame(bookPump);
+}
+addEventListener("keydown", e => {   // B opens and closes the book
+  if (e.code !== "KeyB" || e.repeat || !started || state === "arena" || !nameBox.hidden) return;
+  if (!menuEl.hidden && /^Dragon Book$/.test($("menuTitle").textContent)) { closeMenu(); return; }
+  if (!uiOpen && menuEl.hidden) dragonBook(false);
+});
+(function () { const k = $("keys"); if (k) { const s = document.createElement("span"); s.innerHTML = "<kbd>B</kbd> book"; k.insertBefore(s, $("rideKeys")); } })();
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
