@@ -1347,9 +1347,10 @@ const nearArena = (x, z, pad) => Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r 
 const COAST = { a: 0.5 };  // direction of the gap in the mountains that opens onto the ocean
 function coast(x, z) { let d = Math.abs(Math.atan2(z, x) - COAST.a); if (d > Math.PI) d = Math.PI * 2 - d; return 1 - sstep(0.4, 0.75, d); }  // the village, west of the nest
 // ---------- the lands past the mountains: each is a big basin reached by a pass ----------
-const FIRE = { a: -1.9, d: 340, R: 135, LAVA: 6 }, FROST = { a: 2.0, d: 340, R: 135, ICE: 10 };
+// Petra 2026-11-09: all the lands made bigger (radius 135 -> 190, caves 95 -> 135) and moved further out so they don't overlap
+const FIRE = { a: -1.9, d: 470, R: 190, LAVA: 6 }, FROST = { a: 2.0, d: 470, R: 190, ICE: 10 };
 // three more lands (Petra 2026-11-09): a giant Deep Forest, a Desert past the village, and Crystal Caves under a rock roof
-const FOREST = { a: -0.88, d: 340, R: 135 }, DESERT = { a: 2.85, d: 340, R: 135 }, CAVES = { a: -2.72, d: 330, R: 95, FLOOR: 5, RIM: 30, TOP: 60 };
+const FOREST = { a: -0.88, d: 470, R: 190 }, DESERT = { a: 2.85, d: 470, R: 190 }, CAVES = { a: -2.72, d: 460, R: 135, FLOOR: 5, RIM: 30, TOP: 66 };
 FIRE.name = "Fire Mountain"; FROST.name = "Frost Peaks"; FOREST.name = "Deep Forest"; DESERT.name = "Desert"; CAVES.name = "Crystal Caves";
 const LANDS = [FIRE, FROST, FOREST, DESERT, CAVES];
 LANDS.forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
@@ -1362,9 +1363,9 @@ function basinW(b, x, z) { return 1 - sstep(b.R * 0.72, b.R, Math.hypot(x - b.x,
 // a walkable pass through the mountains, along the line from the nest toward a basin
 function passW(b, x, z) {
   const ux = Math.cos(b.a), uz = Math.sin(b.a), along = x * ux + z * uz, perp = Math.abs(-x * uz + z * ux);
-  return (1 - sstep(12, 30, perp)) * sstep(110, 135, along) * (1 - sstep(b.d - 40, b.d, along));
+  return (1 - sstep(12, 30, perp)) * sstep(155, 180, along) * (1 - sstep(b.d - 40, b.d, along));
 }
-function passH(b, x, z) { const along = x * Math.cos(b.a) + z * Math.sin(b.a); return 4 + 20 * sstep(120, 205, along) - 8 * sstep(220, 270, along); }
+function passH(b, x, z) { const along = x * Math.cos(b.a) + z * Math.sin(b.a), e = b.d - b.R; return 4 + 20 * sstep(165, 260, along) - 8 * sstep(e + 15, e + 65, along); }
 function fireH(x, z) {
   const dv = Math.hypot(x - FIRE.x, z - FIRE.z);
   let h = 10 + (fbm(x * 0.02 + 70, z * 0.02 + 11) - 0.5) * 16 + (fbm(x * 0.07, z * 0.07, 3) - 0.5) * 3;
@@ -1402,7 +1403,7 @@ function height(x, z) {
   const dp = Math.hypot(x - POND.x, z - POND.z);              // the pond
   h = 0.3 + (h - 0.3) * sstep(POND.r * 1.15, POND.r * 1.9, dp);  // low, gentle shore all around
   h = (-3.5) + (h + 3.5) * sstep(POND.r * 0.45, POND.r * 1.15, dp);
-  const m = sstep(150, 215, r);                               // mountains ring the valley
+  const m = sstep(195, 280, r);                               // mountains ring the valley (pushed out: bigger valley, Petra 2026-11-09)
   const cst = coast(x, z);
   h += (m * m * 75 + m * (fbm(x * 0.03, z * 0.03, 4) - 0.3) * 30) * (1 - cst);
   h += (Math.max(h, 1.5 + sstep(30, 110, r) * 1.5) - h) * cst;                          // dry, gentle land toward the coast
@@ -1417,11 +1418,11 @@ function height(x, z) {
   h = ARENA.y + (h - ARENA.y) * sstep(ARENA.r + 11, ARENA.r + 28, da);
   return h;
 }
-const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
+const mountain = (x, z) => sstep(195, 280, Math.hypot(x, z));
 
 // ---------- terrain ----------
 (function () {
-  const S = 1100, N = 360;
+  const S = 1500, N = 470;
   const g = new THREE.PlaneGeometry(S, S, N, N); g.rotateX(-Math.PI / 2);
   const p = g.attributes.position, col = [];
   const grassA = new THREE.Color("#6aa84a"), grassB = new THREE.Color("#3f7d34"), sand = new THREE.Color("#d8c88e"),
@@ -1493,9 +1494,9 @@ const blockers = [];  // {x, z, r} things you bump into
 (function () {
   const rnd = (() => { let s = 1234; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
   const spots = [];
-  for (let i = 0; i < 9000 && spots.length < 700; i++) {
-    const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340, r = Math.hypot(x, z);
-    if (r < 26 || r > 165 || (r > 108 && coast(x, z) > 0.25) || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 8 || nearArena(x, z, 16) || roadDist(x, z) < 4) continue;
+  for (let i = 0; i < 15000 && spots.length < 1100; i++) {
+    const x = (rnd() - 0.5) * 440, z = (rnd() - 0.5) * 440, r = Math.hypot(x, z);
+    if (r < 26 || r > 215 || (r > 108 && coast(x, z) > 0.25) || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 8 || nearArena(x, z, 16) || roadDist(x, z) < 4) continue;
     const h = height(x, z);
     if (h < WATER_Y + 1.2) continue;
     if (fbm(x * 0.02 + 40, z * 0.02) < 0.5 && rnd() > 0.12) continue;  // grow in groves
@@ -1520,7 +1521,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const rockG = new THREE.DodecahedronGeometry(1, 0), rockM = new THREE.MeshLambertMaterial({ color: "#8a847b", flatShading: true });
   const rocks = new THREE.InstancedMesh(rockG, rockM, 140); rocks.castShadow = rocks.receiveShadow = true; scene.add(rocks);
   for (let i = 0; i < 140; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 330; z = (rnd() - 0.5) * 330; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 170 || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 6 || nearArena(x, z, 16) || roadDist(x, z) < 4);
+    let x, z; do { x = (rnd() - 0.5) * 450; z = (rnd() - 0.5) * 450; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 220 || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 6 || nearArena(x, z, 16) || roadDist(x, z) < 4);
     const k = 0.4 + rnd() * 1.6;
     o.position.set(x, height(x, z) + k * 0.2, z); o.scale.set(k * 1.2, k * 0.7, k); o.rotation.set(rnd() * 3, rnd() * 3, 0); o.updateMatrix();
     rocks.setMatrixAt(i, o.matrix); if (k > 1) blockers.push({ x, z, r: k });
@@ -1530,7 +1531,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const fl = new THREE.InstancedMesh(flG, new THREE.MeshLambertMaterial({ color: "#ffffff" }), 1800); scene.add(fl);
   const fc = ["#ffd84a", "#ff7aa8", "#ffffff", "#b58cff", "#ff8a4a"].map(c => new THREE.Color(c).convertSRGBToLinear());
   for (let i = 0; i < 1800; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 320; z = (rnd() - 0.5) * 320; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 160 || height(x, z) < WATER_Y + 0.8 || Math.hypot(x - VIL.x, z - VIL.z) < 26 || nearArena(x, z, 12) || roadDist(x, z) < 2.5 || (Math.hypot(x, z) > 112 && coast(x, z) > 0.3));
+    let x, z; do { x = (rnd() - 0.5) * 430; z = (rnd() - 0.5) * 430; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 210 || height(x, z) < WATER_Y + 0.8 || Math.hypot(x - VIL.x, z - VIL.z) < 26 || nearArena(x, z, 12) || roadDist(x, z) < 2.5 || (Math.hypot(x, z) > 112 && coast(x, z) > 0.3));
     o.position.set(x, height(x, z), z); o.scale.set(1, 1, 1); o.rotation.set(0, 0, 0); o.updateMatrix();
     fl.setMatrixAt(i, o.matrix); fl.setColorAt(i, fc[i % fc.length]);
   }
@@ -1725,7 +1726,7 @@ const biomeAnims = [];
   const branchG = new THREE.CylinderGeometry(0.06, 0.12, 2, 4); branchG.translate(0, 1, 0);
   const deadM = new THREE.MeshLambertMaterial({ color: "#1a1412" });
   const dead = [];
-  for (let i = 0; i < 400 && dead.length < 70; i++) { const s = spotIn(FIRE, 30, FIRE.R * 0.8); if (s && height(s[0], s[1]) > FIRE.LAVA + 1.5) dead.push(s); }
+  for (let i = 0; i < 900 && dead.length < 140; i++) { const s = spotIn(FIRE, 30, FIRE.R * 0.8); if (s && height(s[0], s[1]) > FIRE.LAVA + 1.5) dead.push(s); }
   const dt1 = new THREE.InstancedMesh(deadG, deadM, dead.length), db1 = new THREE.InstancedMesh(branchG, deadM, dead.length * 2);
   dt1.castShadow = db1.castShadow = true; scene.add(dt1); scene.add(db1);
   dead.forEach(([x, z], i) => {
@@ -1741,7 +1742,7 @@ const biomeAnims = [];
   const ice = new THREE.Mesh(new THREE.CircleGeometry(FROST.lake.r * 1.2, 48), new THREE.MeshPhongMaterial({ color: lin("#bfe8f8"), specular: lin("#ffffff"), shininess: 120, transparent: true, opacity: 0.85 }));
   ice.rotation.x = -Math.PI / 2; ice.position.set(FROST.lake.x, FROST.ICE - 0.6, FROST.lake.z); ice.receiveShadow = true; scene.add(ice);
   const pines = [];
-  for (let i = 0; i < 900 && pines.length < 160; i++) { const s = spotIn(FROST, 10, FROST.R * 0.85, (x, z) => Math.hypot(x - FROST.lake.x, z - FROST.lake.z) > FROST.lake.r * 1.3); if (s && height(s[0], s[1]) < 45 && fbm(s[0] * 0.03, s[1] * 0.03 + 9) > 0.45) pines.push(s); }
+  for (let i = 0; i < 2000 && pines.length < 300; i++) { const s = spotIn(FROST, 10, FROST.R * 0.85, (x, z) => Math.hypot(x - FROST.lake.x, z - FROST.lake.z) > FROST.lake.r * 1.3); if (s && height(s[0], s[1]) < 45 && fbm(s[0] * 0.03, s[1] * 0.03 + 9) > 0.45) pines.push(s); }
   const trunkG = new THREE.CylinderGeometry(0.2, 0.3, 2, 6); trunkG.translate(0, 1, 0);
   const pg = new THREE.ConeGeometry(1.8, 5, 8); pg.translate(0, 4.2, 0);
   const capG = new THREE.ConeGeometry(1.1, 2.4, 8); capG.translate(0, 6.4, 0);
@@ -1781,7 +1782,7 @@ const biomeAnims = [];
 
   // ===== DEEP FOREST: giant trees, mossy logs, ferns, glowing mushrooms, fireflies =====
   const giants = [];
-  for (let i = 0; i < 3000 && giants.length < 75; i++) {
+  for (let i = 0; i < 6000 && giants.length < 150; i++) {
     const s = spotIn(FOREST, 8, FOREST.R * 0.82); if (!s) continue;
     if (giants.some(([x, z]) => Math.hypot(x - s[0], z - s[1]) < 15)) continue; giants.push(s);
   }
@@ -1800,7 +1801,7 @@ const biomeAnims = [];
   });
   // smaller trees under the giants
   const small = [];
-  for (let i = 0; i < 2000 && small.length < 160; i++) { const s = spotIn(FOREST, 5, FOREST.R * 0.85, awayFromPass(FOREST)); if (s && !giants.some(([x, z]) => Math.hypot(x - s[0], z - s[1]) < 5)) small.push(s); }
+  for (let i = 0; i < 4000 && small.length < 300; i++) { const s = spotIn(FOREST, 5, FOREST.R * 0.85, awayFromPass(FOREST)); if (s && !giants.some(([x, z]) => Math.hypot(x - s[0], z - s[1]) < 5)) small.push(s); }
   const sT = inst(trunkG, barkM, small.length), sC = inst(crownG, leaf2M, small.length);
   small.forEach(([x, z], i) => { const y = height(x, z), k = 0.6 + rnd() * 0.6; set(sT, i, x, y - 0.3, z, 0, 0, 0, 0.35 * k, 7 * k, 0.35 * k); set(sC, i, x, y + 7 * k, z, rnd(), rnd(), 0, 2.6 * k, 3 * k, 2.6 * k); blockers.push({ x, z, r: 0.5 }); });
   // ferns and mossy fallen logs
@@ -1835,7 +1836,7 @@ const biomeAnims = [];
   // ===== DESERT: cacti, sandstone rocks, an oasis with palms, old bones, tumbleweeds =====
   const OA = DESERT.oasis, farOasis = (x, z) => Math.hypot(x - OA.x, z - OA.z) > OA.r * 2.6 && mesaAt(x, z) < 0.2;
   const cacti = [];
-  for (let i = 0; i < 1500 && cacti.length < 90; i++) { const s = spotIn(DESERT, 6, DESERT.R * 0.85, farOasis); if (s) cacti.push(s); }
+  for (let i = 0; i < 3000 && cacti.length < 170; i++) { const s = spotIn(DESERT, 6, DESERT.R * 0.85, farOasis); if (s) cacti.push(s); }
   const cylG = new THREE.CylinderGeometry(1, 1, 1, 8); cylG.translate(0, 0.5, 0);
   const domeG = new THREE.SphereGeometry(1, 8, 5, 0, 6.28, 0, Math.PI / 2);
   const cactM = new THREE.MeshLambertMaterial({ color: lin("#4a8a42"), flatShading: true });
@@ -2038,8 +2039,8 @@ const CARVINGS = [];
   const tryIn = (b, minD, maxD, ok) => { for (let k = 0; k < 80; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d; if (ok(x, z)) return [x, z]; } return null; };
   const dry = (x, z) => height(x, z) > WATER_Y + 1 && waterTop(x, z) === -Infinity;
   const spots = [
-    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
-    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
+    [{ x: 0, z: 0 }, 35, 250, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
+    [{ x: 0, z: 0 }, 35, 250, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
     [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 3],
     [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 2],
     [DESERT, 15, DESERT.R * 0.9, dry, SAND, 0],
@@ -2476,11 +2477,12 @@ const SP = name => SPECIES.find(s => s.name === name) || SPECIES.find(s => s.nam
 // the first egg can be any normal kind, rarer kinds less often (no junk, no secret dragons)
 // weather / moon / eclipse dragons only come from their events, never from normal eggs
 const EVENT_KIND = s => !!(s.sp && s.sp.weather);
-const EGG_ODDS = { Common: 60, Uncommon: 25, Rare: 10, Epic: 4, Legendary: 1 };
-// kinds that live in the land where the egg is found are 5 times as likely
+const EGG_ODDS = { Common: 62, Uncommon: 27, Rare: 9, Epic: 1.2, Legendary: 0.25 };   // Petra 2026-11-09: Epic about 1 egg in 100, Legendary about 1 in 500
+// kinds that live in the land where the egg is found are more likely there (but Epics only a little, Legendaries not at all)
+const HOME_BOOST = { Common: 5, Uncommon: 5, Rare: 3, Epic: 1.5, Legendary: 1 };
 function rollKind(land) {
   const pool = SPECIES.filter(s => EGG_ODDS[s.rarity] && !EVENT_KIND(s)), n = r => pool.filter(s => s.rarity === r).length;
-  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && s.land === land ? 5 : 1);
+  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && s.land === land ? HOME_BOOST[s.rarity] : 1);
   let r = Math.random() * pool.reduce((t, s) => t + w(s), 0);
   for (const s of pool) { r -= w(s); if (r <= 0) return s.name; }
   return "Pyrrak";
@@ -3185,6 +3187,7 @@ function frame() {
   updateFish(dt);
   updateSpecials(dt);
   updateRequests(dt);
+  updateBreath(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -3271,7 +3274,7 @@ const TAMERS = [[{"n":"Timmy","k":"Pyrrak","l":2,"i":["Hi! I'm Timmy! This is my
 let coins = 50;                                   // a few coins to start, so the first arena entry is free-ish
 const bag = [], pen = [], DEX = [];   // DEX: every kind you've hatched (small eggs hatch one of these)
 const penUsed = () => pen.reduce((n, d) => n + (d.small ? 0.25 : 1), 0);   // small dragons take a quarter of a pen spot                         // backpack eggs (kinds) and dragons resting in the pen
-const BAG_MAX = 6, PEN_MAX = 10;
+const BAG_MAX = 8, PEN_MAX = 30;   // Petra 2026-11-09: bigger storage
 const arena = { entries: 0, won: [false, false, false, false], owed: [false, false, false, false] };
 pet.xp = 0;
 let uiOpen = false;                               // a menu or the battle is on screen
@@ -3601,8 +3604,8 @@ function hatchEgg(kind) {
 }
 
 // ================= wild eggs: eggs turn up out in the lands once you have a dragon (Petra 2026-11-09) =================
-// each land keeps up to 3 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
-const WILD_PER_LAND = 3, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
+// each land keeps up to 4 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
+const WILD_PER_LAND = 4, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
 const WILD_LANDS = ["Green Valley", "Deep Forest", "Crystal Caves", "Desert", "Fire Mountain", "Frost Peaks", "Ocean", "Sky Islands"];
 const WATER_KINDS = new Set(HOME_LAND.Ocean);
 const wild = [];                                          // { kind, land, x, y, z, g }
@@ -3625,7 +3628,7 @@ function wildSpot(land, water) {
     }
     if (land === "Green Valley") {
       if (water) { const a = rr() * 6.283, d = POND.r * (1.08 + rr() * 0.3); x = POND.x + Math.cos(a) * d; z = POND.z + Math.sin(a) * d; }
-      else { const a = rr() * 6.283, d = 30 + rr() * 115; x = Math.cos(a) * d; z = Math.sin(a) * d; }
+      else { const a = rr() * 6.283, d = 30 + rr() * 165; x = Math.cos(a) * d; z = Math.sin(a) * d; }
       y = height(x, z);
       if (y > WATER_Y + 0.4 && waterTop(x, z) === -Infinity && Math.hypot(x - VIL.x, z - VIL.z) > VIL.r + 8 && !nearArena(x, z, 14)
         && !LANDS.some(b => basinW(b, x, z) > 0.05) && coast(x, z) < 0.3 && wildOk(x, z)) return new V(x, y, z);
@@ -5439,6 +5442,8 @@ addEventListener("keydown", e => {   // double-tap A or D = dodge to that side
 // ---- the monsters' turn ----
 function monAttack(m) {
   const d = m.d, mid = petMid(), mv = MOVES[m.kind];
+  // you got out of reach during the red flash: the attack falls short
+  if (!d.boss && Math.hypot(m.x - mid.x, m.z - mid.z, (m.y + m.tall * 0.5) - mid.y) > d.range + m.rad + petRad() + 8) return;
   if (mv && mv.attack && mv.attack(m)) return;
   if (d.grab) {   // the Vine Dangler wraps its arms round you and holds on (Petra)
     if (Math.hypot(m.x - mid.x, m.z - mid.z) < d.range + petRad() && mid.y < m.y + m.tall * 0.4 && mid.y > m.y - m.tall) {
@@ -5595,7 +5600,8 @@ function updateMonsters(dt) {
         if (m.warn <= 0) { tint(m, null, 0); monAttack(m); m.cd = 1.5 + Math.random() * 1.2 + (d.ceil ? 2 : 0); m.postT = d.ph ? d.ph[4] : 0; }
       } else {
         m.cd -= dt;
-        const inReach = d.ceil ? pd < 7 && dy < -2 : d.shot || d.beam ? pd < d.range + 6 : d.scream ? pd < d.range : Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y) < d.range + m.rad + petRad() + 2;
+        const d3 = Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y);   // Petra: monsters can only aim as far as their attack reaches (up and down too)
+        const inReach = d.ceil ? pd < 7 && dy < -2 && dy > -d.range : d.shot || d.beam ? d3 < d.range + 4 : d.scream ? d3 < d.range : d3 < d.range + m.rad + petRad() + 2;
         if (m.cd <= 0 && inReach && own !== 2) { m.warn = d.warn || 0.75; m.aim = mid.clone(); }   // the red flash: your cue to dodge
       }
       m.bar.visible = true;
@@ -5906,6 +5912,269 @@ function statusText() {
   if (s.root > 0) o.push("held down"); if (s.freeze > 0) o.push("frozen"); if (s.web > 0) o.push("webbed");
   return o.length ? " · " + o.join(", ") : "";
 }
+
+// ================= every dragon has its own breath + breath aims itself (Petra 2026-11-09) =================
+// Each kind has a named breath with its own shape and effect:
+//   cone  - a spray in front (burn = keeps burning, slow = monsters slow down, blind = can't attack for a bit, knock = pushed back)
+//   beam  - a long thin ray that goes through every monster in a line
+//   shot  - balls / shards / bubbles that fly at the target (boom = they explode)
+//   lob   - one big bomb thrown in an arc that explodes where it lands
+//   bolt  - lightning that jumps from monster to monster
+//   cloud - a cloud that stays on the target and keeps hurting
+//   ring  - a blast all around your dragon (no aiming needed)
+//   stars - stars fall from the sky onto the target
+//   void  - pulls monsters together, then bursts
+// Breath aims at the closest monster in front of you (a little ring shows who), so you don't have to line up.
+const BREATH = {
+  Pyrrak:      { n: "Fire Breath",      t: "cone", burn: 1 },
+  Smoldedrake: { n: "Smoke Puff",       t: "cone", blind: 1.5, mult: 0.8, col: "#9a9088" },
+  Volcanox:    { n: "Magma Bomb",       t: "lob",  boom: 5, mult: 1.3, burn: 1 },
+  Ashveil:     { n: "Ash Cloud",        t: "cloud", r: 5, col: "#b0a8a0", blind: 1 },
+  Blazequill:  { n: "Quill Volley",     t: "shot", k: 6, mult: 1.3, burn: 1 },
+  Aquawyrm:    { n: "Water Jet",        t: "beam", R: 22, knock: 6, mult: 1.0 },
+  Gillwing:    { n: "Bubble Spray",     t: "shot", k: 4, boom: 3, size: 0.45, speed: 18, mult: 1.1 },
+  Pearlhorn:   { n: "Pearl Beam",       t: "beam", R: 26, mult: 1.1 },
+  Abyssar:     { n: "Deep Pulse",       t: "ring", r: 11, mult: 1.0 },
+  Bergdrake:   { n: "Slush Wave",       t: "cone", ang: 0.75, slow: 4, knock: 4, mult: 0.9 },
+  Fernling:    { n: "Spore Puff",       t: "cloud", r: 4.5 },
+  Lichenwing:  { n: "Moss Dust",        t: "cone", blind: 1.2, mult: 0.85 },
+  Stonewyrm:   { n: "Pebble Spit",      t: "shot", k: 5, mult: 1.15, col: "#a8a090" },
+  Thornwyrm:   { n: "Thorn Spray",      t: "shot", k: 7, mult: 1.2, spread: 0.12 },
+  Jadewyrm:    { n: "Jade Ray",         t: "beam", R: 24, mult: 1.1 },
+  Petalwyrm:   { n: "Petal Storm",      t: "cone", ang: 0.8, knock: 7, mult: 0.85, col: "#ffa8d0" },
+  Rootwyrm:    { n: "Pollen Cloud",     t: "cloud", r: 6, mult: 1.2, slow: 3 },
+  Dawnwing:    { n: "Sunrise Beam",     t: "beam", R: 26, mult: 1.1, burn: 1 },
+  Lumora:      { n: "Starfall",         t: "stars", k: 4, mult: 1.4 },
+  Glacius:     { n: "Frost Breath",     t: "cone", slow: 4 },
+  Snowpaw:     { n: "Snow Flurry",      t: "cone", ang: 0.8, slow: 3, mult: 0.85, col: "#ffffff" },
+  Rimefang:    { n: "Icicle Shards",    t: "shot", k: 5, mult: 1.2, slow: 2, col: "#c8f0ff" },
+  Auroran:     { n: "Aurora Ribbon",    t: "beam", R: 24, slow: 3, mult: 1.0 },
+  Whiteout:    { n: "Blizzard",         t: "cone", ang: 0.9, R: 15, blind: 2, slow: 2, mult: 0.7, col: "#f4faff" },
+  Tempestra:   { n: "Storm Bolt",       t: "bolt", k: 2, mult: 1.1 },
+  Driftail:    { n: "Cloud Puff",       t: "cone", ang: 0.85, knock: 9, mult: 0.8, col: "#ffffff" },
+  Aerolash:    { n: "Wind Lance",       t: "beam", R: 24, knock: 5, mult: 1.05, col: "#e0f4ff" },
+  Skyrune:     { n: "Solar Flare",      t: "cone", R: 16, burn: 1, mult: 1.15 },
+  Sirocco:     { n: "Scorching Gust",   t: "cone", ang: 0.8, knock: 6, burn: 1, mult: 0.85 },
+  Wispwyrm:    { n: "Ghostly Mist",     t: "cloud", r: 5, blind: 1.5 },
+  Voltwing:    { n: "Chain Lightning",  t: "bolt", k: 4, mult: 1.05 },
+  Starwyrm:    { n: "Shooting Stars",   t: "stars", k: 3, mult: 1.3 },
+  Eclipsar:    { n: "Dark Sun",         t: "ring", r: 13, mult: 1.3, blind: 1.5 },
+  Scarlune:    { n: "Crimson Flame",    t: "cone", R: 15, burn: 1.5, mult: 1.1 },
+  Echowyrm:    { n: "Echo Scream",      t: "ring", r: 12, blind: 1, mult: 1.0 },
+  Geodrake:    { n: "Geode Bomb",       t: "lob",  boom: 5, mult: 1.3 },
+  Prismwing:   { n: "Rainbow Ray",      t: "beam", R: 26, mult: 1.2, rainbow: 1 },
+  Dunerunner:  { n: "Sand Blast",       t: "cone", blind: 1.2, mult: 0.9, col: "#e8c888" },
+  Sunscale:    { n: "Oasis Spray",      t: "shot", k: 4, boom: 3, size: 0.4, speed: 20, mult: 1.1 },
+  Miragewyrm:  { n: "Mirage Shimmer",   t: "cone", ang: 0.7, blind: 2.5, mult: 0.75 },
+  Scarabyx:    { n: "Scarab Swarm",     t: "shot", k: 8, mult: 1.25, spread: 0.18, col: "#ffd040" },
+  Crestwyrm:   { n: "Champion's Fire",  t: "cone", R: 16, ang: 0.6, burn: 1, knock: 4, mult: 1.2 },
+  Quantum:     { n: "Void Pull",        t: "void", r: 14, mult: 1.5 },
+  Petralith:   { n: "Crystal Boulder",  t: "lob",  boom: 6, mult: 1.6, size: 1.1 },
+  Dustmite:    { n: "Dusty Sneeze",     t: "cone", R: 10, mult: 0.5, blind: 0.5, col: "#b8b0a0" },
+};
+const breathOf = kind => BREATH[kind] || { n: "Breath", t: "cone" };
+const BRT = { fx: [], shots: [], clouds: [], stars: [], target: null };
+
+// ---- auto-aim: the closest living monster in front of you (or right next to you) ----
+const AIM_RANGE = 34;
+function breathTarget() {
+  const mid = petMid(); let best = null, bs = 1e9;
+  for (const m of mons) {
+    if (m.dead || (m.d.stealth && !(m.warn > 0 || m.postT > 0 || m.hitT > 0 || m.hurt > 4))) continue;
+    if (m.holder && !m.holder.visible) continue;
+    const dx = m.x - mid.x, dz = m.z - mid.z, dy = (m.y + m.tall * 0.5) - mid.y, d = Math.hypot(dx, dz, dy);
+    if (d > AIM_RANGE + m.rad) continue;
+    const da = Math.abs(((Math.atan2(dz, dx) - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI);
+    if (da > 1.2 && d > 6 + m.rad) continue;                 // behind you and not close: ignore it
+    const score = d * (1 + da * 0.8);                         // close AND in front wins
+    if (score < bs) { bs = score; best = m; }
+  }
+  return best;
+}
+const monMid = m => new V(m.x, m.y + m.tall * 0.5, m.z);
+function breathDmg(st, mult) { const crit = Math.random() < 0.1; let d = Math.max(1, Math.round(rollR(st.breath) * (mult || 1))); if (crit) d = Math.round(d * 1.5); return [d, crit]; }
+function breathHit(m, b, st, mult, from) {
+  if (m.dead) return;
+  const [d, crit] = breathDmg(st, (b.mult || 1) * (mult || 1));
+  damageMon(m, d, crit, "breath");
+  if (m.dead) return;
+  if (b.burn) { m.brBurn = { t: 3 * b.burn, tick: 0.8, dmg: Math.max(1, Math.round(rollR(st.breath) * 0.15)) }; }
+  if (b.slow) m.brSlow = Math.max(m.brSlow || 0, b.slow);
+  if (b.blind) { m.stun = Math.max(m.stun || 0, b.blind); m.warn = 0; tint(m, null, 0); }
+  if (b.knock && !m.d.boss && !m.d.titan && !m.d.ceil && !m.d.under) { const a = Math.atan2(m.z - from.z, m.x - from.x); m.x += Math.cos(a) * b.knock; m.z += Math.sin(a) * b.knock; }
+}
+// monsters inside a cone (or a thin beam) from p along dir
+function inCone(p, dir, R, ang) {
+  const out = [];
+  for (const m of mons) {
+    if (m.dead) continue;
+    const c = monMid(m).sub(p), d = c.length(), reach = R + m.rad + petRad() * 0.5;
+    if (d > reach) continue;
+    const along = c.dot(dir); if (along < -m.rad) continue;
+    const off = Math.sqrt(Math.max(0, d * d - along * along));
+    if (off > Math.max(m.rad + 1, Math.tan(ang) * Math.max(0, along) + m.rad)) continue;
+    out.push(m);
+  }
+  return out;
+}
+function brSprite(col, size, add = true) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(col).convertSRGBToLinear(), transparent: true, opacity: 0.9, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false }));
+  s.scale.setScalar(size); scene.add(s); return s;
+}
+function sprayFx(h, dir, col, n, speed, spread, life, add) {
+  for (let i = 0; i < n; i++) {
+    const s = brSprite(col, 0.6, add); s.position.copy(h);
+    const v = dir.clone().multiplyScalar(speed * (0.8 + Math.random() * 0.4)).add(new V((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread * 0.7, (Math.random() - 0.5) * spread));
+    breathFx.push({ s, v, life: life + Math.random() * 0.2, delay: i * 0.008 });
+  }
+}
+const RAINBOW = ["#ff5a5a", "#ffb03a", "#ffe84a", "#6aff6a", "#5ac8ff", "#b07aff"];
+
+breathAttack = function () {
+  if (!canFight()) return;
+  if (breathCd > 0) { toast("Catching its breath...", `${Math.ceil(breathCd)} s`); return; }
+  breathCd = 3; struggle();
+  const b = breathOf(pet.kind), st = petStats(), col = b.col || SP(pet.kind).pal.glow;
+  dragon.root.updateMatrixWorld(); const h = new V(); dragon.sockets.head.getWorldPosition(h);
+  const tgt = breathTarget(), to = tgt ? monMid(tgt) : h.clone().add(new V(Math.cos(pet.face) * 14, -1.6, Math.sin(pet.face) * 14));
+  const dir = to.clone().sub(h).normalize();
+  if (tgt) { const a = Math.atan2(dir.z, dir.x); pet.face = a; }   // turn to face what you're breathing at
+  const t = b.t, R = b.R || 13, ang = b.ang || 0.5;
+  if (t === "cone") {
+    sprayFx(h, dir, col, 40, R * 1.9, R * 0.55 * ang * 2, 0.55, !b.col);
+    inCone(h, dir, R, ang).forEach(m => breathHit(m, b, st, 1, h));
+  } else if (t === "beam") {
+    const len = R + 2, n = 26;
+    for (let i = 0; i < n; i++) { const c = b.rainbow ? RAINBOW[i % RAINBOW.length] : col, s = brSprite(c, 1.1); s.position.copy(h).addScaledVector(dir, (i / n) * len);
+      BRT.fx.push({ s, life: 0.35, max: 0.35, grow: 0.6 }); }
+    inCone(h, dir, R, 0.06).forEach(m => breathHit(m, b, st, 1, h));
+  } else if (t === "shot") {
+    const k = b.k || 4;
+    for (let i = 0; i < k; i++) {
+      const sp = b.spread || 0.08, d = dir.clone().add(new V((Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp)).normalize();
+      const s = brSprite(col, (b.size || 0.3) * 3); s.position.copy(h);
+      BRT.shots.push({ s, v: d.multiplyScalar(b.speed || 34), life: 1.3, delay: i * 0.06, b, st, tgt });
+    }
+  } else if (t === "lob") {
+    const g = 22, dx = to.x - h.x, dz = to.z - h.z, tt = Math.max(0.5, Math.hypot(dx, dz) / 26);
+    const v = new V(dx / tt, (to.y - h.y + 0.5 * g * tt * tt) / tt, dz / tt);
+    const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(b.size || 0.8, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), emissive: new THREE.Color(col).convertSRGBToLinear(), emissiveIntensity: 0.6, flatShading: true }));
+    mesh.position.copy(h); scene.add(mesh); const glow = brSprite(col, 3); mesh.add(glow); glow.position.set(0, 0, 0);
+    BRT.shots.push({ mesh, v, g, life: 4, b, st, lob: true });
+  } else if (t === "bolt") {
+    let cur = tgt; const hitList = []; let from = h.clone();
+    if (!cur) { boltFx(h, to, col); }
+    for (let i = 0; cur && i <= (b.k || 2); i++) {
+      const p = monMid(cur); boltFx(from, p, col); breathHit(cur, b, st, i === 0 ? 1 : 0.7, from); hitList.push(cur); from = p;
+      cur = mons.filter(m => !m.dead && !hitList.includes(m) && monMid(m).distanceTo(p) < 12).sort((a, c) => monMid(a).distanceTo(p) - monMid(c).distanceTo(p))[0];
+    }
+  } else if (t === "cloud") {
+    sprayFx(h, dir, col, 18, 26, 4, 0.5, false);
+    const p = tgt ? monMid(tgt) : to.clone(), sp = [];
+    for (let i = 0; i < 9; i++) { const s = brSprite(col, (b.r || 5) * 0.9, false); s.material.opacity = 0; s.position.copy(p).add(new V((Math.random() - 0.5) * b.r, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * b.r)); sp.push(s); }
+    BRT.clouds.push({ p, r: b.r || 5, t: 4, tick: 0.25, sp, b, st });
+  } else if (t === "ring") {
+    const mid = petMid(), r = b.r || 11;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.25, 6, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ring.rotation.x = Math.PI / 2; ring.position.copy(mid); scene.add(ring); BRT.fx.push({ mesh: ring, life: 0.5, max: 0.5, ring: r });
+    mons.forEach(m => { if (!m.dead && monMid(m).distanceTo(mid) < r + m.rad) breathHit(m, b, st, 1, mid); });
+  } else if (t === "stars") {
+    const p = tgt ? monMid(tgt) : to.clone(); sprayFx(h, new V(0, 1, 0), col, 14, 20, 6, 0.5, true);
+    for (let i = 0; i < (b.k || 3); i++) {
+      const at = i === 0 ? p.clone() : p.clone().add(new V((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 8));
+      const s = brSprite(col, 2.2); s.position.set(at.x + 6, at.y + 40, at.z - 4);
+      BRT.stars.push({ s, at, delay: 0.25 + i * 0.22, t: 0.5, b, st, tgt: i === 0 ? tgt : null });
+    }
+  } else if (t === "void") {
+    const p = tgt ? monMid(tgt) : to.clone(), r = b.r || 14, s = brSprite("#2a1050", 3, false), s2 = brSprite(col, 4);
+    s.position.copy(p); s2.position.copy(p);
+    BRT.clouds.push({ p, r, t: 0.9, tick: 99, sp: [s, s2], b, st, pull: true });
+  }
+  toast(b.n + "!", tgt ? `Aimed at the ${tgt.kind}` : "");
+};
+function boltFx(a, b, col) {
+  const pts = [], n = 8;
+  for (let i = 0; i <= n; i++) { const p = a.clone().lerp(b, i / n); if (i && i < n) p.add(new V((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6)); pts.push(p); }
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), transparent: true }));
+  scene.add(line); BRT.fx.push({ mesh: line, life: 0.3, max: 0.3 });
+  const s = brSprite(col, 3); s.position.copy(b); BRT.fx.push({ s, life: 0.3, max: 0.3, grow: 4 });
+}
+function brBoom(p, b, st, col, r) {
+  for (let k = 0; k < 10; k++) burstAt(p.x + (Math.random() - 0.5) * r, p.y + Math.random() * 2, p.z + (Math.random() - 0.5) * r, col);
+  mons.forEach(m => { if (!m.dead && monMid(m).distanceTo(p) < r + m.rad) breathHit(m, b, st, b.t === "lob" ? 1 : 0.4, p); });
+}
+// the auto-aim marker: a little spinning ring over whatever your breath will hit
+const brMark = (() => { const g = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 6, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false })); g.renderOrder = 10; g.visible = false; scene.add(g); return g; })();
+let brMarkT = 0;
+function updateBreath(dt) {
+  // aim marker (checked a few times a second)
+  if ((brMarkT -= dt) <= 0) { brMarkT = 0.15; BRT.target = state === "ride" && hasDragon() && !uiOpen ? breathTarget() : null; }
+  const tg = BRT.target;
+  brMark.visible = !!tg && !tg.dead;
+  if (brMark.visible) { brMark.position.set(tg.x, tg.y + tg.tall + 1.2, tg.z); brMark.lookAt(camera.position); brMark.rotation.z = T * 2; brMark.material.color.set(breathCd > 0 ? "#888888" : "#ffffff"); const sc = 0.8 + tg.rad * 0.4; brMark.scale.setScalar(sc); }
+  // monster effects from breath: burning, slowed
+  for (const m of mons) {
+    if (m.dead) continue;
+    if (m.brSlow > 0) m.brSlow -= dt;
+    const q = m.brBurn; if (q) { q.t -= dt; q.tick -= dt; if (Math.random() < dt * 8) burstAt(m.x + (Math.random() - 0.5) * m.rad, m.y + m.tall * Math.random(), m.z + (Math.random() - 0.5) * m.rad, "#ff8a2a");
+      if (q.tick <= 0) { q.tick = 0.8; m.hp -= q.dmg; m.hitT = 0.08; monBar(m); if (m.hp <= 0) { m.brBurn = null; killMon(m); continue; } }
+      if (q.t <= 0) m.brBurn = null; }
+  }
+  // simple effects that fade
+  for (let i = BRT.fx.length - 1; i >= 0; i--) {
+    const f = BRT.fx[i]; f.life -= dt; const k = Math.max(0, f.life / f.max);
+    if (f.s) { f.s.material.opacity = k * 0.9; if (f.grow) f.s.scale.setScalar(f.s.scale.x + f.grow * dt); }
+    if (f.mesh) { f.mesh.material.opacity = k * 0.85; if (f.ring) f.mesh.scale.setScalar(1 + (1 - k) * f.ring); }
+    if (f.life <= 0) { if (f.s) { scene.remove(f.s); f.s.material.dispose(); } if (f.mesh) { scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose(); } BRT.fx.splice(i, 1); }
+  }
+  // flying shots and bombs
+  for (let i = BRT.shots.length - 1; i >= 0; i--) {
+    const s = BRT.shots[i];
+    if (s.delay > 0) { s.delay -= dt; continue; }
+    const o = s.mesh || s.s; s.life -= dt;
+    if (s.lob) { s.v.y -= s.g * dt; o.rotation.x += dt * 5; }
+    else if (s.tgt && !s.tgt.dead) { const want = monMid(s.tgt).sub(o.position).normalize().multiplyScalar(s.v.length()); s.v.lerp(want, Math.min(1, dt * 6)); }   // shots home in a little
+    o.position.addScaledVector(s.v, dt);
+    const p = o.position, hit = mons.find(m => !m.dead && monMid(m).distanceTo(p) < m.rad + (s.lob ? 1.2 : 0.8));
+    const ground = p.y < groundAt(p.x, p.z, p.y + 1) + 0.2;
+    if (hit || ground || s.life <= 0) {
+      const col = s.b.col || SP(pet.kind).pal.glow;
+      if (s.lob || s.b.boom) brBoom(p.clone(), s.b, s.st, col, s.b.boom || 4);
+      else if (hit) { breathHit(hit, s.b, s.st, 1.2 / (s.b.k || 4), p); burstAt(p.x, p.y, p.z, col); }
+      scene.remove(o); if (o.geometry) o.geometry.dispose(); o.material.dispose(); BRT.shots.splice(i, 1);
+    }
+  }
+  // clouds that stay and hurt (and the Quantum's void)
+  for (let i = BRT.clouds.length - 1; i >= 0; i--) {
+    const c = BRT.clouds[i]; c.t -= dt;
+    if (c.pull) {
+      c.sp[0].scale.setScalar(3 + (0.9 - c.t) * 6); c.sp[1].material.opacity = 0.5 + Math.sin(T * 30) * 0.3; c.sp[1].scale.setScalar(4 + (0.9 - c.t) * 4);
+      mons.forEach(m => { if (m.dead || m.d.boss || m.d.titan || m.d.ceil || m.d.under) return; const d = Math.hypot(m.x - c.p.x, m.z - c.p.z); if (d < c.r && d > 1) { m.x += (c.p.x - m.x) / d * Math.min(d, 16 * dt); m.z += (c.p.z - m.z) / d * Math.min(d, 16 * dt); } });
+      if (c.t <= 0) { brBoom(c.p, Object.assign({}, c.b, { t: "lob" }), c.st, SP(pet.kind).pal.glow, c.r * 0.5); c.sp.forEach(s => { scene.remove(s); s.material.dispose(); }); BRT.clouds.splice(i, 1); }
+      continue;
+    }
+    c.sp.forEach((s, k) => { s.material.opacity = Math.min(0.45, c.t * 0.4, (4 - c.t) * 2) ; s.position.y += Math.sin(T * 2 + k) * dt * 0.3; });
+    c.tick -= dt;
+    if (c.tick <= 0) { c.tick = 0.8; mons.forEach(m => { if (!m.dead && Math.hypot(m.x - c.p.x, m.z - c.p.z) < c.r + m.rad && Math.abs(m.y + m.tall * 0.5 - c.p.y) < c.r + m.tall) breathHit(m, c.b, c.st, 0.32, c.p); }); }
+    if (c.t <= 0) { c.sp.forEach(s => { scene.remove(s); s.material.dispose(); }); BRT.clouds.splice(i, 1); }
+  }
+  // falling stars
+  for (let i = BRT.stars.length - 1; i >= 0; i--) {
+    const s = BRT.stars[i];
+    if (s.delay > 0) { s.delay -= dt; continue; }
+    if (s.tgt && !s.tgt.dead) s.at.copy(monMid(s.tgt));
+    s.t -= dt; const k = Math.max(0, s.t / 0.5); s.s.position.set(s.at.x + 6 * k, s.at.y + 40 * k, s.at.z - 4 * k);
+    if (s.t <= 0) { brBoom(s.at, Object.assign({}, s.b, { t: "lob", mult: (s.b.mult || 1) * 0.45 }), s.st, s.b.col || SP(pet.kind).pal.glow, 3.5); scene.remove(s.s); s.s.material.dispose(); BRT.stars.splice(i, 1); }
+  }
+}
+// slowed monsters move at half speed
+(function () { const mm = moveMon; moveMon = function (m, tx, ty, tz, sp, dt) { if (m.brSlow > 0) sp *= 0.5; return mm.call(this, m, tx, ty, tz, sp, dt); }; })();
+// the special move Power Blast aims itself too
+(function () { const su = spUse; spUse = function (i) {
+  const t = i === 2 ? breathTarget() : null, n = SPC.shots.length; if (t) pet.face = Math.atan2(t.z - pet.z, t.x - pet.x);
+  const r = su.apply(this, arguments);
+  if (t && SPC.shots.length > n) { const s = SPC.shots[SPC.shots.length - 1]; s.v.copy(monMid(t).sub(s.ball.position).normalize().multiplyScalar(s.v.length())); }
+  return r; }; })();
 
 // ================= moon, weather and eclipse events (Petra 2026-11-09) =================
 // Moon events only happen at NIGHT; the eclipse only in the daytime (Petra's rule).
@@ -7122,7 +7391,7 @@ function bookPage(s, back) {
   if (!bookPic[s.name]) bookQueue.push([s.name, false]);
   openMenu(s.name, `<p class="who" style="color:${BOOK_COL[s.rarity] || "#ccc"}">${s.rarity} dragon</p>
     <div class="dexBig"><img data-pic="${s.name}" src="${bookPic[s.name] || ""}" alt=""></div>
-    <p><small>Lives in: ${s.land || s.home} · World skill: <b>${skillOf(s.name)}</b></small></p>
+    <p><small>Lives in: ${s.land || s.home} · World skill: <b>${skillOf(s.name)}</b> · Breath: <b>${breathOf(s.name).n}</b></small></p>
     <div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div></div>
     <p><small>Stats at level 1</small></p>
     ${(s.ad || []).length ? `<h4>How it's built for its home</h4>${s.ad.map(x => `<p>· ${x}</p>`).join("")}` : ""}
