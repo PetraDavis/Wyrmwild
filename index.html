@@ -91,6 +91,27 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 #start .card { padding: 26px 28px; text-align: center; width: min(440px, 100%); box-sizing: border-box; }
 #start h2 { font-family: var(--display); font-size: 3rem; margin: 0; line-height: 1; }
 #start p { color: var(--muted); margin: 10px 0 18px; line-height: 1.45; }
+#start { background: linear-gradient(180deg, rgba(10,16,26,0.15), rgba(10,16,26,0.55)); place-items: end center; padding-bottom: 6vh; }
+#start .card { width: min(520px, 100%); }
+#start h2 { font-size: clamp(2.6rem, 9vw, 4.2rem); text-shadow: 0 2px 18px rgba(0,0,0,0.5); }
+#start .row.small { margin-top: 12px; }
+#start .row.small button { font-size: 0.92rem; padding: 8px 16px; }
+#tip { font-size: 0.9rem; margin: 14px 0 0; }
+#start .card { max-height: calc(100vh - 32px); overflow-y: auto; }
+body.home #where, body.home #arrow, body.home #keys, body.home #toast, body.home #prompt { visibility: hidden; }
+#tip b { color: var(--ember); }
+#homePane h3 { font-family: var(--display); margin: 10px 0 8px; }
+#homePane .slot { display: flex; align-items: center; gap: 10px; justify-content: space-between; text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+#homePane .slot.cur { border-color: var(--ember); }
+#homePane .slot small { color: var(--muted); display: block; }
+#homePane .slot .btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+#homePane .slot button { font-size: 0.85rem; padding: 7px 14px; }
+#homePane dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; text-align: left; margin: 8px 0; font-size: 0.92rem; }
+#homePane dt { white-space: nowrap; } #homePane dd { margin: 0; color: var(--muted); }
+#homePane .setRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; margin: 10px 0; }
+#homePane input[type=range] { width: 150px; accent-color: var(--ember); }
+#homePane input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ember); }
+
 #start button { font: 800 1.1rem var(--body); padding: 12px 30px; border-radius: 999px; border: 0; background: var(--ember); color: #1b1208; cursor: pointer; }
 #menu {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 18px 20px; width: min(520px, calc(100% - 32px));
@@ -181,8 +202,13 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="start">
   <div class="card plate">
     <h2>Wyrmwild</h2>
-    <p>Somewhere in Green Valley an egg is glowing. Find it, carry it home to your nest, and see what hatches.</p>
-    <div class="row"><button id="go" type="button">Start</button><button id="newGame" class="ghost" type="button" hidden>New game</button></div>
+    <div id="homeMain">
+      <p id="homeMsg">Somewhere in Green Valley an egg is glowing. Find it, carry it home to your nest, and see what hatches.</p>
+      <div class="row"><button id="go" type="button">Start</button><button id="newGame" class="ghost" type="button" hidden>New game</button></div>
+      <div class="row small"><button class="ghost" data-pane="slots" type="button">Save slots</button><button class="ghost" data-pane="how" type="button">How to play</button><button class="ghost" data-pane="set" type="button">Settings</button></div>
+      <p id="tip"></p>
+    </div>
+    <div id="homePane" hidden><div id="paneBody"></div><div class="row small"><button class="ghost" id="paneBack" type="button">Back</button></div></div>
   </div>
 </div>
 
@@ -2538,8 +2564,8 @@ document.addEventListener("pointerlockchange", () => {
 });
 document.addEventListener("mousemove", e => {
   if (!locked) return;
-  camYaw += e.movementX * 0.0035;
-  camPitch = Math.min(1.2, Math.max(-0.85, camPitch + e.movementY * 0.0028));
+  camYaw += e.movementX * 0.0035 * SET.mouse;
+  camPitch = Math.min(1.2, Math.max(-0.85, camPitch + e.movementY * 0.0028 * SET.mouse * (SET.invert ? -1 : 1)));
 });
 let drag = null;
 cv.addEventListener("pointerdown", e => { if (!locked && nameBox.hidden && $("start").hidden && !uiOpen) lockMouse(); drag = locked ? null : { x: e.clientX, y: e.clientY }; if (drag) cv.setPointerCapture(e.pointerId); });
@@ -2560,9 +2586,12 @@ let toastTimer = 0;
 function toast(big, small) { toastEl.innerHTML = big + (small ? `<small>${small}</small>` : ""); toastEl.style.opacity = 1; toastTimer = 3.5; }
 function goal(t) { goalEl.textContent = t; }
 // ---- saving: progress is kept in this browser ----
-const SAVE_KEY = "wyrmwild-save-1";
+// three save slots (Petra): slot 1 keeps the old save key, so old saves show up as slot 1
+let SLOT = 1;
+try { SLOT = Math.min(3, Math.max(1, +localStorage.getItem("wyrmwild-slot") || 1)); } catch (e) {}
+const slotKey = n => "wyrmwild-save-" + n;
 let started = false;
-function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+function loadSave(n = SLOT) { try { const t = localStorage.getItem(slotKey(n)); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
 function writeSave() {
   if (!started) return;
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
@@ -2571,7 +2600,7 @@ function writeSave() {
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
+  try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
 function applySave(d) {
   eggSpot.set(d.egg.x, d.egg.y, d.egg.z); egg.position.copy(eggSpot).add(new V(0, 0.5, 0)); beam.position.copy(eggSpot).add(new V(0, 30, 0));
@@ -2603,25 +2632,145 @@ function applySave(d) {
     goal(state === "baby" ? (pet.small ? `${pet.name} is a small dragon. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`) : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
   }
 }
-const saved = loadSave();
-if (saved) {
-  $("go").textContent = "Continue"; $("newGame").hidden = false;
-  $("start").querySelector("p").textContent = saved.pet && saved.pet.name && saved.stage !== "find" && saved.stage !== "carry"
-    ? `Welcome back! ${saved.pet.name} has been waiting for you.` : "Welcome back! Your egg hunt is right where you left it.";
+// ---- the home screen (Petra): your partner dragon flies behind the title; Continue, New game, Save slots, How to play, Settings; a random tip ----
+const SET = { mouse: 1, invert: false, shadows: true, keys: true };
+try { Object.assign(SET, JSON.parse(localStorage.getItem("wyrmwild-settings") || "{}")); } catch (e) {}
+function applySettings() {
+  sun.castShadow = !!SET.shadows; $("keys").style.display = SET.keys ? "" : "none";
+  try { localStorage.setItem("wyrmwild-settings", JSON.stringify(SET)); } catch (e) {}
 }
+applySettings();
+const TIPS = [
+  "Press <kbd>R</kbd> next to your grown-up dragon to ride it, then <kbd>Space</kbd> to fly up.",
+  "In a fight, watch for the red flash, then double-tap <kbd>A</kbd> or <kbd>D</kbd> to dodge.",
+  "Resting at your nest heals your dragon to full HP.",
+  "Water dragon eggs turn up near ponds, the oasis and the beach.",
+  "Old Nettle in the village has seen a LOT. Some of it is even true.",
+  "Shady Shen's prices are great. Maybe a little too great...",
+  "Blacksmith Hamm can forge claw caps and armour plates for your dragon.",
+  "Strange things happen under a red moon.",
+  "Find an egg during a Blue Moon and it hatches with a very special shine.",
+  "The quest board pays more and more as your quest level goes up.",
+  "Mae's Bubble Charm lets your dragons swim under water.",
+  "Fire dragons don't mind lava. Everyone else: fly up, quick!",
+  "Old carvings all over the lands tell a story. Can you find them all?",
+  "Professor Hazel loves explaining why dragons look the way they do.",
+  "Small eggs hatch tiny dragons that stay little forever.",
+  "Walk around with your baby dragon so it can grow up.",
+  "Look up at night. Something might be looking back...",
+  "Every dragon can wear its own outfit. Try the wardrobe at your nest!",
+];
+let tipI = Math.floor(Math.random() * TIPS.length);
+const showTip = () => { $("tip").innerHTML = `<b>Tip:</b> ${TIPS[tipI % TIPS.length]}`; };
+$("tip").onclick = () => { tipI++; showTip(); };
+showTip();
+
+// the partner dragon from the current slot (or a Pyrrak before you have one) circles behind the title
+let tDr = null, tKey = "", tA = 0;
+function titleDragon() {
+  const d = loadSave(SLOT), p = d && d.pet && d.pet.kind && (d.stage === "baby" || d.stage === "grown") && SPECIES.some(s => s.name === d.pet.kind) ? d.pet : null;
+  const key = p ? [p.kind, p.shiny, JSON.stringify(p.gear), JSON.stringify(p.acc), p.small].join("|") : "none";
+  if (tDr && key === tKey) return; tKey = key;
+  if (tDr) scene.remove(tDr.root);
+  try { tDr = buildDragon(p ? p.kind : "Pyrrak", p ? p.shiny : null, p ? p.gear : null); if (p && p.acc) dressDragon(tDr, p.acc); }
+  catch (e) { tDr = buildDragon("Pyrrak"); }
+  tDr.k = (p && p.small ? 0.45 : 1) * (SP(p ? p.kind : "Pyrrak").size || 1);
+  scene.add(tDr.root);
+}
+function titleFly(dt) {
+  if (!tKey) titleDragon();
+  tA += dt * 0.2;
+  const R = 20, cx = NEST.x + 14, cz = NEST.z + 14, x = cx + Math.cos(tA) * R, z = cz + Math.sin(tA) * R;
+  const y = Math.max(height(x, z), height(cx, cz), WATER_Y) + 17 + Math.sin(tA * 2.3) * 1.5;
+  const r = tDr.root; r.visible = true;
+  r.position.set(x, y, z); r.rotation.set(0.28, -(tA + Math.PI / 2), Math.cos(tA * 2.3) * 0.08, "YXZ"); r.scale.setScalar(tDr.k);
+  tDr.update(T, 0, 1, dt, 0.25);
+  // the camera sits in the middle of the circle, a little lower, so the dragon glides across the sky above the title
+  camera.position.set(cx, y - 4, cz);
+  if (Math.abs(camera.fov - 55) > 0.1) { camera.fov = 55; camera.updateProjectionMatrix(); }
+  const f = new V(x, y - 1.5, z); camera.lookAt(f.x, f.y - 3.5, f.z);
+  return f;
+}
+
+// ---- the buttons ----
+document.body.classList.add("home");
+let saved = loadSave();
+function slotInfo(n) {
+  const d = loadSave(n); if (!d) return null;
+  const has = d.pet && d.pet.name && (d.stage === "baby" || d.stage === "grown");
+  const n2 = (d.pen || []).length + (has ? 1 : 0);
+  return { line: has ? `${d.pet.name} · Lv ${d.pet.level || 1} ${d.pet.kind}` : d.stage === "carry" ? "Carrying an egg home" : "Looking for the first egg",
+    sub: `${d.coins || 0} coins · ${n2} dragon${n2 === 1 ? "" : "s"}` };
+}
+function refreshHome() {
+  saved = loadSave(SLOT); tKey = "";
+  $("go").textContent = saved ? "Continue" : "Start";
+  $("newGame").hidden = !saved;
+  $("homeMsg").textContent = !saved ? "Somewhere in Green Valley an egg is glowing. Find it, carry it home to your nest, and see what hatches."
+    : saved.pet && saved.pet.name && saved.stage !== "find" && saved.stage !== "carry" ? `Welcome back! ${saved.pet.name} has been waiting for you.` : "Welcome back! Your egg hunt is right where you left it.";
+}
+refreshHome();
 function begin(fromSave) {
-  $("start").hidden = true; lockMouse(); started = true;
+  $("start").hidden = true; document.body.classList.remove("home"); lockMouse(); started = true;
+  if (tDr) { scene.remove(tDr.root); tDr = null; }
+  try { localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
   if (fromSave) { applySave(saved); toast("Welcome back!", landEl.textContent); }
   else toast("Green Valley", "Follow the arrow to the glowing egg");
   writeSave();
 }
+const emptySlot = () => [1, 2, 3].find(n => !loadSave(n));
 $("go").onclick = () => begin(!!saved);
-$("newGame").onclick = e => {
-  const b = e.currentTarget;
-  if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Erase my save?"; return; }
-  try { localStorage.removeItem(SAVE_KEY); } catch (er) {}
-  begin(false);
+$("newGame").onclick = () => {   // a new game goes in an empty slot, so nothing gets erased by accident
+  const n = emptySlot();
+  if (n) { SLOT = n; saved = null; begin(false); }
+  else showPane("slots", "All 3 slots are full. Delete one, or start over in one of them.");
 };
+function showPane(which, msg) {
+  $("homeMain").hidden = true; $("homePane").hidden = false;
+  const body = $("paneBody");
+  if (which === "slots") {
+    body.innerHTML = `<h3>Save slots</h3>${msg ? `<p>${msg}</p>` : ""}` + [1, 2, 3].map(n => {
+      const s = slotInfo(n);
+      return `<div class="slot ${n === SLOT ? "cur" : ""}"><div><b>Slot ${n}</b>${s ? ` · ${s.line}<small>${s.sub}</small>` : "<small>Empty</small>"}</div><div class="btns">${s
+        ? `<button type="button" data-play="${n}">Play</button><button type="button" class="ghost" data-del="${n}">Delete</button>`
+        : `<button type="button" data-new="${n}">New game</button>`}</div></div>`;
+    }).join("");
+    body.querySelectorAll("[data-play]").forEach(b => b.onclick = () => { SLOT = +b.dataset.play; saved = loadSave(SLOT); begin(true); });
+    body.querySelectorAll("[data-new]").forEach(b => b.onclick = () => { SLOT = +b.dataset.new; saved = null; begin(false); });
+    body.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Really delete?"; return; }
+      const n = +b.dataset.del; try { localStorage.removeItem(slotKey(n)); } catch (e) {}
+      if (n === SLOT) refreshHome(); showPane("slots");
+    });
+  } else if (which === "how") {
+    body.innerHTML = `<h3>How to play</h3>
+      <p>Find a glowing egg, carry it home to your nest and hatch it. Raise your dragon, then ride it all over the lands: fight monsters, find more eggs, do quests in the village and take on the arena.</p>
+      <dl><dt><kbd>W A S D</kbd></dt><dd>Walk (or fly forward when riding; let go to hover)</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Run, or fly fast. Tap it twice in the air for a dive bomb</dd>
+      <dt><kbd>Space</kbd></dt><dd>Jump, or fly up</dd>
+      <dt><kbd>Q</kbd> / <kbd>Ctrl</kbd></dt><dd>Fly down</dd>
+      <dt><kbd>E</kbd></dt><dd>Pick up, talk, use</dd>
+      <dt><kbd>R</kbd></dt><dd>Ride your grown-up dragon, or get off</dd>
+      <dt><kbd>C</kbd></dt><dd>Tell your dragon to sit</dd>
+      <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
+      <dt>Left click</dt><dd>Claw attack (while riding)</dd>
+      <dt>Right click</dt><dd>Breath attack (needs a few seconds to recharge)</dd>
+      <dt><kbd>A</kbd><kbd>A</kbd> / <kbd>D</kbd><kbd>D</kbd></dt><dd>Double-tap to dodge. A red flash means an attack is coming!</dd></dl>
+      <p>Your game saves by itself. Visit your nest to heal, swap dragons and dress them up.</p>`;
+  } else if (which === "set") {
+    body.innerHTML = `<h3>Settings</h3>
+      <label class="setRow"><span>Mouse speed</span><input type="range" id="sMouse" min="0.4" max="2" step="0.1" value="${SET.mouse}"></label>
+      <label class="setRow"><span>Flip looking up and down</span><input type="checkbox" id="sInv" ${SET.invert ? "checked" : ""}></label>
+      <label class="setRow"><span>Shadows (turn off if the game is slow)</span><input type="checkbox" id="sShadow" ${SET.shadows ? "checked" : ""}></label>
+      <label class="setRow"><span>Show the controls bar</span><input type="checkbox" id="sKeys" ${SET.keys ? "checked" : ""}></label>`;
+    $("sMouse").oninput = e => { SET.mouse = +e.target.value; applySettings(); };
+    $("sInv").onchange = e => { SET.invert = e.target.checked; applySettings(); };
+    $("sShadow").onchange = e => { SET.shadows = e.target.checked; applySettings(); };
+    $("sKeys").onchange = e => { SET.keys = e.target.checked; applySettings(); };
+  }
+}
+document.querySelectorAll("#homeMain [data-pane]").forEach(b => b.onclick = () => showPane(b.dataset.pane));
+$("paneBack").onclick = () => { $("homePane").hidden = true; $("homeMain").hidden = false; refreshHome(); };
 setInterval(writeSave, 3000);
 addEventListener("pagehide", writeSave);
 document.addEventListener("visibilitychange", () => { if (document.hidden) writeSave(); });
@@ -3022,6 +3171,7 @@ function frame() {
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
 
   // ---- camera ----
+  if (!started) { const f = titleFly(dt); updateDay(dt, f); sun.position.copy(f).addScaledVector(SUN_DIR, 80); sun.target.position.copy(f); renderer.render(scene, camera); requestAnimationFrame(frame); return; }
   const focus = state === "ride" ? new V(pet.x, pet.y + 3.2, pet.z) : new V(me.x, me.y + 1.6, me.z);
   if (state === "arena") {
     const look = arenaCamera(dt); updateDay(dt, look);
