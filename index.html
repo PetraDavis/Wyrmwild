@@ -4672,11 +4672,303 @@ MON.push({ name: "Gloom Spider", group: "Night", land: "Green Valley forests", g
     } };
   } });
 
+// ---------- Desert and Crystal Caves monsters (Petra 2026-11-09): each one hunts in its own way ----------
+// sand puffs used by the burrowers
+function sandPuffs(g, col, n, spread) {
+  const pos = new Float32Array(n * 3), life = new Float32Array(n), vel = [];
+  for (let i = 0; i < n; i++) { life[i] = Math.random(); vel.push(new V((Math.random() - 0.5) * spread, 0.6 + Math.random(), (Math.random() - 0.5) * spread)); }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C(col), size: 0.07, transparent: true, opacity: 0.85, depthWrite: false })));
+  return (dt, x0, y0, z0, on) => { for (let i = 0; i < n; i++) { life[i] += dt * 1.4; if (life[i] > 1) life[i] -= 1; const L = life[i], v = vel[i]; pos.set(on ? [x0 + v.x * L, y0 + v.y * L - 1.2 * L * L, z0 + v.z * L] : [0, -9, 0], i * 3); } pg.attributes.position.needsUpdate = true; };
+}
+
+// Dune Shark: swims under the sand with only its fin showing, then bursts up to bite
+MON.push({ name: "Dune Shark", land: "Desert", ground: "#d8b878", ad: [
+  "Swims through loose sand like a fish through water", "Only its tall back fin sticks out, so it can follow you without being seen", "Tough sandpaper skin that sand can't scratch", "Smells you through the sand and feels your footsteps"],
+  hunt: "Follows its prey under the sand with just its fin showing, then bursts straight up out of the dunes to bite. Watch for the fin speeding toward you!",
+  make() {
+    const g = new THREE.Group(), skin = std("#c8a468", { roughness: 0.9, map: blotch("#c8a468", ["#a8844a", "#e0c48a", "#8a6a3a"], 60, 14) }), belly = std("#efe0bc", { roughness: 0.8 }),
+      tooth = std("#fff8e8"), mouthM = std("#5a1a1a"), sand = std("#d8b878", { roughness: 1 });
+    const mound = mesh(sph(1.3, 28, 12), sand, 0, -0.75, 0, 1.4, 0.75, 1); g.add(mound);
+    const shark = new THREE.Group(); g.add(shark);
+    shark.add(mesh(sph(0.55, 24, 16), skin, 0, 0, 0, 2.0, 0.85, 0.8));                 // body
+    shark.add(mesh(sph(0.48, 22, 14), belly, 0.15, -0.18, 0, 1.8, 0.55, 0.7));
+    const fin = mesh(new THREE.ConeGeometry(0.35, 1.0, 4), skin, -0.2, 0.75, 0, 1, 1, 0.25); fin.rotation.z = 0.35; shark.add(fin);
+    [1, -1].forEach(s => { const pf = mesh(new THREE.ConeGeometry(0.2, 0.7, 4), skin, 0.3, -0.25, 0.4 * s, 1, 1, 0.25); pf.rotation.set(s * 1.1, 0, 0.9); shark.add(pf); });
+    const jaw = new THREE.Group(); jaw.position.set(0.9, -0.1, 0); shark.add(jaw);
+    jaw.add(mesh(sph(0.3, 16, 10), mouthM, 0.05, 0, 0, 1, 0.7, 1));
+    for (let i = 0; i < 9; i++) { const a = i / 8 * Math.PI - Math.PI / 2, t = mesh(new THREE.ConeGeometry(0.035, 0.12, 6), tooth, 0.12 + Math.cos(a) * 0.12, 0.12, Math.sin(a) * 0.22); t.rotation.x = Math.PI; jaw.add(t); }
+    eyes(shark, 0.82, 0.12, 0.26, 0.05, "#1a1208");
+    const tail = mesh(new THREE.ConeGeometry(0.4, 0.8, 4), skin, -1.25, 0.15, 0, 1, 1, 0.22); tail.rotation.z = 1.9; shark.add(tail);
+    const puffs = sandPuffs(g, "#e8d098", 70, 2.4);
+    const I = { g, phase: null, update: (t, dt) => {
+      const c = I.phase ?? t % 6, jump = c > 3.6 && c < 5.2 ? Math.sin((c - 3.6) / 1.6 * Math.PI) : 0;
+      shark.position.set(Math.sin(t * 0.8) * 0.3, -0.75 + jump * 2.1 + (jump ? 0 : 0.2), 0);   // under the sand: only the fin pokes out
+      shark.rotation.z = jump ? (c < 4.4 ? 0.9 : -0.6) * jump : Math.sin(t * 3) * 0.04;
+      jaw.rotation.z = -jump * 0.6; puffs(dt || 0.016, 0, 0.05, 0, jump > 0.05);
+    } }; return I;
+  } });
+
+// Scorpiclaw: a giant scorpion that grabs with its pincers and stings from above
+MON.push({ name: "Scorpiclaw", land: "Desert", ground: "#d8b878", ad: [
+  "Thick, shiny armour keeps the sun and sand out", "Two huge pincers grab and squeeze", "A curved tail stinger full of poison", "Eight legs spread wide so it never sinks in the sand"],
+  hunt: "Waits half buried under a rock, then rushes out, grabs with both pincers and jabs its tail over its head. Its sting is poisonous: your dragon keeps losing a little HP for a while.",
+  make() {
+    const g = new THREE.Group(), shell = std("#8a3a1e", { roughness: 0.3, metalness: 0.15 }), dark = std("#4a1e10", { roughness: 0.35 }), sting = std("#2a1408", { roughness: 0.2 }), venom = glow("#b8ff4a");
+    const body = new THREE.Group(); body.position.y = 0.45; g.add(body);
+    for (let i = 0; i < 4; i++) body.add(mesh(sph(0.42 - i * 0.04, 18, 12), i % 2 ? dark : shell, 0.35 - i * 0.38, 0, 0, 1.0, 0.5, 1.2));
+    body.add(mesh(sph(0.36, 18, 12), shell, 0.75, 0.02, 0, 1.0, 0.55, 1.1));            // head plate
+    eyes(body, 1.05, 0.12, 0.1, 0.035, "#1a0a04", false); eyes(body, 0.95, 0.16, 0.16, 0.025, "#1a0a04", false);
+    const claws = [];
+    [1, -1].forEach(s => {
+      const arm = new THREE.Group(); arm.position.set(0.9, 0, 0.32 * s); body.add(arm);
+      arm.add(limb(new V(0, 0, 0), new V(0.45, 0.05, 0.35 * s), 0.09, 0.08, shell));
+      arm.add(limb(new V(0.45, 0.05, 0.35 * s), new V(0.95, 0.1, 0.3 * s), 0.08, 0.1, dark));
+      const p1 = mesh(sph(0.2, 14, 10), shell, 1.1, 0.1, 0.3 * s, 1.5, 0.7, 0.9); arm.add(p1);
+      const top = new THREE.Group(); top.position.set(1.2, 0.12, 0.3 * s); arm.add(top);
+      top.add(mesh(new THREE.ConeGeometry(0.09, 0.45, 8), dark, 0.22, 0, 0.04 * s, 1, 1, 1)).children; top.children[0].rotation.z = -Math.PI / 2;
+      const bot = new THREE.Group(); bot.position.set(1.2, 0.06, 0.3 * s); arm.add(bot);
+      bot.add(mesh(new THREE.ConeGeometry(0.07, 0.38, 8), dark, 0.18, 0, -0.04 * s)); bot.children[0].rotation.z = -Math.PI / 2;
+      claws.push({ arm, top, bot, s });
+      for (let k = 0; k < 4; k++) {                                                         // 8 legs
+        const x = 0.45 - k * 0.32, l = new THREE.Group(); l.position.set(x, -0.05, 0.38 * s); body.add(l);
+        l.add(limb(new V(0, 0, 0), new V(0.05, 0.25, 0.42 * s), 0.05, 0.04, shell)); l.add(limb(new V(0.05, 0.25, 0.42 * s), new V(-0.05, -0.45, 0.7 * s), 0.04, 0.02, dark));
+        claws.push({ leg: l, ph: k + (s > 0 ? 0 : 1.5) });
+      }
+    });
+    // tail: segments curling up and over the back
+    const tailRoot = new THREE.Group(); tailRoot.position.set(-0.85, 0.05, 0); body.add(tailRoot);
+    let par = tailRoot; const segs = [];
+    for (let i = 0; i < 6; i++) { const sg = new THREE.Group(); sg.position.x = i ? -0.3 : 0; par.add(sg); sg.add(mesh(sph(0.17 - i * 0.012, 14, 10), i % 2 ? dark : shell, -0.15, 0, 0, 1.3, 0.9, 0.9)); segs.push(sg); par = sg; }
+    const bulb = mesh(sph(0.16, 14, 10), shell, -0.3, 0, 0, 1.2, 1, 1); par.add(bulb);
+    const st = mesh(new THREE.ConeGeometry(0.05, 0.32, 8), sting, -0.42, -0.14, 0); st.rotation.z = 2.4; par.add(st);
+    par.add(mesh(sph(0.03, 8, 6), venom, -0.52, -0.26, 0));
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 5, jab = c > 3.4 && c < 4.2 ? Math.sin((c - 3.4) / 0.8 * Math.PI) : 0;
+      segs.forEach((sg, i) => sg.rotation.z = -(0.55 + Math.sin(t * 1.5) * 0.05) - jab * (i > 2 ? 0.25 : 0.05));
+      claws.forEach(o => { if (o.arm) { const snap = Math.max(0, Math.sin(t * 2.2 + (o.s > 0 ? 0 : 1))) ** 4; o.top.rotation.z = snap * 0.5; o.bot.rotation.z = -snap * 0.4; o.arm.rotation.y = -o.s * Math.sin(t * 1.1) * 0.1; } else o.leg.rotation.x = Math.sin(t * 5 + o.ph) * 0.15; });
+      body.position.y = 0.45 + Math.abs(Math.sin(t * 5)) * 0.01;
+    } }; return I;
+  } });
+
+// Dust Devil: a living whirlwind of sand
+MON.push({ name: "Dust Devil", land: "Desert", ground: "#d8b878", ad: [
+  "A spinning spirit made of hot wind and sand", "Two glowing coals for eyes in the middle of the storm", "Grows bigger by sucking up more sand", "Hot air makes it rise, so it loves the midday sun"],
+  hunt: "Spins toward flying dragons and SUCKS them into its whirlwind, spinning them round and round before flinging them out. Fly away fast when you see it lean toward you.",
+  make() {
+    const g = new THREE.Group(), N = 340, pos = new Float32Array(N * 3), data = [];
+    for (let i = 0; i < N; i++) data.push({ h: Math.random(), a: Math.random() * 6.28, s: 0.7 + Math.random() * 0.6 });
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#d8b070"), size: 0.09, transparent: true, opacity: 0.9, depthWrite: false })));
+    const funnelM = new THREE.MeshStandardMaterial({ color: C("#caa060"), transparent: true, opacity: 0.38, roughness: 1, side: THREE.DoubleSide, depthWrite: false });
+    const funnel = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.18, 3.2, 24, 6, true), funnelM); funnel.position.y = 1.6; g.add(funnel);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.1, 2.9, 20, 4, true), funnelM); inner.position.y = 1.55; g.add(inner);
+    const face = new THREE.Group(); face.position.set(0, 2.2, 0); g.add(face);
+    [1, -1].forEach(s => { face.add(mesh(sph(0.09, 12, 8), glow("#ff8a2a"), 0.62, 0, 0.2 * s)); face.add(halo("#ff8a2a", 0.5, 0.6)).children; });
+    face.children.filter(o => o.isSprite).forEach((h, i) => h.position.set(0.62, 0, i ? -0.2 : 0.2));
+    const base = mesh(sph(0.9, 20, 8), std("#d8b878", { roughness: 1 }), 0, 0, 0, 1.3, 0.15, 1.3); g.add(base);
+    return { g, update: (t, dt) => {
+      for (let i = 0; i < N; i++) { const d = data[i]; d.a += (dt || 0.016) * (4 + (1 - d.h) * 6); d.h += (dt || 0.016) * 0.15; if (d.h > 1) d.h -= 1; const r = (0.15 + d.h * 0.95) * d.s; pos.set([Math.cos(d.a) * r + Math.sin(t * 2 + d.h * 4) * 0.12, d.h * 3.3, Math.sin(d.a) * r], i * 3); }
+      pg.attributes.position.needsUpdate = true;
+      funnel.rotation.y = t * 5; inner.rotation.y = -t * 7; funnel.position.x = Math.sin(t * 1.3) * 0.12; face.rotation.y = Math.sin(t * 0.7) * 0.3;
+    } };
+  } });
+
+// Mirage Stalker (night): a lizard that bends moonlight around itself
+MON.push({ name: "Mirage Stalker", group: "Night", land: "Desert", ground: "#8a7a62", ad: [
+  "Its scales bend light, so it can turn almost invisible", "A long, thin body and long legs for sprinting across cool night sand", "Big eyes that see in moonlight", "A frill that flashes rainbow colours when it attacks"],
+  hunt: "Goes nearly invisible, a faint shimmer in the moonlight, and sneaks round BEHIND your dragon. It flashes into sight only for the bite. Keep turning to look for the shimmer!",
+  make() {
+    const g = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: C("#b8a8d8"), roughness: 0.2, metalness: 0.4, transparent: true, opacity: 0.55, emissive: C("#6a5aa8"), emissiveIntensity: 0.3 });
+    const frillM = new THREE.MeshStandardMaterial({ color: C("#ffffff"), side: THREE.DoubleSide, transparent: true, opacity: 0.7, map: canvasTex(128, 64, (x, w, h) => { const gr = x.createLinearGradient(0, 0, w, 0); ["#ff5a8a", "#ffd04a", "#5aff9a", "#5ab8ff", "#b85aff"].forEach((c, i) => gr.addColorStop(i / 4, c)); x.fillStyle = gr; x.fillRect(0, 0, w, h); }) });
+    const body = new THREE.Group(); body.position.y = 0.55; g.add(body);
+    body.add(mesh(sph(0.3, 20, 12), skin, 0, 0, 0, 2.4, 0.7, 0.85));
+    const head = new THREE.Group(); head.position.set(0.85, 0.12, 0); body.add(head);
+    head.add(mesh(sph(0.2, 16, 12), skin, 0.1, 0, 0, 1.7, 0.8, 0.9));
+    eyes(head, 0.18, 0.1, 0.12, 0.06, "#e8f0ff");
+    const frill = new THREE.Group(); frill.position.set(0, 0.02, 0); head.add(frill);
+    [1, -1].forEach(s => { const f = mesh(new THREE.CircleGeometry(0.42, 18, -0.2, Math.PI * 0.9), frillM, -0.05, 0, 0.14 * s); f.rotation.set(0, s > 0 ? -1.2 : 1.2 + Math.PI, 0); frill.add(f); });
+    const legs = [];
+    [[0.45, 1], [0.45, -1], [-0.45, 1], [-0.45, -1]].forEach(([x, s], k) => { const l = new THREE.Group(); l.position.set(x, -0.05, 0.2 * s); body.add(l);
+      l.add(limb(new V(0, 0, 0), new V(0.05, 0.12, 0.4 * s), 0.06, 0.045, skin)); l.add(limb(new V(0.05, 0.12, 0.4 * s), new V(0.1, -0.5, 0.48 * s), 0.045, 0.03, skin)); legs.push({ l, ph: k === 0 || k === 3 ? 0 : Math.PI }); });
+    const tail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new V(-0.6, 0, 0), new V(-1.2, -0.15, 0.15), new V(-1.8, -0.3, -0.1), new V(-2.2, -0.4, 0.15)]), 24, 0.07, 8), skin); body.add(tail);
+    const sparkle = halo("#c8b8ff", 2.6, 0.12); sparkle.position.y = 0.6; g.add(sparkle);
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 6, show = c > 4.4 && c < 5.6 ? Math.sin((c - 4.4) / 1.2 * Math.PI) : 0;   // flickers into sight to bite
+      skin.opacity = 0.12 + show * 0.8 + Math.max(0, Math.sin(t * 9)) * 0.05; frillM.opacity = show * 0.9; frill.scale.setScalar(0.3 + show * 0.7);
+      sparkle.material.opacity = 0.12 * (1 - show) + Math.sin(t * 7) * 0.04;
+      legs.forEach(o => o.l.rotation.y = Math.sin(t * 7 + o.ph) * 0.35); body.rotation.y = Math.sin(t * 0.6) * 0.3;
+    } }; return I;
+  } });
+
+// Moonscarab Swarm (night): glowing beetles that pour over you from every side
+MON.push({ name: "Moonscarab Swarm", group: "Night", land: "Desert", ground: "#8a7a62", ad: [
+  "Hundreds of little beetles that hide under the sand all day", "Their shells glow blue so the swarm can stay together in the dark", "Tiny jaws that nibble anything", "They roll moonlit dung balls, and nobody knows why"],
+  hunt: "The whole swarm crawls up out of the sand and pours over your dragon from every side, biting all at once. A claw hits only a few, so use breath to scatter the swarm.",
+  make() {
+    const g = new THREE.Group(), shellM = std("#1a2a4a", { roughness: 0.15, metalness: 0.5, emissive: C("#4ab8ff"), emissiveIntensity: 0.55 }), legM = std("#0a1020");
+    const beetle = (sc) => { const b = new THREE.Group(); b.add(mesh(sph(0.11, 12, 8), shellM, 0, 0.07, 0, 1.4, 0.6, 1)); b.add(mesh(sph(0.05, 8, 6), legM, 0.15, 0.05, 0));
+      [1, -1].forEach(s => { for (let k = 0; k < 3; k++) b.add(limb(new V(0.06 - k * 0.07, 0.05, 0.05 * s), new V(0.08 - k * 0.1, 0, 0.14 * s), 0.012, 0.008, legM)); });
+      b.add(mesh(new THREE.ConeGeometry(0.02, 0.1, 5), legM, 0.2, 0.1, 0)).children; b.scale.setScalar(sc); return b; };
+    const bugs = [];
+    for (let i = 0; i < 46; i++) { const b = beetle(0.8 + Math.random() * 0.6); g.add(b); bugs.push({ b, a: Math.random() * 6.28, r: 0.3 + Math.random() * 1.6, sp: 0.5 + Math.random() * 1.5, h: Math.random() }); }
+    const ball = mesh(sph(0.35, 16, 12), std("#6a5a40", { roughness: 1 }), 0.9, 0.35, 0.6); g.add(ball);
+    const glowS = halo("#4ab8ff", 4.5, 0.25); glowS.position.y = 0.3; g.add(glowS);
+    return { g, update: t => {
+      const rise = (Math.sin(t * 0.7) * 0.5 + 0.5);   // they pour up into a heap and spread out again
+      bugs.forEach((o, i) => { o.a += 0.016 * o.sp; const r = o.r * (1 - rise * 0.55), y = rise * (1.4 - r) * o.h * 1.4;
+        o.b.position.set(Math.cos(o.a) * r, Math.max(0, y), Math.sin(o.a) * r); o.b.rotation.y = -o.a - Math.PI / 2; o.b.rotation.z = rise * 0.6 * o.h; });
+      ball.rotation.z = -t; ball.position.x = 0.9 + Math.sin(t * 0.4) * 0.3;
+      shellM.emissiveIntensity = 0.45 + Math.sin(t * 2) * 0.15;
+    } };
+  } });
+
+// Geode Crab: pretends to be a rock, then opens up into crystals and snaps
+MON.push({ name: "Geode Crab", land: "Crystal Caves", ground: "#3a3448", ad: [
+  "Its shell looks exactly like a plain grey cave rock", "Inside, the shell is lined with glowing purple crystals", "Huge crushing claw on one side, small picking claw on the other", "Eats crystals, and that's what makes its shell sparkle inside"],
+  hunt: "Sits perfectly still among the cave rocks, looking like a boulder. When a dragon comes close, the shell CRACKS open and the big claw snaps out. Any rock might be a crab!",
+  make() {
+    const g = new THREE.Group(), rock = std("#6a6470", { flatShading: true, roughness: 1 }), crys = std("#b07aff", { roughness: 0.1, emissive: C("#8a4aff"), emissiveIntensity: 0.8, flatShading: true }),
+      leg = std("#5a4a6a", { roughness: 0.6 }), claw = std("#4a3a5a", { roughness: 0.4 });
+    const bot = mesh(new THREE.DodecahedronGeometry(0.8, 1), rock, 0, 0.45, 0, 1.2, 0.55, 1.05); g.add(bot);
+    const lid = new THREE.Group(); lid.position.set(-0.7, 0.62, 0); g.add(lid);
+    const top = mesh(new THREE.SphereGeometry(0.85, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), rock, 0.7, 0, 0, 1.15, 0.7, 1.0); lid.add(top);
+    for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28, r = Math.random() * 0.55; const c = mesh(new THREE.ConeGeometry(0.06 + Math.random() * 0.05, 0.25 + Math.random() * 0.2, 5), crys, 0.7 + Math.cos(a) * r, -0.02, Math.sin(a) * r); c.rotation.x = Math.PI; lid.add(c); }   // crystals inside the lid
+    for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28, r = Math.random() * 0.6; g.add(mesh(new THREE.ConeGeometry(0.06 + Math.random() * 0.05, 0.25 + Math.random() * 0.25, 5), crys, Math.cos(a) * r, 0.75, Math.sin(a) * r)); }
+    const eyeStalks = new THREE.Group(); eyeStalks.position.set(0.75, 0.7, 0); g.add(eyeStalks);
+    [1, -1].forEach(s => { eyeStalks.add(limb(new V(0, 0, 0.12 * s), new V(0.05, 0.25, 0.15 * s), 0.025, 0.02, leg)); eyeStalks.add(mesh(sph(0.05, 10, 8), glow("#e8c8ff"), 0.05, 0.28, 0.15 * s)); });
+    const legs = [];
+    [1, -1].forEach(s => { for (let k = 0; k < 3; k++) { const l = new THREE.Group(); l.position.set(0.35 - k * 0.35, 0.35, 0.75 * s); g.add(l);
+      l.add(limb(new V(0, 0, 0), new V(0.05, 0.25, 0.35 * s), 0.06, 0.05, leg)); l.add(limb(new V(0.05, 0.25, 0.35 * s), new V(0.0, -0.33, 0.55 * s), 0.05, 0.02, leg)); legs.push({ l, k }); } });
+    const big = new THREE.Group(); big.position.set(0.85, 0.45, 0.45); g.add(big);
+    big.add(limb(new V(0, 0, 0), new V(0.4, 0.15, 0.2), 0.1, 0.12, claw)); big.add(mesh(sph(0.28, 14, 10), claw, 0.55, 0.2, 0.25, 1.4, 0.9, 0.9));
+    const pinch = new THREE.Group(); pinch.position.set(0.85, 0.25, 0.25); big.add(pinch);
+    pinch.add(mesh(new THREE.ConeGeometry(0.1, 0.5, 6), claw, 0.2, 0, 0)); pinch.children[0].rotation.z = -Math.PI / 2;
+    const small = mesh(sph(0.13, 10, 8), claw, 1.0, 0.4, -0.45, 1.5, 0.8, 0.8); g.add(small);
+    const light = new THREE.PointLight("#a86aff", 0, 3, 2); light.position.set(0, 1.0, 0); g.add(light);
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 6, open = c > 2.5 ? Math.min(1, (c - 2.5) * 3, (6 - c) * 2) : 0;   // looks like a rock, then cracks open
+      lid.rotation.z = open * 0.85; light.intensity = open * 1.2; eyeStalks.scale.setScalar(0.2 + open * 0.8);
+      big.scale.setScalar(0.35 + open * 0.65); small.visible = open > 0.3; legs.forEach(o => { o.l.scale.setScalar(0.3 + open * 0.7); o.l.rotation.x = Math.sin(t * 6 + o.k) * 0.15 * open; });
+      pinch.rotation.z = open > 0.9 ? Math.max(0, Math.sin(t * 5)) * 0.6 : 0;
+    } }; return I;
+  } });
+
+// Stalactite Lurker: hangs from the cave roof pretending to be a stalactite, and drops on you
+MON.push({ name: "Stalactite Lurker", land: "Crystal Caves", ground: "#3a3448", ad: [
+  "Its pointy rock body looks just like a stalactite", "Clings to the cave roof with sticky suckers", "A ring of tiny glowing eyes around its tip", "Falls like a spear, then crawls back up the wall"],
+  hunt: "Hangs from the cave ceiling among the real stalactites. When a dragon flies underneath it lets go and DROPS like a spear. Watch the roof when you fly in the caves!",
+  make() {
+    const g = new THREE.Group(), rock = std("#7a7088", { roughness: 0.9, flatShading: true }), wet = std("#5a5068", { roughness: 0.2 }), sucker = std("#8a5a7a", { roughness: 0.4 });
+    const roof = mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.4, 10), std("#4a4258", { flatShading: true, roughness: 1 }), 0, 3.7, 0); g.add(roof);
+    [[0.9, 0.5, 1.1], [-0.8, -0.4, 0.8], [0.5, -1.0, 0.7], [-1.2, 0.6, 0.9]].forEach(([x, z, h]) => g.add(mesh(new THREE.ConeGeometry(0.18, h, 7), rock, x, 3.5 - h / 2, z, 1, -1, 1)));   // real stalactites around it
+    const lurk = new THREE.Group(); g.add(lurk);
+    const spike = mesh(new THREE.ConeGeometry(0.42, 2.0, 9), rock, 0, -1.0, 0, 1, -1, 1); lurk.add(spike);
+    lurk.add(mesh(new THREE.ConeGeometry(0.43, 0.6, 9), wet, 0, -0.35, 0, 1, -1, 1));
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; lurk.add(mesh(sph(0.04, 8, 6), glow("#ff9ae0"), Math.cos(a) * 0.12, -1.75, Math.sin(a) * 0.12)); }
+    const legs = [];
+    for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2, l = new THREE.Group(); l.position.set(Math.cos(a) * 0.35, -0.25, Math.sin(a) * 0.35); l.rotation.y = -a; lurk.add(l);
+      l.add(limb(new V(0, 0, 0), new V(0.45, 0.2, 0), 0.05, 0.04, wet)); l.add(mesh(sph(0.07, 8, 6), sucker, 0.47, 0.22, 0, 1, 0.5, 1)); legs.push(l); }
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7, fall = c > 4 && c < 5.5 ? Math.min(1, (c - 4) * 2.2) : c >= 5.5 ? Math.max(0, 1 - (c - 5.5) / 1.5) : 0;
+      lurk.position.y = 3.5 - fall * fall * 1.7; lurk.rotation.y = t * 0.2;
+      legs.forEach((l, i) => l.rotation.z = fall > 0.05 ? -0.8 + Math.sin(t * 10 + i) * 0.3 : 0.15);
+    } }; return I;
+  } });
+
+// Prism Wisp: a floating crystal that focuses light into a beam
+MON.push({ name: "Prism Wisp", land: "Crystal Caves", ground: "#3a3448", ad: [
+  "A living crystal that floats on its own glow", "Soaks up the light from the cave crystals all day", "Little rings of crystal shards orbit around it", "Splits white light into rainbow colours"],
+  hunt: "Charges up, glowing brighter and brighter, then fires a straight BEAM of focused light. The beam is fast but it can't turn, so dodge sideways when the glow peaks.",
+  make() {
+    const g = new THREE.Group(), cm = new THREE.MeshPhysicalMaterial({ color: C("#e8f4ff"), roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.8, emissive: C("#9ad8ff"), emissiveIntensity: 0.6, flatShading: true });
+    const core = new THREE.Group(); core.position.y = 1.4; g.add(core);
+    core.add(mesh(new THREE.OctahedronGeometry(0.42, 0), cm, 0, 0, 0, 1, 1.6, 1));
+    const shards = new THREE.Group(); core.add(shards);
+    const cols = ["#ff7a9a", "#ffd04a", "#7aff9a", "#7ac8ff", "#c87aff"];
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, m = mesh(new THREE.OctahedronGeometry(0.08, 0), std(cols[i % 5], { emissive: C(cols[i % 5]), emissiveIntensity: 0.9, flatShading: true }), Math.cos(a) * 0.75, Math.sin(a * 2) * 0.1, Math.sin(a) * 0.75, 1, 1.8, 1); shards.add(m); }
+    const glowS = halo("#bfe8ff", 1.6, 0.5); core.add(glowS);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 6, 12, 1, true), addGlow("#ffffff", 0.8)); beam.rotation.z = Math.PI / 2; beam.position.set(3.3, 0, 0); core.add(beam);
+    const rainbow = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 6, 12, 1, true), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      map: canvasTex(64, 8, (x, w, h) => { cols.forEach((c, i) => { x.fillStyle = c; x.fillRect(i * w / 5, 0, w / 5 + 1, h); }); }) })); rainbow.rotation.z = Math.PI / 2; rainbow.position.copy(beam.position); core.add(rainbow);
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 5, charge = c < 3.5 ? c / 3.5 : 0, fire = c >= 3.5 && c < 4.2;
+      core.position.y = 1.4 + Math.sin(t * 1.5) * 0.12; core.rotation.y = t * 0.6 * (fire ? 0 : 1);
+      shards.rotation.y = t * (1.5 + charge * 6); shards.scale.setScalar(1 - charge * 0.35);
+      cm.emissiveIntensity = 0.5 + charge * 1.6 + (fire ? 2 : 0); glowS.scale.setScalar(1.2 + charge * 1.6); glowS.material.opacity = 0.4 + charge * 0.5;
+      beam.visible = rainbow.visible = fire;
+    } }; return I;
+  } });
+
+// Echo Bat (night): a huge-eared bat whose scream knocks you back
+MON.push({ name: "Echo Bat", group: "Night", land: "Crystal Caves", ground: "#2a2438", ad: [
+  "Giant ears hear echoes off every crystal in the cave", "Sees with sound, so it doesn't need light at all", "Leathery wings stretched over long finger bones", "Comes out of the deep caves after dark to hunt"],
+  hunt: "Flies circles round you, then lets out a SCREAM: a ring of sound that knocks your dragon backwards and leaves it dizzy for a moment. Get out of the ring's way, or hit it while it's taking a breath.",
+  make() {
+    const g = new THREE.Group(), fur = std("#4a3a52", { roughness: 0.9 }), wingM = std("#3a2a44", { side: THREE.DoubleSide, roughness: 0.7 }), ear = std("#8a5a7a", { side: THREE.DoubleSide, roughness: 0.6 }), bone = std("#5a4a62");
+    const body = new THREE.Group(); body.position.y = 1.5; g.add(body);
+    body.add(mesh(sph(0.3, 16, 12), fur, 0, 0, 0, 1.2, 1, 0.9));
+    const head = new THREE.Group(); head.position.set(0.32, 0.2, 0); body.add(head);
+    head.add(mesh(sph(0.2, 16, 12), fur));
+    head.add(mesh(sph(0.08, 10, 8), std("#6a4a5a"), 0.18, -0.04, 0, 1, 0.8, 1.3));
+    eyes(head, 0.15, 0.06, 0.09, 0.03, "#ffe0f0");
+    [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.2, 0.7, 10, 1, true), ear, -0.02, 0.4, 0.14 * s); e.rotation.set(s * 0.35, 0, -0.15); head.add(e); });
+    const wings = [];
+    [1, -1].forEach(s => { const w = new THREE.Group(); w.position.set(0, 0.08, 0.2 * s); body.add(w);
+      // proper bat wing: arm bone to the wrist, four long fingers, membrane scalloped between finger tips
+      const wr = [0.18, 0.75], tips = [[0.45, 1.65], [0.0, 1.85], [-0.5, 1.6], [-0.8, 0.85]];
+      const pts = [[0.05, 0], wr, tips[0], [0.12, 1.45], tips[1], [-0.18, 1.45], tips[2], [-0.48, 1.15], tips[3], [-0.5, 0.45], [-0.38, 0.02]];
+      const sh = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const geo = new THREE.ShapeGeometry(sh), pa = geo.attributes.position;
+      for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), y = pa.getY(i); pa.setXYZ(i, x, 0, y * s); }
+      geo.computeVertexNormals(); w.add(new THREE.Mesh(geo, wingM));
+      w.add(limb(new V(0, 0, 0), new V(wr[0], 0, wr[1] * s), 0.04, 0.03, bone));
+      tips.forEach(([x, z]) => w.add(limb(new V(wr[0], 0, wr[1] * s), new V(x, 0, z * s), 0.026, 0.01, bone)));
+      w.add(mesh(new THREE.ConeGeometry(0.025, 0.12, 5), bone, wr[0] + 0.06, 0.02, wr[1] * s));   // little thumb claw
+      wings.push({ w, s }); });
+    const rings = [];
+    for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.03, 6, 32), addGlow("#ff9ae8", 0.6)); r.rotation.y = Math.PI / 2; head.add(r); rings.push(r); }
+    const I = { g, phase: null, update: t => {
+      body.position.y = 1.5 + Math.sin(t * 2) * 0.15; body.rotation.y = Math.sin(t * 0.5) * 0.4;
+      wings.forEach(o => o.w.rotation.x = -o.s * (Math.sin(t * 9) * 0.7 + 0.1));
+      const c = I.phase ?? t % 4, scream = c > 2.8;
+      rings.forEach((r, i) => { const k = scream ? ((c - 2.8) / 1.2 + i * 0.25) % 1 : 0; r.visible = scream; r.position.x = 0.3 + k * 2.2; r.scale.setScalar(0.4 + k * 3); r.material.opacity = 0.7 * (1 - k); });
+    } }; return I;
+  } });
+
+// Glimmer Slug (night): a glowing slug that spits sticky slime
+MON.push({ name: "Glimmer Slug", group: "Night", land: "Crystal Caves", ground: "#2a2438", ad: [
+  "A soft glowing body full of light it ate from the crystals", "Leaves a sparkly slime trail wherever it goes", "Feelers that taste the air for dragons", "Slow, but its slime is the stickiest thing in the world"],
+  hunt: "Spits globs of glowing, sticky slime. A slimed dragon flies and walks SLOWLY for a while, so the other cave monsters can catch it. Stay out of its trail too!",
+  make() {
+    const g = new THREE.Group();
+    const skin = new THREE.MeshPhysicalMaterial({ color: C("#7affd8"), roughness: 0.1, transparent: true, opacity: 0.8, emissive: C("#2ae8b0"), emissiveIntensity: 0.6 });
+    const spots = glow("#e8fff0"), trailM = addGlow("#7affd8", 0.35);
+    const slug = new THREE.Group(); g.add(slug);
+    slug.add(mesh(sph(0.45, 24, 16), skin, 0, 0.32, 0, 2.2, 0.7, 0.85));
+    slug.add(mesh(sph(0.35, 20, 14), skin, 0.75, 0.45, 0, 1.0, 0.95, 0.9));                // head bump
+    slug.add(mesh(sph(0.32, 18, 10), skin, -0.2, 0.62, 0, 1.4, 0.5, 0.7));                 // mantle
+    for (let i = 0; i < 12; i++) slug.add(mesh(sph(0.04 + Math.random() * 0.03, 8, 6), spots, -0.7 + Math.random() * 1.4, 0.5 + Math.random() * 0.2, (Math.random() - 0.5) * 0.6));
+    const feelers = [];
+    [[1, 0.55], [-1, 0.55], [1, 0.3], [-1, 0.3]].forEach(([s, l], k) => { const f = new THREE.Group(); f.position.set(0.9, 0.7 - (k > 1 ? 0.2 : 0), 0.15 * s); slug.add(f);
+      f.add(limb(new V(0, 0, 0), new V(0.2, l, 0.12 * s), 0.035, 0.02, skin)); f.add(mesh(sph(0.045, 8, 6), spots, 0.2, l, 0.12 * s)); feelers.push(f); });
+    const trail = mesh(new THREE.PlaneGeometry(2.6, 0.7), trailM, -1.6, 0.02, 0); trail.rotation.x = -Math.PI / 2; g.add(trail);
+    const glob = mesh(sph(0.12, 10, 8), skin, 1.2, 0.6, 0); g.add(glob);
+    const I = { g, phase: null, update: t => {
+      const wave = Math.sin(t * 2.5); slug.scale.set(1 + wave * 0.05, 1 - wave * 0.03, 1); slug.position.x = Math.sin(t * 0.3) * 0.2;
+      feelers.forEach((f, i) => f.rotation.z = Math.sin(t * 2 + i) * 0.2);
+      const c = I.phase ?? t % 4; glob.visible = c > 2.6; const k = Math.max(0, c - 2.6) / 1.4; glob.position.set(1.2 + k * 3, 0.6 + k * 1.2 - k * k * 1.6, 0);
+      skin.emissiveIntensity = 0.5 + Math.sin(t * 1.3) * 0.15;
+    } }; return I;
+  } });
+
 
 const SIZE_M = { "Goblin": 1.1, "Bog Toad": 1.0, "Lava Imp": 0.9, "Rock Troll": 3.8, "Ice Wraith": 2.6, "Snow Yeti": 3.2, "Vine Creeper": 1.8,
   "Mud Eel": 1.6, "Snapjaw Turtle": 1.3, "Ember Beetle": 0.9, "Ash Lurker": 0.8, "Frost Wolf": 1.4, "Storm Harpy": 2.4, "Cloud Jelly": 10.0,
   "Gust Sprite": 0.6, "Puffcap": 1.5, "Vine Dangler": 9.0, "Glowmoth Swarm": 1.5, "Shade Lynx": 1.3, "Hootclaw": 1.6, "Bog Wisp": 1.0,
-  "Cinder Bat": 0.8, "Magma Glowworm": 1.0, "Moon Wolf": 1.5, "Star Jelly": 6.5, "Abyss Angler": 3.5, "Gloom Spider": 1.4 };
+  "Cinder Bat": 0.8, "Magma Glowworm": 1.0, "Moon Wolf": 1.5, "Star Jelly": 6.5, "Abyss Angler": 3.5, "Gloom Spider": 1.4,
+  "Dune Shark": 2.4, "Scorpiclaw": 1.9, "Dust Devil": 5.5, "Mirage Stalker": 1.6, "Moonscarab Swarm": 1.2, "Geode Crab": 1.6, "Stalactite Lurker": 4.5, "Prism Wisp": 2.2, "Echo Bat": 2.6, "Glimmer Slug": 1.0 };
 MON.forEach(m => m.sizeM = SIZE_M[m.name] || 1.5);
 return MON;
 })();
@@ -4691,34 +4983,46 @@ const MONSTER = {
   "Snapjaw Turtle": { land: "Green Valley", water: true, lv: [2, 4], hp: 1.7, dmg: 1.2, speed: 3, atk: "Crushing snap", range: 2.6 },
   "Glowmoth Swarm": { land: "Green Valley", night: true, fly: 3, lv: [2, 4], hp: 0.6, dmg: 0.7, speed: 9, atk: "Dizzy dust", range: 4 },
   "Bog Wisp":       { land: "Green Valley", night: true, water: true, fly: 2, lv: [3, 5], hp: 0.7, dmg: 1.0, speed: 8, atk: "Spooky zap", range: 12, shot: "#bfffe8" },
-  "Vine Creeper":   { land: "Deep Forest", lv: [3, 6], hp: 1.4, dmg: 1.1, speed: 2.5, atk: "Vine grab", range: 5 },
-  "Shade Lynx":     { land: "Deep Forest", night: true, lv: [4, 7], hp: 0.9, dmg: 1.4, speed: 13, atk: "Pounce", range: 3 },
-  "Hootclaw":       { land: "Deep Forest", night: true, fly: 6, lv: [4, 7], hp: 0.9, dmg: 1.2, speed: 11, atk: "Talon dive", range: 3 },
+  "Vine Creeper":   { land: "Deep Forest", lv: [3, 6], hp: 1.4, dmg: 1.1, speed: 2.5, atk: "Root snare", range: 9 },
+  "Shade Lynx":     { land: "Deep Forest", night: true, lv: [4, 7], hp: 0.9, dmg: 1.4, speed: 13, atk: "Pounce", range: 12 },
+  "Hootclaw":       { land: "Deep Forest", night: true, fly: 6, lv: [4, 7], hp: 0.9, dmg: 1.2, speed: 11, atk: "Talon dive", range: 12 },
   "Gloom Spider":   { land: "Deep Forest", night: true, lv: [5, 8], hp: 1.0, dmg: 1.2, speed: 8, atk: "Web spit", range: 13, shot: "#e8e8ff" },
-  "Abyss Angler":   { land: "Ocean", night: true, sea: true, lv: [6, 9], hp: 1.4, dmg: 1.3, speed: 7, atk: "Lure bite", range: 4 },
+  "Abyss Angler":   { land: "Ocean", night: true, sea: true, lv: [6, 9], hp: 1.4, dmg: 1.3, speed: 7, atk: "Lure flash", range: 20 },
   "Lava Imp":       { land: "Fire Mountain", fly: 3, lv: [5, 8], hp: 0.8, dmg: 1.1, speed: 10, atk: "Fireball", range: 14, shot: "#ff8a2a" },
   "Rock Troll":     { land: "Fire Mountain", lv: [6, 9], hp: 1.9, dmg: 1.5, speed: 4.5, atk: "Rock throw", range: 18, shot: "#8b7d70", big: true },
   "Ember Beetle":   { land: "Fire Mountain", lv: [5, 8], hp: 1.2, dmg: 1.0, speed: 6, atk: "Spark spray", range: 6 },
-  "Ash Lurker":     { land: "Fire Mountain", lv: [6, 9], hp: 1.0, dmg: 1.3, speed: 8, atk: "Ambush grab", range: 3.5 },
+  "Ash Lurker":     { land: "Fire Mountain", lv: [6, 9], hp: 1.0, dmg: 1.3, speed: 8, atk: "Ambush grab", range: 3.5, disguise: "Something bursts out of the ash!" },
   "Cinder Bat":     { land: "Fire Mountain", night: true, fly: 5, lv: [6, 9], hp: 0.7, dmg: 1.0, speed: 12, atk: "Ember bite", range: 2.6 },
   "Magma Glowworm": { land: "Fire Mountain", night: true, lv: [7, 10], hp: 1.3, dmg: 1.2, speed: 4, atk: "Lava spit", range: 12, shot: "#ff6a1a" },
-  "Ice Wraith":     { land: "Frost Peaks", fly: 1.5, lv: [7, 10], hp: 1.0, dmg: 1.3, speed: 7, atk: "Frost breath", range: 10, shot: "#c8f0ff" },
+  "Ice Wraith":     { land: "Frost Peaks", fly: 1.5, lv: [7, 10], hp: 1.0, dmg: 1.3, speed: 7, atk: "Frost breath", range: 9 },
   "Snow Yeti":      { land: "Frost Peaks", lv: [8, 11], hp: 1.8, dmg: 1.5, speed: 6, atk: "Snowball", range: 16, shot: "#ffffff", big: true },
   "Frost Wolf":     { land: "Frost Peaks", lv: [7, 10], hp: 1.0, dmg: 1.2, speed: 13, atk: "Bite", range: 2.8, pack: 3 },
   "Moon Wolf":      { land: "Frost Peaks", night: true, lv: [8, 11], hp: 1.1, dmg: 1.3, speed: 14, atk: "Moon bite", range: 2.8, pack: 2 },
-  "Storm Harpy":    { land: "Sky Islands", fly: 4, lv: [9, 12], hp: 1.0, dmg: 1.3, speed: 13, atk: "Lightning claw", range: 3.5 },
+  "Storm Harpy":    { land: "Sky Islands", fly: 4, lv: [9, 12], hp: 1.0, dmg: 1.3, speed: 13, atk: "Lightning call", range: 18 },
   "Cloud Jelly":    { land: "Sky Islands", fly: 3, lv: [9, 12], hp: 1.3, dmg: 1.1, speed: 3, atk: "Sting", range: 5 },
   "Gust Sprite":    { land: "Sky Islands", fly: 2, lv: [9, 11], hp: 0.5, dmg: 0.8, speed: 14, atk: "Gust", range: 10, shot: "#e8f4ff", pack: 3 },
-  "Puffcap":        { land: "Sky Islands", fly: 1.5, lv: [9, 12], hp: 0.9, dmg: 1.0, speed: 2, atk: "Spore burst", range: 6 },
+  "Puffcap":        { land: "Sky Islands", fly: 1.5, lv: [9, 12], hp: 0.9, dmg: 1.0, speed: 4, atk: "Spore burst", range: 5 },
   "Vine Dangler":   { land: "Sky Islands", under: true, grab: true, lv: [10, 13], hp: 1.3, dmg: 1.2, speed: 0, atk: "Vine grab", range: 9 },
-  "Star Jelly":     { land: "Sky Islands", night: true, fly: 4, lv: [10, 13], hp: 1.2, dmg: 1.2, speed: 3, atk: "Star sting", range: 5 },
+  "Star Jelly":     { land: "Sky Islands", night: true, fly: 4, lv: [10, 13], hp: 1.2, dmg: 1.2, speed: 3, atk: "Falling stars", range: 16 },
+  // Desert and Crystal Caves (Petra 2026-11-09): every one hunts in its own way.
+  // ph = how the model animates: [idle, warning start, warning end (= the hit), after, seconds after]
+  "Dune Shark":       { land: "Desert", lv: [8, 11], hp: 1.2, dmg: 1.4, speed: 12, atk: "Burst bite", range: 3, burrow: true, ph: [1, 3.6, 4.4, 5.2, 0.5] },
+  "Scorpiclaw":       { land: "Desert", lv: [8, 11], hp: 1.4, dmg: 1.1, speed: 8, atk: "Poison sting", range: 3.2, poison: true, ph: [1, 3.4, 3.8, 4.2, 0.4] },
+  "Dust Devil":       { land: "Desert", lv: [9, 12], hp: 1.3, dmg: 1.0, speed: 9, atk: "Whirlwind spin", range: 4, pull: 18 },
+  "Mirage Stalker":   { land: "Desert", night: true, lv: [9, 12], hp: 0.9, dmg: 1.5, speed: 14, atk: "Ambush bite", range: 2.8, stealth: true, ph: [1, 4.4, 5.0, 5.6, 0.6] },
+  "Moonscarab Swarm": { land: "Desert", night: true, lv: [9, 12], hp: 1.5, dmg: 0.8, speed: 7, atk: "Swarm bites", range: 3.5, swarm: true },
+  "Geode Crab":       { land: "Crystal Caves", lv: [10, 13], hp: 1.8, dmg: 1.5, speed: 5, atk: "Crystal claw snap", range: 3, disguise: "That rock is moving!", ph: [m => m.aggro ? 3 : 1, 3, 3, 3, 0.1] },
+  "Stalactite Lurker":{ land: "Crystal Caves", lv: [10, 13], hp: 1.1, dmg: 1.8, speed: 0, atk: "Spear drop", range: 30, ceil: true, shot: "#8a8098", ph: [1, 4.0, 4.45, 7, 2.5] },
+  "Prism Wisp":       { land: "Crystal Caves", fly: 2.5, lv: [10, 13], hp: 0.9, dmg: 1.6, speed: 6, atk: "Light beam", range: 24, beam: true, warn: 1.4, ph: [0.4, 0, 3.49, 4.2, 0.6] },
+  "Echo Bat":         { land: "Crystal Caves", night: true, fly: 4, lv: [11, 14], hp: 1.0, dmg: 1.1, speed: 12, atk: "Sonic scream", range: 12, scream: true, ph: [1, 2.0, 2.8, 4.0, 1.2] },
+  "Glimmer Slug":     { land: "Crystal Caves", night: true, lv: [11, 14], hp: 1.4, dmg: 0.7, speed: 2, atk: "Sticky slime", range: 14, shot: "#7affd8", slime: true, ph: [1, 2.0, 2.6, 4.0, 1.4] },
 };
 const MON_LANDS = {};                                   // land -> kinds that live there
 for (const k in MONSTER) (MON_LANDS[MONSTER[k].land] = MON_LANDS[MONSTER[k].land] || []).push(k);
 const MON_DEF = Object.fromEntries(MONLIB.map(m => [m.name, m]));
 const MON_UNIT = 2.1 / 1.7;                              // game units per metre (a tamer is 1.7 m)
 const mons = [], monShots = [];
-let monSpawnT = 2, petHurtT = 0, clawCd = 0, breathCd = 0, dodgeT = 0, dodgeCd = 0, dodgeDir = 0, lastTap = { KeyA: -9, KeyD: -9 }, fightT = 0, monLand = "";
+let monSpawnT = 2, beamFx = [], petHurtT = 0, clawCd = 0, breathCd = 0, dodgeT = 0, dodgeCd = 0, dodgeDir = 0, lastTap = { KeyA: -9, KeyD: -9 }, fightT = 0, monLand = "";
 const rollR = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
 const monStats = (kind, L) => { const d = MONSTER[kind], base = 3 + 1.2 * (L - 1);
   return { hp: Math.round((18 + 7 * (L - 1)) * d.hp), dmg: [Math.max(1, Math.round(base * 0.85 * d.dmg)), Math.max(2, Math.round(base * 1.15 * d.dmg))] }; };
@@ -4769,9 +5073,10 @@ function spawnMonster(kind, p, lv) {
   const bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(barC), transparent: true, depthWrite: false, depthTest: false }));
   bar.scale.set(4.2, 1.18, 1); bar.visible = false; bar.renderOrder = 10; scene.add(bar);
   if (d.under) p = new V(p.x, p.y - tall - 0.2, p.z);   // the rock on its top tucks under the island
+  if (d.ceil) p = new V(p.x, p.y - tall + 0.3, p.z);    // hangs from the cave roof
   if (inst.auto !== undefined) inst.auto = false;
   const m = { kind, d, lv, inst, holder, mats, bar, barC, tall, rad, hp: st.hp, max: st.hp, dmg: st.dmg, x: p.x, y: p.y, z: p.z, home: p.clone(), face: Math.random() * 6.28,
-    wander: null, wanderT: 0, cd: 1 + Math.random(), warn: 0, hitT: 0, dead: 0, aggro: false, hurt: 0, land: d.land, night: !!d.night, t0: Math.random() * 10 };
+    wander: null, wanderT: 0, cd: 1 + Math.random(), warn: 0, hitT: 0, dead: 0, aggro: false, hurt: 0, postT: 0, land: d.land, night: !!d.night, t0: Math.random() * 10 };
   monBar(m); mons.push(m); return m;
 }
 function removeMonster(m) {
@@ -4795,9 +5100,10 @@ function faint(m) {
   toast(`${pet.name} fainted!`, `The ${m ? m.kind : "monster"} was too strong. You both woke up back at the nest. You kept your coins.`);
   state = "grown"; camDist = 9; pet.dive = false; pet.fly = false; pet.speed = 0; $("rideKeys").hidden = true;
   me.x = 3; me.z = 3; me.y = height(3, 3); me.vy = 0; pet.x = -2; pet.z = 2; pet.y = height(-2, 2); tamer.g.rotation.set(0, 0, 0);
-  pet.hp = petMaxHp(); fightT = 0; pet.held = null;
+  pet.hp = petMaxHp(); fightT = 0; pet.held = null; pet.poison = null; pet.slow = 0; pet.knock = null;
   mons.forEach(q => { q.aggro = false; q.warn = 0; tint(q, null, 0); });
   monShots.splice(0).forEach(s => scene.remove(s.mesh));
+  arcs.splice(0).forEach(a => scene.remove(a.mesh)); strikes.splice(0).forEach(k => scene.remove(k.ring)); hazards.splice(0).forEach(h => scene.remove(h.mesh)); pet.st = {};
   goal(`${pet.name} is rested. Press R to ride again`); petLabel("grown up"); writeSave();
 }
 
@@ -4818,23 +5124,30 @@ function monInFront(maxD, halfAng, all) {
   return all ? out.map(o => o.m) : out.length ? [out[0].m] : [];
 }
 function damageMon(m, dmg, crit, how) {
+  let note = "";
+  if (m.d.swarm) { if (how === "breath") { dmg = Math.round(dmg * 1.5); note = "The breath scatters the swarm! "; } else { dmg = Math.max(1, Math.round(dmg / 3)); note = "Only a few beetles hit. Try breath! "; } }
+  const mv = MOVES[m.kind]; if (mv && mv.hurt) { const r = mv.hurt(m, dmg, how); dmg = r[0]; if (r[1]) note = r[1]; }
+  if (m.d.burrow && m.inst.phase === 1 && how === "claw") { dmg = Math.max(1, Math.round(dmg / 2)); note = "It's under the sand! "; }
   m.hp -= dmg; m.hitT = 0.15; m.aggro = true; m.hurt = 5; fightT = 6;
   burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
   m.bar.visible = true; monBar(m);
-  toast(`${how === "breath" ? "Breath" : "Claw"}! ${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${Math.max(0, m.hp)} / ${m.max} HP`);
+  toast(`${how === "breath" ? "Breath" : "Claw"}! ${note}${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${Math.max(0, m.hp)} / ${m.max} HP`);
   if (m.hp <= 0) killMon(m);
 }
 function killMon(m) {
   m.dead = 0.001; m.warn = 0; tint(m, null, 0); m.bar.visible = false;
   const xp = 3 + 2 * m.lv, c = m.lv >= 5 ? m.lv : 0;
   if (c) { coins += c; showCoins(); }
+  if (MOVES[m.kind] && MOVES[m.kind].kill) MOVES[m.kind].kill(m);
   const up = addXp(xp);
   if (up) pet.hp = petMaxHp();   // levelling up heals (like the calculator game)
   if (!up) toast(`You beat the ${m.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
   burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080");
   petLabel("grown up"); writeSave();
 }
-function canFight() { return state === "ride" && !uiOpen && dragon.root.visible; }
+function canFight() {
+  if (pet.st && pet.st.freeze > 0 && state === "ride") { toast("Frozen solid!", "Wait for the ice to crack"); return false; }
+  return state === "ride" && !uiOpen && dragon.root.visible; }
 function struggle() { const h = pet.held; if (!h) return; h.struggle++; if (h.struggle >= 3) release(true); }
 function release(broke) {
   const h = pet.held; if (!h) return; pet.held = null; h.m.cd = 4; h.m.warn = 0;
@@ -4883,7 +5196,8 @@ addEventListener("keydown", e => {   // double-tap A or D = dodge to that side
 
 // ---- the monsters' turn ----
 function monAttack(m) {
-  const d = m.d, mid = petMid();
+  const d = m.d, mid = petMid(), mv = MOVES[m.kind];
+  if (mv && mv.attack && mv.attack(m)) return;
   if (d.grab) {   // the Vine Dangler wraps its arms round you and holds on (Petra)
     if (Math.hypot(m.x - mid.x, m.z - mid.z) < d.range + petRad() && mid.y < m.y + m.tall * 0.4 && mid.y > m.y - m.tall) {
       pet.held = { m, t: 5, struggle: 0, tick: 1 }; pet.dive = false;
@@ -4891,13 +5205,37 @@ function monAttack(m) {
     }
     return;
   }
+  if (d.beam) {   // Prism Wisp: a straight beam at where you WERE when it started glowing
+    const from = new V(m.x, m.y + m.tall * 0.55, m.z), dir = (m.aim || mid).clone().sub(from).normalize(), end = from.clone().addScaledVector(dir, d.range + 6);
+    const len = from.distanceTo(end), beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, len, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    beam.position.copy(from).add(end).multiplyScalar(0.5); beam.quaternion.setFromUnitVectors(new V(0, 1, 0), dir); scene.add(beam); beamFx.push({ mesh: beam, life: 0.45 });
+    const t = Math.max(0, Math.min(len, mid.clone().sub(from).dot(dir))), near = from.clone().addScaledVector(dir, t);
+    if (near.distanceTo(mid) < petRad() + 1.2) { hurtPet(rollR(m.dmg), m); if (state === "ride") toast(`${m.kind}: ${d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`); }
+    return;
+  }
+  if (d.scream) {   // Echo Bat: a ring of sound all round it that knocks you back
+    burstAt(m.x, m.y + m.tall * 0.6, m.z, "#ff9ae8");
+    const dist = Math.hypot(m.x - mid.x, m.z - mid.z), dy = Math.abs(m.y + m.tall * 0.5 - mid.y);
+    if (dist < d.range + petRad() && dy < 8) {
+      const hp0 = pet.hp; hurtPet(rollR(m.dmg), m);
+      if (state === "ride" && pet.hp < hp0) { const a = Math.atan2(mid.z - m.z, mid.x - m.x); pet.knock = { x: Math.cos(a), z: Math.sin(a), t: 0.45 }; pet.slow = Math.max(pet.slow || 0, 1.5);
+        toast(`${m.kind}: ${d.atk}!`, `${pet.name} is knocked back and dizzy · ${pet.hp} / ${petMaxHp()} HP`); }
+    }
+    return;
+  }
   if (d.shot) {   // throws or spits something at where you are now: move and it misses
     const from = new V(m.x, m.y + m.tall * 0.7, m.z), to = mid.clone(), v = to.sub(from).normalize().multiplyScalar(26);
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.big ? 0.55 : 0.35, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(d.shot).convertSRGBToLinear() }));
+    if (d.ceil) { from.set(m.x, m.y, m.z); mesh.scale.set(1, 3, 1); v.copy(mid).sub(from).normalize().multiplyScalar(40); }   // drops like a spear
     mesh.position.copy(from); scene.add(mesh); monShots.push({ mesh, v, life: 1.6, m });
   } else if (Math.hypot(m.x - mid.x, m.z - mid.z, (m.y + m.tall * 0.5) - mid.y) <= d.range + m.rad + petRad() + 0.8) {
-    hurtPet(rollR(m.dmg), m);
-    if (state === "ride") toast(`${m.kind}: ${d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`);
+    const hp0 = pet.hp; hurtPet(rollR(m.dmg), m);
+    if (state === "ride") {
+      if (d.poison && pet.hp < hp0) { pet.poison = { t: 6, tick: 1, dmg: Math.max(1, Math.round(m.dmg[0] * 0.3)), m }; toast(`${m.kind}: ${d.atk}!`, `${pet.name} is poisoned! · ${pet.hp} / ${petMaxHp()} HP`); }
+      else if (d.pull && pet.hp < hp0) { const a = Math.atan2(mid.z - m.z, mid.x - m.x); pet.knock = { x: Math.cos(a), z: Math.sin(a), t: 0.6, up: 10 }; toast(`${m.kind}: ${d.atk}!`, `${pet.name} is flung out of the whirlwind! · ${pet.hp} / ${petMaxHp()} HP`); }
+      else toast(`${m.kind}: ${d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`);
+      if (pet.hp < hp0 && mv && mv.onHit) mv.onHit(m);
+    }
   }
 }
 function moveMon(m, tx, ty, tz, sp, dt) {
@@ -4907,7 +5245,7 @@ function moveMon(m, tx, ty, tz, sp, dt) {
     m.x += dx / dist * step; m.z += dz / dist * step;
     m.face = angLerp(m.face, Math.atan2(dz, dx), Math.min(1, dt * 6));
   }
-  if (d.under) return;                                       // the Vine Dangler stays put
+  if (d.under || d.ceil) return;                             // the Vine Dangler and Stalactite Lurker stay put
   if (d.fly) { const fy = Math.max(groundAt(m.x, m.z, m.y + 2), WATER_Y) + d.fly; m.y += ((ty !== null ? Math.max(ty, fy - d.fly + 0.5) : fy) - m.y) * Math.min(1, dt * 2); }
   else if (d.water || d.sea) m.y = Math.max(groundAt(m.x, m.z, m.y + 1), WATER_Y - 0.15);
   else m.y = groundAt(m.x, m.z, m.y + 2);
@@ -4930,9 +5268,20 @@ function updateMonsters(dt) {
   // thrown rocks, spit and zaps
   for (let i = monShots.length - 1; i >= 0; i--) {
     const s = monShots[i]; s.mesh.position.addScaledVector(s.v, dt); s.life -= dt;
-    if (state === "ride" && s.mesh.position.distanceTo(petMid()) < petRad() + 0.6) { hurtPet(rollR(s.m.dmg), s.m); if (state === "ride") toast(`${s.m.kind}: ${s.m.d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`); s.life = 0; }
+    if (state === "ride" && s.mesh.position.distanceTo(petMid()) < petRad() + 0.6) { const hp0 = pet.hp; hurtPet(rollR(s.m.dmg), s.m);
+      if (state === "ride") { if (s.m.d.slime && pet.hp < hp0) { pet.slow = 6; toast(`${s.m.kind}: ${s.m.d.atk}!`, `${pet.name} is covered in slime and slowed down! · ${pet.hp} / ${petMaxHp()} HP`); } else toast(`${s.m.kind}: ${s.m.d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`);
+        const mv = MOVES[s.m.kind]; if (pet.hp < hp0 && mv && mv.onHit) mv.onHit(s.m); }
+      s.life = 0; }
     if (s.life <= 0) { scene.remove(s.mesh); s.mesh.geometry.dispose(); monShots.splice(i, 1); }
   }
+  movesTick(dt);
+  // poison (Scorpiclaw), slime and dizziness (slow you down), knockback (Echo Bat scream, Dust Devil fling)
+  if (pet.poison) { const q = pet.poison; q.t -= dt; q.tick -= dt;
+    if (q.tick <= 0 && state === "ride") { q.tick = 1; pet.hp = Math.max(0, petHp() - q.dmg); petHurtT = 0.35; fightT = 6; burstAt(pet.x, pet.y + 1.5, pet.z, "#9ae04a"); if (pet.hp <= 0) { pet.poison = null; faint(q.m); } }
+    if (pet.poison && (q.t <= 0 || state !== "ride")) pet.poison = null; }
+  if (pet.slow > 0) { pet.slow -= dt; if (state === "ride") pet.speed = Math.max(-4, Math.min(pet.speed, 12 * flyMul())); }
+  if (pet.knock) { const k = pet.knock; k.t -= dt; pet.x += k.x * 30 * dt; pet.z += k.z * 30 * dt; if (k.up && pet.fly) pet.y += k.up * dt; pet.dive = false; if (k.t <= 0 || state !== "ride") pet.knock = null; }
+  for (let i = beamFx.length - 1; i >= 0; i--) { const b = beamFx[i]; b.life -= dt; b.mesh.material.opacity = Math.max(0, b.life * 2); if (b.life <= 0) { scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); beamFx.splice(i, 1); } }
   // held by a Vine Dangler: stuck in its arms, squeezed now and then
   if (pet.held) {
     const h = pet.held, m = h.m;
@@ -4955,7 +5304,7 @@ function updateMonsters(dt) {
     const cap = (land === "Green Valley" ? 6 : 5) + (isNight ? 3 : 0), here = mons.filter(m => m.land === land && !m.dead).length;
     if (here < cap) {
       const kind = kinds[Math.floor(Math.random() * kinds.length)], d = MONSTER[kind];
-      const p = d.under ? underSpot() : spawnSpot(kind, land);
+      const p = d.under ? underSpot() : d.ceil ? ceilSpot() : spawnSpot(kind, land);
       if (p) { const lv = rollR(d.lv) + (isNight ? 1 : 0), n = d.pack ? 1 + Math.floor(Math.random() * d.pack) : 1;
         for (let j = 0; j < n; j++) spawnMonster(kind, j ? p.clone().add(new V((Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6)) : p, lv); }
     }
@@ -4970,6 +5319,7 @@ function updateMonsters(dt) {
       m.inst.reach += ((m.aggro ? 1 : 0) - m.inst.reach) * Math.min(1, dt * 3);
       m.inst.hold += ((pet.held && pet.held.m === m ? 1 : 0) - m.inst.hold) * Math.min(1, dt * 5);
     }
+    m.postT = Math.max(0, m.postT - dt); monPhase(m);
     m.inst.update(T + m.t0, dt);
     if (m.dead) {   // shrink and sink away
       m.dead += dt; m.holder.scale.multiplyScalar(Math.max(0.2, 1 - dt * 2.5)); m.y -= dt * 1.5;
@@ -4978,25 +5328,37 @@ function updateMonsters(dt) {
       continue;
     }
     const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
-    const sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0);
+    let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0);
+    if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
+    if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
     // monsters only go after tamers who are riding; on foot you're safe
-    if (riding && pd < sense && (d.fly || d.shot || d.under || dy < 14 + d.range)) m.aggro = true;
+    if (riding && pd < sense && (d.fly || d.shot || d.under || d.ceil || dy < 14 + d.range)) { if (!m.aggro && d.disguise && m.hurt <= 0) toast(d.disguise, `It's a ${m.kind}!`); m.aggro = true; }
     if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > 90) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
     m.hurt = Math.max(0, m.hurt - dt);
+    const mvk = MOVES[m.kind];
+    const own = m.aggro && mvk && mvk.tick ? mvk.tick(m, dt, mid, pd) : false;
     if (m.aggro) {
       // close in (shooters keep some distance), turn to face you, then: red warning flash, then the attack
-      const want = d.shot ? Math.min(d.range * 0.7, 10) : d.range * 0.6 + m.rad + petRad();
-      if (pd > want) moveMon(m, mid.x, d.fly ? mid.y - m.tall * 0.4 : null, mid.z, d.speed * (riding ? 1 : 0.5), dt);
+      const want = d.shot || d.beam ? Math.min(d.range * 0.7, 10) : d.scream ? 7 : d.range * 0.6 + m.rad + petRad();
+      // Mirage Stalker sneaks round BEHIND you; the others come straight at you
+      const tx = d.stealth ? mid.x - Math.cos(pet.face) * (want + 2) : mid.x, tz = d.stealth ? mid.z - Math.sin(pet.face) * (want + 2) : mid.z;
+      if (own || m.dead) { /* it moved itself */ }
+      else if (d.stealth ? Math.hypot(tx - m.x, tz - m.z) > 1.5 && m.warn <= 0 : pd > want) moveMon(m, tx, d.fly ? mid.y - m.tall * 0.4 : null, tz, d.speed * (riding ? 1 : 0.5), dt);
       else { moveMon(m, m.x, d.fly ? mid.y - m.tall * 0.4 : null, m.z, 0, dt); m.face = angLerp(m.face, Math.atan2(mid.z - m.z, mid.x - m.x), Math.min(1, dt * 6)); }
       if (m.warn > 0) {
         m.warn -= dt; tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5);
-        if (m.warn <= 0) { tint(m, null, 0); monAttack(m); m.cd = 1.5 + Math.random() * 1.2; }
+        if (m.warn <= 0) { tint(m, null, 0); monAttack(m); m.cd = 1.5 + Math.random() * 1.2 + (d.ceil ? 2 : 0); m.postT = d.ph ? d.ph[4] : 0; }
       } else {
         m.cd -= dt;
-        const inReach = d.shot ? pd < d.range + 6 : Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y) < d.range + m.rad + petRad() + 2;
-        if (m.cd <= 0 && inReach) m.warn = 0.75;   // the red flash: your cue to dodge
+        const inReach = d.ceil ? pd < 7 && dy < -2 : d.shot || d.beam ? pd < d.range + 6 : d.scream ? pd < d.range : Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y) < d.range + m.rad + petRad() + 2;
+        if (m.cd <= 0 && inReach && own !== 2) { m.warn = d.warn || 0.75; m.aim = mid.clone(); }   // the red flash: your cue to dodge
       }
       m.bar.visible = true;
+      // Dust Devil: sucks you in while it's close
+      if (d.pull && riding && !pet.knock && pd < d.pull && Math.abs(dy) < m.tall + 6) {
+        const f = (1 - pd / d.pull) * 14 * dt; pet.x += (m.x - mid.x) / Math.max(1, pd) * f; pet.z += (m.z - mid.z) / Math.max(1, pd) * f;
+        if (pet.fly) pet.y += (m.y + m.tall * 0.6 - mid.y) * Math.min(1, dt * 0.8); pet.bank = Math.sin(T * 8) * 0.4;
+      }
     } else {
       // wander around home
       m.wanderT -= dt;
@@ -5006,8 +5368,24 @@ function updateMonsters(dt) {
     }
     if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); }
     m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+    if (mvk && mvk.post) mvk.post(m);
+    if (d.stealth) { const seen = m.warn > 0 || m.postT > 0 || m.hitT > 0 || m.hurt > 4; if (!seen) m.bar.visible = false; }   // invisible: no HP bar to give it away
+    if (d.burrow && m.inst.phase === 1 && m.hitT <= 0 && m.hurt <= 4.5) m.bar.visible = false;                              // under the sand
     if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
   }
+}
+function ceilSpot() {   // on the Crystal Caves roof, high above the floor
+  for (let i = 0; i < 30; i++) {
+    const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * CAVE_IN * 0.75, x = CAVES.x + Math.cos(a) * r, z = CAVES.z + Math.sin(a) * r;
+    const roof = caveRoof(x, z), d = Math.hypot(x - me.x, z - me.z);
+    if (roof - height(x, z) > 18 && d > 25 && d < 170) return new V(x, roof, z);
+  }
+  return null;
+}
+function monPhase(m) {   // keeps each model's animation in step with what the monster is doing
+  const P = m.d.ph; if (!P || m.inst.phase === undefined) return;
+  const [idle, w0, w1, a1, post] = P, W = m.d.warn || 0.75;
+  m.inst.phase = m.warn > 0 ? w0 + (w1 - w0) * Math.min(1, 1 - m.warn / W) : m.postT > 0 ? a1 + (w1 - a1) * (m.postT / post) : typeof idle === "function" ? idle(m) : idle;
 }
 function underSpot() {   // under a sky island, where the Vine Dangler hangs
   for (let i = 0; i < 20; i++) {
@@ -5025,8 +5403,263 @@ function updatePetHpBar() {
   petHpEl.hidden = !show; if (!show) return;
   const hp = petHp(), mx = petMaxHp();
   petHpEl.querySelector("i").style.width = (hp / mx * 100) + "%";
-  petHpEl.querySelector("span").textContent = `${pet.name} · ${Math.ceil(hp)} / ${mx} HP` + (breathCd > 0 && state === "ride" ? ` · breath ${Math.ceil(breathCd)}s` : "");
+  petHpEl.querySelector("span").textContent = `${pet.name} · ${Math.ceil(hp)} / ${mx} HP` + (breathCd > 0 && state === "ride" ? ` · breath ${Math.ceil(breathCd)}s` : "") + (state === "ride" ? statusText() : "");
   petHpEl.classList.toggle("hurt", petHurtT > 0); petHurtT = Math.max(0, petHurtT - 1 / 60);
+}
+
+// ================= every monster fights in its OWN way (Petra 2026-11-09: "none of the monsters have the same generic fighting style") =================
+// MOVES[kind] can have:
+//   attack(m)            -> its own attack instead of the plain hit / throw (return true when handled)
+//   onHit(m)             -> extra effect after its plain hit or throw lands on your dragon
+//   hurt(m, dmg, how)    -> change the damage YOU deal to it: returns [dmg, note]
+//   tick(m, dt, mid, pd) -> runs every frame while it hunts you (return 1 = it moved itself, 2 = busy: moved itself and can't attack now)
+//   post(m)              -> runs every frame just before it is drawn
+//   kill(m)              -> runs when you beat it
+const PST = () => (pet.st || (pet.st = {}));
+const blindEl = document.createElement("div");
+blindEl.style.cssText = "position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,#fffbe8 0%,#e8fff8 60%,#bfe8ff 100%);opacity:0;transition:opacity .15s;z-index:5";
+document.body.appendChild(blindEl);
+const hazards = [], arcs = [], strikes = [];
+
+// your dragon takes a hit from monster m (damage x mult); returns true if it really got hurt (not dodged)
+function landed(m, mult = 1, msg = "") {
+  if (state !== "ride") return false;
+  if (dodgeT > 0 && !pet.held) { toast("Dodged!", ""); return false; }
+  const hp0 = petHp(); hurtPet(Math.max(1, Math.round(rollR(m.dmg) * mult)), m);
+  const ok = pet.hp < hp0;
+  if (state === "ride") toast(`${m.kind}: ${m.d.atk}!`, (ok && msg ? msg + " · " : "") + `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`);
+  return ok && state === "ride";
+}
+const nearPet = (m, r) => { const mid = petMid(); return Math.hypot(m.x - mid.x, m.z - mid.z, (m.y + m.tall * 0.5) - mid.y) <= r + m.rad + petRad(); };
+function inCone(m, r, half) {
+  const mid = petMid(), dx = mid.x - m.x, dz = mid.z - m.z;
+  if (Math.hypot(dx, dz, (m.y + m.tall * 0.5) - mid.y) > r + m.rad + petRad()) return false;
+  const da = ((Math.atan2(dz, dx) - m.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return Math.abs(da) < half || Math.hypot(dx, dz) < m.rad + 1;
+}
+// a spray of glowing dots (sparks, frost, spores)
+function spray(from, dir, col, n = 30, sp = 16, spread = 5) {
+  const c = new THREE.Color(col).convertSRGBToLinear();
+  for (let i = 0; i < n; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: c, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.position.copy(from); scene.add(s);
+    const v = dir.clone().multiplyScalar(sp * (0.7 + Math.random() * 0.6)).add(new V((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread * 0.6, (Math.random() - 0.5) * spread));
+    breathFx.push({ s, v, life: 0.5 + Math.random() * 0.2, delay: i * 0.006 });
+  }
+}
+// a quick line between two points (a tongue, a lightning bolt)
+function zap(a, b, col, w = 0.15, life = 0.35) {
+  const len = a.distanceTo(b), mesh = new THREE.Mesh(new THREE.CylinderGeometry(w, w, len, 8, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), transparent: true, opacity: 0.95, depthWrite: false }));
+  mesh.position.copy(a).add(b).multiplyScalar(0.5); mesh.quaternion.setFromUnitVectors(new V(0, 1, 0), b.clone().sub(a).normalize());
+  scene.add(mesh); beamFx.push({ mesh, life });
+}
+const monFront = m => new V(Math.cos(m.face), 0, Math.sin(m.face));
+const mouth = m => new V(m.x + Math.cos(m.face) * m.rad, m.y + m.tall * 0.6, m.z + Math.sin(m.face) * m.rad);
+// a lobbed rock / spit that flies in an arc and does something where it lands
+function lob(m, col, size, land, speed = 20) {
+  const from = mouth(m), to = petMid(), g = 22, dx = to.x - from.x, dz = to.z - from.z, tt = Math.max(0.6, Math.hypot(dx, dz) / speed);
+  const v = new V(dx / tt, (to.y - from.y + 0.5 * g * tt * tt) / tt, dz / tt);
+  const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), emissive: new THREE.Color(col).convertSRGBToLinear(), emissiveIntensity: 0.3, flatShading: true }));
+  mesh.position.copy(from); scene.add(mesh); arcs.push({ mesh, v, g, m, land, life: 4 });
+}
+function shoot(m, col, size = 0.35, speed = 26) {
+  const from = mouth(m), v = petMid().sub(from).normalize().multiplyScalar(speed);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear() }));
+  mesh.position.copy(from); scene.add(mesh); monShots.push({ mesh, v, life: 1.6, m });
+}
+// a glowing ring that marks a spot, then something strikes it
+function strikeAt(m, p, r, delay, col, mult, msg, fromSky = true) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r * 0.8, r, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.copy(p); scene.add(ring);
+  strikes.push({ m, p: p.clone(), r, t: delay, ring, col, mult, msg, fromSky });
+}
+function puddle(m, p, r, life) {
+  const y = Math.max(groundAt(p.x, p.z, p.y + 1), WATER_Y);
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff6a1a").convertSRGBToLinear(), transparent: true, opacity: 0.85, depthWrite: false }));
+  mesh.rotation.x = -Math.PI / 2; mesh.position.set(p.x, y + 0.12, p.z); scene.add(mesh);
+  hazards.push({ m, x: p.x, y, z: p.z, r, t: life, tick: 0, mesh });
+}
+function burn(m, t = 4) { PST().burn = { t, tick: 1, dmg: Math.max(1, Math.round(m.dmg[0] * 0.3)), m }; }
+function flee(m, dt, mid, mul = 1.4) {   // run (or fly) away from your dragon
+  const a = Math.atan2(m.z - mid.z, m.x - mid.x);
+  moveMon(m, m.x + Math.cos(a) * 10, m.d.fly ? mid.y + 6 : null, m.z + Math.sin(a) * 10, m.d.speed * mul, dt); m.warn = 0;
+}
+
+const MOVES = {
+  // ---- Green Valley ----
+  "Goblin": {   // steals some coins and runs off with them: catch it to get them back
+    onHit(m) { const n = Math.min(coins, 1 + Math.floor(Math.random() * 3)); if (n > 0) { coins -= n; showCoins(); m.stolen = (m.stolen || 0) + n; toast(`The Goblin stole ${n} coin${n > 1 ? "s" : ""}!`, "Catch it to get them back!"); } m.flee = 4; },
+    tick(m, dt, mid) { if (m.flee > 0) { m.flee -= dt; flee(m, dt, mid, 1.2); return 2; } },
+    kill(m) { if (m.stolen) { coins += m.stolen; showCoins(); toast("You got your coins back!", `+${m.stolen} coins`); } },
+  },
+  "Bog Toad": {   // its long tongue YANKS you in close
+    attack(m) { const mid = petMid(); if (!nearPet(m, m.d.range)) return true; zap(mouth(m), mid, "#ff7a9a", 0.12, 0.3);
+      if (landed(m, 0.8, "Yanked in by its tongue!")) { const a = Math.atan2(m.z - mid.z, m.x - mid.x); pet.knock = { x: Math.cos(a), z: Math.sin(a), t: Math.min(0.3, Math.hypot(m.x - mid.x, m.z - mid.z) / 30) }; } return true; },
+  },
+  "Mud Eel": {   // bites, then dives under the water where you can't hit it
+    onHit(m) { m.sub = 2.5; burstAt(m.x, m.y, m.z, "#8a7a5a"); },
+    hurt(m, dmg) { return m.sub > 0 ? [0, "It's hiding underwater! "] : [dmg]; },
+    tick(m, dt) { if (m.sub > 0) { m.sub -= dt; m.warn = 0; } },
+    post(m) { m.holder.visible = !(m.sub > 0); if (m.sub > 0) m.bar.visible = false; },
+  },
+  "Snapjaw Turtle": {   // hides in its shell when hit; its snap clamps you in place
+    onHit(m) { PST().root = 1.3; toast(`${m.kind}: ${m.d.atk}!`, `Clamped in its jaws! · ${pet.name} · ${pet.hp} / ${petMaxHp()} HP`); },
+    hurt(m, dmg) { if (m.shell > 0) return [1, "It's hiding in its shell! "]; if (Math.random() < 0.4) { m.shell = 2.5; return [dmg, "It pulls into its shell! "]; } return [dmg]; },
+    tick(m, dt) { if (m.shell > 0) { m.shell -= dt; m.warn = 0; m.cd = Math.max(m.cd, 0.5); return 2; } },
+  },
+  "Glowmoth Swarm": {   // dizzy dust: your dragon can't fly straight
+    onHit(m) { PST().dizzy = 3; spray(petMid(), new V(0, 1, 0), "#fff0a0", 18, 3, 6); toast(`${m.kind}: ${m.d.atk}!`, `${pet.name} is dizzy and can't fly straight!`); },
+  },
+  "Bog Wisp": {   // zaps you, then blinks away to somewhere new
+    attack(m) { shoot(m, m.d.shot); const mid = petMid(), a = Math.random() * 6.283, r = 9 + Math.random() * 6;
+      burstAt(m.x, m.y + m.tall * 0.5, m.z, "#bfffe8"); m.x = mid.x + Math.cos(a) * r; m.z = mid.z + Math.sin(a) * r; m.y = Math.max(groundAt(m.x, m.z, m.y + 2), WATER_Y) + m.d.fly; burstAt(m.x, m.y + m.tall * 0.5, m.z, "#bfffe8"); return true; },
+  },
+  // ---- Deep Forest ----
+  "Vine Creeper": {   // roots burst up out of the ground under you and hold you down (fly high to stay safe)
+    attack(m) { const mid = petMid(); if (mid.y - groundAt(mid.x, mid.z, mid.y) > 9) return true;
+      const g = new V(mid.x, groundAt(mid.x, mid.z, mid.y), mid.z); zap(g, mid, "#4a8a2a", 0.25, 0.6); burstAt(g.x, g.y, g.z, "#6ab04a");
+      if (landed(m, 0.9, "Roots hold your dragon down!")) PST().root = 2; return true; },
+  },
+  "Shade Lynx": {   // creeps close in the dark, then POUNCES from far away
+    attack(m) { const mid = petMid(); m.leap = { f: new V(m.x, m.y, m.z), to: new V(mid.x, mid.y - m.tall * 0.5, mid.z), t: 0 }; return true; },
+    tick(m, dt) { const L = m.leap; if (!L) return; L.t += dt / 0.45; const k = Math.min(1, L.t);
+      m.x = L.f.x + (L.to.x - L.f.x) * k; m.z = L.f.z + (L.to.z - L.f.z) * k; m.y = L.f.y + (L.to.y - L.f.y) * k + Math.sin(k * Math.PI) * 4; m.face = Math.atan2(L.to.z - L.f.z, L.to.x - L.f.x);
+      if (k >= 1) { m.leap = null; if (nearPet(m, 2)) landed(m, 1.3, "Pounced!"); else toast("The Shade Lynx missed its pounce!", ""); m.y = groundAt(m.x, m.z, m.y + 2); }
+      return 2; },
+  },
+  "Hootclaw": {   // waits high above you, then dives, grabs you and drops you
+    attack(m) { m.dive = { t: 0, y0: m.y }; return true; },
+    tick(m, dt, mid) { const D = m.dive;
+      if (!D) { if (Math.hypot(mid.x - m.x, mid.z - m.z) > 2) moveMon(m, mid.x, mid.y + 10, mid.z, m.d.speed, dt); else m.y += (mid.y + 10 - m.y) * Math.min(1, dt * 2); return 1; }
+      D.t += dt / 0.35; m.x += (mid.x - m.x) * Math.min(1, dt * 8); m.z += (mid.z - m.z) * Math.min(1, dt * 8); m.y = D.y0 + (mid.y - m.tall * 0.5 - D.y0) * Math.min(1, D.t);
+      if (D.t >= 1) { m.dive = null; if (nearPet(m, 2.5) && landed(m, 1.1, "Carried up and dropped!")) pet.knock = { x: 0, z: 0, t: 0.6, up: 22 }; m.y += 3; }
+      return 2; },
+  },
+  "Gloom Spider": {   // web spit: you sink and can't fly up for a while
+    onHit(m) { PST().web = 3; toast(`${m.kind}: ${m.d.atk}!`, `${pet.name} is tangled in web and sinking!`); },
+  },
+  // ---- Ocean ----
+  "Abyss Angler": {   // its lure FLASHES and blinds you, then it lunges out of the dark
+    attack(m) { const mid = petMid(); if (Math.hypot(m.x - mid.x, m.z - mid.z) > 26) return true;
+      PST().blind = 1.6; burstAt(m.x, m.y + m.tall * 0.8, m.z, "#fffbe0"); toast("The lure flashes!", "You can't see! Get away from the water!"); m.bite = 0.9; return true; },
+    tick(m, dt, mid) { if (!(m.bite > 0)) return; m.bite -= dt; moveMon(m, mid.x, null, mid.z, m.d.speed * 2.5, dt);
+      if (m.bite <= 0 && nearPet(m, 4)) landed(m, 1.4, "Chomp from the dark!"); return 2; },
+  },
+  // ---- Fire Mountain ----
+  "Lava Imp": {   // fireballs set you on fire: dive into water to put it out
+    onHit(m) { burn(m, 4); toast(`${m.kind}: ${m.d.atk}!`, `${pet.name} is on fire! Dive into water to put it out!`); },
+  },
+  "Rock Troll": {   // lobs a huge boulder in an arc that smashes the ground where it lands
+    attack(m) { lob(m, "#8b7d70", 0.9, p => { burstAt(p.x, p.y, p.z, "#b0a090"); spray(p, new V(0, 1, 0), "#a09080", 20, 6, 10);
+      if (p.distanceTo(petMid()) < 6 + petRad()) landed(m, 1, "Boulder smash!"); }, 18); return true; },
+  },
+  "Ember Beetle": {   // sprays a wide fan of sparks; its fireproof shell shrugs off breath
+    attack(m) { spray(mouth(m), monFront(m).add(new V(0, 0.15, 0)), "#ffb04a", 40, 14, 9); if (inCone(m, 7, 0.7)) landed(m, 1, "Sparks everywhere!"); return true; },
+    hurt(m, dmg, how) { return how === "breath" ? [Math.max(1, Math.round(dmg / 2)), "Its shell is fireproof! Use claws! "] : [dmg]; },
+  },
+  "Ash Lurker": {   // hidden in the ash until you come close, then drags you to the ground
+    tick(m) { m.holder.visible = true; },
+    post(m) { if (!m.aggro && !(m.hurt > 0)) { m.holder.visible = false; m.bar.visible = false; } },
+    onHit(m) { PST().root = 1.5; PST().web = 1.5; toast(`${m.kind}: ${m.d.atk}!`, `It drags ${pet.name} down into the ash!`); },
+  },
+  "Cinder Bat": {   // bites, then flits away and comes back from somewhere else
+    onHit(m) { m.flee = 1.6; burn(m, 2); },
+    tick(m, dt, mid) { if (m.flee > 0) { m.flee -= dt; flee(m, dt, mid, 1.3); return 2; } },
+  },
+  "Magma Glowworm": {   // spits lava that leaves a burning puddle on the ground
+    attack(m) { lob(m, "#ff6a1a", 0.4, p => { puddle(m, p, 3.2, 7); if (p.distanceTo(petMid()) < 2.5 + petRad()) landed(m, 1, "Lava splash!"); }, 22); return true; },
+  },
+  // ---- Frost Peaks ----
+  "Ice Wraith": {   // freezing breath: your dragon is frozen solid for a moment
+    attack(m) { spray(mouth(m), petMid().sub(mouth(m)).normalize(), "#c8f0ff", 40, 16, 4); if (inCone(m, 10, 0.5) && landed(m, 1, "Frozen solid!")) PST().freeze = 1.4; return true; },
+  },
+  "Snow Yeti": {   // snowballs from far away, GROUND POUND up close
+    attack(m) { const mid = petMid();
+      if (Math.hypot(m.x - mid.x, m.z - mid.z) > 9) { lob(m, "#ffffff", 0.6, p => { burstAt(p.x, p.y, p.z, "#ffffff"); if (p.distanceTo(petMid()) < 2 + petRad()) landed(m, 1, "Snowball!"); }, 22); return true; }
+      spray(new V(m.x, m.y + 0.3, m.z), new V(0, 0.3, 0), "#e8f4ff", 40, 3, 22); burstAt(m.x, m.y, m.z, "#ffffff");
+      if (mid.y - m.y < 6 && landed(m, 1.3, "Ground pound! Knocked away!")) { const a = Math.atan2(mid.z - m.z, mid.x - m.x); pet.knock = { x: Math.cos(a), z: Math.sin(a), t: 0.5, up: 6 }; }
+      return true; },
+  },
+  "Frost Wolf": {   // hunts as a pack: they circle you, and bite harder the more of them are near
+    attack(m) { if (!nearPet(m, m.d.range + 1)) return true; const n = mons.filter(q => q !== m && !q.dead && q.kind === m.kind && q.aggro && Math.hypot(q.x - m.x, q.z - m.z) < 16).length;
+      landed(m, 1 + 0.3 * n, n ? `The pack bites together (x${n + 1})!` : ""); return true; },
+    tick(m, dt, mid) { if (m.warn > 0) return; const a = m.t0 + T * 0.7, r = 6; moveMon(m, mid.x + Math.cos(a) * r, null, mid.z + Math.sin(a) * r, m.d.speed, dt); m.face = Math.atan2(mid.z - m.z, mid.x - m.x); return 1; },
+  },
+  "Moon Wolf": {   // howls to call another Moon Wolf, and bites harder under the moon
+    tick(m) { if (!m.howled) { m.howled = true; if (mons.filter(q => q.kind === m.kind && !q.dead).length < 4) {
+      const a = Math.random() * 6.283, p = new V(m.x + Math.cos(a) * 14, 0, m.z + Math.sin(a) * 14); p.y = groundAt(p.x, p.z, m.y + 10);
+      const w = spawnMonster(m.kind, p, m.lv); w.howled = true; w.aggro = true; toast("The Moon Wolf howls at the moon!", "Another Moon Wolf comes running!"); } } },
+    attack(m) { if (nearPet(m, m.d.range + 1)) landed(m, 1.3, "Moon bite!"); return true; },
+  },
+  // ---- Sky Islands ----
+  "Storm Harpy": {   // calls down lightning on the spot where you are: keep moving!
+    attack(m) { const mid = petMid(); zap(new V(m.x, m.y + m.tall, m.z), new V(m.x, m.y + m.tall + 6, m.z), "#fff26a", 0.08, 0.3);
+      strikeAt(m, mid, 3.5, 1.0, "#fff26a", 1.2, "Lightning strike!"); return true; },
+  },
+  "Cloud Jelly": {   // floats over you; its long tentacles sting anything underneath it
+    attack() { return true; },
+    tick(m, dt, mid) { moveMon(m, mid.x, null, mid.z, m.d.speed, dt); m.y += (mid.y + 5 - m.y) * Math.min(1, dt * 0.6); m.warn = 0;
+      m.sting = (m.sting || 0) - dt;
+      if (m.sting <= 0 && Math.hypot(m.x - mid.x, m.z - mid.z) < m.rad + petRad() && mid.y < m.y + 1 && mid.y > m.y - 14) { m.sting = 0.9; landed(m, 0.6, "Stung by dangling tentacles!"); }
+      return 2; },
+  },
+  "Gust Sprite": {   // its gusts blow you sideways, off course
+    onHit(m) { const s = Math.random() < 0.5 ? 1 : -1; pet.knock = { x: -Math.sin(pet.face) * s, z: Math.cos(pet.face) * s, t: 0.6 }; toast(`${m.kind}: ${m.d.atk}!`, `${pet.name} is blown off course!`); },
+  },
+  "Puffcap": {   // drifts up to you and BURSTS in a cloud of dizzy spores
+    attack(m) { if (!nearPet(m, 5)) return true; spray(new V(m.x, m.y + m.tall * 0.5, m.z), new V(0, 0, 0), "#e0b0ff", 60, 0, 18);
+      if (landed(m, 1.5, "Spore burst! Dizzy!")) PST().dizzy = 2.5;
+      m.dead = 0.001; m.bar.visible = false; return true; },
+  },
+  "Star Jelly": {   // rains little falling stars down around you
+    attack(m) { const mid = petMid(); for (let i = 0; i < 5; i++) { const a = Math.random() * 6.283, r = i ? 2 + Math.random() * 6 : 0;
+      strikeAt(m, new V(mid.x + Math.cos(a) * r, mid.y, mid.z + Math.sin(a) * r), 2.2, 0.8 + i * 0.25, "#fff2b8", 0.6, "Hit by a falling star!"); } return true; },
+  },
+};
+
+// statuses on your dragon, the lobbed rocks, lightning strikes and lava puddles
+function movesTick(dt) {
+  const s = PST(), riding = state === "ride";
+  ["dizzy", "root", "freeze", "web", "blind"].forEach(k => { if (s[k] > 0) s[k] -= dt; });
+  if (!riding) { ["dizzy", "root", "freeze", "web", "blind"].forEach(k => s[k] = 0); s.burn = null; }
+  if (s.dizzy > 0) pet.face += Math.sin(T * 5) * dt * 2.4;
+  if (s.root > 0 || s.freeze > 0) { pet.speed = 0; pet.dive = false; }
+  if (s.web > 0) { pet.speed = Math.max(-3, Math.min(pet.speed, 8 * flyMul())); pet.dive = false; if (pet.fly) pet.y = Math.max(groundAt(pet.x, pet.z, pet.y), pet.y - 9 * dt); }
+  if (s.freeze > 0 && Math.random() < dt * 8) burstAt(pet.x, pet.y + 1.4, pet.z, "#c8f0ff");
+  if (s.burn) { const q = s.burn; q.t -= dt; q.tick -= dt;
+    if (pet.y < WATER_Y + 0.6) { s.burn = null; toast("Splash! The fire is out", ""); }
+    else { if (Math.random() < dt * 10) burstAt(pet.x, pet.y + 1.4, pet.z, "#ff8a2a");
+      if (q.tick <= 0 && riding) { q.tick = 0.8; pet.hp = Math.max(0, petHp() - q.dmg); petHurtT = 0.35; fightT = 6; if (pet.hp <= 0) { s.burn = null; faint(q.m); } }
+      if (s.burn && q.t <= 0) s.burn = null; } }
+  blindEl.style.opacity = s.blind > 0 ? Math.min(1, s.blind) * 0.93 : 0;
+  // lobbed boulders, spit and snowballs
+  for (let i = arcs.length - 1; i >= 0; i--) {
+    const a = arcs[i]; a.v.y -= a.g * dt; a.mesh.position.addScaledVector(a.v, dt); a.mesh.rotation.x += dt * 4; a.life -= dt;
+    const p = a.mesh.position, gy = Math.max(groundAt(p.x, p.z, p.y + 1), WATER_Y);
+    const hitPet = riding && p.distanceTo(petMid()) < petRad() + 0.8;
+    if (hitPet || p.y <= gy || a.life <= 0) { if (a.life > 0) a.land(p.clone()); scene.remove(a.mesh); a.mesh.geometry.dispose(); arcs.splice(i, 1); }
+  }
+  // marked spots: lightning and falling stars
+  for (let i = strikes.length - 1; i >= 0; i--) {
+    const k = strikes[i]; k.t -= dt; k.ring.material.opacity = 0.4 + Math.abs(Math.sin(T * 14)) * 0.5;
+    if (k.t <= 0) {
+      zap(k.p.clone().add(new V(0, 30, 0)), k.p, k.col, 0.3, 0.3); burstAt(k.p.x, k.p.y, k.p.z, k.col);
+      const mid = petMid(); if (riding && Math.hypot(mid.x - k.p.x, mid.z - k.p.z) < k.r + petRad() * 0.5 && Math.abs(mid.y - k.p.y) < 4) landed(k.m, k.mult, k.msg);
+      scene.remove(k.ring); k.ring.geometry.dispose(); strikes.splice(i, 1);
+    }
+  }
+  // lava puddles burn you if you walk or fly low over them
+  for (let i = hazards.length - 1; i >= 0; i--) {
+    const h = hazards[i]; h.t -= dt; h.tick -= dt; h.mesh.material.opacity = Math.min(0.85, h.t * 0.5);
+    if (riding && h.tick <= 0 && Math.hypot(pet.x - h.x, pet.z - h.z) < h.r + 0.5 && pet.y - h.y < 2.5) { h.tick = 0.8; landed(h.m, 0.5, "The lava puddle burns!"); }
+    if (h.t <= 0) { scene.remove(h.mesh); h.mesh.geometry.dispose(); hazards.splice(i, 1); }
+  }
+}
+function statusText() {
+  const s = PST(), o = [];
+  if (pet.poison) o.push("poisoned"); if (s.burn) o.push("on fire"); if (pet.slow > 0) o.push("slowed"); if (s.dizzy > 0) o.push("dizzy");
+  if (s.root > 0) o.push("held down"); if (s.freeze > 0) o.push("frozen"); if (s.web > 0) o.push("webbed");
+  return o.length ? " · " + o.join(", ") : "";
 }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
