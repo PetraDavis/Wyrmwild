@@ -2917,7 +2917,7 @@ function tamerShiny(t, sec) {
 }
 function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
-  return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null });
+  return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null, shell: sh.side, crystalTip: sh.glow, hornTip: sh.glow, spikeTip: sh.glow, flame: sh.glow, smoke: sh.wing, glow2: sh.horn, glow3: sh.eye });
 }
 const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
 const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
