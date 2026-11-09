@@ -97,6 +97,8 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 #start .row.small { margin-top: 12px; }
 #start .row.small button { font-size: 0.92rem; padding: 8px 16px; }
 #tip { font-size: 0.9rem; margin: 14px 0 0; }
+#specials { position: fixed; right: 16px; bottom: 64px; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; font-size: 0.85rem; }
+#specials .wait { opacity: 0.55; } #specials .lock { opacity: 0.35; }
 #start .card { max-height: calc(100vh - 32px); overflow-y: auto; }
 body.home #where, body.home #arrow, body.home #keys, body.home #toast, body.home #prompt { visibility: hidden; }
 #tip b { color: var(--ember); }
@@ -2769,6 +2771,7 @@ function showPane(which, msg) {
       <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
       <dt>Left click</dt><dd>Claw attack (while riding)</dd>
       <dt>Right click</dt><dd>Breath attack (needs a few seconds to recharge)</dd>
+      <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></dt><dd>Special moves your dragon learns at levels 5, 10, 15 and 20: Tail Whip, Mighty Roar, Power Blast and Second Wind</dd>
       <dt><kbd>A</kbd><kbd>A</kbd> / <kbd>D</kbd><kbd>D</kbd></dt><dd>Double-tap to dodge. A red flash means an attack is coming!</dd></dl>
       <p>Your game saves by itself. Visit your nest to heal, swap dragons and dress them up.</p>`;
   } else if (which === "set") {
@@ -3179,6 +3182,7 @@ function frame() {
   updateSkills(dt);
   updateDig(dt);
   updateFish(dt);
+  updateSpecials(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -7524,6 +7528,77 @@ function updateFish(dt) {
 }
 const fishSave = () => ({ basket: FISH.basket, caught: FISH.caught || 0 });
 function fishLoad(d) { FISH.basket = (d.basket || []).filter(n => fishInfo(n)).slice(0, 10); FISH.caught = d.caught || 0; }
+
+// ================= new battle moves by level (Petra's extras idea 4, 2026-11-09) =================
+// As your dragon levels up it learns special moves for monster fights, on keys 1-4 while riding:
+//   Lv 5  Tail Whip    - spins and hits every monster close around you, knocking them back
+//   Lv 10 Mighty Roar  - stuns the monsters near you so they can't attack for a few seconds
+//   Lv 15 Power Blast  - a big ball of your dragon's own breath that explodes where it lands
+//   Lv 20 Second Wind  - catch your breath in the middle of a fight and heal a third of your HP
+const SPECIALS = [
+  { key: "Digit1", n: 1, name: "Tail Whip", lv: 5, cd: 6 },
+  { key: "Digit2", n: 2, name: "Mighty Roar", lv: 10, cd: 14 },
+  { key: "Digit3", n: 3, name: "Power Blast", lv: 15, cd: 10 },
+  { key: "Digit4", n: 4, name: "Second Wind", lv: 20, cd: 40 },
+];
+const SPC = { cd: [0, 0, 0, 0], shots: [] };
+const spKnown = () => SPECIALS.filter(s => (pet.level || 1) >= s.lv && !pet.small);
+function spUse(i) {
+  const s = SPECIALS[i]; if (!canFight()) return;
+  if ((pet.level || 1) < s.lv) { toast(`${s.name} is locked`, `${pet.name} learns it at level ${s.lv}`); return; }
+  if (SPC.cd[i] > 0) { toast(`${s.name} isn't ready`, `${Math.ceil(SPC.cd[i])} s`); return; }
+  SPC.cd[i] = s.cd; const st = petStats(), mid = petMid(), col = SP(pet.kind).pal.glow;
+  if (i === 0) {   // TAIL WHIP
+    pet.bank = 1.2; for (let k = 0; k < 10; k++) burstAt(mid.x + Math.cos(k * 0.63) * 4, mid.y, mid.z + Math.sin(k * 0.63) * 4, "#ffffff");
+    let n = 0; mons.forEach(m => { if (m.dead) return; const d = Math.hypot(m.x - mid.x, m.z - mid.z, (m.y + m.tall * 0.5) - mid.y); if (d < 6 + m.rad + petRad()) {
+      damageMon(m, Math.round(rollR(st.claw) * 0.9), false, "claw"); n++; const a = Math.atan2(m.z - mid.z, m.x - mid.x); m.x += Math.cos(a) * 4; m.z += Math.sin(a) * 4; } });
+    toast("Tail Whip!", n ? `Hit ${n} monster${n > 1 ? "s" : ""}!` : "Nothing close enough");
+  } else if (i === 1) {   // MIGHTY ROAR
+    for (let k = 0; k < 3; k++) setTimeout(() => burstAt(mid.x, mid.y + 1, mid.z, col), k * 120);
+    let n = 0; mons.forEach(m => { if (m.dead || Math.hypot(m.x - mid.x, m.z - mid.z) > 22) return; m.warn = 0; m.cd = Math.max(m.cd || 0, 4); m.stun = 4; tint(m, null, 0); n++; });
+    toast("ROOOAR!", n ? `${n} monster${n > 1 ? "s are" : " is"} too scared to attack!` : "The whole valley heard that");
+  } else if (i === 2) {   // POWER BLAST
+    dragon.root.updateMatrixWorld(); const h = new V(); dragon.sockets.head.getWorldPosition(h);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).convertSRGBToLinear() }));
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(col).convertSRGBToLinear(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.set(4, 4, 1); ball.add(glow);
+    ball.position.copy(h); scene.add(ball);
+    const v = new V(Math.cos(pet.face), -0.15 + (pet.fly ? -0.1 : 0.05), Math.sin(pet.face)).normalize().multiplyScalar(34);
+    SPC.shots.push({ ball, v, life: 1.6, dmg: Math.round(rollR(st.breath) * 1.8), col });
+    toast("Power Blast!", "");
+  } else if (i === 3) {   // SECOND WIND
+    const add = Math.round(petMaxHp() / 3); pet.hp = Math.min(petMaxHp(), petHp() + add);
+    for (let k = 0; k < 8; k++) burstAt(mid.x + (Math.random() - 0.5) * 3, mid.y + Math.random() * 2, mid.z + (Math.random() - 0.5) * 3, "#7aff9a");
+    toast("Second Wind!", `${pet.name} catches its breath: +${add} HP`);
+  }
+  if (typeof sfx === "function") sfx(i === 1 ? "monAtk" : i === 3 ? "egg" : "breath");
+}
+function spBoom(s, p) {
+  for (let k = 0; k < 12; k++) burstAt(p.x + (Math.random() - 0.5) * 6, p.y + Math.random() * 3, p.z + (Math.random() - 0.5) * 6, s.col);
+  mons.forEach(m => { if (!m.dead && Math.hypot(m.x - p.x, m.z - p.z, m.y + m.tall * 0.5 - p.y) < 5 + m.rad) damageMon(m, s.dmg, Math.random() < 0.15, "breath"); });
+  scene.remove(s.ball); s.ball.geometry.dispose();
+}
+const spHud = document.createElement("div"); spHud.id = "specials"; spHud.className = "plate"; spHud.hidden = true; document.body.appendChild(spHud);
+let spHudT = 0, spSaid = -1, spWho = "";
+function updateSpecials(dt) {
+  for (let i = 0; i < 4; i++) SPC.cd[i] = Math.max(0, SPC.cd[i] - dt);
+  mons.forEach(m => { if (m.stun > 0) { m.stun -= dt; m.warn = 0; if (m.cd < 0.5) m.cd = 0.5; } });
+  for (let i = SPC.shots.length - 1; i >= 0; i--) {
+    const s = SPC.shots[i]; s.life -= dt; s.ball.position.addScaledVector(s.v, dt);
+    const p = s.ball.position, hit = mons.find(m => !m.dead && Math.hypot(m.x - p.x, m.z - p.z, m.y + m.tall * 0.5 - p.y) < m.rad + 1.2);
+    if (hit || s.life <= 0 || p.y < groundAt(p.x, p.z, p.y + 1) + 0.3) { spBoom(s, p.clone()); SPC.shots.splice(i, 1); }
+  }
+  // tell the player about a newly learned move once
+  const k = spKnown().length, who = pet.name + "|" + pet.kind; if (who !== spWho) { spWho = who; spSaid = -1; }
+  if (started && hasDragon() && state !== "arena") { if (spSaid < 0) spSaid = k; else if (k > spSaid) { const nw = SPECIALS.slice(spSaid, k); spSaid = k; toast(`${pet.name} learned ${nw.map(s => s.name).join(" and ")}!`, `Press ${nw.map(s => s.n).join(" or ")} while riding to use ${nw.length > 1 ? "them" : "it"}`); } }
+  if ((spHudT -= dt) > 0) return; spHudT = 0.25;
+  const show = state === "ride" && hasDragon() && spKnown().length > 0;
+  spHud.hidden = !show; if (!show) return;
+  spHud.innerHTML = SPECIALS.map((s, i) => (pet.level || 1) >= s.lv ? `<span class="${SPC.cd[i] > 0 ? "wait" : ""}"><kbd>${s.n}</kbd> ${s.name}${SPC.cd[i] > 0 ? ` ${Math.ceil(SPC.cd[i])}s` : ""}</span>` : `<span class="lock"><kbd>${s.n}</kbd> Lv ${s.lv}</span>`).join("");
+}
+addEventListener("keydown", e => {
+  if (e.repeat || uiOpen || state !== "ride") return;
+  const i = SPECIALS.findIndex(s => s.key === e.code); if (i >= 0) spUse(i);
+});
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
