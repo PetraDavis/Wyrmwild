@@ -51,3 +51,17 @@ dragons are fastest, heavy ones slowest).
 The Ocean: a gap in the mountains south-east of the nest opens onto a sandy
 beach with palm trees, waves, sea stacks, jumping fish and a lighthouse out in
 the bay. You can fly far out over the water.
+
+Fire Mountain: through a pass in the mountains (follow the dirt-coloured gap). A
+volcano with a glowing crater and a smoke plume, rivers and pools of lava,
+rising embers, dead trees and glowing magma rocks.
+
+Frost Peaks: through a pass on the other side of the valley. Snow, icy peaks,
+a frozen lake, snowy pine trees, ice crystals and falling snow.
+
+Eggs: each kind's eggs turn up most in its home land (sky kinds on the Sky
+Islands, water kinds by the ocean, and so on). Lumora can come from anywhere.
+
+Day and night: a full day lasts 10 minutes. Sunsets turn the sky orange, and at
+night the stars and moon come out and glowing dragons stand out.
+

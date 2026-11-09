@@ -830,6 +830,16 @@ SPECIES.forEach(s => {
   if (s.rarity === "Legendary") { gr.hp += 1; gr.claw += 1; gr.breath += 1; }
 });
 
+// ----- which land each kind's eggs turn up in most (Lumora: anywhere; secret dragons have their own way) -----
+const HOME_LAND = {
+  "Green Valley": ["Pyrrak", "Fernling", "Lichenwing", "Stonewyrm", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Dawnwing"],
+  "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake"],
+  "Fire Mountain": ["Smoldedrake", "Volcanox", "Ashveil", "Blazequill"],
+  "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran"],
+  "Sky Islands": ["Tempestra", "Driftail", "Aerolash", "Skyrune"]
+};
+Object.entries(HOME_LAND).forEach(([land, names]) => names.forEach(n => { const s = SPECIES.find(q => q.name === n); if (s) s.land = land; }));
+
 // ================= world =================
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -842,11 +852,12 @@ renderer.toneMappingExposure = 1.0;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const SKY = new THREE.Color("#9cc4ee");
-scene.background = SKY;
+scene.background = SKY.clone();
 scene.fog = new THREE.Fog("#b4d2ee", 110, 420);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 900);
 
 // sky dome with a soft gradient
+let skyDome;
 (function () {
   const g = new THREE.SphereGeometry(700, 32, 16), col = [];
   const top = new THREE.Color("#3f7fd0"), mid = new THREE.Color("#9cc4ee"), low = new THREE.Color("#e8eef0");
@@ -857,10 +868,10 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 900);
     c.convertSRGBToLinear(); col.push(c.r, c.g, c.b);
   }
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })));
+  skyDome = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })); scene.add(skyDome);
 })();
 
-scene.add(new THREE.HemisphereLight("#cfe3ff", "#4b5a2c", 0.75));
+const hemi = new THREE.HemisphereLight("#cfe3ff", "#4b5a2c", 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight("#fff2dc", 1.25);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -868,6 +879,52 @@ Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, n
 sun.shadow.bias = -0.0006;
 scene.add(sun); scene.add(sun.target);
 const SUN_DIR = new V(0.5, 0.8, 0.35).normalize();
+// ---------- day and night ----------
+// one full day lasts DAY_LEN seconds; dayTime 0 = sunrise, 0.25 = noon, 0.5 = sunset, 0.75 = midnight
+const DAY_LEN = 600; let dayTime = 0.06, nightAmt = 0, isNight = false;
+const stars = (function () {
+  const n = 1400, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const u = Math.random() * 2 - 1, a = Math.random() * 6.28, r = Math.sqrt(1 - u * u); pos.set([Math.cos(a) * r * 640, Math.abs(u) * 640 + 20, Math.sin(a) * r * 640], i * 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ color: "#ffffff", size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+  scene.add(m); return m;
+})();
+function glowDisc(color, size) {
+  const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+  const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,1)"); gr.addColorStop(0.42, "rgba(255,255,255,0.35)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color, fog: false, transparent: true, depthWrite: false }));
+  s.scale.setScalar(size); scene.add(s); return s;
+}
+const sunDisc = glowDisc("#fff2c8", 90), moonDisc = glowDisc("#dfe8ff", 60);
+const C = h => new THREE.Color(h);
+const SKYCOL = { day: C("#ffffff"), dusk: C("#ffb08a"), night: C("#0c1430") };
+const FOGCOL = { day: C("#b4d2ee"), dusk: C("#e0a888"), night: C("#141c34") };
+const baseFog = new THREE.Color("#b4d2ee");
+function updateDay(dt, focus) {
+  dayTime = (dayTime + dt / DAY_LEN) % 1;
+  const ang = dayTime * Math.PI * 2, elev = Math.sin(ang);
+  const day = sstep(-0.12, 0.22, elev), dusk = (1 - Math.abs(sstep(-0.25, 0.3, elev) * 2 - 1)) * 0.9;
+  nightAmt = 1 - day;
+  SUN_DIR.set(Math.cos(ang), Math.max(0.08, elev), 0.35).normalize();
+  const moonDir = new V(-Math.cos(ang), Math.max(0.15, -elev), -0.35).normalize();
+  // light: warm sun by day, cool moonlight by night
+  if (elev > -0.05) { sun.color.set("#fff2dc").lerp(C("#ffb070"), dusk); sun.intensity = 1.25 * sstep(-0.05, 0.25, elev); }
+  else { SUN_DIR.copy(moonDir); sun.color.set("#9ab4ff"); sun.intensity = 0.28 * sstep(-0.05, -0.3, elev); }
+  hemi.intensity = 0.1 + 0.65 * day; hemi.color.set("#cfe3ff").lerp(C("#3a4a80"), nightAmt);
+  hemi.groundColor.set("#4b5a2c").lerp(C("#1a1c28"), nightAmt);
+  skyDome.material.color.copy(SKYCOL.day).lerp(SKYCOL.dusk, dusk).lerp(SKYCOL.night, nightAmt * 0.95);
+  scene.background.copy(SKY).lerp(SKYCOL.night, nightAmt);
+  baseFog.copy(FOGCOL.day).lerp(FOGCOL.dusk, dusk).lerp(FOGCOL.night, nightAmt);
+  stars.material.opacity = sstep(0.4, 0.9, nightAmt); stars.position.copy(camera.position);
+  sunDisc.position.copy(camera.position).addScaledVector(new V(Math.cos(ang), elev, 0.35).normalize(), 600); sunDisc.visible = elev > -0.15;
+  sunDisc.material.color.set("#fff2c8").lerp(C("#ff9a5a"), dusk);
+  moonDisc.position.copy(camera.position).addScaledVector(new V(-Math.cos(ang), -elev, -0.35).normalize(), 600); moonDisc.visible = elev < 0.15;
+  renderer.toneMappingExposure = 1.0 - nightAmt * 0.2;
+  if (clouds.length) { const cm = clouds[0].children[0].material; cm.emissiveIntensity = 0.35 * (1 - nightAmt * 0.9); }
+  const nowNight = nightAmt > 0.6;
+  if (nowNight !== isNight) { isNight = nowNight; if (started) toast(isNight ? "Night falls" : "A new day", isNight ? "The stars are out. Glowing dragons shine brightest now" : "The sun is up over the valley"); }
+}
 
 // ---------- land shape ----------
 function hash(x, y) {
@@ -887,6 +944,33 @@ const NEST = new V(0, 0, 0), POND = { x: 62, z: -50, r: 30 }, WATER_Y = -1.4, ED
 const VIL = { x: -100, z: -35, r: 48, y: 1 };
 const COAST = { a: 0.5 };  // direction of the gap in the mountains that opens onto the ocean
 function coast(x, z) { let d = Math.abs(Math.atan2(z, x) - COAST.a); if (d > Math.PI) d = Math.PI * 2 - d; return 1 - sstep(0.4, 0.75, d); }  // the village, west of the nest
+// ---------- the lands past the mountains: each is a big basin reached by a pass ----------
+const FIRE = { a: -1.9, d: 340, R: 135, LAVA: 6 }, FROST = { a: 2.0, d: 340, R: 135, ICE: 10 };
+[FIRE, FROST].forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
+FROST.lake = { x: FROST.x + 38 * Math.cos(FROST.a + 1.2), z: FROST.z + 38 * Math.sin(FROST.a + 1.2), r: 30 };
+function basinW(b, x, z) { return 1 - sstep(b.R * 0.72, b.R, Math.hypot(x - b.x, z - b.z)); }
+// a walkable pass through the mountains, along the line from the nest toward a basin
+function passW(b, x, z) {
+  const ux = Math.cos(b.a), uz = Math.sin(b.a), along = x * ux + z * uz, perp = Math.abs(-x * uz + z * ux);
+  return (1 - sstep(12, 30, perp)) * sstep(110, 135, along) * (1 - sstep(b.d - 40, b.d, along));
+}
+function passH(b, x, z) { const along = x * Math.cos(b.a) + z * Math.sin(b.a); return 4 + 20 * sstep(120, 205, along) - 8 * sstep(220, 270, along); }
+function fireH(x, z) {
+  const dv = Math.hypot(x - FIRE.x, z - FIRE.z);
+  let h = 10 + (fbm(x * 0.02 + 70, z * 0.02 + 11) - 0.5) * 16 + (fbm(x * 0.07, z * 0.07, 3) - 0.5) * 3;
+  const n = fbm(x * 0.028 + 50, z * 0.028 - 20, 3);                       // lava channels and pools
+  h += (FIRE.LAVA - 2 - h) * sstep(0.42, 0.35, n) * sstep(28, 45, dv);
+  h += 72 * Math.pow(Math.max(0, 1 - dv / 75), 1.5);                       // the volcano
+  h -= 20 * (1 - sstep(7, 15, dv));                                        // its crater
+  return h;
+}
+function frostH(x, z) {
+  let h = 14 + (fbm(x * 0.018 - 30, z * 0.018 + 5) - 0.5) * 24 + (fbm(x * 0.06, z * 0.06, 3) - 0.5) * 4;
+  h += 55 * Math.pow(Math.max(0, fbm(x * 0.013 + 9, z * 0.013 + 4, 4) - 0.45), 1.6) * 6;   // sharp icy peaks
+  const dl = Math.hypot(x - FROST.lake.x, z - FROST.lake.z);
+  h = (FROST.ICE - 2) + (h - FROST.ICE + 2) * sstep(FROST.lake.r * 0.9, FROST.lake.r * 1.6, dl);  // frozen lake
+  return h;
+}
 function roadDist(x, z) { const L = Math.hypot(VIL.x, VIL.z), t = Math.max(0, Math.min(1, (x * VIL.x + z * VIL.z) / (L * L))); return Math.hypot(x - VIL.x * t, z - VIL.z * t); }
 function height(x, z) {
   const r = Math.hypot(x, z);
@@ -900,6 +984,10 @@ function height(x, z) {
   h += (m * m * 75 + m * (fbm(x * 0.03, z * 0.03, 4) - 0.3) * 30) * (1 - cst);
   h += (Math.max(h, 1.5 + sstep(30, 110, r) * 1.5) - h) * cst;                          // dry, gentle land toward the coast
   h += ((-9 + (fbm(x * 0.02, z * 0.02, 3) - 0.5) * 6) - h) * cst * sstep(118, 182, r);   // beach sloping into the sea
+  for (const b of [FIRE, FROST]) {                            // passes and the lands beyond
+    const pw = passW(b, x, z); if (pw > 0) h += (Math.min(h, passH(b, x, z)) - h) * pw;
+    const bw = basinW(b, x, z); if (bw > 0) h += ((b === FIRE ? fireH(x, z) : frostH(x, z)) - h) * bw;
+  }
   const dv = Math.hypot(x - VIL.x, z - VIL.z);                // flat ground for the village
   h = VIL.y + (h - VIL.y) * sstep(VIL.r, VIL.r + 22, dv);
   return h;
@@ -908,7 +996,7 @@ const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
 
 // ---------- terrain ----------
 (function () {
-  const S = 520, N = 220;
+  const S = 1100, N = 360;
   const g = new THREE.PlaneGeometry(S, S, N, N); g.rotateX(-Math.PI / 2);
   const p = g.attributes.position, col = [];
   const grassA = new THREE.Color("#6aa84a"), grassB = new THREE.Color("#3f7d34"), sand = new THREE.Color("#d8c88e"),
@@ -921,6 +1009,20 @@ const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
     const m = mountain(x, z);
     c.lerp(rock, sstep(0.15, 0.5, m));
     c.lerp(snow, sstep(48, 62, h));
+    const fw = Math.max(basinW(FIRE, x, z), passW(FIRE, x, z) * sstep(230, 300, Math.hypot(x, z)));
+    if (fw > 0) {                                              // Fire Mountain: ash, black rock, glowing lava edges
+      let fc = new THREE.Color("#3a3430").lerp(new THREE.Color("#5a3a2a"), fbm(x * 0.05 + 3, z * 0.05, 3));
+      fc.lerp(new THREE.Color("#1e1a1a"), sstep(20, 50, h));
+      fc.lerp(new THREE.Color("#c8481a"), sstep(FIRE.LAVA + 2.2, FIRE.LAVA + 0.3, h));
+      c.lerp(fc, fw);
+    }
+    const sw = Math.max(basinW(FROST, x, z), passW(FROST, x, z) * sstep(230, 300, Math.hypot(x, z)));
+    if (sw > 0) {                                              // Frost Peaks: snow, blue-grey rock, pale ice
+      let sc = new THREE.Color("#f2f6fa").lerp(new THREE.Color("#c8d6e4"), fbm(x * 0.04 + 1, z * 0.04, 3));
+      sc.lerp(new THREE.Color("#7a8a9a"), sstep(0.55, 0.7, fbm(x * 0.03 + 7, z * 0.03 - 2, 3)) * 0.6);
+      sc.lerp(new THREE.Color("#bfe6f2"), 1 - sstep(FROST.lake.r * 0.95, FROST.lake.r * 1.2, Math.hypot(x - FROST.lake.x, z - FROST.lake.z)));
+      c.lerp(sc, sw);
+    }
     const cs = coast(x, z) * sstep(105, 125, Math.hypot(x, z));
     c.lerp(sand, cs * sstep(4.5, 2, h));                       // sandy beach
     c.lerp(new THREE.Color("#5a8a9a"), cs * sstep(WATER_Y - 0.5, WATER_Y - 4, h));  // sea floor
@@ -1146,6 +1248,79 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
   });
 })();
 
+
+// ---------- Fire Mountain and the Frost Peaks ----------
+const biomeAnims = [];
+(function () {
+  const lin = h => new THREE.Color(h).convertSRGBToLinear();
+  const rnd = (() => { let s = 4242; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+  const o = new THREE.Object3D();
+  const spotIn = (b, minD, maxD, ok) => { for (let k = 0; k < 60; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d; if (!ok || ok(x, z)) return [x, z]; } return null; };
+  // ----- FIRE: lava, volcano glow, smoke, embers, dead trees, glowing rocks -----
+  const lavaM = new THREE.MeshBasicMaterial({ color: lin("#ff6a1a") });
+  const lava = new THREE.Mesh(new THREE.CircleGeometry(FIRE.R, 64), lavaM); lava.rotation.x = -Math.PI / 2; lava.position.set(FIRE.x, FIRE.LAVA, FIRE.z); scene.add(lava);
+  const craterY = height(FIRE.x, FIRE.z) + 2;
+  const crater = new THREE.Mesh(new THREE.CircleGeometry(11, 32), lavaM); crater.rotation.x = -Math.PI / 2; crater.position.set(FIRE.x, craterY, FIRE.z); scene.add(crater);
+  const cl = new THREE.PointLight(0xff6a1a, 3, 120, 1.5); cl.position.set(FIRE.x, craterY + 6, FIRE.z); scene.add(cl);
+  biomeAnims.push(t => { lavaM.color.setRGB(1, 0.28 + Math.sin(t * 1.3) * 0.05, 0.05); cl.intensity = 2.6 + Math.sin(t * 3.1) * 0.4; });
+  const smokeM = new THREE.MeshLambertMaterial({ color: "#4a4440", transparent: true, opacity: 0.55, depthWrite: false });
+  const puffG = new THREE.IcosahedronGeometry(1, 1);
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(puffG, smokeM); scene.add(m); const ph = i / 14;
+    biomeAnims.push(t => { const k = (t * 0.05 + ph) % 1; m.position.set(FIRE.x + Math.sin(ph * 30) * 4 + k * 30, craterY + k * 70, FIRE.z + Math.cos(ph * 30) * 4 + k * 10); m.scale.setScalar(3 + k * 12); });
+  }
+  const eN = 300, eP = new Float32Array(eN * 3), eS = [];
+  for (let i = 0; i < eN; i++) { const s = spotIn(FIRE, 0, FIRE.R * 0.85); eS.push([s[0], s[1], rnd() * 30, 0.5 + rnd()]); }
+  const eG = new THREE.BufferGeometry(); eG.setAttribute("position", new THREE.BufferAttribute(eP, 3));
+  const embers = new THREE.Points(eG, new THREE.PointsMaterial({ color: lin("#ffb04a"), size: 0.5, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })); embers.frustumCulled = false; scene.add(embers);
+  biomeAnims.push(t => { eS.forEach(([x, z, ph, sp], i) => { const k = (t * sp * 0.12 + ph / 30) % 1; eP[i * 3] = x + Math.sin(t + ph) * 1.5; eP[i * 3 + 1] = height(x, z) * 0 + FIRE.LAVA + k * 40; eP[i * 3 + 2] = z; }); eG.attributes.position.needsUpdate = true; });
+  const deadG = new THREE.CylinderGeometry(0.12, 0.3, 5, 5); deadG.translate(0, 2.5, 0);
+  const branchG = new THREE.CylinderGeometry(0.06, 0.12, 2, 4); branchG.translate(0, 1, 0);
+  const deadM = new THREE.MeshLambertMaterial({ color: "#1a1412" });
+  const dead = [];
+  for (let i = 0; i < 400 && dead.length < 70; i++) { const s = spotIn(FIRE, 30, FIRE.R * 0.8); if (s && height(s[0], s[1]) > FIRE.LAVA + 1.5) dead.push(s); }
+  const dt1 = new THREE.InstancedMesh(deadG, deadM, dead.length), db1 = new THREE.InstancedMesh(branchG, deadM, dead.length * 2);
+  dt1.castShadow = db1.castShadow = true; scene.add(dt1); scene.add(db1);
+  dead.forEach(([x, z], i) => {
+    const y = height(x, z), k = 0.7 + rnd() * 0.6;
+    o.position.set(x, y - 0.2, z); o.rotation.set(0, rnd() * 6, (rnd() - 0.5) * 0.2); o.scale.setScalar(k); o.updateMatrix(); dt1.setMatrixAt(i, o.matrix);
+    [0, 1].forEach(j => { o.position.set(x, y + (2.4 + j * 1.2) * k, z); o.rotation.set(0, rnd() * 6, (j ? -1 : 1) * (0.7 + rnd() * 0.4)); o.updateMatrix(); db1.setMatrixAt(i * 2 + j, o.matrix); });
+    blockers.push({ x, z, r: 0.5 });
+  });
+  const magM = new THREE.MeshStandardMaterial({ color: "#2a2220", roughness: 0.9, emissive: lin("#ff5a1a"), emissiveIntensity: 0.55, flatShading: true });
+  const mags = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), magM, 50); mags.castShadow = true; scene.add(mags);
+  for (let i = 0; i < 50; i++) { const s = spotIn(FIRE, 20, FIRE.R * 0.85), k = 0.6 + rnd() * 1.8; o.position.set(s[0], height(s[0], s[1]) + k * 0.3, s[1]); o.rotation.set(rnd() * 3, rnd() * 3, 0); o.scale.set(k * 1.2, k * 0.8, k); o.updateMatrix(); mags.setMatrixAt(i, o.matrix); if (k > 1.2) blockers.push({ x: s[0], z: s[1], r: k }); }
+  // ----- FROST: frozen lake, snowy pines, ice crystals, falling snow -----
+  const ice = new THREE.Mesh(new THREE.CircleGeometry(FROST.lake.r * 1.2, 48), new THREE.MeshPhongMaterial({ color: lin("#bfe8f8"), specular: lin("#ffffff"), shininess: 120, transparent: true, opacity: 0.85 }));
+  ice.rotation.x = -Math.PI / 2; ice.position.set(FROST.lake.x, FROST.ICE - 0.6, FROST.lake.z); ice.receiveShadow = true; scene.add(ice);
+  const pines = [];
+  for (let i = 0; i < 900 && pines.length < 160; i++) { const s = spotIn(FROST, 10, FROST.R * 0.85, (x, z) => Math.hypot(x - FROST.lake.x, z - FROST.lake.z) > FROST.lake.r * 1.3); if (s && height(s[0], s[1]) < 45 && fbm(s[0] * 0.03, s[1] * 0.03 + 9) > 0.45) pines.push(s); }
+  const trunkG = new THREE.CylinderGeometry(0.2, 0.3, 2, 6); trunkG.translate(0, 1, 0);
+  const pg = new THREE.ConeGeometry(1.8, 5, 8); pg.translate(0, 4.2, 0);
+  const capG = new THREE.ConeGeometry(1.1, 2.4, 8); capG.translate(0, 6.4, 0);
+  const tr = new THREE.InstancedMesh(trunkG, new THREE.MeshLambertMaterial({ color: "#5a4030" }), pines.length);
+  const pm = new THREE.InstancedMesh(pg, new THREE.MeshLambertMaterial({ color: "#2a5a48", flatShading: true }), pines.length);
+  const cap = new THREE.InstancedMesh(capG, new THREE.MeshLambertMaterial({ color: "#f4f8fc", flatShading: true }), pines.length);
+  [tr, pm, cap].forEach(m => { m.castShadow = true; scene.add(m); });
+  pines.forEach(([x, z], i) => { const k = 0.8 + rnd() * 0.7; o.position.set(x, height(x, z) - 0.2, z); o.rotation.set(0, rnd() * 6, 0); o.scale.setScalar(k); o.updateMatrix(); tr.setMatrixAt(i, o.matrix); pm.setMatrixAt(i, o.matrix); cap.setMatrixAt(i, o.matrix); blockers.push({ x, z, r: 0.7 }); });
+  const crysM = new THREE.MeshStandardMaterial({ color: lin("#a8e8ff"), roughness: 0.1, metalness: 0.1, emissive: lin("#6ad0ff"), emissiveIntensity: 0.35, transparent: true, opacity: 0.85, flatShading: true });
+  const crysG = new THREE.ConeGeometry(0.5, 3, 5); crysG.translate(0, 1.4, 0);
+  const crys = new THREE.InstancedMesh(crysG, crysM, 120); crys.castShadow = true; scene.add(crys);
+  for (let c = 0, i = 0; c < 30; c++) {
+    const s = spotIn(FROST, 15, FROST.R * 0.85); const y = height(s[0], s[1]);
+    for (let k = 0; k < 4; k++, i++) { const sz = 0.6 + rnd() * 1.4; o.position.set(s[0] + (rnd() - 0.5) * 2, y - 0.3, s[1] + (rnd() - 0.5) * 2); o.rotation.set((rnd() - 0.5) * 0.8, rnd() * 6, (rnd() - 0.5) * 0.8); o.scale.set(sz, sz * (1 + rnd()), sz); o.updateMatrix(); crys.setMatrixAt(i, o.matrix); }
+    blockers.push({ x: s[0], z: s[1], r: 1.5 });
+  }
+  const sN = 900, sP = new Float32Array(sN * 3), sS = [];
+  for (let i = 0; i < sN; i++) sS.push([(rnd() - 0.5) * 80, rnd() * 40, (rnd() - 0.5) * 80, 0.6 + rnd() * 0.8]);
+  const sG = new THREE.BufferGeometry(); sG.setAttribute("position", new THREE.BufferAttribute(sP, 3));
+  const snowP = new THREE.Points(sG, new THREE.PointsMaterial({ color: "#ffffff", size: 0.35, transparent: true, opacity: 0.9, depthWrite: false })); snowP.frustumCulled = false; scene.add(snowP);
+  biomeAnims.push((t, px, py, pz) => {
+    const on = basinW(FROST, px, pz) > 0.2; snowP.visible = on; if (!on) return;
+    sS.forEach(([x, y, z, sp], i) => { sP[i * 3] = px + x + Math.sin(t * 0.7 + i) * 1.5; sP[i * 3 + 1] = py - 10 + (((y - t * sp * 3) % 40) + 40) % 40; sP[i * 3 + 2] = pz + z; });
+    sG.attributes.position.needsUpdate = true;
+  });
+})();
 
 // ---------- the ocean: past a gap in the mountains, south-east of the nest ----------
 const oceanAnims = [];
@@ -1478,13 +1653,15 @@ const PYR = PAL.Normal;
 const SP = name => SPECIES.find(s => s.name === name) || SPECIES.find(s => s.name === "Pyrrak");
 // the first egg can be any normal kind, rarer kinds less often (no junk, no secret dragons)
 const EGG_ODDS = { Common: 60, Uncommon: 25, Rare: 10, Epic: 4, Legendary: 1 };
-function rollKind() {
+// kinds that live in the land where the egg is found are 5 times as likely
+function rollKind(land) {
   const pool = SPECIES.filter(s => EGG_ODDS[s.rarity]), n = r => pool.filter(s => s.rarity === r).length;
-  let r = Math.random() * pool.reduce((t, s) => t + EGG_ODDS[s.rarity] / n(s.rarity), 0);
-  for (const s of pool) { r -= EGG_ODDS[s.rarity] / n(s.rarity); if (r <= 0) return s.name; }
+  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && s.land === land ? 5 : 1);
+  let r = Math.random() * pool.reduce((t, s) => t + w(s), 0);
+  for (const s of pool) { r -= w(s); if (r <= 0) return s.name; }
   return "Pyrrak";
 }
-let eggKind = rollKind();
+let eggKind = rollKind("Green Valley");
 const tamer = makeTamer(); scene.add(tamer.g);
 const me = { x: 4, z: 6, y: 0, face: -2.3, vy: 0, walk: 0 };
 let camYaw = -2.3, camPitch = 0.32, camDist = 9;
@@ -1589,7 +1766,7 @@ function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); return t ?
 function writeSave() {
   if (!started) return;
   const stage = state === "ride" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
-  const d = { v: 1, stage, eggKind, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
+  const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
@@ -1598,6 +1775,7 @@ function applySave(d) {
   me.x = d.me.x; me.y = d.me.y; me.z = d.me.z;
   Object.assign(seen, d.seen || {});
   if (d.eggKind) setEggKind(d.eggKind);
+  if (typeof d.dayTime === "number") dayTime = d.dayTime;
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
@@ -1892,14 +2070,18 @@ function frame() {
   skyAnims.forEach(f => f(T));
   // which land are we in?
   const ly = state === "ride" ? pet.y : me.y;
-  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : (Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 && ly < 40) ? "Village" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley";
+  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : basinW(FIRE, me.x, me.z) > 0.15 ? "Fire Mountain" : basinW(FROST, me.x, me.z) > 0.15 ? "Frost Peaks" : (Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 && ly < 40) ? "Village" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley";
   if (land !== landNow) {
     const firstTime = !seen[land]; landNow = land; landEl.textContent = land; seen[land] = true;
-    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish" })[land] || "" : "");
+    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake" })[land] || "" : "");
     if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
   updateNpcs(dt);
   oceanAnims.forEach(f => f(T));
+  biomeAnims.forEach(f => f(T, me.x, ly, me.z));
+  // the air changes colour in the hot and cold lands
+  const fogT = baseFog.clone().lerp(new THREE.Color("#b07a5a"), basinW(FIRE, me.x, me.z) * 0.8).lerp(new THREE.Color("#d8e6f2"), basinW(FROST, me.x, me.z) * 0.5);
+  scene.fog.color.lerp(fogT, Math.min(1, dt * 2));
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
 
   // ---- camera ----
@@ -1912,6 +2094,7 @@ function frame() {
   const wantFov = state === "ride" && (pet.dive || pet.speed > 40) ? 68 : 55;
   if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
+  updateDay(dt, focus);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -1950,7 +2133,7 @@ function updateBurst(dt) {
     if (b.life <= 0) { scene.remove(b.p); bursts.splice(k, 1); }
   }
 }
-window.__ww = { me, pet, keys, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: v => { camYaw = v; } };
+window.__ww = { me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
 })();
 </script>
