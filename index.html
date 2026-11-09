@@ -134,7 +134,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
 </div>
 <div id="toast"></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
@@ -365,7 +365,7 @@ function paint(p) {
   ec.strokeStyle = "rgba(0,0,0,0.18)"; ec.lineWidth = 2;
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; ec.beginPath(); ec.moveTo(r + Math.cos(a) * 18, r + Math.sin(a) * 18); ec.lineTo(r + Math.cos(a) * 52, r + Math.sin(a) * 52); ec.stroke(); }
   ec.fillStyle = o.blind ? "rgba(255,255,255,0.35)" : "#0b0503"; ec.beginPath();   // blind: a cloudy eye with no pupil
-  if (o.blind) ec.ellipse(r, r, 30, 30, 0, 0, Math.PI * 2); else if (o.eyes > 1.3) ec.ellipse(r, r, 22, 26, 0, 0, Math.PI * 2); else if (o.gentle) ec.ellipse(r, r, 17, 21, 0, 0, Math.PI * 2); else ec.ellipse(r, r, 7, 40, 0, 0, Math.PI * 2);   // big round pupils for dark places
+  if (o.blind) ec.ellipse(r, r, 30, 30, 0, 0, Math.PI * 2); else ec.ellipse(r, r, o.eyes > 1.3 ? 15 : o.gentle ? 10 : 7, 40, 0, 0, Math.PI * 2);   // always reptile slit pupils (Petra); dark-dwellers and friendly dragons just have wider slits
   ec.fill();
   ec.fillStyle = "rgba(255,255,255,0.9)"; ec.beginPath(); ec.arc(r - 18, r - 20, 9, 0, Math.PI * 2); ec.fill();
   ec.beginPath(); ec.arc(r + 14, r + 18, 4, 0, Math.PI * 2); ec.fill();
@@ -482,30 +482,41 @@ function leg(s, zOff, pts, radii, toeLen) {
   // big feet get thicker lower legs so the leg flows into the foot
   const lowK = 1 + Math.max(0, o.feet - 1) * 0.7;
   const rr = radii.map(([a, r], i) => [a, i < 2 ? r * bodyK * Math.min(1, o.legThick) * (i ? 1 + (o.legThick - 1) * 0.3 : 1) : r * o.legThick * (1 + (lowK - 1) * (i - 1) / (radii.length - 2))]);
-  g.add(staticTube(vs, rr, M.top, 40, 16, 0.85, 1));
+  // knee joint: the thigh stays on g, the shin + foot hang from a knee pivot so the leg can fold
+  const KI = 2, kf = KI / (vs.length - 1);
+  const rAt = f => { for (let i = 1; i < rr.length; i++) if (f <= rr[i][0]) { const [a0, r0] = rr[i - 1], [a1, r1] = rr[i]; return r0 + (r1 - r0) * (f - a0) / (a1 - a0); } return rr[rr.length - 1][1]; };
+  const kR = rAt(kf), kp = vs[KI].clone();
+  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.top, 20, 16, 0.85, 1));
+  const knee = new THREE.Group(); knee.position.copy(kp); g.add(knee); g.userData.knee = knee;
+  const kc = new THREE.Mesh(new THREE.SphereGeometry(kR * 1.02, 18, 12), M.top); kc.scale.set(1, 1, 0.85); knee.add(kc);
+  const low = new THREE.Group(); low.position.copy(kp).negate(); knee.add(low);   // shin parts keep leg-space coordinates
+  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.top, 20, 16, 0.85, 1));
   // round hip cap so the open top of the leg tube never shows from above
   const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
   const last = vs[vs.length - 1];
+  // ankle joint: the foot hangs from its own pivot so the paw can curl when flying
+  const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
+  const foot = new THREE.Group(); foot.position.copy(last).negate(); ankP.add(foot);
   const endR = radii[radii.length - 1][1] * o.legThick * lowK;
   const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), M.top);
-  ank.position.copy(last); g.add(ank);
+  ank.position.copy(last); foot.add(ank);
   if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
     const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), M.top);
-    hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); g.add(hl);
+    hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); foot.add(hl);
   }
   const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), M.top);
-  pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); g.add(pad);
+  pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); foot.add(pad);
   const sgn = zOff > 0 ? 1 : -1;
   [[-0.5, 1, 0], [0, 1.1, 0], [0.5, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lft]) => {
     const dir = new V(Math.cos(a), 0, Math.sin(a) * sgn);
     const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08 * o.feet);
     const t2 = t1.clone().addScaledVector(dir, toeLen * len * o.feet).add(new V(0, -0.03 + lft, 0));
-    g.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet], [1, 0.042 * o.feet]], M.top, 10, 10));
+    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet], [1, 0.042 * o.feet]], M.top, 10, 10));
     const c = new THREE.Mesh(new THREE.ConeGeometry(0.04 * o.feet, 0.17 * o.feet * (o.digClaws ? 1.6 : 1) * (o.gentle ? 0.65 : 1), 10), M.horn);
     c.position.copy(t2).addScaledVector(dir, 0.065 * o.feet).add(new V(0, -0.02, 0));
     c.quaternion.setFromUnitVectors(UP, dir.clone().add(new V(0, -0.5, 0)).normalize());
-    g.add(c);
+    foot.add(c);
   });
   g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   dragon.add(g); legs.push(g);
@@ -739,7 +750,7 @@ const neckSock = new THREE.Group(), chestSock = new THREE.Group(), backSock = ne
 const sockets = { head: null, neck: neckSock, chest: chestSock, back: backSock, tail: tailSock };
 const backR = at(0.56).r;
 if (o.hump) { const h = new THREE.Mesh(new THREE.SphereGeometry(backR * 0.9, 24, 16), M.top); h.position.set(-backR * 0.6, backR * 0.95, 0); h.scale.set(1.5, 0.95, 0.9); h.castShadow = true; backSock.add(h); }   // a water-storing hump
-const shells = []; let shellOpen = 0, api = null; const SIT_HIND = 1.0, SIT_FRONT = -0.4;
+const shells = []; let shellOpen = 0, api = null; const SIT_HIND = 1.0, SIT_FRONT = -0.4, KNEE_HIND = 0.15, KNEE_FRONT = 1.5, HIP_HIND = -1.0, HIP_FRONT = -0.5, ANK_HIND = 0.8, ANK_FRONT = 1.2;   // flying: hind legs trail back, front paws fold up under the chest
 if (o.elytra) { // beetle wing covers: shiny shells that flip open when it flies
   const shellM = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.shell || p.horn).convertSRGBToLinear(), metalness: 0.85, roughness: 0.15, side: THREE.DoubleSide, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.12 });
   [1, -1].forEach(z => {
@@ -909,8 +920,12 @@ function update(t, walk, flap, dt, bend = 0) {
   walkT += dt * 8 * walk;
   legs.forEach((g, i) => {
     const ph = (i === 0 || i === 3) ? 0 : Math.PI;
-    const S = (api && api.sit) || 0, target = (flap ? (i < 2 ? -0.9 : -0.55) : Math.sin(walkT + ph) * 0.45 * walk) * (1 - S) + S * (i < 2 ? SIT_HIND : SIT_FRONT);   // sitting: hind legs fold, front legs stay straight
+    const S = (api && api.sit) || 0, target = (flap ? (i < 2 ? HIP_HIND : HIP_FRONT) : Math.sin(walkT + ph) * 0.45 * walk) * (1 - S) + S * (i < 2 ? SIT_HIND : SIT_FRONT);   // sitting: hind legs fold, front legs stay straight
     g.rotation.z += (target - g.rotation.z) * Math.min(1, dt * 10);
+    const kn = g.userData.knee, kt = (flap ? (i < 2 ? KNEE_HIND : KNEE_FRONT) : 0) * (1 - S);   // flying: knees fold so the shins tuck along the belly
+    if (kn) kn.rotation.z += (kt - kn.rotation.z) * Math.min(1, dt * 10);
+    const an = g.userData.ankle, at2 = (flap ? (i < 2 ? ANK_HIND : ANK_FRONT) : 0) * (1 - S);   // flying: front paws curl, hind toes point back
+    if (an) an.rotation.z += (at2 - an.rotation.z) * Math.min(1, dt * 10);
   });
   const tip = frames[0];
   flame.position.copy(tip.p);
@@ -1913,26 +1928,59 @@ const CARVINGS = [];
     m.position.set(x, y + 1.7, z); m.rotation.set(-0.08, ry, (rnd() - 0.5) * 0.12); m.castShadow = true; m.receiveShadow = true; scene.add(m);
     blockers.push({ x, z, r: 1.9 }); CARVINGS.push({ x, z, y: y + 1.7, story, seen: false });
   };
+  // carved INTO a mountainside or cliff (Petra): a flat carved face lying on the steepest rock nearby, edges fading into the stone
+  const slopeAt = (x, z) => { const gx = (height(x + 1, z) - height(x - 1, z)) / 2, gz = (height(x, z + 1) - height(x, z - 1)) / 2; return [Math.hypot(gx, gz), gx, gz]; };
+  function wallTex(i, base) {
+    const t = tabletTex(i, base), src = t.image, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height; const c = cv.getContext("2d");
+    c.drawImage(src, 0, 0);
+    c.globalCompositeOperation = "destination-in";   // soft edges so the carving melts into the rock around it
+    const g1 = c.createRadialGradient(128, 160, 90, 128, 160, 175); g1.addColorStop(0, "rgba(0,0,0,1)"); g1.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g1; c.fillRect(0, 0, cv.width, cv.height);
+    const tt = new THREE.CanvasTexture(cv); tt.encoding = THREE.sRGBEncoding; return tt;
+  }
+  const wallGeo = new THREE.PlaneGeometry(4.2, 5.2, 1, 1);
+  const carveWall = (x, z, story, base) => {
+    const [, gx, gz] = slopeAt(x, z), n = new V(-gx, 1, -gz).normalize(), y = height(x, z);
+    const m = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ map: wallTex(story, base), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    m.position.set(x + n.x * 0.35, y + n.y * 0.35, z + n.z * 0.35); m.lookAt(m.position.x + n.x, m.position.y + n.y, m.position.z + n.z); m.receiveShadow = true; scene.add(m);
+    CARVINGS.push({ x, z, y, story, seen: false });
+  };
+  // no cliff nearby: carve it into the face of a huge half-buried boulder instead
+  const carveRock = (x, z, story, base) => {
+    const y = height(x, z), ry = rnd() * 6.28, rock = new THREE.Mesh(new THREE.DodecahedronGeometry(4.2, 1), new THREE.MeshLambertMaterial({ color: lin(base), flatShading: true }));
+    rock.scale.set(1.25, 1.1, 0.8); rock.position.set(x, y + 1.6, z); rock.rotation.y = ry; rock.castShadow = rock.receiveShadow = true; scene.add(rock);
+    const m = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ map: wallTex(story, base), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    m.scale.setScalar(0.8); m.position.set(x + Math.sin(ry) * 3.45, y + 2.6, z + Math.cos(ry) * 3.45); m.rotation.y = ry; scene.add(m);
+    blockers.push({ x, z, r: 4.6 }); CARVINGS.push({ x, z, y: y + 2, story, seen: false });
+  };
+  const findWall = (b, minD, maxD, ok) => {
+    let best = null, bg = 1.1;
+    for (let k = 0; k < 500; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d;
+      if (!ok(x, z)) continue; const [s] = slopeAt(x, z); if (s > bg && s < 5) {
+        // the face must be smooth enough for a flat carving: the slope a little way around should match
+        const [s2] = slopeAt(x + 1.5, z + 1.5), [s3] = slopeAt(x - 1.5, z - 1.5); if (Math.abs(s2 - s) < 0.6 && Math.abs(s3 - s) < 0.6) { bg = s; best = [x, z]; } } }
+    return best;
+  };
   const SAND = "#c8a878", GREY = "#9a948a", DARK = "#5a4a48", ICE = "#b8c8d4";
   const tryIn = (b, minD, maxD, ok) => { for (let k = 0; k < 80; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d; if (ok(x, z)) return [x, z]; } return null; };
   const dry = (x, z) => height(x, z) > WATER_Y + 1 && waterTop(x, z) === -Infinity;
   const spots = [
-    [{ x: 0, z: 0 }, 35, 110, (x, z) => dry(x, z) && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
-    [{ x: 0, z: 0 }, 35, 110, (x, z) => dry(x, z) && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
-    [FOREST, 15, FOREST.R * 0.7, dry, "#6a7a5a", 3],
-    [FOREST, 15, FOREST.R * 0.7, dry, "#6a7a5a", 2],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 0],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 4],
-    [DESERT, 15, DESERT.R * 0.7, (x, z) => dry(x, z) && mesaAt(x, z) < 0.2, SAND, 5],
-    [CAVES, 10, CAVE_IN * 0.6, dry, "#7a6a8a", 3],
+    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 0],
+    [{ x: 0, z: 0 }, 35, 190, (x, z) => dry(x, z) && height(x, z) < 45 && Math.hypot(x - 44, z - 120) > 50 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 8, GREY, 1],
+    [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 3],
+    [FOREST, 15, FOREST.R * 1.15, dry, "#6a7a5a", 2],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 0],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 4],
+    [DESERT, 15, DESERT.R * 0.9, dry, SAND, 5],
+    [CAVES, 10, CAVE_IN * 1.1, dry, "#7a6a8a", 3],
     [FIRE, 30, FIRE.R * 0.8, (x, z) => height(x, z) > FIRE.LAVA + 2, DARK, 4],
     [FROST, 20, FROST.R * 0.75, dry, ICE, 1],
   ];
-  spots.forEach(([b, a, d, ok, base, story]) => { const s = tryIn(b, a, d, ok); if (s) place(s[0], s[1], height(s[0], s[1]), story, base); });
+  spots.forEach(([b, a, d, ok, base, story]) => { const w = findWall(b, a, d, ok); if (w) return carveWall(w[0], w[1], story, base); const s = tryIn(b, a, d, ok); if (s) carveRock(s[0], s[1], story, base); });
   // Sky Haven: by the old stone watch ring
   { const I = ISLANDS[0], x = I.x + 18, z = I.z - 14; place(x, z, groundAt(x, z, 1000), 6, GREY); }
   // near the Titan bones, a tablet telling of the hunters
-  if (window.__titanBones) { const [bx, bz] = window.__titanBones, x = bx + 22, z = bz + 22; place(x, z, height(x, z), 0, SAND); }
+  if (window.__titanBones) { const [bx, bz] = window.__titanBones, w = findWall({ x: bx, z: bz }, 15, 70, dry); if (w) carveWall(w[0], w[1], 0, SAND); else { const x = bx + 22, z = bz + 22; place(x, z, height(x, z), 0, SAND); } }
   biomeAnims.push((t, px, py, pz) => {
     for (const cv of CARVINGS) if (!cv.seen && Math.abs(py - cv.y) < 12 && Math.hypot(px - cv.x, pz - cv.z) < 7) { cv.seen = true; const [big, small] = STORIES[cv.story]; toast("Old carving: " + big, small); }
   });
@@ -2195,7 +2243,7 @@ function makePerson(o) {
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
       "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
-    { name: "Old Nettle", title: "", home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
+    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about her teapot", say: ["My teapot? Don't mention the teapot. It can hear you.", "The teapot and I had an argument in 1847. Or Tuesday. It started it."] }], home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
       "When I was young, a black dragon came out of nowhere and ate my good dragons. It had an egg, you know. It had an egg.",
       "Under the mountains there's stone that breathes. Slow. Very, very slow.",
       "Look up, dearie. Always look up. My granny said it, and her granny before her.",
@@ -2218,15 +2266,15 @@ function makePerson(o) {
       "My cane used to be a snake. Or the snake used to be a cane. One of us remembers.", "Hee hee! I once tried to hatch a potato. Very patient potato. Still waiting.",
       "If a frog winks at you, wink back. It's only polite.", "I'm two hundred years old. Or forty. I lost count at the soup.",
       "Clouds are just sheep that wandered too far from home.", "Never whistle at a chicken. They take it personally.", "Last Tuesday I was a teapot for an hour. Very relaxing."] },
-    { name: "Mayor Tilda", title: "Mayor", home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
+    { name: "Mayor Tilda", title: "Mayor", topics: [{ label: "Ask about the village", say: ["Our village is the oldest in the valley. The well is even older. Don't ask how old. It's rude.", "We have a baker, a smith, a mapmaker, a dragonologist and a very strange old woman. Something for everyone!", "The arena brings tamers from all over the land. Good for business. Bad for roofs."] }], home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
       "Welcome to our village! We don't get many dragon tamers these days.", "We're very proud of our well. It's a very good well.",
       "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably.", "I'm planning a festival. With bunting! Lots of bunting!", "The village budget is mostly spent on fixing roofs that dragons sat on.", "Old Nettle sent me a letter. It just said 'BEANS'. I don't know what to do with that.", "A mayor's work is never done. I've been signing papers since breakfast.", "Officer Brick says we need a bigger jail. For what? We have one goblin problem.", "Have you seen the arena? I opened it myself. With very big scissors.", "If you need anything, ask. If you need a statue, also ask. I know a good sculptor."] },
-    { name: "Gorran", title: "Quest Master", home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
+    { name: "Gorran", title: "Quest Master", topics: [{ label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
       "The quest board isn't ready yet. Monsters have been seen in the hills, though.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
       "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
-    { name: "Mae", title: "Shopkeeper", home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
+    { name: "Mae", title: "Shopkeeper", topics: [{ label: "What will you sell?", say: ["Saddles, hats, scarves, capes... and a Bubble Charm so your dragon can breathe underwater! Soon!", "Dragon treats! The crunchy kind. And accessories. Lots of accessories."] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
       "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling.", "I'm saving a shelf for dragon treats. They'll be the crunchy kind.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Hats, saddles, scarves... soon, I promise!", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
-    { name: "Professor Hazel", title: "Dragonologist", hazel: true, home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", glasses: true, tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
+    { name: "Professor Hazel", title: "Dragonologist", hazel: true, topics: [{ label: "Tell me about my dragon", fn: "hazelPet" }, { label: "Can I see your dragon books?", fn: "books" }], home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
       "Dark backs, pale bellies! From above they blend into the ground, from below into the sky. Clever, clever dragons.",
       "Ice dragons have huge paws, like snowshoes. They spread the weight so they don't sink. I measured one. It stepped on my notebook.",
       "Water dragons have fin wings. Half wing, half flipper! They fly underwater. Well, swim. Swim-fly.",
@@ -2245,7 +2293,7 @@ function makePerson(o) {
       "Sometimes I think a dragon looks the way it does just because it's cool. Science can't explain everything. Yet.",
       "Weather dragons are the strangest of all. They only lay eggs in storms and odd skies. Nobody knows why. Not even me!",
       "I'm writing the biggest dragon book in the world. Right now it's mostly question marks."] },
-    { name: "Hamm", title: "Blacksmith", home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
+    { name: "Hamm", title: "Blacksmith", topics: [{ label: "Can you make something for my dragon?", say: ["Not yet. Soon I'll forge claw caps and scale plates for dragons. Bring coins when the forge is ready.", "Dragon armor is tricky. Every dragon's a different shape! I'm working on it."] }], home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
       "*CLANG* Oh! Didn't see you there.", "I'm working on dragon armor. Very heavy. Very shiny.", "Fire Mountain has the best metal. And the worst lava imps.", "Hot metal, hot hands, hot temper. Mostly the metal though.", "I made a sword once. Too heavy. Now it's a doorstop.", "Bring me good ore and I'll make your dragon shine.", "*CLANG* Sorry. *CLANG* Busy. *CLANG*", "Old Nettle asked me to fix her spoon. It wasn't broken. She just wanted to talk to it.", "Dragon fire is great for melting metal. Can I borrow yours?"] },
     { name: "Officer Brick", title: "Officer", home: new V(VIL.x + 8, Y, VIL.z + 6), wander: 18, look: { shirt: "#3a4a7a", pants: "#2a2a3a", hair: "#3a2a1a", hat: "helmet", wide: 1.2 }, lines: [
       "Move along. Nothing to see here. ...Actually, have you seen anything suspicious?", "I keep this village safe. Mostly from goblins. And from Pip.", "Report anything shady to me, got it?", "The twins keep 'hiding' behind the well. I can see them. Every time.", "Arena fights are fine. Arena fights OUTSIDE the arena are not.", "If anyone sells you an egg in a dark alley, don't buy it.", "Old Nettle reported a 'talking cloud' again. I wrote it down. Again.", "Keep your dragon on the path, please. The flowers have rights too."] },
@@ -2298,15 +2346,55 @@ function makeTamer() {
 }
 
 // ================= egg =================
-function makeEgg(pal) {
-  const c = document.createElement("canvas"); c.width = 256; c.height = 128; const x = c.getContext("2d");
-  const gr = x.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, pal.belly); gr.addColorStop(1, pal.side);
-  x.fillStyle = gr; x.fillRect(0, 0, 256, 128);
-  for (let i = 0; i < 60; i++) { x.fillStyle = i % 3 ? pal.top : pal.glow; x.beginPath(); x.ellipse(Math.random() * 256, 20 + Math.random() * 100, 4 + Math.random() * 8, 3 + Math.random() * 5, Math.random() * 3, 0, Math.PI * 2); x.fill(); }
+// eggs get fancier with rarity (Petra): Common plain, Uncommon glowing band, Rare glowing cracks,
+// Epic bright veins + sparkles, Legendary gold shimmer + rocking. Secret eggs look plain on purpose.
+function eggTier(rarity) { const t = TIER[rarity] ?? 1; return t >= 7 ? 1 : t; }
+function makeEgg(pal, rarity) {
+  const tier = eggTier(rarity), W = 256, H = 128;
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const ec = document.createElement("canvas"); ec.width = W; ec.height = H; const y = ec.getContext("2d");
+  const gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, pal.belly); gr.addColorStop(1, pal.side);
+  x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  y.fillStyle = tier ? "#1c1c1c" : "#080808"; y.fillRect(0, 0, W, H);   // faint all-over glow (junk: almost none)
+  for (let i = 0; i < 60; i++) { const sx = Math.random() * W, sy = 20 + Math.random() * 100, rx = 4 + Math.random() * 8, ry = 3 + Math.random() * 5, ro = Math.random() * 3, gl = i % 3 === 0;
+    x.fillStyle = gl ? pal.glow : pal.top; x.beginPath(); x.ellipse(sx, sy, rx, ry, ro, 0, Math.PI * 2); x.fill();
+    if (gl && tier >= 1) { y.fillStyle = "#555"; y.beginPath(); y.ellipse(sx, sy, rx, ry, ro, 0, Math.PI * 2); y.fill(); } }
+  const both = (f, col, ecol) => { x.strokeStyle = x.fillStyle = col; y.strokeStyle = y.fillStyle = ecol; f(x); f(y); };
+  if (tier >= 2) both(k => { k.fillRect(0, 58, W, 9); }, pal.glow, "#ffffff");                       // glowing band
+  if (tier >= 3) {                                                                                   // glowing cracks
+    const n = tier >= 4 ? 12 : 6, lw = tier >= 4 ? 4.2 : 2.2;
+    for (let i = 0; i < n; i++) { let px = Math.random() * W, py = Math.random() < 0.5 ? 10 + Math.random() * 40 : 75 + Math.random() * 45; const pts = [[px, py]];
+      for (let s = 0; s < 5; s++) { px += (Math.random() - 0.5) * 34; py += (Math.random() - 0.5) * 22; pts.push([px, py]); }
+      both(k => { k.lineWidth = lw; k.lineJoin = "round"; k.beginPath(); pts.forEach(([a, b], j) => j ? k.lineTo(a, b) : k.moveTo(a, b)); k.stroke(); }, pal.glow, "#ffffff"); }
+  }
+  if (tier >= 5) {                                                                                   // golden shimmer
+    for (let i = 0; i < 140; i++) { const sx = Math.random() * W, sy = Math.random() * H, s = 1 + Math.random() * 2.5;
+      both(k => { k.fillRect(sx, sy, s, s); }, "#ffe28a", "#ffe28a"); }
+    both(k => { k.fillRect(0, 54, W, 3); k.fillRect(0, 68, W, 3); }, "#ffd04a", "#ffd04a");
+  }
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 18), new THREE.MeshStandardMaterial({ map: t, roughness: 0.45, emissive: new THREE.Color(pal.glow), emissiveIntensity: 0.12 }));
+  const et = new THREE.CanvasTexture(ec); et.encoding = THREE.sRGBEncoding;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 18), new THREE.MeshStandardMaterial({ map: t, emissiveMap: et,
+    roughness: Math.max(0.15, 0.5 - tier * 0.07), metalness: tier >= 5 ? 0.35 : tier >= 3 ? 0.15 : 0.02,
+    emissive: new THREE.Color(pal.glow).convertSRGBToLinear(), emissiveIntensity: [0.25, 0.5, 0.75, 0.95, 1.15, 1.3, 1.3][Math.min(6, Math.floor(tier))] }));
+  m.material.userData.lin = true;
   m.scale.set(1, 1.3, 1); m.castShadow = true;
+  eggDecor(m, pal, tier);
   return m;
+}
+// sparkles that circle Epic and Legendary eggs
+function eggDecor(m, pal, tier) {
+  const old = m.getObjectByName("decor"); if (old) m.remove(old);
+  m.userData.tier = tier; if (tier < 4) return;
+  const d = new THREE.Group(); d.name = "decor"; m.add(d);
+  const n = tier >= 5 ? 10 : 6, mat = new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(tier >= 5 ? "#ffe28a" : pal.glow).convertSRGBToLinear(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < n; i++) { const s = new THREE.Sprite(mat); s.scale.setScalar(0.16); s.userData = { a: i / n * Math.PI * 2, h: (Math.random() - 0.5) * 0.7, r: 0.62 + Math.random() * 0.15, sp: 0.6 + Math.random() * 0.6 }; d.add(s); }
+  tickEgg(m, 0, false);
+}
+function tickEgg(m, t, rock) {
+  const d = m.getObjectByName("decor");
+  if (d) d.children.forEach((s, i) => { const u = s.userData, a = u.a + t * u.sp; s.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 2 + i) * 0.08, Math.sin(a) * u.r); s.material.opacity = 0.6 + 0.4 * Math.sin(t * 4 + i); });
+  if (rock && m.userData.tier >= 5) m.rotation.z = Math.sin(t * 2.2) * 0.12 * (Math.sin(t * 0.7) > 0.3 ? 1 : 0.2);   // legendary eggs wobble now and then
 }
 
 // ================= game state =================
@@ -2329,7 +2417,7 @@ const tamer = makeTamer(); scene.add(tamer.g);
 const me = { x: 4, z: 6, y: 0, face: -2.3, vy: 0, walk: 0 };
 let camYaw = -2.3, camPitch = 0.32, camDist = 9;
 let state = "find"; // find -> carry -> hatching -> name -> baby -> grown -> ride
-const egg = makeEgg(SP(eggKind).pal); scene.add(egg);
+const egg = makeEgg(SP(eggKind).pal, SP(eggKind).rarity); scene.add(egg);
 let eggSpot = (function () {
   for (let i = 0; i < 400; i++) {
     const a = Math.random() * Math.PI * 2, d = 65 + Math.random() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -2349,7 +2437,7 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
   const seen = new Set();
   scene.traverse(o => {
     const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
-    ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
+    ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
 function buildDragon(kind) { const s = SP(kind); return makeDragon(s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); }
@@ -2361,7 +2449,7 @@ function setKind(kind) {
 }
 function setEggKind(kind) {
   eggKind = SP(kind).name; const pal = SP(eggKind).pal;
-  egg.material = makeEgg(pal).material; beam.material.color.set(pal.glow); eggLight.color.set(pal.glow);
+  const ne = makeEgg(pal, SP(eggKind).rarity); egg.material = ne.material; eggDecor(egg, pal, ne.userData.tier); beam.material.color.set(pal.glow); eggLight.color.set(pal.glow);
 }
 const pet = { lastFace: 0, turnRate: 0, x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
 let hatchT = 0, lastShift = -9;
@@ -2383,6 +2471,8 @@ addEventListener("keydown", e => {
   if (document.activeElement === nameInput) return;
   if (uiOpen) {
     if (e.code === "Escape" && !menuEl.hidden) closeMenu();
+    else if (!menuEl.hidden && menuEl._dlg && !e.repeat && /^Digit\d$/.test(e.code)) { const d = +e.code[5], c = menuEl._dlg[d === 0 ? 9 : d - 1]; if (c) { e.preventDefault(); menuAct(c[1], c[2]); } }
+    else if (!menuEl.hidden && menuEl._dlg && e.code === "KeyE" && !e.repeat) closeMenu();
     else if (!e.repeat && pressKey(e.code)) e.preventDefault();
     if (e.code === "Space") e.preventDefault();
     return;
@@ -2517,11 +2607,70 @@ function hazelPet() {
   if (!a.length) return null;
   return `Ooh, your ${k}! ` + a[Math.floor(Math.random() * a.length)].replace(/^./, c => c.toUpperCase());
 }
+// ----- talking with choices (villagers with topics), and Professor Hazel's bookshelf -----
+const HAZEL_BOOKS = [
+  { t: "Hazel's Field Guide (dragon stats)", guide: true, p: ["Every dragon I have studied, with its strength at level 1. HP is how much it can take. Claw and Breath are how hard it hits. Walk and Fly are its speed, out of 5. In the arena, a faster dragon dodges more often, so a slow heavy hitter can miss a lot! Each level adds more!"] },
+  { t: "Wings of the World", p: ["Every land shapes its dragons' wings. Sky dragons grow long, thin wings for gliding. Forest dragons grow broad, round wings to twist between trees.",
+    "Water dragons have fin wings, half wing and half flipper. Fire dragons have glowing cracks that let the heat out. And one beetle-like dragon hides its wings under a shell. Nobody knows why!"] },
+  { t: "Why Is It Glowing?", p: ["Almost every dragon glows a little at night. My best guess: long ago, the dark was the only safe time to be out, so dragons learned to find each other by light.",
+    "The rarer the dragon, the brighter it seems to glow. I can't explain that one. I just write it down."] },
+  { t: "Eggs: A Very Short Book", p: ["Dragons lay eggs in the land they love best. Water dragons only lay near ponds, oases and beaches.", "Some eggs only appear in strange weather or under strange skies. If you see a storm, go out in it! (Carefully.)"] },
+  { t: "Strange Skies", p: ["Under a blue moon, any egg that hatches comes out blue as midnight. Under a harvest moon, eggs hatch pumpkin-orange, with leaves that follow them around.",
+    "A red moon makes monsters bold, and a red-eyed dragon lays its eggs only then. And when the sun goes dark in the daytime... the old stories say a dragon with a ring of fire comes down."] },
+  { t: "Bones in the Sand", p: ["The giant bones in the desert are far too big for any dragon. The carvings around the lands show huge creatures in the sky, hunting.",
+    "I call them the Sky Titans. If I'm right, they are why dragons have dark backs. Something used to hunt them from ABOVE."] },
+  { t: "The Breathing Stone (a theory)", p: ["Miners deep under the mountains tell the same story: rocks that are warm to the touch, gold veins that glow, and a sound like very, very slow breathing.",
+    "What if some dragons hid from the Sky Titans by going DOWN, and turned so still they look like stone? Sleeping for hundreds of years?",
+    "Most scholars laugh at this theory. I don't. I've heard the breathing too. Once."] },
+  { t: "Blacker Than Night (a theory)", p: ["Very old cave paintings show a dragon drawn as a hole in the sky. Blacker than night, with violet eyes. The old tamers said it was friendly. Common, even.",
+    "Then the paintings stop. As if one day they simply... vanished. Not died out. Vanished.",
+    "My theory: they can slip between places. If any are left, they might be right next to us, and we would never know."] },
+  { t: "A Tamer's First Guide", p: ["Rest a hurt dragon at its nest. Dragons grow stronger as they gain experience. Every species has its own strengths: some are tough, some hit hard, some are fast.", "Most important rule: be kind to your dragon. It remembers."] },
+];
+function npcNext(n) {
+  if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
+  n.talks++; return n.lines[n.deck.pop()];
+}
+function npcDialog(n, say) {
+  const tps = n.topics, ch = [["Chat", "chat", 0], ...tps.map((t, i) => [t.label, "topic", i]), ["Goodbye", "bye", 0]];
+  openMenu(n.name, `${n.title ? `<p class="who">${n.title}</p>` : ""}<p class="say">${say}</p><div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = (a, i) => {
+    if (a === "chat") npcDialog(n, npcNext(n));
+    else if (a === "bye") closeMenu();
+    else if (a === "topic") {
+      const t = tps[i];
+      if (t.fn === "books") return bookShelf(n);
+      if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
+      const pool = t.say || t.lines.map(k => n.lines[k]);
+      npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
+    }
+  };
+}
+function bookShelf(n) {
+  const ch = [...HAZEL_BOOKS.map((b, i) => [b.t, "book", i]), ["Back", "back", 0]];
+  openMenu("Hazel's Bookshelf", `<p class="say">"Take any book you like! Just don't fold the pages."</p><div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k < 9 ? k + 1 : 0}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = (a, i) => { if (a === "back") npcDialog(n, "Find anything interesting?"); else if (a === "book") readBook(n, i); };
+}
+function fieldGuide() {
+  const order = ["Junk", "Common", "Uncommon", "Rare", "Epic", "Champion", "Legendary"];
+  const rows = SPECIES.filter(s => order.includes(s.rarity)).sort((a, b) => order.indexOf(a.rarity) - order.indexOf(b.rarity))
+    .map(s => `<tr><td><b>${s.name}</b><br><small>${s.rarity}${EVENT_KIND(s) ? " · event" : ""}</small></td><td><small>${s.land || s.home}</small></td><td>${s.stats.hp}</td><td>${s.stats.claw[0]}-${s.stats.claw[1]}</td><td>${s.stats.breath[0]}-${s.stats.breath[1]}</td><td>${s.walk}</td><td>${s.fly || "-"}</td></tr>`).join("");
+  return `<table class="guide"><thead><tr><th>Dragon</th><th>Home</th><th>HP</th><th>Claw</th><th>Breath</th><th>Walk</th><th>Fly</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function readBook(n, i) {
+  const b = HAZEL_BOOKS[i], ch = [["Back to the shelf", "shelf", 0], ["Goodbye", "bye", 0]];
+  openMenu(b.t, `<p class="who">from Professor Hazel's bookshelf</p>${b.p.map(x => `<p>${x}</p>`).join("")}${b.guide ? fieldGuide() : ""}<div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = a => { if (a === "shelf") bookShelf(n); else closeMenu(); };
+}
 function talkTo() {
   if (state === "ride" || state === "name" || state === "hatching") return false;
   if (talking) { talking = null; $("talk").hidden = true; return true; }
   const n = nearestNpc(3.2); if (!n) return false;
   if (n.arena) { arenaMenu(); return true; }
+  if (n.topics) { npcDialog(n, n.hazel && Math.random() < 0.4 ? (hazelPet() || npcNext(n)) : npcNext(n)); return true; }
   if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
   talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : "");
   const pl = n.hazel && Math.random() < 0.4 ? hazelPet() : null;
@@ -2649,6 +2798,8 @@ function frame() {
       moveCircle(me, d.x * sp, d.z * sp, 0.45);
       me.face = angLerp(me.face, Math.atan2(d.z, d.x), Math.min(1, dt * 12)); moving = true;
     }
+    // Space = jump (only from the ground)
+    if (keys.Space && !uiOpen && me.y <= groundAt(me.x, me.z, me.y) + 0.06 && !(me.vy > 0)) { me.y += 0.06; me.vy = 9.5; }
     fall(me, dt);
     me.walk += moving ? dt * (run ? 13 : 9) : 0;
     const sw = moving ? Math.sin(me.walk) * 0.7 : 0;
@@ -2661,11 +2812,11 @@ function frame() {
 
   // ---- egg ----
   if (state === "find") {
-    egg.position.y = eggSpot.y + 0.55 + Math.sin(T * 2) * 0.05; egg.rotation.y += dt * 0.6;
+    egg.position.y = eggSpot.y + 0.55 + Math.sin(T * 2) * 0.05; egg.rotation.y += dt * 0.6; tickEgg(egg, T, true);
     beam.material.opacity = 0.16 + Math.sin(T * 2.5) * 0.06;
     prompt(near(me.x, me.z, eggSpot.x, eggSpot.z, 2.6) ? "Press <kbd>E</kbd> to pick up the egg" : "");
   } else if (state === "carry") {
-    tmp.set(0.55, 1.15, 0); tamer.g.localToWorld(tmp); egg.position.copy(tmp); egg.rotation.y = -me.face;
+    tmp.set(0.55, 1.15, 0); tamer.g.localToWorld(tmp); egg.position.copy(tmp); tickEgg(egg, T, false); egg.rotation.y = -me.face;
     prompt(near(me.x, me.z, 0, 0, 4.5) ? "Press <kbd>E</kbd> to put the egg in the nest" : "");
   } else if (state === "hatching") {
     hatchT += dt;
@@ -2718,15 +2869,15 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 8 : -4) : (pet.fly ? (run ? 30 : 14) : 0)) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
         target = 62 * flyMul(); vy = -48 * flyMul();
         if (!run || pet.y < groundAt(pet.x, pet.z, pet.y) + 7) { pet.dive = false; pet.speed = Math.max(pet.speed, 55 * flyMul()); burstAt(pet.x, pet.y, pet.z, "#ffffff"); }
       }
-      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? 0.8 : 2)));
-      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = -1.2;   // Q (or Ctrl) = fly down; Shift no longer pulls you down
+      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? (pet.fly && iz <= 0 ? 2.5 : 0.8) : 2)));
+      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = 0;   // in the air the dragon HOVERS by default; W flies forward, S backs up slowly (Petra); Q (or Ctrl) = fly down; Shift no longer pulls you down
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
@@ -2847,7 +2998,7 @@ function slopePitch() {
   return Math.max(-0.6, Math.min(0.6, Math.atan2(Math.max(hf, WATER_Y) - Math.max(hb, WATER_Y), 2 * L)));
 }
 // a soft round dot for sparkles (plain points would be squares)
-let _dot = null;
+var _dot = _dot || null;   // var: eggs made early in loading also use this
 function dotTex() {
   if (_dot) return _dot;
   const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d");
@@ -2894,7 +3045,7 @@ function addXp(n) {
 const menuEl = $("menu");
 function openMenu(title, html, onClose) {
   uiOpen = true; if (document.exitPointerLock) document.exitPointerLock();
-  $("menuTitle").textContent = title; $("menuBody").innerHTML = html; menuEl.hidden = false; menuEl._onClose = onClose || null;
+  $("menuTitle").textContent = title; $("menuBody").innerHTML = html; menuEl.hidden = false; menuEl._onClose = onClose || null; menuEl._dlg = null;
   prompt("");
 }
 function closeMenu() { if (menuEl.hidden) return; menuEl.hidden = true; uiOpen = state === "arena"; const f = menuEl._onClose; menuEl._onClose = null; if (f) f(); else lockMouse(); }
@@ -2974,10 +3125,10 @@ function pressKey(code) {
 }
 function bars() {
   const me = run.me, f = run.foe;
-  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind}`;
+  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind} · Speed ${me.speed}`;
   $("bMeHp").style.width = Math.max(0, me.hp / me.max * 100) + "%"; $("bMeNum").textContent = `${Math.max(0, me.hp)} / ${me.max} HP`;
   $("bFoeName").textContent = `${shownName(foe)} · Lv ${foe.l}`;
-  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k}`;
+  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k} · Speed ${f.speed}`;
   $("bFoeHp").style.width = Math.max(0, f.hp / f.max * 100) + "%"; $("bFoeNum").textContent = `${Math.max(0, f.hp)} / ${f.max} HP`;
   $("bRound").textContent = run.sec < 0 ? "Practice" : `Section ${run.sec + 1} · fight ${run.i + 1} of ${TAMERS[run.sec].length} · won ${run.earned} coins`;
 }
@@ -3061,7 +3212,9 @@ async function act1(who, move) {
   A.tired = breath;
   fx[who].lunge = 1;
   await sleep(320);
-  if (Math.random() < 0.08) { say(`${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
+  // speed matters (Petra): a faster dragon dodges more and a slower one gets dodged more; breath is wider, so it's harder to dodge than a claw
+  const miss = Math.max(0.03, Math.min(0.4, 0.07 + (D.speed - A.speed) * (breath ? 0.05 : 0.08)));
+  if (Math.random() < miss) { say(D.speed > A.speed ? `${dName} is too quick! It dodges ${aName}'s ${breath ? "breath" : "claw"}!` : `${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
   let dmg = rnd(breath ? A.breath : A.claw), crit = Math.random() < 0.1;
   if (crit) dmg = Math.round(dmg * 1.5);
   if (D.guard) dmg = Math.ceil(dmg / 2);
@@ -3165,8 +3318,13 @@ function arenaCamera(dt) {
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
   const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}</div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
-  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>
+  const st = petStats(), sp = SP(pet.kind);
+  const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
+    <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
+    <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
+  const penStat = d => { const s = statsAt(d.kind, d.level || 1); return `HP ${s.hp} · Claw ${s.claw[0]}-${s.claw[1]} · Breath ${s.breath[0]}-${s.breath[1]}`; };
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
   [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
   menuAct = (a, i) => {
@@ -3236,8 +3394,7 @@ function wildKind(land) {
 }
 function addWild(kind, land, p) {
   const g = new THREE.Group(); g.position.copy(p);
-  const e = makeEgg(SP(kind).pal); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
-  e.material.emissive.convertSRGBToLinear(); e.material.emissiveIntensity = 0.25;
+  const e = makeEgg(SP(kind).pal, SP(kind).rarity); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
   // a soft glow and a short shimmer so you can spot it from a little way off
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(2.4, 2.4, 1); glow.position.y = 0.55; g.add(glow);
@@ -3259,7 +3416,7 @@ function updateWild(dt) {
     w.g.visible = show && Math.hypot(w.x - me.x, w.z - me.z) < 260;
     if (!w.g.visible) return;
     const u = w.g.userData;
-    u.e.position.y = 0.5 + Math.sin(T * 2 + u.ph) * 0.05; u.e.rotation.y += dt * 0.5;
+    u.e.position.y = 0.5 + Math.sin(T * 2 + u.ph) * 0.05; u.e.rotation.y += dt * 0.5; tickEgg(u.e, T + u.ph, true);
     u.glow.material.opacity = 0.35 + 0.2 * Math.sin(T * 2.5 + u.ph) + nightAmt * 0.3;
     u.sh.material.opacity = 0.08 + 0.05 * Math.sin(T * 2 + u.ph) + nightAmt * 0.08;
   });
