@@ -2569,7 +2569,7 @@ function writeSave() {
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
-    shen: shenSave(), quest: questSave(), shop: shopSave(),
+    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
@@ -2586,6 +2586,7 @@ function applySave(d) {
   if (d.shen) shenLoad(d.shen);
   if (d.quest) questLoad(d.quest);
   if (d.shop) shopLoad(d.shop);
+  if (d.boss) bossLoad(d.boss);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
@@ -3005,6 +3006,7 @@ function frame() {
   updateQuest(dt);
   animDragonAcc(dragon, T);
   updateLava(dt);
+  updateBosses(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -3381,7 +3383,7 @@ function arenaCamera(dt) {
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? "Dark and strangely cold. Nobody knows what's inside" : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
@@ -3507,7 +3509,8 @@ function pickWild(w) {
   bag.push(w.small ? w.kind + "*" : w.kind); scene.remove(w.g); wild.splice(wild.indexOf(w), 1);
   if (!w.ev) wildWait[w.land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]);
   const r = SP(w.kind).rarity;
-  if (w.small) toast("You found a small egg!", "Tiny! It's in your backpack. Hatch it at your nest");
+  if (TIER[r] >= 6) toast("You found a strange egg...", "??? It's in your backpack");
+  else if (w.small) toast("You found a small egg!", "Tiny! It's in your backpack. Hatch it at your nest");
   else toast(`You found ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg!`, "It's in your backpack. Hatch it at your nest"); burst(new V(w.x, w.y + 0.6, w.z));
   showCoins(); writeSave();
 }
@@ -5193,11 +5196,11 @@ function killMon(m) {
   const xp = 3 + 2 * m.lv; let c = m.lv >= 5 ? m.lv : 0;
   if (SHN.curse > 0) { SHN.curse--; c = c ? c * 2 : 2; }   // the Golden Coin (stops working after 15 wins)
   if (c) { coins += c; showCoins(); }
-  if (MOVES[m.kind] && MOVES[m.kind].kill) MOVES[m.kind].kill(m);
+  const own = MOVES[m.kind] && MOVES[m.kind].kill ? MOVES[m.kind].kill(m) : false;
   questKill(m);
   const up = addXp(xp);
   if (up) pet.hp = petMaxHp();   // levelling up heals (like the calculator game)
-  if (!up) toast(`You beat the ${m.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
+  if (!up && !own) toast(`You beat the ${m.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
   burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080");
   petLabel("grown up"); writeSave();
 }
@@ -5388,9 +5391,10 @@ function updateMonsters(dt) {
     let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
     if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
+    if (d.boss) sense = 120;                                                           // bosses hunt you down
     // monsters only go after tamers who are riding; on foot you're safe
     if (riding && pd < sense && (d.fly || d.shot || d.under || d.ceil || dy < 14 + d.range)) { if (!m.aggro && d.disguise && m.hurt <= 0) toast(d.disguise, `It's a ${m.kind}!`); m.aggro = true; }
-    if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > 90) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
+    if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > (d.boss ? 260 : 90)) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
     m.hurt = Math.max(0, m.hurt - dt);
     const mvk = MOVES[m.kind];
     const own = m.aggro && mvk && mvk.tick ? mvk.tick(m, dt, mid, pd) : false;
@@ -6624,6 +6628,95 @@ function updateLava(dt) {
     }
   } else LAVA.t = 0;
 }
+
+// ================= bosses: the Dread Drake and the Shadow Wyrm (Petra's list, item 9; from the calculator game) =================
+// DREAD DRAKE: the Sky Titans' old hunting hound. At night it comes after tamers who own an Epic (or better) dragon.
+//   Beat it the first time and it drops a strange dark egg ("???"). Fly far away and it loses your trail, but it comes back.
+// SHADOW WYRM: the final boss. Once the Dread Drake is beaten, it waits over the Sky Islands at night. Beat it = THE END.
+// SECRET RULE: no message here ever names the secret dragons.
+MONSTER["Dread Drake"] = { land: "Boss", boss: true, fly: 5, lv: [22, 22], hp: 3.2, dmg: 0.75, speed: 15, atk: "Shadow fire", range: 16, shot: "#a04aff", big: true, warn: 0.9 };
+MONSTER["Shadow Wyrm"] = { land: "Boss", boss: true, fly: 7, lv: [30, 30], hp: 4.0, dmg: 0.8, speed: 16, atk: "Night breath", range: 20, shot: "#9aff8a", big: true, warn: 0.9 };
+[["Dread Drake", 4.4], ["Shadow Wyrm", 6.0]].forEach(([k, size]) => {
+  MON_DEF[k] = { name: k, sizeM: size, make() { const dr = buildDragon(k); return { g: dr.root, update(t, dt) { dr.update(t, 0, 1, dt); } }; } };
+});
+const BOSS = { dd: 0, ddT: 240, sw: false, swT: 0, end: false };
+const bossNow = () => mons.find(m => m.d.boss && !m.dead);
+const ownsEpic = () => [{ kind: pet.kind, small: pet.small }, ...pen].some(d => d.kind && !d.small && (TIER[SP(d.kind).rarity] || 0) >= 4);
+function spawnBoss(kind, dist, up) {
+  const a = pet.face + Math.PI + (Math.random() - 0.5) * 1.5, x = pet.x + Math.cos(a) * dist, z = pet.z + Math.sin(a) * dist;
+  const p = new V(x, Math.max(groundAt(x, z, pet.y + 30), WATER_Y) + up, z);
+  const m = spawnMonster(kind, p, MONSTER[kind].lv[0]); m.aggro = true; m.face = Math.atan2(pet.z - z, pet.x - x); return m;
+}
+function updateBosses(dt) {
+  if (!started || BOSS.end) return;
+  const b = bossNow(), here = state === "ride" || state === "grown";
+  if (BOSS.was && !b && !BOSS.won) toast(`The ${BOSS.was} lost your trail...`, "For now.");   // you got away
+  BOSS.was = b ? b.kind : null; BOSS.won = false;
+  if (b || !here) return;
+  // the Dread Drake hunts at night
+  BOSS.ddT -= dt;
+  if (BOSS.ddT <= 0 && isNight && state === "ride" && landNow !== "Village" && landNow !== "Crystal Caves" && ownsEpic()) {
+    BOSS.ddT = 420 + Math.random() * 300;
+    spawnBoss("Dread Drake", 55, 14); BOSS.was = "Dread Drake";
+    toast("A huge shadow blots out the stars...", "THE DREAD DRAKE! It has caught your dragon's scent!");
+  }
+  // the Shadow Wyrm waits over the Sky Islands at night, once the Dread Drake is beaten
+  BOSS.swT -= dt;
+  if (BOSS.dd > 0 && !BOSS.sw && BOSS.swT <= 0 && isNight && state === "ride" && landNow === "Sky Islands") {
+    BOSS.swT = 120;
+    spawnBoss("Shadow Wyrm", 60, 20); BOSS.was = "Shadow Wyrm";
+    toast("The sky goes dark. Every dragon in the land goes quiet...", "THE SHADOW WYRM! The monster that scared the dragons away!");
+  }
+}
+// ---- how they fight: each has its own moves ----
+MOVES["Dread Drake"] = {
+  attack(m) {
+    m.mv = ((m.mv || 0) + 1) % 3; const mid = petMid();
+    if (m.mv === 0) { shoot(m, "#a04aff", 0.7, 30); spray(mouth(m), petMid().sub(mouth(m)).normalize(), "#c88aff", 30, 18, 3); }   // shadow fire
+    else if (m.mv === 1) {   // DREAD ROAR: your dragon freezes with fear
+      spray(mouth(m), monFront(m), "#6a2a9a", 50, 10, 14);
+      if (nearPet(m, 22) && landed(m, 0.6, "Dread roar! Frozen with fear!")) PST().root = 1.6;
+    } else strikeAt(m, mid, 4, 0.9, "#a04aff", 1.5, "Hound pounce!", false);   // pounce: it leaps at where you are
+    return true;
+  },
+  kill(m) {
+    BOSS.dd++; BOSS.won = true; coins += 300; showCoins();
+    if (BOSS.dd === 1) {
+      const p = new V(m.x, Math.max(groundAt(m.x, m.z, m.y), WATER_Y), m.z);
+      const w = addWild("Quantum", landNow, p); w.ev = true;
+      toast("The Dread Drake is beaten!", "It dropped a strange dark egg... ??? (and 300 coins)");
+      setTimeout(() => toast("Before it vanished, the Dread Drake looked up at the Sky Islands...", "...and shivered."), 6000);
+    } else toast("The Dread Drake is beaten again!", "+300 coins. It'll be back...");
+    writeSave(); return true;
+  },
+};
+MOVES["Shadow Wyrm"] = {
+  attack(m) {
+    m.mv = ((m.mv || 0) + 1) % 3; const mid = petMid();
+    if (m.mv === 0) { shoot(m, "#9aff8a", 0.9, 32); spray(mouth(m), petMid().sub(mouth(m)).normalize(), "#5a7a5a", 40, 18, 4); }   // night breath
+    else if (m.mv === 1) {   // SHADOWS FALL: dark rings rain down all around you
+      for (let i = 0; i < 6; i++) { const a = Math.random() * 6.283, r = i ? 3 + Math.random() * 8 : 0;
+        strikeAt(m, new V(mid.x + Math.cos(a) * r, mid.y, mid.z + Math.sin(a) * r), 3, 0.9 + i * 0.2, "#3a4a3a", 0.8, "Shadows fall!"); }
+    } else {   // TERROR SCREECH: the world goes black for a moment
+      spray(mouth(m), monFront(m), "#9aff8a", 40, 12, 16);
+      if (nearPet(m, 26) && landed(m, 0.7, "Terror screech!")) { PST().blind = 1.8; PST().dizzy = 1.5; }
+    }
+    return true;
+  },
+  kill(m) {
+    BOSS.sw = true; BOSS.won = true; coins += 1000; showCoins(); writeSave();
+    toast("The Shadow Wyrm is beaten!", "The dragons are safe at last.");
+    setTimeout(theEnd, 2500); return true;
+  },
+};
+function theEnd() {
+  openMenu("THE END", `<p class="say">The Shadow Wyrm is gone. One by one, the dragons come back to the valleys, the forests and the skies.</p>
+    <p>You and <b>${pet.name}</b> saved Wyrmwild! Here's <b>1000 coins</b> for a true hero.</p>
+    <p><small>The world is still yours to explore: there are eggs to find, tamers to beat and secrets to discover.</small></p>
+    <p class="who">Thanks for playing!</p>`, () => lockMouse());
+}
+const bossSave = () => ({ dd: BOSS.dd, sw: BOSS.sw });
+function bossLoad(d) { BOSS.dd = d.dd || 0; BOSS.sw = !!d.sw; }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
