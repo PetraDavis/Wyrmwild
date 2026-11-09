@@ -495,25 +495,28 @@ function leg(s, zOff, pts, radii, toeLen) {
   const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
   const last = vs[vs.length - 1];
+  // ankle joint: the foot hangs from its own pivot so the paw can curl when flying
+  const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
+  const foot = new THREE.Group(); foot.position.copy(last).negate(); ankP.add(foot);
   const endR = radii[radii.length - 1][1] * o.legThick * lowK;
   const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), M.top);
-  ank.position.copy(last); low.add(ank);
+  ank.position.copy(last); foot.add(ank);
   if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
     const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), M.top);
-    hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); low.add(hl);
+    hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); foot.add(hl);
   }
   const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), M.top);
-  pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); low.add(pad);
+  pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); foot.add(pad);
   const sgn = zOff > 0 ? 1 : -1;
   [[-0.5, 1, 0], [0, 1.1, 0], [0.5, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lft]) => {
     const dir = new V(Math.cos(a), 0, Math.sin(a) * sgn);
     const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08 * o.feet);
     const t2 = t1.clone().addScaledVector(dir, toeLen * len * o.feet).add(new V(0, -0.03 + lft, 0));
-    low.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet], [1, 0.042 * o.feet]], M.top, 10, 10));
+    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet], [1, 0.042 * o.feet]], M.top, 10, 10));
     const c = new THREE.Mesh(new THREE.ConeGeometry(0.04 * o.feet, 0.17 * o.feet * (o.digClaws ? 1.6 : 1) * (o.gentle ? 0.65 : 1), 10), M.horn);
     c.position.copy(t2).addScaledVector(dir, 0.065 * o.feet).add(new V(0, -0.02, 0));
     c.quaternion.setFromUnitVectors(UP, dir.clone().add(new V(0, -0.5, 0)).normalize());
-    low.add(c);
+    foot.add(c);
   });
   g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   dragon.add(g); legs.push(g);
@@ -747,7 +750,7 @@ const neckSock = new THREE.Group(), chestSock = new THREE.Group(), backSock = ne
 const sockets = { head: null, neck: neckSock, chest: chestSock, back: backSock, tail: tailSock };
 const backR = at(0.56).r;
 if (o.hump) { const h = new THREE.Mesh(new THREE.SphereGeometry(backR * 0.9, 24, 16), M.top); h.position.set(-backR * 0.6, backR * 0.95, 0); h.scale.set(1.5, 0.95, 0.9); h.castShadow = true; backSock.add(h); }   // a water-storing hump
-const shells = []; let shellOpen = 0, api = null; const SIT_HIND = 1.0, SIT_FRONT = -0.4, KNEE_HIND = 0.15, KNEE_FRONT = 1.5, HIP_HIND = -1.0, HIP_FRONT = -0.5;   // flying: hind legs trail back, front paws fold up under the chest
+const shells = []; let shellOpen = 0, api = null; const SIT_HIND = 1.0, SIT_FRONT = -0.4, KNEE_HIND = 0.15, KNEE_FRONT = 1.5, HIP_HIND = -1.0, HIP_FRONT = -0.5, ANK_HIND = 0.8, ANK_FRONT = 1.2;   // flying: hind legs trail back, front paws fold up under the chest
 if (o.elytra) { // beetle wing covers: shiny shells that flip open when it flies
   const shellM = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.shell || p.horn).convertSRGBToLinear(), metalness: 0.85, roughness: 0.15, side: THREE.DoubleSide, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.12 });
   [1, -1].forEach(z => {
@@ -921,6 +924,8 @@ function update(t, walk, flap, dt, bend = 0) {
     g.rotation.z += (target - g.rotation.z) * Math.min(1, dt * 10);
     const kn = g.userData.knee, kt = (flap ? (i < 2 ? KNEE_HIND : KNEE_FRONT) : 0) * (1 - S);   // flying: knees fold so the shins tuck along the belly
     if (kn) kn.rotation.z += (kt - kn.rotation.z) * Math.min(1, dt * 10);
+    const an = g.userData.ankle, at2 = (flap ? (i < 2 ? ANK_HIND : ANK_FRONT) : 0) * (1 - S);   // flying: front paws curl, hind toes point back
+    if (an) an.rotation.z += (at2 - an.rotation.z) * Math.min(1, dt * 10);
   });
   const tip = frames[0];
   flame.position.copy(tip.p);
@@ -2604,7 +2609,7 @@ function hazelPet() {
 }
 // ----- talking with choices (villagers with topics), and Professor Hazel's bookshelf -----
 const HAZEL_BOOKS = [
-  { t: "Hazel's Field Guide (dragon stats)", guide: true, p: ["Every dragon I have studied, with its strength at level 1. HP is how much it can take. Claw and Breath are how hard it hits. Walk and Fly are its speed, out of 5. Each level adds more!"] },
+  { t: "Hazel's Field Guide (dragon stats)", guide: true, p: ["Every dragon I have studied, with its strength at level 1. HP is how much it can take. Claw and Breath are how hard it hits. Walk and Fly are its speed, out of 5. In the arena, a faster dragon dodges more often, so a slow heavy hitter can miss a lot! Each level adds more!"] },
   { t: "Wings of the World", p: ["Every land shapes its dragons' wings. Sky dragons grow long, thin wings for gliding. Forest dragons grow broad, round wings to twist between trees.",
     "Water dragons have fin wings, half wing and half flipper. Fire dragons have glowing cracks that let the heat out. And one beetle-like dragon hides its wings under a shell. Nobody knows why!"] },
   { t: "Why Is It Glowing?", p: ["Almost every dragon glows a little at night. My best guess: long ago, the dark was the only safe time to be out, so dragons learned to find each other by light.",
@@ -3120,10 +3125,10 @@ function pressKey(code) {
 }
 function bars() {
   const me = run.me, f = run.foe;
-  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind}`;
+  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind} · Speed ${me.speed}`;
   $("bMeHp").style.width = Math.max(0, me.hp / me.max * 100) + "%"; $("bMeNum").textContent = `${Math.max(0, me.hp)} / ${me.max} HP`;
   $("bFoeName").textContent = `${shownName(foe)} · Lv ${foe.l}`;
-  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k}`;
+  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k} · Speed ${f.speed}`;
   $("bFoeHp").style.width = Math.max(0, f.hp / f.max * 100) + "%"; $("bFoeNum").textContent = `${Math.max(0, f.hp)} / ${f.max} HP`;
   $("bRound").textContent = run.sec < 0 ? "Practice" : `Section ${run.sec + 1} · fight ${run.i + 1} of ${TAMERS[run.sec].length} · won ${run.earned} coins`;
 }
@@ -3207,7 +3212,9 @@ async function act1(who, move) {
   A.tired = breath;
   fx[who].lunge = 1;
   await sleep(320);
-  if (Math.random() < 0.08) { say(`${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
+  // speed matters (Petra): a faster dragon dodges more and a slower one gets dodged more; breath is wider, so it's harder to dodge than a claw
+  const miss = Math.max(0.03, Math.min(0.4, 0.07 + (D.speed - A.speed) * (breath ? 0.05 : 0.08)));
+  if (Math.random() < miss) { say(D.speed > A.speed ? `${dName} is too quick! It dodges ${aName}'s ${breath ? "breath" : "claw"}!` : `${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
   let dmg = rnd(breath ? A.breath : A.claw), crit = Math.random() < 0.1;
   if (crit) dmg = Math.round(dmg * 1.5);
   if (D.guard) dmg = Math.ceil(dmg / 2);
