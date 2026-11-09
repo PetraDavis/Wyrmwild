@@ -2993,7 +2993,7 @@ function moveCircle(o, dx, dz, r) {
     if (Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
     if (waterTop(nx, nz) > -Infinity && height(nx, nz) < WATER_Y - 1.1) return;   // the sea is too deep too (dry dips are fine)
     const open = LANDS.some(b => passW(b, nx, nz) > 0.2 || basinW(b, nx, nz) > 0.05);
-    const lim = 172 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (!open && rr > lim) { nx *= lim / rr; nz *= lim / rr; }
+    const lim = 225 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (!open && rr > lim) { nx *= lim / rr; nz *= lim / rr; }
   }
   o.x = nx; o.z = nz;
 }
@@ -3110,7 +3110,7 @@ function frame() {
       pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? (pet.fly && iz <= 0 ? 2.5 : 0.8) : 2)));
       if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = 0;   // in the air the dragon HOVERS by default; W flies forward, S backs up slowly (Petra); Q (or Ctrl) = fly down; Shift no longer pulls you down
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
-      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
+      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 255 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
       pet.y = Math.min(230, Math.max(Math.max(ground, petWater()), pet.y + vy * dt));
       // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
