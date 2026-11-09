@@ -2459,12 +2459,12 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
     ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
-function buildDragon(kind) { const s = SP(kind); return makeDragon(s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); }
+function buildDragon(kind, shiny) { const s = SP(kind); return makeDragon(shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {})); }
 let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
-function setKind(kind) {
+function setKind(kind, shiny) {
   const vis = dragon.root.visible; scene.remove(dragon.root);
-  dragon = buildDragon(kind); dragon.root.visible = vis; scene.add(dragon.root); pet.kind = SP(kind).name;
+  dragon = buildDragon(kind, shiny); dragon.root.visible = vis; scene.add(dragon.root); pet.kind = SP(kind).name; pet.shiny = shiny || null;
 }
 function setEggKind(kind) {
   eggKind = SP(kind).name; const pal = SP(eggKind).pal;
@@ -2551,7 +2551,8 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1)]), wildWait };
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0]), wildWait,
+    ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
 function applySave(d) {
@@ -2560,7 +2561,8 @@ function applySave(d) {
   Object.assign(seen, d.seen || {});
   if (d.eggKind) setEggKind(d.eggKind);
   if (typeof d.dayTime === "number") dayTime = d.dayTime;
-  (d.wild || []).forEach(a => { if (Array.isArray(a) && SPECIES.some(s => s.name === a[0])) addWild(a[0], a[1], new V(a[2], a[3], a[4])); });
+  (d.wild || []).forEach(a => { if (Array.isArray(a) && SPECIES.some(s => s.name === a[0])) addWild(a[0], a[1], new V(a[2], a[3], a[4])).ev = !!a[5]; });
+  if (d.ev && EVT[d.ev.id]) { EVS.cur = d.ev.id; EVS.land = d.ev.land; EVS.t = d.ev.t < 0 ? Infinity : d.ev.t; EVS.eggs = d.ev.eggs || {}; const e = EVT[d.ev.id]; epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a"); }
   if (d.wildWait) Object.assign(wildWait, d.wildWait);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
@@ -2571,7 +2573,7 @@ function applySave(d) {
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
-    setKind(d.pet.kind || "Pyrrak");
+    setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
     Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
     state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
     goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
@@ -2844,8 +2846,9 @@ function frame() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind); pet.level = 1; pet.xp = 0; dragon.root.visible = true;
-      toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
+      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind, evShiny()); pet.level = 1; pet.xp = 0; dragon.root.visible = true;
+      if (pet.shiny) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
+      else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
     }
     if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A baby ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
@@ -2973,7 +2976,7 @@ function frame() {
     .lerp(new THREE.Color("#1a1428"), caveDark * 0.9);
   caveDim += (caveDark - caveDim) * Math.min(1, dt * 2);   // the caves are dark, even at noon
 
-  scene.fog.color.lerp(fogT, Math.min(1, dt * 2));
+  scene.fog.color.lerp(evFog(fogT), Math.min(1, dt * 2));
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
 
   // ---- camera ----
@@ -2993,6 +2996,7 @@ function frame() {
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   updateDay(dt, focus);
   hemi.intensity *= 1 - caveDim * 0.7; sun.intensity *= 1 - caveDim * 0.92;   // the caves are dark, even at noon
+  updateEvents(dt);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   if (window.__camOverride) window.__camOverride(camera);   // test hook only
   renderer.render(scene, camera);
@@ -3082,7 +3086,7 @@ function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 function tamerShiny(t, sec) {
   if (t.n === "Sheen") return "Gold";               // "polished" - it flakes off
   const h = hashStr(t.n + t.k);
-  if (h % 100 >= SHINY_RATE[sec]) return null;
+  if (h % 100 >= SHINY_RATE[sec]) return sec >= 1 && h % 100 < SHINY_RATE[sec] + 2 ? ((h >>> 8) & 1 ? "Blue Moon" : "Harvest Moon") : null;   // a few tamers caught a moon shiny
   const r = (h >>> 8) % 100;                         // Silver 40, Gold 30, Purple & blue 20, Neon 10 (Neon rarest, Petra)
   return r < 40 ? "Silver" : r < 70 ? "Gold" : r < 90 ? "Purple & blue" : "Neon";
 }
@@ -3176,7 +3180,7 @@ function clearFoe() {
 function buildFoe(shiny) {
   if (foeDragon) scene.remove(foeDragon.root);
   const s = SP(foe.k), pal = shiny ? shinyPal(foe.k, shiny) : s.pal;
-  foeDragon = makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); scene.add(foeDragon.root);
+  foeDragon = makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {})); scene.add(foeDragon.root);
 }
 function practiceFoe() {
   const lv = Math.max(1, (pet.level || 1) + Math.floor(Math.random() * 3) - 1);
@@ -3336,14 +3340,14 @@ function arenaCamera(dt) {
 
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
-  const cur = state === "grown" ? `${pet.name} the ${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
+  const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
   const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
     <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
   const penStat = d => { const s = statsAt(d.kind, d.level || 1); return `HP ${s.hp} · Claw ${s.claw[0]}-${s.claw[1]} · Breath ${s.breath[0]}-${s.breath[1]}`; };
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
   [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
@@ -3353,9 +3357,9 @@ function nestMenu() {
     if (a === "swap") { const d = pen.splice(i, 1)[0]; toPen(); takeOut(d); closeMenu(); }
   };
 }
-function toPen() { pen.push({ name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0 }); }
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0 }); }
 function takeOut(d) {
-  setKind(d.kind); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
+  setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
   pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = "grown";
   petLabel("grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
@@ -3442,7 +3446,7 @@ function updateWild(dt) {
   });
   if (!show) return;
   WILD_LANDS.forEach(land => {
-    if (wild.filter(w => w.land === land).length >= WILD_PER_LAND) return;
+    if (wild.filter(w => w.land === land && !w.ev).length >= WILD_PER_LAND) return;   // event eggs don't count
     if ((wildWait[land] = (wildWait[land] ?? 0) - dt) > 0) return;
     if (spawnWild(land)) { wildWait[land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]); writeSave(); }
     else wildWait[land] = 3;                               // try again in a moment
@@ -3452,7 +3456,7 @@ const wildNear = () => (state === "baby" || state === "grown") ? wild.find(w => 
 function pickWild(w) {
   if (bag.length >= BAG_MAX) { toast("Your backpack is full", `Hatch an egg at your nest first (${BAG_MAX} eggs max)`); return; }
   bag.push(w.kind); scene.remove(w.g); wild.splice(wild.indexOf(w), 1);
-  wildWait[w.land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]);
+  if (!w.ev) wildWait[w.land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]);
   const r = SP(w.kind).rarity;
   toast(`You found ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg!`, "It's in your backpack. Hatch it at your nest"); burst(new V(w.x, w.y + 0.6, w.z));
   showCoins(); writeSave();
@@ -5301,7 +5305,7 @@ function updateMonsters(dt) {
   monSpawnT -= dt;
   if (monSpawnT <= 0 && kinds.length && hasDragon()) {
     monSpawnT = 3;
-    const cap = (land === "Green Valley" ? 6 : 5) + (isNight ? 3 : 0), here = mons.filter(m => m.land === land && !m.dead).length;
+    const cap = (land === "Green Valley" ? 6 : 5) + (isNight ? 3 : 0) + evBold() * 3, here = mons.filter(m => m.land === land && !m.dead).length;
     if (here < cap) {
       const kind = kinds[Math.floor(Math.random() * kinds.length)], d = MONSTER[kind];
       const p = d.under ? underSpot() : d.ceil ? ceilSpot() : spawnSpot(kind, land);
@@ -5328,7 +5332,7 @@ function updateMonsters(dt) {
       continue;
     }
     const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
-    let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0);
+    let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
     if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
     // monsters only go after tamers who are riding; on foot you're safe
@@ -5660,6 +5664,208 @@ function statusText() {
   if (pet.poison) o.push("poisoned"); if (s.burn) o.push("on fire"); if (pet.slow > 0) o.push("slowed"); if (s.dizzy > 0) o.push("dizzy");
   if (s.root > 0) o.push("held down"); if (s.freeze > 0) o.push("frozen"); if (s.web > 0) o.push("webbed");
   return o.length ? " · " + o.join(", ") : "";
+}
+
+// ================= moon, weather and eclipse events (Petra 2026-11-09) =================
+// Moon events only happen at NIGHT; the eclipse only in the daytime (Petra's rule).
+// Event eggs don't count toward a land's 3-egg limit: up to 2 extra event eggs per land per event, and they stay until you pick them up.
+const EVT = {
+  blue:    { name: "Blue Moon", night: true, all: true, msg: "The moon has turned blue!", hint: "Hatch an egg tonight and the baby comes out a Blue Moon shiny",
+             sky: "#10204a", bg: "#03081c", fog: "#0e1a38", hemi: "#5a7ad8", moon: "#9fc4ff", moonS: 120, parts: "motes", pc: "#9fd4ff" },
+  harvest: { name: "Harvest Moon", night: true, all: true, msg: "A huge orange Harvest Moon is rising!", hint: "Hatch an egg tonight and the baby comes out a Harvest Moon shiny",
+             sky: "#3a1a1c", bg: "#140a1c", fog: "#3a1e1c", hemi: "#ffb070", moon: "#ffb04a", moonS: 180, leaves: true },
+  red:     { name: "Red Moon", night: true, all: true, kind: "Scarlune", msg: "The moon has turned red...", hint: "Monsters are bolder tonight. Scarlune eggs only appear under a red moon",
+             sky: "#2a0608", bg: "#0c0204", fog: "#1c0406", hemi: "#d8584a", moon: "#ff3a2a", moonS: 120, eyes: true },
+  meteor:  { name: "Meteor Shower", night: true, all: true, kind: "Starwyrm", msg: "A meteor shower is lighting up the sky!", hint: "Watch for a meteor that crashes: a Starwyrm egg sits in the crater",
+             sky: "#0e0c2a", bg: "#02020a", fog: "#0c0a22", hemi: "#6a6ab8", meteors: true },
+  eclipse: { name: "Solar Eclipse", day: true, all: true, kind: "Eclipsar", len: 150, msg: "The moon is sliding over the sun!", hint: "Eclipsar eggs only appear while the sun is hidden",
+             sky: "#1a2238", bg: "#04060e", fog: "#1c2232", hemi: "#8a9ad0", dark: 0.85 },
+  sand:    { name: "Sandstorm", lands: ["Desert"], kind: "Sirocco", len: [180, 280], msg: "A sandstorm is blowing in the Desert!", hint: "Sirocco eggs are blowing in with the sand",
+             sky: "#c88a4a", bg: "#c88a4a", fog: "#c28a4c", hemi: "#ffcf9a", parts: "sand", pc: "#f0c890", fogFar: 55, dark: 0.15 },
+  blizzard:{ name: "Blizzard", lands: ["Frost Peaks"], kind: "Whiteout", len: [180, 280], msg: "A blizzard is raging on the Frost Peaks!", hint: "Whiteout eggs turn up in the snow",
+             sky: "#d0d8e2", bg: "#d0d8e2", fog: "#d8e0e8", hemi: "#e8f0ff", parts: "snow", pc: "#ffffff", fogFar: 50, dark: 0.1 },
+  storm:   { name: "Thunderstorm", lands: ["Green Valley", "Deep Forest", "Ocean", "Sky Islands"], kind: "Voltwing", len: [160, 260], msg: "A thunderstorm is rolling in", hint: "Voltwing eggs fall where lightning strikes",
+             sky: "#1e2430", bg: "#1e2430", fog: "#1e2430", hemi: "#8a9ab8", parts: "rain", pc: "#a8b8d8", fogFar: 170, dark: 0.6, bolts: true },
+  fog:     { name: "Fog", lands: ["Green Valley", "Deep Forest"], kind: "Wispwyrm", len: [160, 260], msg: "A thick fog is rolling in", hint: "Wispwyrm eggs appear only in the fog",
+             sky: "#cdd3d6", bg: "#cdd3d6", fog: "#cdd3d6", hemi: "#e0e6ea", fogFar: 38, dark: 0.2 },
+};
+const EVS = { cur: null, t: 0, land: null, eggs: {}, amt: 0, here: 0, roll: 30, eggT: 20, wasNight: false, boltT: 4, metT: 1, bigT: 20 };
+const evC = h => new THREE.Color(h);
+// ---- the event banner ----
+const evEl = document.createElement("div"); evEl.className = "plate"; evEl.hidden = true;
+evEl.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;padding:6px 14px;text-align:right;pointer-events:none;font-size:.85rem;max-width:min(360px,45vw);z-index:4";
+document.body.appendChild(evEl);
+// ---- particles that follow the camera: rain, snow, sand, glowing motes ----
+const EP_N = 2000, epPos = new Float32Array(EP_N * 3), epVel = new Float32Array(EP_N * 3), epSeg = new Float32Array(EP_N * 6), EP_R = 32;
+const epGeo = new THREE.BufferGeometry(); epGeo.setAttribute("position", new THREE.BufferAttribute(epPos, 3));
+const epPts = new THREE.Points(epGeo, new THREE.PointsMaterial({ map: dotTex(), size: 0.25, transparent: true, depthWrite: false, color: "#ffffff" })); epPts.frustumCulled = false; epPts.visible = false; scene.add(epPts);
+const epSGeo = new THREE.BufferGeometry(); epSGeo.setAttribute("position", new THREE.BufferAttribute(epSeg, 3));
+const epLines = new THREE.LineSegments(epSGeo, new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.5, depthWrite: false })); epLines.frustumCulled = false; epLines.visible = false; scene.add(epLines);
+let epMode = null;
+function epReset(i, any) {
+  const k = i * 3, c = camera.position;
+  epPos[k] = c.x + (Math.random() - 0.5) * 2 * EP_R; epPos[k + 2] = c.z + (Math.random() - 0.5) * 2 * EP_R; epPos[k + 1] = c.y + (any ? (Math.random() - 0.4) * 30 : 18);
+  if (epMode === "snow") { epVel[k] = 5 + Math.random() * 3; epVel[k + 1] = -(3 + Math.random() * 3); epVel[k + 2] = 1.5 + Math.random(); }
+  if (epMode === "rain") { epVel[k] = 2; epVel[k + 1] = -(26 + Math.random() * 8); epVel[k + 2] = 0.6; }
+  if (epMode === "sand") { epPos[k + 1] = c.y + (Math.random() - 0.5) * 14; if (!any) epPos[k] = c.x - EP_R; epVel[k] = 22 + Math.random() * 10; epVel[k + 1] = (Math.random() - 0.5); epVel[k + 2] = (Math.random() - 0.5) * 3; }
+  if (epMode === "motes") { epPos[k + 1] = c.y + (Math.random() - 0.5) * 16; epVel[k] = (Math.random() - 0.5) * 0.6; epVel[k + 1] = (Math.random() - 0.3) * 0.4; epVel[k + 2] = (Math.random() - 0.5) * 0.6; }
+  if (epMode === "leaves") { epVel[k] = 1.5 + Math.random(); epVel[k + 1] = -(1 + Math.random()); epVel[k + 2] = (Math.random() - 0.5); }
+}
+function epSet(mode, col) {
+  epMode = mode; const line = mode === "rain" || mode === "sand";
+  epPts.visible = !!mode && !line; epLines.visible = !!mode && line;
+  if (!mode) return;
+  epPts.material.color.set(col); epLines.material.color.set(col);
+  epPts.material.size = mode === "snow" ? 0.3 : mode === "leaves" ? 0.45 : 0.22; epLines.material.opacity = mode === "rain" ? 0.45 : 0.55;
+  for (let i = 0; i < EP_N; i++) epReset(i, true);
+}
+function epTick(dt, amt) {
+  if (!epMode) return;
+  const n = Math.floor(EP_N * Math.min(1, amt)), line = epMode === "rain" || epMode === "sand", c = camera.position;
+  epPts.material.opacity = Math.min(1, amt * 1.2); epLines.material.opacity = (epMode === "rain" ? 0.45 : 0.55) * Math.min(1, amt * 1.2);
+  for (let i = 0; i < n; i++) {
+    const k = i * 3; epPos[k] += epVel[k] * dt; epPos[k + 1] += epVel[k + 1] * dt; epPos[k + 2] += epVel[k + 2] * dt;
+    if (epMode === "snow" || epMode === "leaves") epPos[k] += Math.sin(T * 2 + i) * dt;
+    if (epPos[k + 1] < c.y - 16 || Math.abs(epPos[k] - c.x) > EP_R || Math.abs(epPos[k + 2] - c.z) > EP_R || (epMode === "motes" && Math.abs(epPos[k + 1] - c.y) > 9)) epReset(i, epMode === "motes");
+    if (line) { const j = i * 6, L = epMode === "rain" ? 0.04 : 0.05; epSeg[j] = epPos[k]; epSeg[j + 1] = epPos[k + 1]; epSeg[j + 2] = epPos[k + 2]; epSeg[j + 3] = epPos[k] - epVel[k] * L; epSeg[j + 4] = epPos[k + 1] - epVel[k + 1] * L; epSeg[j + 5] = epPos[k + 2] - epVel[k + 2] * L; }
+  }
+  epGeo.setDrawRange(0, line ? 0 : n); epSGeo.setDrawRange(0, line ? n * 2 : 0);
+  if (line) epSGeo.attributes.position.needsUpdate = true; else epGeo.attributes.position.needsUpdate = true;
+}
+// ---- the eclipsed sun: a black disc with a glowing corona ----
+const eclipseSun = (function () {
+  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"); g.translate(128, 128);
+  const r = g.createRadialGradient(0, 0, 25, 0, 0, 125); r.addColorStop(0, "rgba(255,230,160,0.95)"); r.addColorStop(0.25, "rgba(255,190,90,0.45)"); r.addColorStop(1, "rgba(255,160,60,0)"); g.fillStyle = r; g.fillRect(-128, -128, 256, 256);
+  for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2, L = 60 + (Math.sin(i * 12.9) * 0.5 + 0.5) * 60; g.strokeStyle = `rgba(255,${200 + (i % 3) * 18},140,${0.25 + (i % 4) * 0.08})`; g.lineWidth = 1 + (i % 3); g.beginPath(); g.moveTo(Math.cos(a) * 32, Math.sin(a) * 32); g.lineTo(Math.cos(a) * L, Math.sin(a) * L); g.stroke(); }
+  g.strokeStyle = "rgba(255,248,220,1)"; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, 32, 0, 7); g.stroke();
+  g.fillStyle = "#050508"; g.beginPath(); g.arc(0, 0, 31, 0, 7); g.fill();
+  g.fillStyle = "rgba(255,255,240,1)"; g.beginPath(); g.arc(22, -22, 4, 0, 7); g.fill();   // the diamond ring
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), fog: false, transparent: true, depthWrite: false, opacity: 0 }));
+  s.scale.setScalar(160); s.visible = false; scene.add(s); return s;
+})();
+// ---- red eyes watching from the dark (red moon) ----
+const evEyes = [];
+for (let i = 0; i < 14; i++) {
+  const g = new THREE.Group(); [-0.25, 0.25].forEach(o => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: evC("#ff2a1a"), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); s.scale.setScalar(0.45); s.position.x = o; g.add(s); });
+  g.visible = false; scene.add(g); evEyes.push({ g, ph: i * 1.7 });
+}
+// ---- meteors and lightning ----
+const evMets = [], evBolts = [];
+const metHead = new THREE.SpriteMaterial({ map: dotTex(), color: "#fff4d0", transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+function evMeteor(to) {   // to = a spot on the ground (it crashes there) or null (a shooting star)
+  const head = new THREE.Sprite(metHead); head.scale.setScalar(to ? 5 : 3);
+  const tail = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V(), new V()]), new THREE.LineBasicMaterial({ color: to ? "#ffb36a" : "#cfe0ff", transparent: true, opacity: 0.9, fog: false }));
+  let from, end; const c = camera.position, a = camYaw + (Math.random() - 0.5) * 1.6;
+  if (to) { end = to.clone(); from = to.clone().add(new V(Math.cos(a + 2) * 120, 160, Math.sin(a + 2) * 120)); }
+  else { from = new V(c.x + Math.cos(a) * 320 + (Math.random() - 0.5) * 200, c.y + 140 + Math.random() * 80, c.z + Math.sin(a) * 320 + (Math.random() - 0.5) * 200);
+    end = from.clone().add(new V((Math.random() - 0.5) * 220, -60 - Math.random() * 40, (Math.random() - 0.5) * 220)); }
+  scene.add(head, tail); evMets.push({ head, tail, from, end, t: 0, dur: to ? 1.8 : 0.8 + Math.random() * 0.6, crash: !!to });
+}
+function evBolt(p) {
+  const pts = []; let px = p.x + (Math.random() - 0.5) * 12, pz = p.z + (Math.random() - 0.5) * 12;
+  for (let i = 0; i <= 14; i++) { const k = i / 14; pts.push(new V(px + (p.x - px) * k + (i && i < 14 ? (Math.random() - 0.5) * 4 : 0), p.y + 90 * (1 - k), pz + (p.z - pz) * k + (i && i < 14 ? (Math.random() - 0.5) * 4 : 0))); }
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: "#f4f8ff", fog: false })); scene.add(l); evBolts.push({ l, t: 0.25 });
+  burstAt(p.x, p.y + 0.5, p.z, "#cfe8ff"); EVS.flash = 0.6;
+}
+// ---- starting and ending events ----
+function evPickLand(e) { return e.all ? null : e.lands[Math.floor(Math.random() * e.lands.length)]; }
+function startEvent(id, land, t) {
+  const e = EVT[id]; if (!e) return;
+  EVS.cur = id; EVS.land = land !== undefined ? land : evPickLand(e); EVS.eggs = {}; EVS.eggT = 15 + Math.random() * 15; EVS.bigT = 12;
+  EVS.t = t !== undefined ? t : e.len ? (Array.isArray(e.len) ? e.len[0] + Math.random() * (e.len[1] - e.len[0]) : e.len) : Infinity;
+  epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a");
+  if (started) toast(e.msg, e.hint + (EVS.land && EVS.land !== landNow ? ` (in the ${EVS.land})` : ""));
+  writeSave();
+}
+function endEvent(quiet) {
+  const e = EVT[EVS.cur]; if (!e) return;
+  if (!quiet && started) toast(e.night ? (e.name.includes("Moon") ? "The moon is back to normal" : "The meteor shower is over") : e.day ? "The sun is back!" : `The ${e.name.toLowerCase()} is over`, "Any event eggs you haven't found are still out there");
+  EVS.cur = null; EVS.land = null; epSet(null);
+  writeSave();
+}
+const evOn = id => EVS.cur === id;
+const evBold = () => (evOn("red") && isNight ? 1 : 0);                  // red moon: monsters are bolder
+const evShiny = () => isNight && (evOn("blue") ? "Blue Moon" : evOn("harvest") ? "Harvest Moon" : null);
+function evSpawnEgg(land, p, quiet) {   // one event egg; up to 2 per land per event
+  const e = EVT[EVS.cur]; if (!e || !e.kind) return false;
+  if ((EVS.eggs[land] || 0) >= 2) return false;
+  p = p || wildSpot(land, false); if (!p) return false;
+  const w = addWild(e.kind, land, p); w.ev = true; EVS.eggs[land] = (EVS.eggs[land] || 0) + 1;
+  if (!quiet && started && land === landNow) toast(`Something glows nearby...`, `${e.name}: an event egg has appeared in the ${land}!`);
+  writeSave(); return true;
+}
+function evFog(fogT) { const e = EVT[EVS.cur]; return e && EVS.here > 0 ? fogT.lerp(evC(e.fog), EVS.here * 0.85) : fogT; }
+function updateEvents(dt) {
+  if (!started) return;
+  if (!EVS.init) { EVS.init = true; EVS.wasNight = isNight; }
+  // ---- schedule ----
+  if (isNight !== EVS.wasNight) {
+    EVS.wasNight = isNight;
+    const e = EVT[EVS.cur];
+    if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
+    if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
+      const id = r < 0.1 ? "red" : r < 0.18 ? "blue" : r < 0.28 ? "harvest" : r < 0.4 ? "meteor" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }
+  }
+  if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
+  else if (hasDragon() && state !== "arena") {
+    EVS.roll -= dt;
+    if (EVS.roll <= 0) { EVS.roll = 40 + Math.random() * 30; const r = Math.random(), sunUp = dayTime > 0.08 && dayTime < 0.42;
+      if (!isNight && sunUp && r < 0.04) startEvent("eclipse");
+      else if (r < 0.24) startEvent(["sand", "blizzard", "storm", "fog"][Math.floor(Math.random() * 4)]); }
+  }
+  const e = EVT[EVS.cur];
+  EVS.amt += ((e ? 1 : 0) - EVS.amt) * Math.min(1, dt * 0.5);
+  const inside = e && (e.all || EVS.land === landNow) ? 1 : 0;
+  EVS.here += ((e ? inside : 0) - EVS.here) * Math.min(1, dt * 0.6);
+  // ---- event eggs ----
+  if (e && e.kind && hasDragon()) {
+    EVS.eggT -= dt;
+    if (EVS.eggT <= 0) { EVS.eggT = 35 + Math.random() * 35;
+      const land = e.all ? landNow : EVS.land;
+      if (EVS.cur === "eclipse" && Math.random() < 0.4) {}               // Eclipsar is the rarest of all
+      else if (EVS.cur === "meteor" && land === landNow) { const p = wildSpot(land, false); if (p && (EVS.eggs[land] || 0) < 2 && Math.hypot(p.x - me.x, p.z - me.z) < 160) { EVS.eggs[land] = (EVS.eggs[land] || 0) + 1; evMeteor(p.clone()); } }
+      else if (EVS.cur === "storm" && land === landNow) { const p = wildSpot(land, false); if (p && (EVS.eggs[land] || 0) < 2) { evBolt(p); evSpawnEgg(land, p, true); toast("Lightning struck the ground!", "Something is glowing where it hit..."); } }
+      else evSpawnEgg(land, null, false);
+    }
+  }
+  // ---- looks ----
+  const k = e ? EVS.here : 0;
+  if (e && k > 0.001) {
+    skyDome.material.color.lerp(evC(e.sky), k * 0.9); scene.background.lerp(evC(e.bg), k * 0.9);
+    hemi.color.lerp(evC(e.hemi), k * 0.6);
+    const dark = (e.dark || 0) * k; sun.intensity *= 1 - dark; hemi.intensity *= 1 - dark * 0.6;
+    if (e.fogFar) { scene.fog.far = 420 + (e.fogFar - 420) * k; scene.fog.near = 110 + (Math.min(e.fogFar * 0.15, 20) - 110) * k; } else { scene.fog.far = 420; scene.fog.near = 110; }
+    if (e.moon) { moonDisc.material.color.set("#dfe8ff").lerp(evC(e.moon).convertSRGBToLinear(), k); moonDisc.scale.setScalar(60 + (e.moonS - 60) * k); }
+    if (EVS.cur === "eclipse") { eclipseSun.visible = true; eclipseSun.position.copy(sunDisc.position); eclipseSun.material.opacity = k; sunDisc.material.opacity = 1 - k; stars.material.opacity = Math.max(stars.material.opacity, k * 0.7); }
+    if (e.meteors) stars.material.opacity = Math.max(stars.material.opacity, 0.9 * k);
+  } else { scene.fog.far = 420; scene.fog.near = 110; moonDisc.material.color.set("#dfe8ff"); moonDisc.scale.setScalar(60); sunDisc.material.opacity = 1; eclipseSun.visible = false; }
+  if (EVS.cur !== "eclipse") { eclipseSun.visible = false; sunDisc.material.opacity = 1; }
+  epTick(dt, e && e.parts || (e && e.leaves) ? k : 0);
+  // lightning flashes and shooting stars
+  if (e && e.bolts && k > 0.5) { EVS.boltT -= dt; if (EVS.boltT <= 0) { EVS.boltT = 4 + Math.random() * 6; const a = Math.random() * 6.283, r = 40 + Math.random() * 60, x = me.x + Math.cos(a) * r, z = me.z + Math.sin(a) * r; evBolt(new V(x, height(x, z), z)); } }
+  if (e && e.meteors) { EVS.metT -= dt; if (EVS.metT <= 0) { EVS.metT = 0.3 + Math.random() * 1.2; evMeteor(null); } }
+  EVS.flash = Math.max(0, (EVS.flash || 0) - dt * 3); if (EVS.flash > 0) { hemi.intensity += EVS.flash * 1.5; }
+  for (let i = evBolts.length - 1; i >= 0; i--) { const b = evBolts[i]; b.t -= dt; b.l.visible = b.t > 0.12 || b.t % 0.06 > 0.03; if (b.t <= 0) { scene.remove(b.l); b.l.geometry.dispose(); evBolts.splice(i, 1); } }
+  for (let i = evMets.length - 1; i >= 0; i--) {
+    const m = evMets[i]; m.t += dt / m.dur; const p = m.from.clone().lerp(m.end, Math.min(1, m.t)); m.head.position.copy(p);
+    m.tail.geometry.setFromPoints([p, m.from.clone().lerp(m.end, Math.max(0, m.t - 0.2))]);
+    if (m.t >= 1) { scene.remove(m.head, m.tail); m.tail.geometry.dispose(); evMets.splice(i, 1);
+      if (m.crash) { burstAt(m.end.x, m.end.y + 0.5, m.end.z, "#ffb36a"); EVS.flash = 0.4; const land = landNow;
+        if (EVT[EVS.cur] && EVT[EVS.cur].meteors) { const w = addWild("Starwyrm", land, m.end); w.ev = true; writeSave(); toast("A meteor crashed nearby!", "Something is glowing in the crater..."); } } }
+  }
+  // red eyes in the dark
+  const eyesOn = evOn("red") && isNight && k > 0.3;
+  evEyes.forEach((o, i) => {
+    if (!eyesOn) { o.g.visible = false; return; }
+    if (!o.g.visible || Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) > 70) { const a = Math.random() * 6.283, r = 25 + Math.random() * 30, x = me.x + Math.cos(a) * r, z = me.z + Math.sin(a) * r; o.g.position.set(x, groundAt(x, z, 200) + 1 + Math.random() * 2.5, z); }
+    o.g.visible = true; o.g.lookAt(camera.position); const blink = Math.sin(T * 0.7 + o.ph) > -0.92 ? 1 : 0; o.g.children.forEach(s => s.material.opacity = blink * k);
+  });
+  // the banner
+  if (e) {
+    const left = isFinite(EVS.t) ? ` · ${Math.floor(EVS.t / 60)}:${String(Math.floor(EVS.t % 60)).padStart(2, "0")} left` : " · until sunrise";
+    evEl.hidden = state === "arena";
+    evEl.innerHTML = `<b>${e.name}</b>${EVS.land ? ` in the ${EVS.land}` : ""}${left}<br><small>${e.hint}</small>`;
+  } else evEl.hidden = true;
 }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
