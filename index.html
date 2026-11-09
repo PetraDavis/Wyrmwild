@@ -1035,7 +1035,7 @@ function coast(x, z) { let d = Math.abs(Math.atan2(z, x) - COAST.a); if (d > Mat
 // ---------- the lands past the mountains: each is a big basin reached by a pass ----------
 const FIRE = { a: -1.9, d: 340, R: 135, LAVA: 6 }, FROST = { a: 2.0, d: 340, R: 135, ICE: 10 };
 // three more lands (Petra 2026-11-09): a giant Deep Forest, a Desert past the village, and Crystal Caves under a rock roof
-const FOREST = { a: -0.88, d: 340, R: 135 }, DESERT = { a: 2.85, d: 340, R: 135 }, CAVES = { a: -2.72, d: 330, R: 95, FLOOR: 5, RIM: 30, TOP: 54 };
+const FOREST = { a: -0.88, d: 340, R: 135 }, DESERT = { a: 2.85, d: 340, R: 135 }, CAVES = { a: -2.72, d: 330, R: 95, FLOOR: 5, RIM: 30, TOP: 60 };
 FIRE.name = "Fire Mountain"; FROST.name = "Frost Peaks"; FOREST.name = "Deep Forest"; DESERT.name = "Desert"; CAVES.name = "Crystal Caves";
 const LANDS = [FIRE, FROST, FOREST, DESERT, CAVES];
 LANDS.forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
@@ -1575,14 +1575,20 @@ const biomeAnims = [];
 
   // ===== CRYSTAL CAVES: a rock roof, stalactites, stalagmites and glowing crystals =====
   { const g = new THREE.SphereGeometry(1, 56, 18, 0, Math.PI * 2, 0, Math.PI / 2), p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + (fbm(x * 3 + 5, z * 3 + y * 2, 3) - 0.5) * 0.12; p.setXYZ(i, x * k, y * k, z * k); }
-    g.computeVertexNormals();
-    const roof = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: lin("#4a4252"), side: THREE.DoubleSide, flatShading: true }));
-    roof.scale.set(CAVE_IN, CAVES.TOP - CAVES.RIM, CAVE_IN); roof.position.set(CAVES.x, CAVES.RIM, CAVES.z); roof.castShadow = true; roof.receiveShadow = true; scene.add(roof); }
+    // bumpy and craggy, always a little above caveRoof() so nothing hanging inside pokes through; rock outside with snow on top, like the mountains round it
+    const col = [], rockA = new THREE.Color("#7d766d"), rockB = new THREE.Color("#5d564e"), snow = new THREE.Color("#f4f6f8");
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = fbm(x * 3 + 5, z * 3 + y * 2, 4), big = fbm(x * 1.2 - 3, z * 1.2 + 8, 3), k = 1.03 + n * 0.14 + Math.max(0, big - 0.45) * 0.9 * y;   // big craggy peaks on top
+      p.setXYZ(i, x * k, y * k, z * k);
+      const wy = CAVES.RIM + y * k * (CAVES.TOP - CAVES.RIM), c = rockA.clone().lerp(rockB, fbm(x * 6, z * 6, 2)).lerp(snow, sstep(58, 72, wy + n * 10)); c.convertSRGBToLinear(); col.push(c.r, c.g, c.b); }
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    const roof = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.FrontSide, flatShading: true }));
+    roof.scale.set(CAVE_IN, CAVES.TOP - CAVES.RIM, CAVE_IN); roof.position.set(CAVES.x, CAVES.RIM, CAVES.z); roof.receiveShadow = true; scene.add(roof);
+    const inside = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: lin("#3e3848"), side: THREE.BackSide, flatShading: true }));   // dark stone seen from inside
+    inside.scale.copy(roof.scale); inside.position.copy(roof.position); scene.add(inside); }
   const rockM = new THREE.MeshLambertMaterial({ color: lin("#5a5066"), flatShading: true });
   const spikeG = new THREE.ConeGeometry(1, 1, 6); spikeG.translate(0, -0.5, 0);
   const tites = inst(spikeG, rockM, 140), mites = inst(new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0), rockM, 60);
-  for (let i = 0; i < 140; i++) { const s = spotIn(CAVES, 4, CAVE_IN * 0.95), k = 0.5 + rnd() * 1.6; set(tites, i, s[0], caveRoof(s[0], s[1]) + 0.5, s[1], 0, rnd() * 6, 0, k, k * (3 + rnd() * 5), k); }
+  for (let i = 0; i < 140; i++) { const s = spotIn(CAVES, 4, CAVE_IN * 0.95), k = 0.5 + rnd() * 1.6; set(tites, i, s[0], caveRoof(s[0], s[1]) + 0.3, s[1], 0, rnd() * 6, 0, k, k * (3 + rnd() * 5), k); }
   for (let i = 0; i < 60; i++) { const s = spotIn(CAVES, 8, CAVES.R * 0.68, awayFromPass(CAVES)), k = 0.5 + rnd() * 1.2; set(mites, i, s[0], height(s[0], s[1]) - 0.3, s[1], 0, rnd() * 6, 0, k, k * (2.5 + rnd() * 4), k); blockers.push({ x: s[0], z: s[1], r: k + 0.3 }); }
   const crysG = new THREE.OctahedronGeometry(1, 0); crysG.scale(0.5, 1.6, 0.5); crysG.translate(0, 1.2, 0);
   const crysMs = ["#b06aff", "#5ad8ff", "#ff6ad0", "#6affc8", "#d8c8ff"].map(h => new THREE.MeshStandardMaterial({ color: lin(h), roughness: 0.1, metalness: 0.1, emissive: lin(h), emissiveIntensity: 0.6, transparent: true, opacity: 0.88, flatShading: true }));
@@ -1591,7 +1597,7 @@ const biomeAnims = [];
     for (let k = 0; k < 6; k++) { const sz = 0.4 + rnd() * 1.2; L.push([s[0] + (rnd() - 0.5) * 3, y - 0.4, s[1] + (rnd() - 0.5) * 3, (rnd() - 0.5) * 1.0, rnd() * 6, (rnd() - 0.5) * 1.0, sz, sz * (1 + rnd()), sz]); }
     blockers.push({ x: s[0], z: s[1], r: 1.8 }); }
   for (let c = 0; c < 40; c++) { const s = spotIn(CAVES, 5, CAVE_IN * 0.9), y = caveRoof(s[0], s[1]), L = crysSets[(c + 2) % 5];   // crystals hanging from the roof too
-    for (let k = 0; k < 3; k++) { const sz = 0.5 + rnd() * 1.1; L.push([s[0] + (rnd() - 0.5) * 2.5, y + 0.6, s[1] + (rnd() - 0.5) * 2.5, Math.PI + (rnd() - 0.5) * 0.8, rnd() * 6, (rnd() - 0.5) * 0.8, sz, sz * (1 + rnd()), sz]); } }
+    for (let k = 0; k < 3; k++) { const sz = 0.5 + rnd() * 1.1; L.push([s[0] + (rnd() - 0.5) * 2.5, y + 0.3, s[1] + (rnd() - 0.5) * 2.5, Math.PI + (rnd() - 0.5) * 0.8, rnd() * 6, (rnd() - 0.5) * 0.8, sz, sz * (1 + rnd()), sz]); } }
   crysSets.forEach((L, j) => { const m = inst(crysG, crysMs[j], L.length); L.forEach((a, i) => set(m, i, ...a)); });
   const cl1 = new THREE.PointLight(lin("#a86aff"), 1.6, 90, 1.4), cl2 = new THREE.PointLight(lin("#4ad8ff"), 1.3, 80, 1.4);
   cl1.position.set(CAVES.x + 20, CAVES.FLOOR + 14, CAVES.z - 15); cl2.position.set(CAVES.x - 22, CAVES.FLOOR + 12, CAVES.z + 18); scene.add(cl1); scene.add(cl2);
@@ -2412,6 +2418,7 @@ function frame() {
   updateDay(dt, focus);
   hemi.intensity *= 1 - caveDim * 0.7; sun.intensity *= 1 - caveDim * 0.92;   // the caves are dark, even at noon
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
+  if (window.__camOverride) window.__camOverride(camera);   // test hook only
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
