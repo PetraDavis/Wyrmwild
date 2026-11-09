@@ -134,7 +134,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>S</kbd> hover · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
 </div>
 <div id="toast"></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
@@ -2195,7 +2195,7 @@ function makePerson(o) {
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
       "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
-    { name: "Old Nettle", title: "", home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
+    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about her teapot", say: ["My teapot? Don't mention the teapot. It can hear you.", "The teapot and I had an argument in 1847. Or Tuesday. It started it."] }], home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
       "When I was young, a black dragon came out of nowhere and ate my good dragons. It had an egg, you know. It had an egg.",
       "Under the mountains there's stone that breathes. Slow. Very, very slow.",
       "Look up, dearie. Always look up. My granny said it, and her granny before her.",
@@ -2218,15 +2218,15 @@ function makePerson(o) {
       "My cane used to be a snake. Or the snake used to be a cane. One of us remembers.", "Hee hee! I once tried to hatch a potato. Very patient potato. Still waiting.",
       "If a frog winks at you, wink back. It's only polite.", "I'm two hundred years old. Or forty. I lost count at the soup.",
       "Clouds are just sheep that wandered too far from home.", "Never whistle at a chicken. They take it personally.", "Last Tuesday I was a teapot for an hour. Very relaxing."] },
-    { name: "Mayor Tilda", title: "Mayor", home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
+    { name: "Mayor Tilda", title: "Mayor", topics: [{ label: "Ask about the village", say: ["Our village is the oldest in the valley. The well is even older. Don't ask how old. It's rude.", "We have a baker, a smith, a mapmaker, a dragonologist and a very strange old woman. Something for everyone!", "The arena brings tamers from all over the land. Good for business. Bad for roofs."] }], home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
       "Welcome to our village! We don't get many dragon tamers these days.", "We're very proud of our well. It's a very good well.",
       "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably.", "I'm planning a festival. With bunting! Lots of bunting!", "The village budget is mostly spent on fixing roofs that dragons sat on.", "Old Nettle sent me a letter. It just said 'BEANS'. I don't know what to do with that.", "A mayor's work is never done. I've been signing papers since breakfast.", "Officer Brick says we need a bigger jail. For what? We have one goblin problem.", "Have you seen the arena? I opened it myself. With very big scissors.", "If you need anything, ask. If you need a statue, also ask. I know a good sculptor."] },
-    { name: "Gorran", title: "Quest Master", home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
+    { name: "Gorran", title: "Quest Master", topics: [{ label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
       "The quest board isn't ready yet. Monsters have been seen in the hills, though.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
       "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
-    { name: "Mae", title: "Shopkeeper", home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
+    { name: "Mae", title: "Shopkeeper", topics: [{ label: "What will you sell?", say: ["Saddles, hats, scarves, capes... and a Bubble Charm so your dragon can breathe underwater! Soon!", "Dragon treats! The crunchy kind. And accessories. Lots of accessories."] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
       "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling.", "I'm saving a shelf for dragon treats. They'll be the crunchy kind.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Hats, saddles, scarves... soon, I promise!", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
-    { name: "Professor Hazel", title: "Dragonologist", hazel: true, home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", glasses: true, tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
+    { name: "Professor Hazel", title: "Dragonologist", hazel: true, topics: [{ label: "Tell me about my dragon", fn: "hazelPet" }, { label: "Can I see your dragon books?", fn: "books" }], home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
       "Dark backs, pale bellies! From above they blend into the ground, from below into the sky. Clever, clever dragons.",
       "Ice dragons have huge paws, like snowshoes. They spread the weight so they don't sink. I measured one. It stepped on my notebook.",
       "Water dragons have fin wings. Half wing, half flipper! They fly underwater. Well, swim. Swim-fly.",
@@ -2245,7 +2245,7 @@ function makePerson(o) {
       "Sometimes I think a dragon looks the way it does just because it's cool. Science can't explain everything. Yet.",
       "Weather dragons are the strangest of all. They only lay eggs in storms and odd skies. Nobody knows why. Not even me!",
       "I'm writing the biggest dragon book in the world. Right now it's mostly question marks."] },
-    { name: "Hamm", title: "Blacksmith", home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
+    { name: "Hamm", title: "Blacksmith", topics: [{ label: "Can you make something for my dragon?", say: ["Not yet. Soon I'll forge claw caps and scale plates for dragons. Bring coins when the forge is ready.", "Dragon armor is tricky. Every dragon's a different shape! I'm working on it."] }], home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
       "*CLANG* Oh! Didn't see you there.", "I'm working on dragon armor. Very heavy. Very shiny.", "Fire Mountain has the best metal. And the worst lava imps.", "Hot metal, hot hands, hot temper. Mostly the metal though.", "I made a sword once. Too heavy. Now it's a doorstop.", "Bring me good ore and I'll make your dragon shine.", "*CLANG* Sorry. *CLANG* Busy. *CLANG*", "Old Nettle asked me to fix her spoon. It wasn't broken. She just wanted to talk to it.", "Dragon fire is great for melting metal. Can I borrow yours?"] },
     { name: "Officer Brick", title: "Officer", home: new V(VIL.x + 8, Y, VIL.z + 6), wander: 18, look: { shirt: "#3a4a7a", pants: "#2a2a3a", hair: "#3a2a1a", hat: "helmet", wide: 1.2 }, lines: [
       "Move along. Nothing to see here. ...Actually, have you seen anything suspicious?", "I keep this village safe. Mostly from goblins. And from Pip.", "Report anything shady to me, got it?", "The twins keep 'hiding' behind the well. I can see them. Every time.", "Arena fights are fine. Arena fights OUTSIDE the arena are not.", "If anyone sells you an egg in a dark alley, don't buy it.", "Old Nettle reported a 'talking cloud' again. I wrote it down. Again.", "Keep your dragon on the path, please. The flowers have rights too."] },
@@ -2383,6 +2383,8 @@ addEventListener("keydown", e => {
   if (document.activeElement === nameInput) return;
   if (uiOpen) {
     if (e.code === "Escape" && !menuEl.hidden) closeMenu();
+    else if (!menuEl.hidden && menuEl._dlg && !e.repeat && /^Digit\d$/.test(e.code)) { const d = +e.code[5], c = menuEl._dlg[d === 0 ? 9 : d - 1]; if (c) { e.preventDefault(); menuAct(c[1], c[2]); } }
+    else if (!menuEl.hidden && menuEl._dlg && e.code === "KeyE" && !e.repeat) closeMenu();
     else if (!e.repeat && pressKey(e.code)) e.preventDefault();
     if (e.code === "Space") e.preventDefault();
     return;
@@ -2517,11 +2519,63 @@ function hazelPet() {
   if (!a.length) return null;
   return `Ooh, your ${k}! ` + a[Math.floor(Math.random() * a.length)].replace(/^./, c => c.toUpperCase());
 }
+// ----- talking with choices (villagers with topics), and Professor Hazel's bookshelf -----
+const HAZEL_BOOKS = [
+  { t: "Wings of the World", p: ["Every land shapes its dragons' wings. Sky dragons grow long, thin wings for gliding. Forest dragons grow broad, round wings to twist between trees.",
+    "Water dragons have fin wings, half wing and half flipper. Fire dragons have glowing cracks that let the heat out. And one beetle-like dragon hides its wings under a shell. Nobody knows why!"] },
+  { t: "Why Is It Glowing?", p: ["Almost every dragon glows a little at night. My best guess: long ago, the dark was the only safe time to be out, so dragons learned to find each other by light.",
+    "The rarer the dragon, the brighter it seems to glow. I can't explain that one. I just write it down."] },
+  { t: "Eggs: A Very Short Book", p: ["Dragons lay eggs in the land they love best. Water dragons only lay near ponds, oases and beaches.", "Some eggs only appear in strange weather or under strange skies. If you see a storm, go out in it! (Carefully.)"] },
+  { t: "Strange Skies", p: ["Under a blue moon, any egg that hatches comes out blue as midnight. Under a harvest moon, eggs hatch pumpkin-orange, with leaves that follow them around.",
+    "A red moon makes monsters bold, and a red-eyed dragon lays its eggs only then. And when the sun goes dark in the daytime... the old stories say a dragon with a ring of fire comes down."] },
+  { t: "Bones in the Sand", p: ["The giant bones in the desert are far too big for any dragon. The carvings around the lands show huge creatures in the sky, hunting.",
+    "I call them the Sky Titans. If I'm right, they are why dragons have dark backs. Something used to hunt them from ABOVE."] },
+  { t: "The Breathing Stone (a theory)", p: ["Miners deep under the mountains tell the same story: rocks that are warm to the touch, gold veins that glow, and a sound like very, very slow breathing.",
+    "What if some dragons hid from the Sky Titans by going DOWN, and turned so still they look like stone? Sleeping for hundreds of years?",
+    "Most scholars laugh at this theory. I don't. I've heard the breathing too. Once."] },
+  { t: "Blacker Than Night (a theory)", p: ["Very old cave paintings show a dragon drawn as a hole in the sky. Blacker than night, with violet eyes. The old tamers said it was friendly. Common, even.",
+    "Then the paintings stop. As if one day they simply... vanished. Not died out. Vanished.",
+    "My theory: they can slip between places. If any are left, they might be right next to us, and we would never know."] },
+  { t: "A Tamer's First Guide", p: ["Rest a hurt dragon at its nest. Dragons grow stronger as they gain experience. Every species has its own strengths: some are tough, some hit hard, some are fast.", "Most important rule: be kind to your dragon. It remembers."] },
+];
+function npcNext(n) {
+  if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
+  n.talks++; return n.lines[n.deck.pop()];
+}
+function npcDialog(n, say) {
+  const tps = n.topics, ch = [["Chat", "chat", 0], ...tps.map((t, i) => [t.label, "topic", i]), ["Goodbye", "bye", 0]];
+  openMenu(n.name, `${n.title ? `<p class="who">${n.title}</p>` : ""}<p class="say">${say}</p><div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = (a, i) => {
+    if (a === "chat") npcDialog(n, npcNext(n));
+    else if (a === "bye") closeMenu();
+    else if (a === "topic") {
+      const t = tps[i];
+      if (t.fn === "books") return bookShelf(n);
+      if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
+      const pool = t.say || t.lines.map(k => n.lines[k]);
+      npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
+    }
+  };
+}
+function bookShelf(n) {
+  const ch = [...HAZEL_BOOKS.map((b, i) => [b.t, "book", i]), ["Back", "back", 0]];
+  openMenu("Hazel's Bookshelf", `<p class="say">"Take any book you like! Just don't fold the pages."</p><div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k < 9 ? k + 1 : 0}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = (a, i) => { if (a === "back") npcDialog(n, "Find anything interesting?"); else if (a === "book") readBook(n, i); };
+}
+function readBook(n, i) {
+  const b = HAZEL_BOOKS[i], ch = [["Back to the shelf", "shelf", 0], ["Goodbye", "bye", 0]];
+  openMenu(b.t, `<p class="who">from Professor Hazel's bookshelf</p>${b.p.map(x => `<p>${x}</p>`).join("")}<div class="choices">${ch.map((c, k) => `<button data-act="${c[1]}" data-i="${c[2]}"><kbd>${k + 1}</kbd> ${c[0]}</button>`).join("")}</div>`);
+  menuEl._dlg = ch;
+  menuAct = a => { if (a === "shelf") bookShelf(n); else closeMenu(); };
+}
 function talkTo() {
   if (state === "ride" || state === "name" || state === "hatching") return false;
   if (talking) { talking = null; $("talk").hidden = true; return true; }
   const n = nearestNpc(3.2); if (!n) return false;
   if (n.arena) { arenaMenu(); return true; }
+  if (n.topics) { npcDialog(n, n.hazel && Math.random() < 0.4 ? (hazelPet() || npcNext(n)) : npcNext(n)); return true; }
   if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
   talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : "");
   const pl = n.hazel && Math.random() < 0.4 ? hazelPet() : null;
@@ -2718,15 +2772,15 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 0 : -4) : (pet.fly ? (run ? 30 : 14) : 0)) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
         target = 62 * flyMul(); vy = -48 * flyMul();
         if (!run || pet.y < groundAt(pet.x, pet.z, pet.y) + 7) { pet.dive = false; pet.speed = Math.max(pet.speed, 55 * flyMul()); burstAt(pet.x, pet.y, pet.z, "#ffffff"); }
       }
-      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? (iz < 0 && pet.fly ? 2.5 : 0.8) : 2)));
-      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = iz < 0 ? 0 : -1.2;   // S in the air = hover in place (no sinking); Q (or Ctrl) = fly down; Shift no longer pulls you down
+      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? (pet.fly && iz <= 0 ? 2.5 : 0.8) : 2)));
+      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = 0;   // in the air the dragon HOVERS by default; W flies forward, S backs up slowly (Petra); Q (or Ctrl) = fly down; Shift no longer pulls you down
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
@@ -2894,7 +2948,7 @@ function addXp(n) {
 const menuEl = $("menu");
 function openMenu(title, html, onClose) {
   uiOpen = true; if (document.exitPointerLock) document.exitPointerLock();
-  $("menuTitle").textContent = title; $("menuBody").innerHTML = html; menuEl.hidden = false; menuEl._onClose = onClose || null;
+  $("menuTitle").textContent = title; $("menuBody").innerHTML = html; menuEl.hidden = false; menuEl._onClose = onClose || null; menuEl._dlg = null;
   prompt("");
 }
 function closeMenu() { if (menuEl.hidden) return; menuEl.hidden = true; uiOpen = state === "arena"; const f = menuEl._onClose; menuEl._onClose = null; if (f) f(); else lockMouse(); }
