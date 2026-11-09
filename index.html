@@ -2609,7 +2609,7 @@ function writeSave() {
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
-    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(),
+    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(), req: reqSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
@@ -2630,6 +2630,7 @@ function applySave(d) {
   if (d.secret) secLoad(d.secret);
   if (d.skill) skillLoad(d.skill);
   if (d.fish) fishLoad(d.fish);
+  if (d.req) reqLoad(d.req);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
@@ -2888,8 +2889,8 @@ function talkTo() {
   if (talking) { talking = null; $("talk").hidden = true; return true; }
   const n = nearestNpc(3.2); if (!n) return false;
   if (n.name === "Officer Brick" && SHN.met && !SHN.asked && !SHN.told) { brickAsk(); return true; }
-  const ql = questTalk(n);
-  if (ql) { if (n.topics) npcDialog(n, ql); else { talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : ""); $("talkLine").textContent = ql; $("talk").hidden = false; } return true; }
+  const ql = questTalk(n) || reqTalk(n);
+  if (ql) { if (n.topics) npcDialog(n, ql); else { talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : ""); $("talkLine").textContent = ql.replace(/<[^>]+>/g, ""); $("talk").hidden = false; } return true; }
   if (n.arena) { arenaMenu(); return true; }
   if (n.topics) { npcDialog(n, n.hazel && Math.random() < 0.4 ? (hazelPet() || npcNext(n)) : npcNext(n)); return true; }
   if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
@@ -3183,6 +3184,7 @@ function frame() {
   updateDig(dt);
   updateFish(dt);
   updateSpecials(dt);
+  updateRequests(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -7599,6 +7601,93 @@ addEventListener("keydown", e => {
   if (e.repeat || uiOpen || state !== "ride") return;
   const i = SPECIALS.findIndex(s => s.key === e.code); if (i >= 0) spUse(i);
 });
+
+// ================= villager requests (Petra's extras idea 5, 2026-11-09) =================
+// Now and then a villager gets a yellow "!" over their head: they need a favour. Talk to them to hear it.
+// Favours: bring a fish, show them a dragon, find something they lost out in the lands, or chase off some monsters.
+// Do it, come back and they pay you (coins, sometimes an accessory). Up to 2 favours at once.
+const REQ_WHO = ["Farmer Bo", "Baker Rose", "Little Pip", "Juno", "Odo", "Fen", "Fern", "Mayor Tilda", "Professor Hazel"];
+const REQ_LOST = [["Farmer Bo", "lucky horseshoe"], ["Baker Rose", "golden rolling pin"], ["Little Pip", "toy dragon"], ["Juno", "silver knitting needle"], ["Odo", "favourite compass"],
+  ["Fen", "slingshot"], ["Fern", "diary"], ["Mayor Tilda", "mayor's hat"], ["Professor Hazel", "magnifying glass"]];
+const REQ = { list: [], t: 90, done: 0 };
+const reqLand = () => { const l = ["Green Valley", "Deep Forest", "Desert", "Frost Peaks", "Fire Mountain", "Ocean"]; return l[Math.floor(Math.random() * l.length)]; };
+function reqNew(who) {
+  const r = Math.random(), q = { who, got: false, pay: 40 + Math.floor(Math.random() * 80) };
+  if (r < 0.28) { const pool = [...FISH_KINDS.Pond, ...FISH_KINDS.Ocean].filter(f => f[1] >= 12); q.type = "fish"; q.fish = pool[Math.floor(Math.random() * pool.length)][0]; }
+  else if (r < 0.5) { q.type = "show"; q.rar = Math.random() < 0.6 ? "Uncommon" : "Rare"; q.pay += q.rar === "Rare" ? 40 : 10; }
+  else if (r < 0.78) { q.type = "lost"; q.item = (REQ_LOST.find(x => x[0] === who) || [0, "lucky charm"])[1]; q.land = reqLand(); const p = wildSpot(q.land, false); if (!p) return null; q.p = [+p.x.toFixed(1), +p.y.toFixed(2), +p.z.toFixed(1)]; q.pay += 30; }
+  else { const land = ["Green Valley", "Deep Forest", "Desert"][Math.floor(Math.random() * 3)], ks = (MON_LANDS[land] || []).filter(k => !MONSTER[k].night && !MONSTER[k].under && !MONSTER[k].ceil);
+    if (!ks.length) return null; q.type = "hunt"; q.kind = ks[Math.floor(Math.random() * ks.length)]; q.land = land; q.need = 3; q.n = 0; q.pay += 30; }
+  return q;
+}
+function reqAsk(q) {
+  const w = q.who;
+  if (q.type === "fish") return `${w === "Baker Rose" ? "I'm baking a fish pie for the festival" : w === "Little Pip" ? "I want to see a real fish up close" : "I'm hungry for a proper fish supper"}, but I can't catch a thing! Could you bring me a <b>${q.fish}</b>? I'll pay ${q.pay} coins.`;
+  if (q.type === "show") return `I've never seen a ${q.rar} dragon up close! Could you come and show me one? Bring it here grown up, ${q.rar} or rarer. I'll pay ${q.pay} coins just to look!`;
+  if (q.type === "lost") return `Oh no, oh no! I lost my <b>${q.item}</b> somewhere in the <b>${q.land}</b>! It glows a bit, so you might spot it. Could you find it for me? ${q.pay} coins if you do!`;
+  return `<b>${q.kind}s</b> keep bothering everyone out in ${q.land === "Green Valley" ? "Green Valley" : "the " + q.land}. Could you chase off ${q.need} of them? ${q.pay} coins!`;
+}
+function reqDone(q) {
+  if (q.type === "fish") return FISH.basket.includes(q.fish);
+  if (q.type === "show") return hasDragon() && !pet.small && (state === "grown" || state === "ride") && (TIER[SP(pet.kind).rarity] || 0) >= TIER[q.rar] && Math.hypot(pet.x - me.x, pet.z - me.z) < 14;
+  if (q.type === "lost") return q.got;
+  return q.n >= q.need;
+}
+function reqLeft(q) {
+  if (q.type === "fish") return `Still no ${q.fish}? The pond has the little ones and the sea has the big ones.`;
+  if (q.type === "show") return `A ${q.rar} dragon, or rarer! Bring it right here so I can see it.`;
+  if (q.type === "lost") return `My ${q.item}... it's somewhere in the ${q.land}. It glows a little. Please keep looking!`;
+  return `${q.n} of ${q.need} ${q.kind}s chased off. Keep going!`;
+}
+function reqTalk(n) {   // called when you talk to a villager: their favour, if they have one
+  const q = REQ.list.find(r => r.who === n.name); if (!q) return null;
+  if (!q.told) { q.told = true; reqMark(); writeSave(); return reqAsk(q) + " <i>(Favour accepted!)</i>"; }
+  if (!reqDone(q)) return reqLeft(q);
+  if (q.type === "fish") FISH.basket.splice(FISH.basket.indexOf(q.fish), 1);
+  coins += q.pay; showCoins(); REQ.list.splice(REQ.list.indexOf(q), 1); REQ.done++;
+  let extra = "", gift = ""; const notOwned = ACCESSORIES.filter(a => !WARD.own.includes(a.name));
+  if (Math.random() < 0.3 && notOwned.length) { gift = notOwned[Math.floor(Math.random() * notOwned.length)].name; WARD.own.push(gift); extra = ` And please take this ${gift} too!`; }
+  toast("Favour done!", `+${q.pay} coins${gift ? " and a " + gift : ""}`);
+  reqMark(); writeSave();
+  return { fish: `A ${q.fish}! It's perfect! Here, ${q.pay} coins, as promised.`, show: `WOW! Look at ${String(pet.name).replace(/[<>&]/g, "")}! Look at those scales! Thank you, thank you! Here's ${q.pay} coins.`,
+    lost: `My ${q.item}! You found it! I owe you one. Here, ${q.pay} coins.`, hunt: `They're gone! It's so peaceful now. Thank you! ${q.pay} coins for you.` }[q.type] + extra;
+}
+// the "!" over a villager's head (and a glowing lost item out in the world)
+const reqBang = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d");
+  c.fillStyle = "#ffd23a"; c.beginPath(); c.arc(32, 32, 28, 0, 6.283); c.fill(); c.fillStyle = "#3a2a10"; c.font = "bold 46px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("!", 32, 34);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t; })();
+let reqItems = [];
+function reqMark() {
+  for (const n of npcs) {
+    const q = REQ.list.find(r => r.who === n.name);
+    if (!n.bang) { n.bang = new THREE.Sprite(new THREE.SpriteMaterial({ map: reqBang, transparent: true, depthWrite: false })); n.bang.scale.set(0.7, 0.7, 1); n.bang.position.y = 2.6; n.g.add(n.bang); }
+    n.bang.visible = !!q && (!q.told || reqDone(q));
+    n.bang.material.color.set(q && q.told ? "#9aff9a" : "#ffffff");   // green when you can hand it in
+  }
+  reqItems.forEach(g => scene.remove(g)); reqItems = [];
+  REQ.list.filter(q => q.type === "lost" && q.told && !q.got).forEach(q => {
+    const g = new THREE.Group(), b = new THREE.Mesh(new THREE.OctahedronGeometry(0.35, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color("#ffe07a").convertSRGBToLinear(), emissive: new THREE.Color("#ffb020").convertSRGBToLinear(), emissiveIntensity: 0.8 }));
+    b.position.y = 0.6; g.add(b); const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color("#ffd060").convertSRGBToLinear(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); s.scale.set(2.5, 2.5, 1); s.position.y = 0.6; g.add(s);
+    g.position.set(q.p[0], q.p[1], q.p[2]); g.userData.q = q; scene.add(g); reqItems.push(g);
+  });
+}
+function updateRequests(dt) {
+  if (!started) return;
+  if (!REQ.marked) { REQ.marked = true; reqMark(); }
+  REQ.t -= dt;
+  if (REQ.t <= 0) {
+    REQ.t = 150 + Math.random() * 200;
+    if (hasDragon() && REQ.list.length < 2) { const free = REQ_WHO.filter(w => !REQ.list.some(q => q.who === w) && npcs.some(n => n.name === w));
+      const who = free[Math.floor(Math.random() * free.length)], q = who && reqNew(who); if (q) { REQ.list.push(q); reqMark(); writeSave(); } }
+  }
+  const who = state === "ride" ? pet : me;
+  for (const g of reqItems) { g.children[0].rotation.y += dt * 2; g.children[0].position.y = 0.6 + Math.sin(T * 3) * 0.15;
+    if (Math.hypot(g.position.x - who.x, g.position.z - who.z) < 3 && Math.abs(g.position.y - who.y) < 6) { const q = g.userData.q; q.got = true; toast(`You found the ${q.item}!`, `Take it back to ${q.who} in the village`); reqMark(); writeSave(); break; } }
+  if ((REQ.mt = (REQ.mt || 0) - dt) <= 0) { REQ.mt = 1; npcs.forEach(n => { const q = REQ.list.find(r => r.who === n.name); if (n.bang) { const v = !!q && (!q.told || reqDone(q)); if (n.bang.visible !== v) reqMark(); } }); }
+}
+(function () { const k = killMon; killMon = function (m) { REQ.list.forEach(q => { if (q.type === "hunt" && q.told && m.kind === q.kind && q.n < q.need) { q.n++; if (q.n >= q.need) toast("Favour done!", `Go and tell ${q.who}`); } }); return k.apply(this, arguments); }; })();
+const reqSave = () => ({ list: REQ.list, done: REQ.done, t: Math.round(REQ.t) });
+function reqLoad(d) { REQ.list = (d.list || []).filter(q => q && q.who && q.type); REQ.done = d.done || 0; if (typeof d.t === "number") REQ.t = d.t; }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
