@@ -48,6 +48,11 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
   position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   padding: 8px 12px; font-size: 0.82rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: calc(100% - 32px);
 }
+#petHp { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 112px); transform: translateX(-50%); padding: 6px 12px 8px; min-width: 220px; text-align: center; pointer-events: none; }
+#petHp span { display: block; font-size: 0.8rem; font-weight: 800; margin-bottom: 4px; }
+#petHp b { display: block; height: 8px; border-radius: 4px; background: #3a1414; overflow: hidden; }
+#petHp i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #4ac04a, #8ae06a); transition: width 0.2s; }
+#petHp.hurt { box-shadow: 0 0 0 2px #ff4a3a; }
 #cross { position: fixed; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 2px rgba(0,0,0,0.35); pointer-events: none; }
 #toast {
   position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;
@@ -94,6 +99,19 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 #menu h2 { font-family: var(--display); font-size: 2rem; margin: 0 0 6px; }
 #menu h4 { margin: 14px 0 4px; color: var(--ember); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; }
 #menu p { margin: 6px 0; line-height: 1.45; }
+#menu .who { color: var(--accent, #f0a040); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-top: -2px; }
+#menu .say { font-size: 1.08rem; }
+#menu .choices { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
+#menu .choices button { text-align: left; width: 100%; }
+#menu .choices kbd { margin-right: 6px; }
+#menu .statbox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 4px; }
+#menu .statbox div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 6px 9px; display: flex; flex-direction: column; }
+#menu .statbox span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+#menu .statbox b { font-size: 1.1rem; } #menu .statbox b.dots { font-size: 0.85rem; letter-spacing: 1px; } #menu .statbox small { opacity: 0.7; font-size: 0.72rem; }
+#menu table.guide { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+#menu table.guide th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; padding: 4px; position: sticky; top: -18px; background: rgba(20,24,30,0.95); }
+#menu table.guide td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+#menu table.guide small { opacity: 0.75; }
 #menu .sec { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
 #menu .sec small { color: var(--muted); }
 #menu .sec.locked { opacity: 0.55; }
@@ -134,9 +152,10 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>W</kbd> fly forward (let go to hover) · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb · <kbd>Click</kbd> claw · <kbd>Right-click</kbd> breath · <kbd>A</kbd><kbd>A</kbd>/<kbd>D</kbd><kbd>D</kbd> dodge</span>
 </div>
 <div id="toast"></div>
+<div id="petHp" class="plate" hidden><span></span><b><i></i></b></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
 <div id="cross" hidden></div>
 <div id="menu" class="plate" hidden><h2 id="menuTitle"></h2><div id="menuBody"></div><button id="menuClose" type="button">Close <kbd>Esc</kbd></button></div>
@@ -1008,9 +1027,9 @@ const SPECIES = [
   { name: "Rootwyrm", rarity: "Epic", home: "Under the oldest forest", speed: 1, pal: P("#3a2a1a", "#6a4a2a", "#a8885a", "#9aff6a", "#c8b080", "#4a3a20", "#d0ff6a", { fur: "#4a8a2a", fin: "#5a7a2a" }),
     sp: { gentle: true, girth: 1.25, horns: "antler", back: "fur", tail: "club", legThick: 1.3, wings: "leaf", wingScale: 0.8, pattern: "cracks", spots: "#3a2a14", digClaws: true },
     ad: ["Bark-like skin with moss growing on top", "Big antlers like tree roots", "Huge claws dig tunnels between the roots", "Glowing cracks, like sap moving under the bark"] },
-  { name: "Lumora", rarity: "Legendary", home: "Night skies", speed: 4, pal: P("#0a0a14", "#14142a", "#2a2a44", "#ffe04a", "#ffe8a0", "#0e0e1e", "#ffe04a"),
-    sp: { gentle: true, thin: 0.9, girth: 0.85, pattern: "stars", wingScale: 1.25, eyes: 1.4, tail: "orb", frill: "crest", glow: 1.5 },
-    ad: ["Black with yellow stars, so it disappears into the night sky", "Big eyes see perfectly in the dark", "A glowing tail orb lights its way"] },
+  { name: "Lumora", rarity: "Legendary", home: "Night skies", speed: 4, pal: P("#0a0a14", "#14142a", "#2a2a44", "#ffe04a", "#ffe8a0", "#0e0e1e", "#ffe04a", { crystal: "#fff2b8", crystalTip: "#ffe04a", wingTip: "#ffe04a", metal: 0.35 }),
+    sp: { glassWings: true, wingStars: true, wings: "fin", wingScale: 1.25, horns: "crystal", back: "crystal", backScale: 0.8, tail: "crystal", frill: "crest", eyes: 1.3, pattern: "stars", glow: 1.5, thin: 0.9, aura: "sparks" },
+    ad: ["Black with yellow stars, so it disappears into the night sky", "See-through starry wings, like a window into the night", "Golden crystal horns, crest and tail catch the moonlight", "Starlight sparkles drift around it wherever it flies"] },
   // ----- new sky dragons -----
   { name: "Driftail", rarity: "Uncommon", home: "Sky Islands, in the clouds", speed: 4, pal: P("#a8c8e8", "#e8f2ff", "#ffffff", "#d0f0ff", "#ffffff", "#c8dcf0", "#5aa8ff", { fur: "#ffffff", fin: "#d8e8ff" }),
     sp: { head: [0.86, 1.02, 1], gentle: true, legThick: 0.8, thin: 0.85, wings: "soar", wingScale: 1.15, back: "fur", tail: "ribbon", girth: 0.72, mane: true, pattern: "none", flapSpeed: 5 },
@@ -1047,9 +1066,9 @@ const SPECIES = [
   { name: "Wispwyrm", rarity: "Rare", home: "Thick fog (eggs appear only when the fog rolls in)", speed: 3, pal: P("#a8a8c8", "#c8c8e0", "#eeeefa", "#bff4ff", "#e8e8f6", "#b8b8d4", "#dff8ff", { smoke: "#d8d8ec" }),
     sp: { gentle: true, tier: 3, weather: "fog", aura: "mist", ghost: true, wings: "tattered", wingScale: 1.1, tail: "smoke", frill: "frill", horns: "none", eyes: 1.25, thin: 0.85, girth: 0.8, len: 1.2, pattern: "none", glow: 1.2 },
     ad: ["Half see-through: it fades in and out like the fog", "Ragged, misty wings make no sound", "Fog puffs drift around it", "Shy, gentle and almost never seen"] },
-  { name: "Starwyrm", rarity: "Epic", home: "From space! (eggs crash down during a meteor shower)", speed: 4, pal: P("#0a2a3a", "#145a6a", "#9af0dc", "#7affd8", "#c8fff0", "#0e3442", "#e6ff6a", { crystal: "#9afff0", crystalTip: "#e6ff6a", wingTip: "#7affd8", metal: 0.35 }),
-    sp: { tier: 4, weather: "meteor", aura: "rocks", glassWings: true, wingStars: true, wings: "fin", wingScale: 1.2, horns: "crystal", back: "crystal", backScale: 0.8, tail: "crystal", frill: "crest", eyes: 1.3, pattern: "stars", glow: 1.4, thin: 0.9 },
-    ad: ["An alien dragon from outer space: its egg rode a meteor down", "Glassy crystal crest and horns, and see-through starry wings", "Freckled with glowing star spots", "Little space rocks float around it", "Strange yellow-green eyes"] },
+  { name: "Starwyrm", rarity: "Epic", home: "From space! (eggs crash down during a meteor shower)", speed: 4, pal: P("#0a2a3a", "#145a6a", "#9af0dc", "#7affd8", "#c8fff0", "#0e3442", "#e6ff6a", { flame: "#7affd8", metal: 0.35 }),
+    sp: { tier: 4, weather: "meteor", aura: "rocks", gentle: true, thin: 0.9, girth: 0.85, wingScale: 1.25, eyes: 1.4, tail: "flame", frill: "crest", pattern: "stars", glow: 1.4 },
+    ad: ["An alien dragon from outer space: its egg rode a meteor down", "Its glowing tail streams behind it like a comet", "Freckled with glowing star spots", "Little space rocks float around it", "Huge, strange yellow-green eyes"] },
   // ----- eclipse dragon: eggs only during a solar eclipse (Petra 2026-11-09: Legendary) -----
   { name: "Eclipsar", rarity: "Legendary", home: "A solar eclipse (its eggs only appear while the sun is hidden)", speed: 4, pal: P("#0c0c10", "#18181e", "#2a2a32", "#ffd27a", "#2a2a30", "#101014", "#fff4d0", { metal: 0.25, wingTip: "#1c1c24", spikeTip: "#ffd27a" }),
     sp: { tier: 5, weather: "eclipse", corona: true, horns: "none", frill: "none", tail: "orb", orbGlow: true, wings: "bat", wingScale: 1.3, back: "spikes", backScale: 0.85, pattern: "eclipse", glow: 1.8, eyes: 1.15, thin: 0.92, len: 1.1, neck: 1.1, fangs: 1.2, tailShape: "whip" },
@@ -2944,6 +2963,7 @@ function frame() {
   }
   updateNpcs(dt);
   updateWild(dt);
+  updateMonsters(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -3506,6 +3526,1508 @@ const crowd = { hype: 0 };
     body.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
   });
 })();
+
+// ================= monster models (same code as the monster preview page) =================
+const MONLIB = (function () {
+const V = THREE.Vector3;
+const C = h => new THREE.Color(h).convertSRGBToLinear();
+// ---------- helpers ----------
+const std = (hex, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(hex), roughness: 0.6 }, o));
+function mesh(geo, mat, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; return m;
+}
+const sph = (r, w = 24, h = 16) => new THREE.SphereGeometry(r, w, h);
+function limb(a, b, r1, r2, mat) { // tapered cylinder from point a to point b
+  const d = new V().subVectors(b, a), len = d.length();
+  const m = mesh(new THREE.CylinderGeometry(r2, r1, len, 12), mat);
+  m.position.copy(a).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new V(0, 1, 0), d.normalize());
+  return m;
+}
+function canvasTex(w, h, draw, srgb = true) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); if (srgb) t.encoding = THREE.sRGBEncoding; return t;
+}
+function blotch(base, spots, n, size) {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < n; i++) { g.fillStyle = spots[i % spots.length]; g.globalAlpha = 0.55; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, size * (0.5 + Math.random()), size * (0.3 + Math.random() * 0.6), Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+  });
+}
+function eyes(g, x, y, z, r, color, pupil = true) {
+  const em = new THREE.MeshBasicMaterial({ color: C(color) });
+  [1, -1].forEach(s => {
+    g.add(mesh(sph(r, 16, 12), em, x, y, z * s));
+    if (pupil) g.add(mesh(sph(r * 0.45, 10, 8), new THREE.MeshBasicMaterial({ color: "#120a06" }), x + r * 0.75, y, z * s + r * 0.15 * s));
+  });
+}
+
+// ---------- monsters ----------
+const MON = [];
+
+// Goblin: blotchy green camo, big ears, long climbing fingers
+MON.push({ name: "Goblin", land: "Green Valley", ground: "#3f6b35", ad: [
+  "Blotchy green skin hides it in grass and bushes", "Big ears hear dragons coming from far away", "Long fingers and toes for climbing trees"],
+  make() {
+    const g = new THREE.Group(), skin = std("#7fae4a", { map: blotch("#7fae4a", ["#4f7d2e", "#a8c46a", "#3a5f24"], 70, 18) }),
+      cloth = std("#6b4a2a"), leaf = std("#3f7d34", { side: THREE.DoubleSide }), nail = std("#e8dcb8");
+    g.add(mesh(sph(0.42), skin, 0, 0.95, 0, 0.9, 1.05, 0.85));        // round belly
+    g.add(mesh(sph(0.3), skin, 0.12, 1.5, 0, 1.05, 0.95, 0.95));       // head, hunched forward
+    g.add(mesh(sph(0.14), skin, 0.38, 1.44, 0, 1.2, 0.8, 0.9));        // long nose
+    eyes(g, 0.32, 1.58, 0.13, 0.065, "#ffd23a");
+    [1, -1].forEach(s => {
+      const ear = mesh(new THREE.ConeGeometry(0.12, 0.55, 12), skin, 0.02, 1.6, 0.36 * s);
+      ear.rotation.x = s * 1.35; ear.rotation.z = 0.25; ear.scale.z = 0.35; g.add(ear);
+      g.add(limb(new V(0, 1.15, 0.33 * s), new V(0.15, 0.75, 0.5 * s), 0.08, 0.06, skin));      // arm
+      g.add(limb(new V(0.15, 0.75, 0.5 * s), new V(0.3, 0.45, 0.48 * s), 0.06, 0.05, skin));
+      for (let f = -1; f <= 1; f++) {                                                                // long fingers
+        const a = new V(0.3, 0.45, 0.48 * s), b = new V(0.42, 0.22, 0.48 * s + f * 0.07);
+        g.add(limb(a, b, 0.025, 0.015, skin)); const n = mesh(new THREE.ConeGeometry(0.018, 0.06, 6), nail); n.position.copy(b); n.rotation.z = Math.PI; g.add(n);
+      }
+      g.add(limb(new V(0, 0.7, 0.2 * s), new V(0.12, 0.38, 0.24 * s), 0.11, 0.07, skin));       // legs
+      g.add(limb(new V(0.12, 0.38, 0.24 * s), new V(-0.02, 0.06, 0.24 * s), 0.07, 0.05, skin));
+      g.add(mesh(sph(0.1), skin, 0.12, 0.04, 0.24 * s, 2.2, 0.5, 1.1));                              // long feet
+    });
+    g.add(mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.22, 16), cloth, 0, 0.72, 0));
+    for (let i = 0; i < 7; i++) { const l = mesh(new THREE.CircleGeometry(0.12, 8), leaf, 0, 0.62, 0); const a = i / 7 * Math.PI * 2; l.position.set(Math.cos(a) * 0.44, 0.6, Math.sin(a) * 0.44); l.rotation.y = -a + Math.PI / 2; l.scale.y = 1.6; g.add(l); }
+    return { g, update: t => { g.position.y = Math.abs(Math.sin(t * 2.4)) * 0.04; g.rotation.z = Math.sin(t * 1.2) * 0.03; } };
+  } });
+
+// Bog Toad: flat floating body, webbed feet, eyes on top, slimy
+MON.push({ name: "Bog Toad", land: "Green Valley ponds", ground: "#3e4a32", ad: [
+  "Wide, flat body that floats on the water", "Eyes on top of its head watch while it hides underwater", "Webbed feet for swimming", "Slimy, shiny skin that stays wet"],
+  make() {
+    const g = new THREE.Group(), skin = std("#3c7c8c", { roughness: 0.18, metalness: 0.1, map: blotch("#3c7c8c", ["#25525e", "#6fa6a0", "#2b6650"], 60, 16) }),
+      belly = std("#c9d6a0", { roughness: 0.25 }), web = std("#2e6a78", { roughness: 0.2, side: THREE.DoubleSide });
+    g.add(mesh(sph(0.7, 32, 20), skin, 0, 0.42, 0, 1.15, 0.55, 1.05));
+    belly.userData.m = mesh(sph(0.6, 28, 16), belly, 0.05, 0.3, 0, 1.05, 0.38, 0.95); g.add(belly.userData.m);
+    g.add(mesh(sph(0.45, 28, 16), skin, 0.55, 0.52, 0, 0.9, 0.45, 1.05));                  // broad head
+    [1, -1].forEach(s => {
+      g.add(mesh(sph(0.15, 18, 12), skin, 0.6, 0.78, 0.22 * s));                           // eye bumps on top
+      g.add(mesh(sph(0.1, 16, 12), new THREE.MeshBasicMaterial({ color: C("#f2d64a") }), 0.68, 0.84, 0.22 * s));
+      g.add(mesh(new THREE.BoxGeometry(0.03, 0.02, 0.12), new THREE.MeshBasicMaterial({ color: "#120a06" }), 0.77, 0.86, 0.22 * s));
+      g.add(limb(new V(-0.45, 0.35, 0.55 * s), new V(-0.75, 0.2, 0.85 * s), 0.16, 0.1, skin)); // big back legs
+      g.add(limb(new V(-0.75, 0.2, 0.85 * s), new V(-0.45, 0.05, 1.0 * s), 0.1, 0.07, skin));
+      g.add(limb(new V(0.45, 0.25, 0.5 * s), new V(0.6, 0.06, 0.62 * s), 0.08, 0.06, skin));
+      // webbed feet: a fan with toes
+      [[-0.45, 0.05, 1.0, 0.38], [0.6, 0.04, 0.62, 0.24]].forEach(([x, y, z, r]) => {
+        const f = mesh(new THREE.CircleGeometry(r, 16, -0.9, 1.8), web, x, y, z * s); f.rotation.x = -Math.PI / 2; f.rotation.z = s > 0 ? 0.4 : -0.4; g.add(f);
+      });
+    });
+    { const mouth = mesh(new THREE.TorusGeometry(0.34, 0.025, 6, 24, Math.PI * 0.9), std("#1b3a3e"), 0.82, 0.42, 0, 1, 0.6, 1.2); mouth.rotation.set(Math.PI / 2, 0, Math.PI * 0.55); g.add(mouth); }
+    // puddle
+    const pud = mesh(new THREE.CircleGeometry(1.8, 40), std("#4f8fb0", { roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.75 }), 0, 0.02, 0);
+    pud.rotation.x = -Math.PI / 2; pud.castShadow = false; g.add(pud);
+    return { g, update: t => { const b = 1 + Math.sin(t * 3) * 0.04; belly.userData.m.scale.y = 0.38 * b; g.rotation.y = Math.sin(t * 0.5) * 0.1; } };
+  } });
+
+// Lava Imp: small, black cracked skin glowing inside, bat wings
+MON.push({ name: "Lava Imp", land: "Fire Mountain", ground: "#2a201c", ad: [
+  "Small and quick, it darts between hot rocks", "Black, cracked skin that can't burn, glowing orange inside", "Bat-like wings ride the hot air rising from lava"],
+  make() {
+    const g = new THREE.Group();
+    const crackMap = canvasTex(256, 256, (x, w, h) => {
+      x.fillStyle = "#000"; x.fillRect(0, 0, w, h); x.strokeStyle = "#ff8a2a"; x.lineWidth = 3; x.shadowColor = "#ffb04a"; x.shadowBlur = 6;
+      for (let i = 0; i < 26; i++) { x.beginPath(); let px = Math.random() * w, py = Math.random() * h; x.moveTo(px, py); for (let k = 0; k < 5; k++) { px += (Math.random() - 0.5) * 50; py += (Math.random() - 0.5) * 50; x.lineTo(px, py); } x.stroke(); }
+    });
+    const skin = std("#1d1614", { roughness: 0.8, emissive: new THREE.Color("#ffffff"), emissiveMap: crackMap, emissiveIntensity: 1.6 }),
+      wing = std("#2a1a16", { side: THREE.DoubleSide, emissive: C("#ff5a1a"), emissiveIntensity: 0.15 }), horn = std("#3a2a24");
+    const body = new THREE.Group(); g.add(body);
+    body.add(mesh(sph(0.3), skin, 0, 1.1, 0, 0.9, 1.1, 0.85));
+    body.add(mesh(sph(0.25), skin, 0.05, 1.5, 0, 1, 0.95, 0.95));
+    eyes(body, 0.24, 1.55, 0.1, 0.055, "#ffe36a", false);
+    [1, -1].forEach(s => {
+      const h = mesh(new THREE.ConeGeometry(0.05, 0.3, 10), horn, -0.02, 1.75, 0.12 * s); h.rotation.set(s * 0.4, 0, -0.35); body.add(h);
+      body.add(limb(new V(0, 1.25, 0.24 * s), new V(0.15, 0.95, 0.32 * s), 0.06, 0.04, skin));
+      body.add(limb(new V(0, 0.9, 0.12 * s), new V(0.05, 0.62, 0.15 * s), 0.07, 0.04, skin));
+      // bat wing
+      const shape = new THREE.Shape(); shape.moveTo(0, 0); shape.lineTo(0.2, 0.75); shape.quadraticCurveTo(0.3, 0.55, 0.55, 0.62);
+      shape.quadraticCurveTo(0.55, 0.35, 0.8, 0.3); shape.quadraticCurveTo(0.6, 0.1, 0.75, -0.1); shape.quadraticCurveTo(0.35, -0.05, 0, -0.2);
+      const wg = new THREE.Group(); wg.position.set(-0.12, 1.3, 0.12 * s); body.add(wg);
+      const wm = mesh(new THREE.ShapeGeometry(shape, 12), wing); wm.rotation.set(0, s > 0 ? -Math.PI / 2 : Math.PI / 2, 0); wm.scale.set(1.1, 1.1, 1); wg.add(wm);
+      wg.userData.s = s; body.userData["w" + s] = wg;
+    });
+    // tail with a glowing tip
+    const pts = [new V(-0.2, 0.95, 0), new V(-0.5, 0.75, 0), new V(-0.75, 0.85, 0), new V(-0.85, 1.05, 0)];
+    body.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.035, 8), skin));
+    body.add(mesh(new THREE.ConeGeometry(0.07, 0.16, 4), new THREE.MeshBasicMaterial({ color: C("#ffb04a") }), -0.86, 1.12, 0));
+    const glow = new THREE.PointLight("#ff7a2a", 1.2, 3, 2); glow.position.set(0, 1.1, 0); g.add(glow);
+    return { g, update: t => {
+      body.position.y = 0.25 + Math.sin(t * 3) * 0.12;
+      [1, -1].forEach(s => { body.userData["w" + s].rotation.x = s * (0.2 + Math.sin(t * 14) * 0.6); });
+      skin.emissiveIntensity = 1.4 + Math.sin(t * 4) * 0.3;
+    } };
+  } });
+
+// Rock Troll: boulder hide, huge arms, tiny eyes
+MON.push({ name: "Rock Troll", land: "Fire Mountain", ground: "#4a3a30", ad: [
+  "Stony, heat-proof hide that looks like boulders, so it hides by standing still", "Huge arms for throwing rocks", "Tiny eyes keep out the falling ash"],
+  make() {
+    const g = new THREE.Group(), rock = std("#7c7064", { flatShading: true, roughness: 0.95 }), dark = std("#5c524a", { flatShading: true, roughness: 0.95 }), moss = std("#5a6a3a", { flatShading: true });
+    const chunk = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = mesh(new THREE.DodecahedronGeometry(r, 1), mat, x, y, z, sx, sy, sz); m.rotation.set(Math.random(), Math.random(), Math.random()); return m; };
+    g.add(chunk(0.8, rock, 0, 1.45, 0, 1.0, 1.05, 0.95));
+    g.add(chunk(0.55, dark, -0.15, 2.15, 0, 1.2, 0.8, 1.2));       // hunched shoulders
+    g.add(chunk(0.32, rock, 0.55, 2.05, 0, 1.1, 0.9, 1));          // small head pushed forward
+    eyes(g, 0.93, 2.12, 0.12, 0.045, "#ff9a3a", false);   // pushed out to the front of the face so both always show
+    [1, -1].forEach(s => {
+      g.add(chunk(0.38, dark, 0.05, 2.0, 0.75 * s));                 // shoulder boulder
+      g.add(chunk(0.32, rock, 0.25, 1.4, 0.95 * s, 1, 1.3, 1));      // huge arm
+      g.add(chunk(0.36, dark, 0.4, 0.75, 1.0 * s, 1.1, 1, 1.1));     // big fist
+      g.add(chunk(0.32, rock, 0.05, 0.45, 0.4 * s, 1, 1.3, 1));      // stumpy legs
+      g.add(chunk(0.28, dark, 0.15, 0.12, 0.42 * s, 1.5, 0.5, 1.1));
+      g.add(chunk(0.12, moss, -0.3, 2.45, 0.3 * s));
+    });
+    g.add(chunk(0.28, rock, 1.0, 0.3, 1.4));                         // a rock to throw
+    return { g, update: t => { g.rotation.y = Math.sin(t * 0.4) * 0.06; g.position.y = Math.sin(t * 1.3) * 0.015; } };
+  } });
+
+// Ice Wraith: floating see-through blue, no legs, frost trail
+MON.push({ name: "Ice Wraith", land: "Frost Peaks", ground: "#dfe8f0", ad: [
+  "See-through blue, so it's hard to spot against ice", "No legs: it glides over snow without sinking", "Leaves a frosty trail behind it"],
+  make() {
+    const g = new THREE.Group();
+    const ice = new THREE.MeshPhysicalMaterial({ color: C("#9fd6ff"), roughness: 0.15, transmission: 0, transparent: true, opacity: 0.55, emissive: C("#4aa8ff"), emissiveIntensity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+    const body = new THREE.Group(); g.add(body);
+    const pts = []; for (let i = 0; i <= 12; i++) { const y = i / 12; pts.push(new THREE.Vector2(0.05 + Math.sin(y * Math.PI * 0.85) * 0.55 * (1 - y * 0.35) + (i === 0 ? 0 : Math.sin(i * 2.3) * 0.03), y * 1.6)); }
+    const robe = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), ice); robe.position.y = 0.4; body.add(robe);
+    body.add(mesh(sph(0.3), ice, 0, 2.2, 0, 0.9, 1.1, 0.9));
+    eyes(body, 0.22, 2.25, 0.1, 0.06, "#dff6ff", false);
+    [1, -1].forEach(s => {
+      const arm = mesh(new THREE.ConeGeometry(0.1, 0.9, 10, 1, true), ice, 0.25, 1.55, 0.45 * s); arm.rotation.set(s * 0.9, 0, -0.6); body.add(arm);
+    });
+    for (let i = 0; i < 6; i++) { const c = mesh(new THREE.ConeGeometry(0.05, 0.3, 6), ice, 0, 2.5, 0); const a = i / 6 * Math.PI * 2; c.position.set(Math.cos(a) * 0.18, 2.45, Math.sin(a) * 0.18); c.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); body.add(c); }
+    // frost trail particles
+    const n = 120, pos = new Float32Array(n * 3), life = new Float32Array(n);
+    for (let i = 0; i < n; i++) life[i] = Math.random();
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const trail = new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#e6f6ff"), size: 0.07, transparent: true, opacity: 0.85, depthWrite: false })); g.add(trail);
+    const light = new THREE.PointLight("#7cc4ff", 0.8, 4, 2); light.position.y = 1.5; g.add(light);
+    return { g, update: (t, dt) => {
+      body.position.y = 0.15 + Math.sin(t * 1.6) * 0.1; body.rotation.z = Math.sin(t * 1.1) * 0.05;
+      for (let i = 0; i < n; i++) {
+        life[i] += dt * 0.5; if (life[i] > 1) life[i] -= 1;
+        const a = i * 2.39, r = 0.3 + life[i] * 0.9;
+        pos[i * 3] = -life[i] * 1.6 + Math.cos(a) * 0.15; pos[i * 3 + 1] = 0.5 + Math.sin(a * 3) * 0.2 - life[i] * 0.45; pos[i * 3 + 2] = Math.sin(a) * r * 0.5;
+      }
+      pg.attributes.position.needsUpdate = true;
+    } };
+  } });
+
+// Snow Yeti: thick white fur, snowshoe feet, round heavy body
+MON.push({ name: "Snow Yeti", land: "Frost Peaks", ground: "#e6edf3", ad: [
+  "Thick white fur keeps it warm and hides it in snow", "Big flat feet work like snowshoes", "A round, heavy body holds in heat"],
+  make() {
+    const g = new THREE.Group();
+    const furTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = "#f2f4f8"; x.fillRect(0, 0, w, h); x.strokeStyle = "rgba(150,170,200,0.35)"; x.lineWidth = 2; for (let i = 0; i < 900; i++) { const px = Math.random() * w, py = Math.random() * h; x.beginPath(); x.moveTo(px, py); x.lineTo(px + (Math.random() - 0.5) * 6, py + 10); x.stroke(); } });
+    const fur = std("#f2f4f8", { map: furTex, roughness: 0.95 }), face = std("#8ea8c8", { roughness: 0.45 }), claw = std("#3a4250");
+    // fluffy body: a big round core with many tufts
+    const fluffy = (r, x, y, z, sx = 1, sy = 1, sz = 1, n = 18, openFace = false) => {
+      const grp = new THREE.Group(); grp.position.set(x, y, z); grp.add(mesh(sph(r, 24, 16), fur, 0, 0, 0, sx, sy, sz));
+      for (let i = 0; i < n; i++) { const u = Math.random() * Math.PI * 2, v = Math.acos(2 * Math.random() - 1); const d = new V(Math.sin(v) * Math.cos(u) * sx, Math.cos(v) * sy, Math.sin(v) * Math.sin(u) * sz);
+        if (openFace && d.x > 0.2 && d.y > -0.6) { i--; n -= 0.5; continue; }   // keep the fur tufts off the face
+        grp.add(mesh(sph(r * 0.32, 10, 8), fur, d.x * r * 0.92, d.y * r * 0.92, d.z * r * 0.92)); }
+      return grp;
+    };
+    g.add(fluffy(0.8, 0, 1.35, 0, 1, 1.05, 0.95, 40));
+    g.add(fluffy(0.38, 0.35, 2.3, 0, 1, 1, 1, 18, true));
+    g.add(mesh(sph(0.26, 24, 16), face, 0.64, 2.24, 0, 0.5, 0.95, 1.1));            // smooth bare face
+    g.add(mesh(sph(0.1, 16, 12), face, 0.76, 2.2, 0, 0.9, 0.7, 1.2));               // little muzzle
+    eyes(g, 0.75, 2.34, 0.1, 0.045, "#1a2a44", false);
+    g.add(mesh(new THREE.BoxGeometry(0.03, 0.025, 0.16), std("#22304a"), 0.85, 2.12, 0));
+    [1, -1].forEach(s => {
+      g.add(fluffy(0.25, 0.1, 1.55, 0.85 * s, 1, 1.6, 1, 10));           // thick arms
+      g.add(mesh(sph(0.16, 16, 12), face, 0.2, 1.05, 0.9 * s, 1.1, 0.8, 1));
+      g.add(fluffy(0.3, 0, 0.5, 0.35 * s, 1, 1.1, 1, 10));               // short legs
+      const foot = mesh(sph(0.32, 20, 12), face, 0.12, 0.08, 0.38 * s, 1.5, 0.28, 1.15); g.add(foot);   // snowshoe feet
+      for (let k = -1; k <= 1; k++) { const c = mesh(new THREE.ConeGeometry(0.04, 0.12, 6), claw, 0.6, 0.06, 0.38 * s + k * 0.13); c.rotation.z = -Math.PI / 2; g.add(c); }
+    });
+    return { g, update: t => { g.scale.y = 1 + Math.sin(t * 1.4) * 0.015; g.rotation.y = Math.sin(t * 0.5) * 0.08; } };
+  } });
+
+// Vine Creeper: looks like a bush, hidden flower mouth, grabbing vines, root feet
+MON.push({ name: "Vine Creeper", land: "Green Valley forests", ground: "#3f6b35", ad: [
+  "Looks just like a bush until you get close", "Long vines grab anything that walks past", "Roots for feet: it can plant itself and wait for days", "A flower mouth that opens only to bite"],
+  make() {
+    const g = new THREE.Group(), leafA = std("#3f8a3a", { roughness: 0.8 }), leafB = std("#2f6d2f", { roughness: 0.8 }), leafC = std("#5aa043", { roughness: 0.8 }),
+      vine = std("#4c6b2a"), root = std("#5a4128"), petal = std("#d8406a", { side: THREE.DoubleSide }), tooth = std("#f2ead2"), throat = std("#4a0f1c");
+    const bush = new THREE.Group(); g.add(bush);
+    const mats = [leafA, leafB, leafC];
+    for (let i = 0; i < 26; i++) {
+      const u = Math.random() * Math.PI * 2, v = Math.random() * 1.3, r = 0.55 + Math.random() * 0.1;
+      if (Math.cos(u) * Math.sin(v) > 0.45 && Math.abs(Math.sin(u) * Math.sin(v)) < 0.5 && v > 0.6) { i--; continue; }   // leave the front open so the flower mouth shows
+      bush.add(mesh(sph(0.26 + Math.random() * 0.12, 12, 10), mats[i % 3], Math.cos(u) * Math.sin(v) * r, 0.85 + Math.cos(v) * r * 0.85, Math.sin(u) * Math.sin(v) * r));
+    }
+    // flower mouth on the front
+    const mouth = new THREE.Group(); mouth.position.set(0.66, 1.0, 0); mouth.rotation.z = -Math.PI / 2; bush.add(mouth);
+    const petals = [];
+    for (let i = 0; i < 6; i++) {
+      const p = new THREE.Group(); p.rotation.y = i / 6 * Math.PI * 2; mouth.add(p);
+      const pm = mesh(sph(0.16, 12, 8), petal, 0, 0, 0.16, 0.7, 0.18, 1.3); p.add(pm); petals.push(p);
+      const t = mesh(new THREE.ConeGeometry(0.025, 0.09, 6), tooth, 0, 0.03, 0.08); t.rotation.x = -0.4; p.add(t);
+    }
+    mouth.add(mesh(sph(0.1, 12, 8), throat, 0, -0.04, 0, 1, 0.5, 1));
+    // vines that wave
+    const vines = [];
+    // the vines grow out of the sides and back of the bush (never across the flower), each from a thick knot
+    [[0.0, 1.0, 0.6], [0.0, 1.0, -0.6], [-0.35, 1.4, 0.32], [-0.35, 1.4, -0.32]].forEach(([x, y, z]) => {
+      const segs = []; const base = new THREE.Group(); base.position.set(x, y, z); bush.add(base);
+      base.add(mesh(sph(0.09, 12, 8), vine, 0, -0.02, 0, 1, 0.8, 1));
+      let parent = base;
+      for (let k = 0; k < 6; k++) { const s = new THREE.Group(); s.position.y = k === 0 ? 0 : 0.2; parent.add(s); s.add(limb(new V(0, 0, 0), new V(0, 0.21, 0), 0.05 - k * 0.006, 0.045 - k * 0.006, vine)); if (k % 2) s.add(mesh(sph(0.06, 8, 6), leafC, 0.04, 0.1, 0, 1.4, 0.3, 0.8)); segs.push(s); parent = s; }
+      vines.push({ segs, side: Math.sign(z), ph: Math.random() * 6 });
+    });
+    // roots
+    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; g.add(limb(new V(Math.cos(a) * 0.3, 0.45, Math.sin(a) * 0.3), new V(Math.cos(a) * 0.75, 0.02, Math.sin(a) * 0.75), 0.07, 0.025, root)); }
+    return { g, update: t => {
+      vines.forEach(v => v.segs.forEach((s, k) => { s.rotation.x = v.side * (0.35 + Math.sin(t * 1.6 + v.ph + k * 0.6) * 0.25); s.rotation.z = 0.2 + Math.sin(t * 1.2 + v.ph + k) * 0.15; }));   // lean back and out, away from the flower
+      const open = 0.5 + Math.max(0, Math.sin(t * 1.3)) * 0.8; petals.forEach(p => p.children[0].rotation.x = -open * 0.6);
+      bush.scale.setScalar(1 + Math.sin(t * 1.8) * 0.015);
+    } };
+  } });
+
+// Mud Eel: long slimy body, hides in mud, small eyes, gills, back fin
+MON.push({ name: "Mud Eel", land: "Green Valley ponds and marshes", ground: "#4a3d2a", ad: [
+  "Long, slippery body wiggles through mud and water", "Brown skin matches the muddy bottom", "Tiny eyes (it feels for prey instead of looking)", "Gills breathe in murky water, and its slime keeps it wet out of it"],
+  make() {
+    const g = new THREE.Group(), slime = std("#6b5634", { roughness: 0.25, metalness: 0.1, map: blotch("#6b5634", ["#4a3a22", "#8a7448", "#3c3020"], 60, 14) }),
+      belly = std("#c8b07a", { roughness: 0.3 }), fin = std("#8a6a3a", { side: THREE.DoubleSide, roughness: 0.4 }), mud = std("#3c3020", { roughness: 1 });
+    g.add(mesh(new THREE.CylinderGeometry(0.9, 1.0, 0.08, 32), mud, 0, 0.04, 0));
+    const N = 22, segs = [];
+    for (let i = 0; i < N; i++) {
+      const r = 0.2 * Math.sin((i + 2) / (N + 2) * Math.PI) ** 0.5 + 0.03;
+      const s = mesh(sph(r, 14, 10), slime); g.add(s);
+      const f = mesh(new THREE.PlaneGeometry(0.16, 0.14), fin); f.position.y = r * 0.9; s.add(f);
+      segs.push({ s, r });
+    }
+    const head = new THREE.Group(); g.add(head);
+    head.add(mesh(sph(0.21, 18, 12), slime, 0.08, 0, 0, 1.5, 0.8, 0.9));
+    const jaw = mesh(sph(0.17, 16, 10), belly, 0.12, -0.08, 0, 1.4, 0.45, 0.8); head.add(jaw);
+    eyes(head, 0.25, 0.08, 0.1, 0.025, "#d8e040");
+    [1, -1].forEach(s => { for (let k = 0; k < 3; k++) { const gl = mesh(new THREE.BoxGeometry(0.01, 0.1, 0.02), std("#3a2a1a"), -0.08 - k * 0.05, -0.01, 0.16 * s); head.add(gl); } });
+    for (let k = 0; k < 4; k++) { const t = mesh(new THREE.ConeGeometry(0.012, 0.04, 5), std("#f0e8d0"), 0.3 - k * 0.04, -0.06, 0.06 * (k % 2 ? 1 : -1)); t.rotation.z = Math.PI; head.add(t); }
+    const path = (u, t) => { // u 0 = head, 1 = tail (buried)
+      const h = (1 - u) * 1.5 + 0.05, w = Math.sin(u * 7 - t * 2.4) * 0.35 * (0.3 + u);
+      return new V(Math.cos(u * 4 + 0.5) * 0.45 * u + 0.15 * (1 - u), h, w + Math.sin(u * 4) * 0.45 * u);
+    };
+    return { g, update: t => {
+      segs.forEach((o, i) => { const u = (i + 1) / (N + 1); o.s.position.copy(path(u, t)); const n = path(u - 0.02, t); o.s.lookAt(n); o.s.rotateY(-Math.PI / 2); });
+      head.position.copy(path(0, t)); const n = path(0.04, t); head.lookAt(n); head.rotateY(Math.PI / 2);
+      jaw.rotation.z = -Math.max(0, Math.sin(t * 1.7)) * 0.35;
+    } };
+  } });
+
+// Snapjaw Turtle: crush-proof spiky shell, hooked beak, hides inside
+MON.push({ name: "Snapjaw Turtle", land: "Green Valley rivers", ground: "#55693c", ad: [
+  "A thick, spiky shell that dragon claws can't crack", "Pulls its head and legs inside to hide", "A hooked beak strong enough to crush rocks", "Mossy shell helps it hide in riverbeds"],
+  make() {
+    const g = new THREE.Group(), shellM = std("#5a5a34", { roughness: 0.7, map: blotch("#5a5a34", ["#3e4024", "#6f6c3e", "#4f6b2a"], 50, 20) }),
+      skin = std("#7d8a52", { roughness: 0.6 }), beak = std("#3a3428", { roughness: 0.4 }), plate = std("#d6c890"), moss = std("#4f8a2e", { roughness: 1 });
+    const body = new THREE.Group(); g.add(body);
+    const shell = mesh(new THREE.SphereGeometry(0.85, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), shellM, 0, 0.42, 0, 1.15, 0.75, 1); body.add(shell);
+    body.add(mesh(new THREE.CylinderGeometry(0.98, 0.9, 0.12, 28), plate, 0, 0.4, 0, 1, 1, 0.87));
+    for (let ring = 0; ring < 2; ring++) for (let i = 0; i < (ring ? 1 : 7); i++) {
+      const a = i / 7 * Math.PI * 2, r = ring ? 0 : 0.55;
+      const sp = mesh(new THREE.ConeGeometry(0.1, 0.28, 8), beak, Math.cos(a) * r * 1.15, ring ? 1.08 : 0.88, Math.sin(a) * r); sp.rotation.set(Math.sin(a) * r * 0.9, 0, -Math.cos(a) * r * 0.9); body.add(sp);
+    }
+    for (let i = 0; i < 9; i++) { const a = Math.random() * 6.28, v = 0.3 + Math.random() * 0.9; body.add(mesh(sph(0.08 + Math.random() * 0.06, 8, 6), moss, Math.cos(a) * Math.sin(v) * 0.95, 0.42 + Math.cos(v) * 0.62, Math.sin(a) * Math.sin(v) * 0.82, 1, 0.4, 1)); }
+    const head = new THREE.Group(); head.position.set(0.9, 0.5, 0); body.add(head);
+    head.add(limb(new V(-0.3, 0, 0), new V(0.05, 0.05, 0), 0.17, 0.14, skin));
+    head.add(mesh(sph(0.2, 18, 12), skin, 0.12, 0.08, 0, 1.25, 0.9, 1));
+    const top = mesh(new THREE.ConeGeometry(0.12, 0.22, 10), beak, 0.36, 0.08, 0); top.rotation.z = -Math.PI / 2 - 0.25; head.add(top);
+    const jaw = mesh(new THREE.ConeGeometry(0.1, 0.18, 10), beak, 0.32, -0.02, 0); jaw.rotation.z = -Math.PI / 2 + 0.15; head.add(jaw);
+    eyes(head, 0.2, 0.17, 0.13, 0.04, "#ffb020");
+    const legs = [];
+    [[0.5, 0.55], [0.5, -0.55], [-0.5, 0.55], [-0.5, -0.55]].forEach(([x, z]) => {
+      const l = new THREE.Group(); l.position.set(x, 0.38, z); body.add(l);
+      l.add(limb(new V(0, 0, 0), new V(x * 0.25, -0.3, z * 0.3), 0.13, 0.11, skin));
+      l.add(mesh(sph(0.14, 12, 8), skin, x * 0.27, -0.33, z * 0.32, 1.3, 0.5, 1.1));
+      for (let k = -1; k <= 1; k++) { const c = mesh(new THREE.ConeGeometry(0.025, 0.08, 6), beak, x * 0.27 + 0.16, -0.34, z * 0.32 + k * 0.06); c.rotation.z = -Math.PI / 2; l.add(c); }
+      legs.push(l);
+    });
+    const tail = mesh(new THREE.ConeGeometry(0.08, 0.4, 8), skin, -1.05, 0.38, 0); tail.rotation.z = Math.PI / 2 + 0.3; body.add(tail);
+    return { g, update: t => {
+      const cyc = t % 6, hide = cyc > 4.2 ? Math.min(1, (cyc - 4.2) * 3) * Math.min(1, (6 - cyc) * 3) : 0;
+      head.position.x = 0.9 - hide * 0.55; legs.forEach(l => l.scale.setScalar(1 - hide * 0.6));
+      jaw.rotation.z = -Math.PI / 2 + 0.15 + Math.max(0, Math.sin(t * 3)) * 0.4 * (1 - hide);
+      body.position.y = Math.abs(Math.sin(t * 1.5)) * 0.02;
+    } };
+  } });
+
+// Ember Beetle: heat-proof shell with glowing cracks, six legs, spark spray
+MON.push({ name: "Ember Beetle", land: "Fire Mountain", ground: "#2a201c", ad: [
+  "A heat-proof shell lets it walk on hot lava rock", "Glowing cracks soak up heat like a battery", "Sprays sparks from its horn when it's scared", "Six short legs grip steep, crumbly slopes"],
+  make() {
+    const g = new THREE.Group();
+    const crack = canvasTex(256, 256, (x, w, h) => { x.fillStyle = "#000"; x.fillRect(0, 0, w, h); x.strokeStyle = "#fff"; x.lineCap = "round";
+      for (let i = 0; i < 14; i++) { let px = Math.random() * w, py = Math.random() * h; x.lineWidth = 2 + Math.random() * 3; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 6; k++) { px += (Math.random() - 0.5) * 50; py += (Math.random() - 0.5) * 50; x.lineTo(px, py); } x.stroke(); } }, false);
+    const shellM = std("#1c1614", { roughness: 0.35, metalness: 0.3, emissive: C("#ff6a1a"), emissiveMap: crack, emissiveIntensity: 1.6 }),
+      leg = std("#2a2220", { roughness: 0.5 }), glow = new THREE.MeshBasicMaterial({ color: C("#ffb040") });
+    const body = new THREE.Group(); g.add(body);
+    [1, -1].forEach(s => { const half = mesh(new THREE.SphereGeometry(0.6, 24, 14, 0, Math.PI, 0, Math.PI / 2), shellM, -0.1, 0.45, 0.01 * s, 1.35, 0.85, 0.9); half.rotation.y = s > 0 ? Math.PI : 0; half.rotation.x = 0; body.add(half); });
+    body.add(mesh(sph(0.55, 20, 12), leg, -0.1, 0.42, 0, 1.3, 0.35, 0.85));
+    body.add(mesh(sph(0.28, 18, 12), shellM, 0.75, 0.48, 0, 1, 0.8, 1.1));            // thorax
+    const head = mesh(sph(0.18, 16, 10), leg, 1.02, 0.42, 0); body.add(head);
+    const horn = mesh(new THREE.ConeGeometry(0.08, 0.5, 10), shellM, 1.25, 0.62, 0); horn.rotation.z = -1.0; body.add(horn);
+    eyes(body, 1.12, 0.48, 0.12, 0.04, "#ffd060", false);
+    const legs = [];
+    [0.55, 0.1, -0.4].forEach((x, k) => [1, -1].forEach(s => {
+      const l = new THREE.Group(); l.position.set(x, 0.35, 0.42 * s); body.add(l);
+      l.add(limb(new V(0, 0, 0), new V(0.05, 0.12, 0.3 * s), 0.05, 0.04, leg));
+      l.add(limb(new V(0.05, 0.12, 0.3 * s), new V(0.12 - k * 0.1, -0.35, 0.5 * s), 0.04, 0.025, leg));
+      legs.push({ l, ph: k + (s > 0 ? 0 : Math.PI) });
+    }));
+    const n = 60, pos = new Float32Array(n * 3), life = new Float32Array(n), vel = [];
+    for (let i = 0; i < n; i++) { life[i] = Math.random(); vel.push(new V(0.8 + Math.random() * 0.8, 0.6 + Math.random() * 1.0, (Math.random() - 0.5) * 0.8)); }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#ffc060"), size: 0.06, transparent: true, depthWrite: false })));
+    const light = new THREE.PointLight("#ff7a2a", 1.0, 4, 2); light.position.set(0, 0.9, 0); g.add(light);
+    return { g, update: (t, dt) => {
+      shellM.emissiveIntensity = 1.3 + Math.sin(t * 2.2) * 0.5;
+      legs.forEach(o => o.l.rotation.y = Math.sin(t * 6 + o.ph) * 0.25);
+      body.position.y = Math.abs(Math.sin(t * 6)) * 0.015;
+      const spray = Math.sin(t * 0.9) > 0.3;
+      for (let i = 0; i < n; i++) {
+        life[i] += dt * 1.2; if (life[i] > 1) life[i] -= 1;
+        const L = life[i], v = vel[i];
+        pos[i * 3] = 1.45 + v.x * L; pos[i * 3 + 1] = spray ? 0.85 + v.y * L - 1.5 * L * L : -5; pos[i * 3 + 2] = v.z * L;
+      }
+      pg.attributes.position.needsUpdate = true;
+    } };
+  } });
+
+// Ash Lurker: ash-gray, flat, hides in ash piles, long grabbing arms, only its eyes glow
+MON.push({ name: "Ash Lurker", land: "Fire Mountain", ground: "#45403c", ad: [
+  "Ash-gray skin: lying in an ash pile, it's almost invisible", "Flat body slides under ash and loose stones", "Long thin arms snatch prey from hiding", "Glowing eyes see through thick smoke"],
+  make() {
+    const g = new THREE.Group(), ash = std("#7a736c", { roughness: 1, map: blotch("#7a736c", ["#5c5650", "#948c84", "#4a4541"], 90, 10) }),
+      pile = std("#5f5954", { roughness: 1 }), glow = new THREE.MeshBasicMaterial({ color: C("#ff8a1e") }), claw = std("#2a2624");
+    const mound = new THREE.Group(); g.add(mound);
+    for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, r = Math.random() * 0.9; mound.add(mesh(sph(0.35 + Math.random() * 0.2, 12, 8), pile, Math.cos(a) * r - 0.3, 0.05, Math.sin(a) * r, 1.2, 0.45, 1.2)); }
+    const body = new THREE.Group(); g.add(body);
+    body.add(mesh(sph(0.5, 20, 12), ash, 0, 0.32, 0, 1.4, 0.45, 1));
+    const head = new THREE.Group(); head.position.set(0.75, 0.35, 0); body.add(head);
+    head.add(mesh(sph(0.26, 18, 10), ash, 0, 0, 0, 1.4, 0.55, 1.1));
+    [1, -1].forEach(s => { head.add(mesh(sph(0.055, 12, 8), glow, 0.18, 0.1, 0.11 * s)); head.add(mesh(sph(0.03, 10, 6), glow, 0.12, 0.13, 0.2 * s)); });
+    for (let i = 0; i < 6; i++) body.add(mesh(new THREE.ConeGeometry(0.05, 0.16, 6), pile, 0.4 - i * 0.2, 0.52, 0));
+    const arms = [];
+    [1, -1].forEach(s => {
+      const arm = new THREE.Group(); arm.position.set(0.45, 0.3, 0.35 * s); body.add(arm);
+      const a1 = new V(0, 0, 0), a2 = new V(0.35, 0.35, 0.35 * s), a3 = new V(0.95, 0.05, 0.4 * s);
+      arm.add(limb(a1, a2, 0.07, 0.05, ash)); arm.add(limb(a2, a3, 0.05, 0.035, ash));
+      for (let k = -1; k <= 1; k++) { const c = limb(a3, new V(1.15, -0.02, 0.4 * s + k * 0.08), 0.02, 0.008, claw); arm.add(c); }
+      arms.push({ arm, s });
+      const leg = limb(new V(-0.4, 0.25, 0.3 * s), new V(-0.6, 0.05, 0.65 * s), 0.07, 0.04, ash); body.add(leg);
+    });
+    const tail = limb(new V(-0.65, 0.3, 0), new V(-1.5, 0.08, 0.2), 0.12, 0.02, ash); body.add(tail);
+    // drifting ash flakes
+    const n = 50, pos = new Float32Array(n * 3), off = []; for (let i = 0; i < n; i++) off.push([Math.random() * 3 - 1.5, Math.random() * 2, Math.random() * 3 - 1.5]);
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#bdb6ae"), size: 0.04, transparent: true, opacity: 0.8, depthWrite: false })));
+    return { g, update: t => {
+      const cyc = t % 5, rise = cyc < 2.5 ? 0 : Math.sin((cyc - 2.5) / 2.5 * Math.PI);
+      body.position.y = -0.18 + rise * 0.22; head.rotation.z = rise * 0.3;
+      arms.forEach(o => { o.arm.rotation.y = -o.s * rise * 0.5; o.arm.rotation.z = rise * 0.4; });
+      for (let i = 0; i < n; i++) { const o = off[i]; pos[i * 3] = o[0] + Math.sin(t * 0.5 + i) * 0.2; pos[i * 3 + 1] = (o[1] + t * 0.15) % 2; pos[i * 3 + 2] = o[2]; }
+      pg.attributes.position.needsUpdate = true;
+    } };
+  } });
+
+// Frost Wolf: thick fur ruff, wide paws, bushy tail, hunts in packs
+MON.push({ name: "Frost Wolf", land: "Frost Peaks", ground: "#e6edf3", ad: [
+  "Thick double fur and a big neck ruff keep out the cold", "Wide, furry paws don't sink in deep snow", "Pale fur hides it in snowstorms", "Hunts in packs and howls to call the others"],
+  make() {
+    const g = new THREE.Group();
+    const furTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = "#dfe7f0"; x.fillRect(0, 0, w, h); x.strokeStyle = "rgba(120,145,180,0.4)"; x.lineWidth = 2; for (let i = 0; i < 800; i++) { const px = Math.random() * w, py = Math.random() * h; x.beginPath(); x.moveTo(px, py); x.lineTo(px + 8, py + (Math.random() - 0.5) * 4); x.stroke(); } });
+    const fur = std("#dfe7f0", { map: furTex, roughness: 0.95 }), dark = std("#8a9ab4", { roughness: 0.9 }), nose = std("#1e2430"), claw = std("#3a4250");
+    const body = new THREE.Group(); g.add(body);
+    body.add(mesh(sph(0.45, 22, 14), fur, 0, 0.95, 0, 1.75, 0.85, 0.85));
+    body.add(mesh(sph(0.42, 20, 14), fur, 0.5, 1.05, 0, 1.0, 1.05, 1.05));             // chest/ruff
+    for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; body.add(mesh(new THREE.ConeGeometry(0.1, 0.3, 6), fur, 0.62, 1.15 + Math.sin(a) * 0.38, Math.cos(a) * 0.38)).children; }
+    const ruffs = body.children.slice(-14); ruffs.forEach((r, i) => { const a = i / 14 * Math.PI * 2; r.rotation.set(Math.cos(a) * 1.2, 0, -Math.sin(a) * 1.2 - 0.3); });
+    body.add(mesh(sph(0.2, 16, 10), dark, -0.1, 1.3, 0, 2.2, 0.35, 0.9));           // darker back saddle
+    const head = new THREE.Group(); head.position.set(0.95, 1.4, 0); body.add(head);
+    head.add(mesh(sph(0.25, 18, 12), fur, 0, 0, 0, 1.1, 0.95, 0.95));
+    head.add(mesh(sph(0.14, 14, 10), fur, 0.27, -0.06, 0, 1.6, 0.7, 0.8));          // snout
+    head.add(mesh(sph(0.05, 10, 8), nose, 0.48, -0.03, 0));
+    eyes(head, 0.18, 0.08, 0.12, 0.04, "#7fd8ff");
+    [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.08, 0.2, 8), dark, -0.05, 0.24, 0.12 * s); e.rotation.x = s * 0.25; head.add(e); });
+    const legs = [];
+    [[0.55, 0.22], [0.55, -0.22], [-0.55, 0.22], [-0.55, -0.22]].forEach(([x, z], k) => {
+      const l = new THREE.Group(); l.position.set(x, 0.85, z); body.add(l);
+      l.add(limb(new V(0, 0, 0), new V(x > 0 ? 0.05 : -0.1, -0.45, 0), 0.12, 0.08, fur));
+      l.add(limb(new V(x > 0 ? 0.05 : -0.1, -0.45, 0), new V(0, -0.78, 0), 0.08, 0.07, fur));
+      l.add(mesh(sph(0.12, 14, 10), fur, 0.05, -0.8, 0, 1.5, 0.55, 1.3));             // wide paw
+      for (let c = -1; c <= 1; c++) { const cl = mesh(new THREE.ConeGeometry(0.018, 0.06, 5), claw, 0.22, -0.82, c * 0.06); cl.rotation.z = -Math.PI / 2; l.add(cl); }
+      legs.push({ l, ph: [0, Math.PI, Math.PI, 0][k] });
+    });
+    const tail = new THREE.Group(); tail.position.set(-0.75, 1.1, 0); body.add(tail);
+    tail.add(mesh(sph(0.18, 16, 10), fur, -0.35, -0.1, 0, 2.6, 1, 1));
+    tail.add(mesh(sph(0.1, 12, 8), dark, -0.78, -0.12, 0, 1.4, 0.9, 0.9));
+    return { g, update: t => {
+      const cyc = t % 7, howl = cyc > 5 ? Math.sin((cyc - 5) / 2 * Math.PI) : 0;
+      legs.forEach(o => o.l.rotation.z = Math.sin(t * 4 + o.ph) * 0.3 * (1 - howl));
+      body.position.y = Math.abs(Math.sin(t * 4)) * 0.03 * (1 - howl);
+      head.rotation.z = howl * 0.9; tail.rotation.y = Math.sin(t * 3) * 0.3; tail.rotation.z = 0.3 + howl * 0.2;
+    } };
+  } });
+
+// Storm Harpy: huge wings, light hollow body, sharp talons, crackling storm feathers
+MON.push({ name: "Storm Harpy", land: "Sky Islands", ground: "#c8d4e4", ad: [
+  "Huge wings ride storm winds without flapping much", "Light, hollow bones so it can stay up for days", "Grabbing talons snatch prey right out of the air", "Its feathers store static from storm clouds and zap"],
+  make() {
+    const g = new THREE.Group(), feather = std("#5a6a8a", { roughness: 0.7, side: THREE.DoubleSide }), pale = std("#c9d4e6", { roughness: 0.7, side: THREE.DoubleSide }),
+      tip = std("#2a3450", { side: THREE.DoubleSide }), talon = std("#f0d24a", { roughness: 0.4 }), beak = std("#e8b830", { roughness: 0.4 }),
+      zap = new THREE.MeshBasicMaterial({ color: C("#c8f0ff") });
+    const body = new THREE.Group(); g.add(body);
+    body.add(mesh(sph(0.35, 20, 14), feather, 0, 0, 0, 1.4, 1, 0.9));
+    body.add(mesh(sph(0.3, 18, 12), pale, 0.15, -0.08, 0, 1.2, 0.9, 0.8));           // pale chest
+    const head = new THREE.Group(); head.position.set(0.55, 0.25, 0); body.add(head);
+    head.add(mesh(sph(0.2, 16, 12), feather));
+    const bk = mesh(new THREE.ConeGeometry(0.07, 0.24, 8), beak, 0.25, -0.03, 0); bk.rotation.z = -Math.PI / 2 - 0.3; head.add(bk);
+    eyes(head, 0.12, 0.06, 0.12, 0.04, "#aef0ff");
+    for (let i = 0; i < 5; i++) { const c = mesh(new THREE.ConeGeometry(0.03, 0.35, 5), tip, -0.12 - i * 0.03, 0.16, (i - 2) * 0.05); c.rotation.z = 1.0 + i * 0.05; head.add(c); }  // storm crest
+    const wings = [];
+    [1, -1].forEach(s => {
+      const w = new THREE.Group(); w.position.set(0.05, 0.12, 0.25 * s); body.add(w);
+      const arm = new THREE.Group(); w.add(arm);
+      for (let i = 0; i < 9; i++) {
+        const f = mesh(new THREE.PlaneGeometry(0.6 + i * 0.05, 0.24), i > 5 ? tip : (i % 2 ? feather : pale));
+        f.rotation.x = Math.PI / 2; f.position.set(-0.22 - i * 0.02, i * 0.004, (0.15 + i * 0.15) * s); f.rotation.z = -0.1 - i * 0.05; arm.add(f);
+      }
+      arm.add(limb(new V(0.05, 0.02, 0.05 * s), new V(0.02, 0.02, 1.45 * s), 0.06, 0.02, feather));
+      wings.push({ w, s });
+    });
+    for (let i = 0; i < 5; i++) { const f = mesh(new THREE.PlaneGeometry(0.6, 0.1), i % 2 ? tip : feather, -0.75, -0.02, (i - 2) * 0.08); f.rotation.x = Math.PI / 2; f.rotation.y = (i - 2) * 0.15; body.add(f); }
+    [1, -1].forEach(s => {
+      body.add(limb(new V(0, -0.25, 0.12 * s), new V(0.05, -0.6, 0.14 * s), 0.05, 0.03, talon));
+      for (let k = -1; k <= 1; k++) { const c = limb(new V(0.05, -0.6, 0.14 * s), new V(0.2, -0.68, 0.14 * s + k * 0.06), 0.022, 0.006, tip); body.add(c); }
+    });
+    // lightning zaps
+    const bolts = [];
+    for (let i = 0; i < 4; i++) {
+      const pts = []; for (let k = 0; k < 6; k++) pts.push(new V());
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: C("#d8f6ff") })); body.add(line); bolts.push({ line, pts });
+    }
+    const light = new THREE.PointLight("#9ad8ff", 0, 5, 2); body.add(light);
+    return { g, update: t => {
+      body.position.y = 1.25 + Math.sin(t * 1.3) * 0.15; body.rotation.x = Math.sin(t * 0.7) * 0.15;
+      const flap = Math.sin(t * 2.2) * 0.5 + 0.1;
+      wings.forEach(o => { o.w.rotation.x = -o.s * flap; });
+      const on = (t * 3 % 2.5) < 0.25; light.intensity = on ? 2 : 0;
+      bolts.forEach((b, i) => {
+        b.line.visible = on;
+        if (on) { const s = i % 2 ? 1 : -1; b.pts.forEach((p, k) => p.set(-0.3 + Math.random() * 0.4, 0.1 + (Math.random() - 0.5) * 0.25, s * (0.3 + k * 0.28))); b.line.geometry.setFromPoints(b.pts); }
+      });
+    } };
+  } });
+
+// Cloud Jelly: floaty see-through bell, stinging tentacles, glows in storms
+MON.push({ name: "Cloud Jelly", land: "Sky Islands", ground: "#c8d4e4", ad: [
+  "A bell full of light gas lets it float in the sky", "See-through body hides it inside clouds", "Long dangling tentacles sting anything that flies too close", "Glows softly, and brighter when a storm is coming"],
+  make() {
+    const g = new THREE.Group();
+    const bellM = new THREE.MeshPhysicalMaterial({ color: C("#e8f0ff"), roughness: 0.2, transparent: true, opacity: 0.55, emissive: C("#b49cff"), emissiveIntensity: 0.35, side: THREE.DoubleSide, depthWrite: false });
+    const innerM = new THREE.MeshBasicMaterial({ color: C("#c8a8ff"), transparent: true, opacity: 0.6 });
+    const cloudM = std("#ffffff", { roughness: 1, transparent: true, opacity: 0.9 });
+    const body = new THREE.Group(); g.add(body);
+    const pts = []; for (let i = 0; i <= 14; i++) { const a = i / 14 * Math.PI * 0.55; pts.push(new THREE.Vector2(Math.sin(a) * 0.75 * (1 + (i > 11 ? (i - 11) * 0.04 : 0)), Math.cos(a) * 0.6)); }
+    const bell = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), bellM); body.add(bell);
+    body.add(mesh(sph(0.25, 16, 12), innerM, 0, 0.25, 0, 1, 0.7, 1));
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; body.add(mesh(sph(0.12, 10, 8), innerM, Math.cos(a) * 0.3, 0.12, Math.sin(a) * 0.3, 1, 0.4, 0.6)); }
+    // tentacles: chains of points updated each frame
+    const tents = [];
+    for (let i = 0; i < 10; i++) {
+      const a = i / 10 * Math.PI * 2, r = i % 2 ? 0.55 : 0.3, n = 14, len = i % 2 ? 1.8 : 1.2;
+      const geo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: n }, () => new V()));
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: C(i % 2 ? "#d8c8ff" : "#ffd8f0"), transparent: true, opacity: 0.85 })); body.add(line);
+      const knobs = []; for (let k = 3; k < n; k += 3) { const kn = mesh(sph(0.025, 8, 6), innerM); body.add(kn); knobs.push([k, kn]); }
+      tents.push({ a, r, n, len, line, knobs });
+    }
+    // little cloud puffs it drifts in
+    const puffs = new THREE.Group(); g.add(puffs);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4, cx = Math.cos(a) * 1.6, cz = Math.sin(a) * 1.6, cy = 0.6 + (i % 2) * 0.6; for (let k = 0; k < 5; k++) puffs.add(mesh(sph(0.16 + Math.random() * 0.1, 14, 10), cloudM, cx + (k - 2) * 0.16, cy + (k % 2) * 0.1, cz + (Math.random() - 0.5) * 0.15)); }
+    const light = new THREE.PointLight("#c0a8ff", 0.8, 4, 2); light.position.y = 0.2; body.add(light);
+    const tmp = []; for (let k = 0; k < 14; k++) tmp.push(new V());
+    return { g, update: t => {
+      const pulse = Math.sin(t * 2.0);
+      body.position.y = 1.6 + Math.sin(t * 0.8) * 0.15 + pulse * 0.04; bell.scale.set(1 - pulse * 0.06, 1 + pulse * 0.08, 1 - pulse * 0.06);
+      bellM.emissiveIntensity = 0.35 + (Math.sin(t * 0.4) > 0.6 ? 0.4 : 0) + pulse * 0.05;
+      puffs.rotation.y = t * 0.08;
+      tents.forEach(o => {
+        for (let k = 0; k < o.n; k++) { const u = k / (o.n - 1); tmp[k].set(Math.cos(o.a) * o.r * (1 - u * 0.3) + Math.sin(t * 1.5 + u * 4 + o.a) * 0.12 * u, -u * o.len, Math.sin(o.a) * o.r * (1 - u * 0.3) + Math.cos(t * 1.3 + u * 4 + o.a) * 0.12 * u); }
+        o.line.geometry.setFromPoints(tmp.slice(0, o.n)); o.knobs.forEach(([k, kn]) => kn.position.copy(tmp[k]));
+      });
+    } };
+  } });
+
+// Gust Sprite: tiny swirling wind spirit, flies in swarms
+MON.push({ name: "Gust Sprite", land: "Sky Islands", ground: "#c8d4e4", ad: [
+  "Made mostly of spinning air, so it weighs almost nothing", "Tiny and fast: it darts around faster than a dragon can turn", "Flies in swarms that push dragons off course", "See-through swirl blends in with the wind"],
+  make() {
+    const g = new THREE.Group();
+    const windM = new THREE.MeshBasicMaterial({ color: C("#e8f6ff"), transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+    const coreM = new THREE.MeshStandardMaterial({ color: C("#bfeaff"), emissive: C("#8fd8ff"), emissiveIntensity: 0.6, transparent: true, opacity: 0.85 });
+    const sprites = [];
+    const one = (k) => {
+      const s = new THREE.Group();
+      s.add(mesh(sph(0.16, 16, 12), coreM));
+      eyes(s, 0.12, 0.04, 0.06, 0.03, "#ffffff", false);
+      [0.07, -0.07].forEach(z => s.add(mesh(sph(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: "#2a4a6a" }), 0.15, 0.04, z)));
+      const swirl = new THREE.Group(); s.add(swirl);
+      for (let i = 0; i < 3; i++) { const ring = mesh(new THREE.TorusGeometry(0.22 + i * 0.09, 0.012, 6, 32, Math.PI * 1.3), windM); ring.rotation.x = Math.PI / 2; ring.position.y = -0.1 - i * 0.12; ring.scale.setScalar(1 - i * 0.25); swirl.add(ring); }
+      const tail = mesh(new THREE.ConeGeometry(0.1, 0.5, 10, 1, true), windM, 0, -0.38, 0); tail.rotation.x = Math.PI; s.add(tail);
+      return { s, swirl, k, ph: k * 1.9 };
+    };
+    for (let k = 0; k < 6; k++) { const o = one(k); o.s.scale.setScalar(k === 0 ? 1.4 : 0.8 + (k % 3) * 0.15); g.add(o.s); sprites.push(o); }
+    return { g, update: t => {
+      sprites.forEach(o => {
+        const a = t * (1.2 + o.k * 0.15) + o.ph, r = o.k === 0 ? 0 : 0.8 + (o.k % 2) * 0.5;
+        o.s.position.set(Math.cos(a) * r, 1.4 + Math.sin(a * 1.7) * 0.35 + (o.k % 3) * 0.2, Math.sin(a) * r);
+        o.s.rotation.y = -a; o.swirl.rotation.y = t * 8;
+      });
+    } };
+  } });
+
+// Puffcap: floating balloon mushroom that bursts into spores
+MON.push({ name: "Puffcap", land: "Sky Islands", ground: "#c8d4e4", ad: [
+  "Its cap is a balloon of light gas, so it floats", "Short root threads drink water from passing clouds", "Bursts into a cloud of choking spores when hit", "Bright spots warn dragons not to bite it"],
+  make() {
+    const g = new THREE.Group();
+    const capTex = canvasTex(256, 128, (x, w, h) => { x.fillStyle = "#d8508a"; x.fillRect(0, 0, w, h); x.fillStyle = "#fff4d8"; for (let i = 0; i < 16; i++) { x.beginPath(); x.ellipse(Math.random() * w, 10 + Math.random() * h * 0.6, 8 + Math.random() * 8, 12 + Math.random() * 10, 0, 0, Math.PI * 2); x.fill(); } });
+    const cap = std("#d8508a", { map: capTex, roughness: 0.5 }), stem = std("#f2e6cc", { roughness: 0.8 }), gill = std("#f0b8cc", { roughness: 0.9 }), root = std("#d8cdb0");
+    const body = new THREE.Group(); g.add(body);
+    const capM = mesh(new THREE.SphereGeometry(0.7, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.62), cap, 0, 0, 0, 1, 0.95, 1); body.add(capM);
+    body.add(mesh(new THREE.CircleGeometry(0.64, 28), gill, 0, -0.02, 0)).children; body.children[body.children.length - 1].rotation.x = Math.PI / 2;
+    body.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.55, 14), stem, 0, -0.3, 0));
+    eyes(body, 0.2, -0.28, 0.09, 0.05, "#2a1a2a", false);
+    body.add(mesh(sph(0.04, 8, 6), std("#7a2a3a"), 0.24, -0.4, 0, 0.6, 0.4, 1.6));
+    const roots = [];
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const r = limb(new V(Math.cos(a) * 0.15, -0.55, Math.sin(a) * 0.15), new V(Math.cos(a) * 0.3, -1.05, Math.sin(a) * 0.3), 0.03, 0.008, root); body.add(r); roots.push(r); }
+    const n = 80, pos = new Float32Array(n * 3), dir = []; for (let i = 0; i < n; i++) { const u = Math.random() * 6.28, v = Math.acos(2 * Math.random() - 1); dir.push(new V(Math.sin(v) * Math.cos(u), Math.cos(v), Math.sin(v) * Math.sin(u))); }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#e8f070"), size: 0.07, transparent: true, depthWrite: false })); g.add(spores);
+    return { g, update: t => {
+      const cyc = t % 6, burst = cyc > 4.5 ? (cyc - 4.5) / 1.5 : -1;
+      body.position.y = 1.5 + Math.sin(t * 1.1) * 0.12;
+      const puff = burst > 0 ? 1 - Math.sin(Math.min(1, burst * 3) * Math.PI) * 0.25 : 1 + Math.sin(t * 2) * 0.03;
+      capM.scale.set(puff, puff * 0.95, puff);
+      roots.forEach((r, i) => r.rotation.z = Math.sin(t * 2 + i) * 0.08);
+      spores.visible = burst > 0;
+      if (burst > 0) for (let i = 0; i < n; i++) { const d = dir[i], R = 0.4 + burst * 1.6; pos[i * 3] = d.x * R; pos[i * 3 + 1] = body.position.y + 0.2 + d.y * R * 0.7 - burst * 0.3; pos[i * 3 + 2] = d.z * R; }
+      pg.attributes.position.needsUpdate = true; spores.material.opacity = 1 - Math.max(0, burst);
+    } };
+  } });
+
+// Vine Dangler: hangs upside down under sky islands, grabs dragons flying below
+MON.push({ name: "Vine Dangler", land: "Sky Islands (underneath)", ground: "#c8d4e4", ad: [
+  "Hangs upside down from the roots under sky islands", "Green and brown like the hanging vines around it", "Long sticky arms grab dragons that fly underneath", "Cousin of the Vine Creeper, but it never touches the ground"],
+  make() {
+    const g = new THREE.Group(), vine = std("#4c6b2a"), skin = std("#5f8a3a", { roughness: 0.7, map: blotch("#5f8a3a", ["#3f6a28", "#7a6a3a", "#8ab050"], 60, 14) }),
+      rock = std("#8b7d70", { roughness: 1 }), leaf = std("#3f8a3a", { side: THREE.DoubleSide }), glow = new THREE.MeshBasicMaterial({ color: C("#e8ff70") }), sticky = std("#c8e070", { roughness: 0.2 });
+    // a chunk of island rock above it
+    { const r = mesh(new THREE.DodecahedronGeometry(1.4, 1), rock, 0, 3.4, 0, 1, 0.45, 1); r.material.flatShading = true; g.add(r); }   // flat-bottomed lump of island rock
+    g.add(mesh(sph(0.22, 14, 10), vine, 0, 2.86, 0, 1.4, 0.7, 1.4));   // a knot of roots where it grips the rock
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.3; g.add(limb(new V(Math.cos(a) * 0.9, 2.85, Math.sin(a) * 0.9), new V(Math.cos(a) * 1.0, 1.6 + (i % 3) * 0.3, Math.sin(a) * 1.0), 0.04, 0.02, vine)); }
+    const body = new THREE.Group(); body.position.y = 2.95; g.add(body);   // it swings from a point just inside the rock
+    const hang = limb(new V(0, 0.05, 0), new V(0, -0.95, 0), 0.1, 0.12, vine); body.add(hang);
+    const pod = new THREE.Group(); pod.position.y = -1.45; pod.scale.setScalar(1.7); body.add(pod);   // a big body with big arms (Petra)   // the stem runs into the top of the pod
+    pod.add(mesh(sph(0.35, 18, 12), skin, 0, 0, 0, 0.9, 1.25, 0.9));
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const l = mesh(new THREE.PlaneGeometry(0.22, 0.4), leaf, Math.cos(a) * 0.3, 0.3, Math.sin(a) * 0.3); l.rotation.set(0, -a, 0.5); pod.add(l); }
+    [1, -1].forEach(s => pod.add(mesh(sph(0.05, 10, 8), glow, 0.28, -0.12, 0.12 * s)));
+    const arms = [];
+    for (let k = 0; k < 4; k++) {
+      const a = k / 4 * Math.PI * 2 + Math.PI / 4, segs = []; let parent = new THREE.Group(); parent.position.set(Math.cos(a) * 0.2, -0.3, Math.sin(a) * 0.2); parent.rotation.y = -a; pod.add(parent);
+      for (let i = 0; i < 11; i++) { const s = new THREE.Group(); s.position.y = i === 0 ? 0 : -0.3; parent.add(s); s.add(limb(new V(0, 0, 0), new V(0, -0.31, 0), 0.1 - i * 0.006, 0.094 - i * 0.006, vine)); if (i % 3 === 2) s.add(mesh(sph(0.05, 8, 6), sticky, 0.05, -0.15, 0)); segs.push(s); parent = s; }   // long, thick grabbing arms
+      parent.add(mesh(sph(0.12, 12, 8), sticky, 0, -0.32, 0, 1.3, 1, 1.3));
+      arms.push({ segs, ph: k * 1.3 });
+    }
+    // api.reach (0..1): a dragon is close, so the arms spread wide and wave hungrily.
+    // api.hold (0..1): the arms wrap round underneath it like a cage of vines (the game sets these; here they just play now and then)
+    const api = { g, pod, reach: 0, hold: 0, auto: true, update: t => {
+      if (api.auto) { const c = t % 9; api.reach = c > 4 && c < 6 ? Math.min(1, (c - 4) * 2) : c >= 6 && c < 6.5 ? 1 : 0; api.hold = c >= 6 && c < 8.5 ? Math.min(1, (c - 6) * 3, (8.5 - c) * 3) : 0; }
+      const R = api.reach, H = api.hold;
+      body.rotation.z = Math.sin(t * 0.9) * 0.12 * (1 - H); body.rotation.x = Math.sin(t * 0.7) * 0.08 * (1 - H);
+      const sway = 0.08 + R * 0.12, sp = 1.6 + R * 2.5;
+      arms.forEach(o => o.segs.forEach((s, i) => {
+        const loose = (i === 0 ? 0.5 + R * 0.5 : 0.05 - R * 0.02) + Math.sin(t * sp + o.ph + i * 0.5) * sway;
+        const wrap = i === 0 ? 0.55 : i < 4 ? 0.02 : -0.2;      // out, down, then curl back in underneath
+        s.rotation.z = loose * (1 - H) + wrap * H + Math.sin(t * 6 + i) * 0.03 * H;
+      }));
+    } };
+    return api;
+  } });
+
+// ---------- night monsters (group "Night": they only come out after dark) ----------
+const glow = (hex, o = {}) => new THREE.MeshBasicMaterial(Object.assign({ color: C(hex) }, o));
+const addGlow = (hex, op = 0.5) => new THREE.MeshBasicMaterial({ color: C(hex), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+const haloTex = canvasTex(128, 128, (x, w, h) => {
+  const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.2, "rgba(255,255,255,0.6)"); gr.addColorStop(0.5, "rgba(255,255,255,0.15)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, w, h);
+});
+function halo(hex, size, op = 0.7) { // soft additive glow that always faces the camera
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: C(hex), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.scale.set(size, size, 1); return s;
+}
+function fitUV(geo) { // ShapeGeometry UVs are raw coordinates: stretch them to 0..1 so a canvas texture covers the shape
+  geo.computeBoundingBox(); const b = geo.boundingBox, p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - b.min.x) / (b.max.x - b.min.x), (p.getY(i) - b.min.y) / (b.max.y - b.min.y));
+  uv.needsUpdate = true; return geo;
+}
+function crackTex(color, n = 22) {
+  return canvasTex(256, 256, (x, w, h) => {
+    x.fillStyle = "#000"; x.fillRect(0, 0, w, h); x.strokeStyle = color; x.lineCap = "round"; x.shadowColor = color; x.shadowBlur = 8;
+    for (let i = 0; i < n; i++) { let px = Math.random() * w, py = Math.random() * h; x.lineWidth = 2 + Math.random() * 3; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 5; k++) { px += (Math.random() - 0.5) * 50; py += (Math.random() - 0.5) * 50; x.lineTo(px, py); } x.stroke(); }
+  });
+}
+const scallops = (base, edge) => canvasTex(256, 256, (x, w, h) => { // overlapping feather scales
+  x.fillStyle = base; x.fillRect(0, 0, w, h); x.strokeStyle = edge; x.lineWidth = 3;
+  for (let r = 0; r < 12; r++) for (let c = 0; c < 9; c++) { const cx = c * 32 + (r % 2) * 16, cy = r * 22; x.beginPath(); x.arc(cx, cy, 16, 0.15 * Math.PI, 0.85 * Math.PI); x.stroke(); }
+});
+const faceTo = a => -a - Math.PI / 2; // rotation.y that points a +x-facing creature along a circle at angle a
+
+// Glowmoth Swarm: big soft moths with glowing eye-spots, circling a moonflower
+MON.push({ name: "Glowmoth Swarm", group: "Night", land: "Green Valley", ground: "#35542f", ad: [
+  "Glowing eye-spots on its wings look like the eyes of a huge beast and scare off night hunters", "Feathery antennae smell night flowers from far away", "Soft, fuzzy wings make no sound at all", "Flies in swarms around the moonflowers that only open at night"],
+  make() {
+    const g = new THREE.Group();
+    const wingTex = canvasTex(256, 256, (x, w, h) => {
+      const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#5b4386"); gr.addColorStop(0.55, "#9a7cc4"); gr.addColorStop(1, "#c9b4e6");
+      x.fillStyle = gr; x.fillRect(0, 0, w, h); x.strokeStyle = "rgba(60,36,96,0.45)"; x.lineWidth = 3;
+      for (let i = 0; i < 7; i++) { x.beginPath(); x.moveTo(w * 0.5, h); x.quadraticCurveTo(w * (0.2 + i * 0.1), h * 0.5, w * (i / 6), 0); x.stroke(); }
+    });
+    const wingM = std("#ffffff", { map: wingTex, side: THREE.DoubleSide, roughness: 0.85, emissive: C("#3a2466"), emissiveIntensity: 0.35 });
+    const fuzz = std("#d9cbb0", { roughness: 1 }), fuzzDark = std("#7a6450", { roughness: 1 }), ring = std("#2a1838", { side: THREE.DoubleSide }),
+      spotA = glow("#ffd84a", { side: THREE.DoubleSide }), spotB = glow("#b8fff0", { side: THREE.DoubleSide }), eyeM = std("#1a1020", { roughness: 0.15 });
+    const fore = new THREE.Shape(); fore.moveTo(0.1, 0); fore.quadraticCurveTo(0.38, 0.45, 0.2, 0.82); fore.quadraticCurveTo(-0.1, 0.92, -0.22, 0.6); fore.quadraticCurveTo(-0.16, 0.25, -0.04, 0);
+    const hind = new THREE.Shape(); hind.moveTo(-0.02, 0); hind.quadraticCurveTo(0.0, 0.48, -0.28, 0.56); hind.quadraticCurveTo(-0.56, 0.5, -0.48, 0.2); hind.quadraticCurveTo(-0.38, 0.0, -0.12, -0.02);
+    const foreG = fitUV(new THREE.ShapeGeometry(fore, 16)), hindG = fitUV(new THREE.ShapeGeometry(hind, 16));
+    const spot = (parent, x, y, r) => [[r, ring], [r * 0.7, spotA], [r * 0.35, spotB]].forEach(([rr, m], k) => [1, -1].forEach(f => parent.add(mesh(new THREE.CircleGeometry(rr, 20), m, x, y, f * 0.004 * (k + 1)))));
+    const moth = () => {
+      const m = new THREE.Group(), body = new THREE.Group(); m.add(body);
+      body.add(mesh(sph(0.1, 16, 12), fuzz, 0, 0, 0, 1.3, 1, 1));                      // fuzzy thorax
+      body.add(mesh(sph(0.085, 16, 12), fuzzDark, -0.22, -0.02, 0, 2.0, 0.9, 0.9));     // striped abdomen
+      for (let i = 0; i < 3; i++) body.add(mesh(new THREE.TorusGeometry(0.075 - i * 0.012, 0.012, 6, 16), fuzz, -0.15 - i * 0.07, -0.02, 0, 1, 1, 1)).children, body.children[body.children.length - 1].rotation.y = Math.PI / 2;
+      body.add(mesh(sph(0.075, 14, 10), fuzz, 0.14, 0.01, 0));
+      [1, -1].forEach(s => {
+        body.add(mesh(sph(0.035, 10, 8), eyeM, 0.18, 0.03, 0.045 * s));
+        const ant = mesh(new THREE.ConeGeometry(0.05, 0.26, 8), fuzzDark, 0.24, 0.13, 0.06 * s, 1, 1, 0.25); ant.rotation.set(s * 0.45, 0, -0.7); body.add(ant);   // feathery antennae
+        [[fore, foreG, 0.02, 0.0, 0.48, 0.12], [hind, hindG, -0.06, -0.26, 0.3, 0.08]].forEach(([, geo, wx, sx, sy, sr]) => {
+          const wg = new THREE.Group(); wg.position.set(wx, 0.04, 0.05 * s); m.add(wg);
+          const wm = mesh(geo, wingM); wm.rotation.x = s * Math.PI / 2; wm.castShadow = false; wg.add(wm);
+          spot(wm, sx, sy, sr);
+          wg.userData.s = s; m.userData.wings = (m.userData.wings || []).concat(wg);
+        });
+      });
+      return m;
+    };
+    // moonflower they circle around
+    const stemM = std("#3f6a34"), petalM = std("#f4f0ff", { side: THREE.DoubleSide, roughness: 0.5, emissive: C("#c8d8ff"), emissiveIntensity: 0.45 });
+    g.add(limb(new V(0, 0, 0), new V(0.05, 0.85, 0), 0.04, 0.03, stemM));
+    [[0.15, 0.3, 1], [-0.12, 0.45, -1]].forEach(([x, y, s]) => { const l = mesh(sph(0.14, 12, 8), stemM, x, y, 0.05 * s, 1.4, 0.15, 0.7); l.rotation.z = s * 0.4; g.add(l); });
+    const flower = new THREE.Group(); flower.position.set(0.05, 0.9, 0); g.add(flower);
+    for (let i = 0; i < 6; i++) { const p = new THREE.Group(); p.rotation.y = i / 6 * Math.PI * 2; flower.add(p); const pm = mesh(sph(0.15, 14, 10), petalM, 0.16, 0.05, 0, 1.4, 0.18, 0.7); pm.rotation.z = 0.45; p.add(pm); }
+    flower.add(mesh(sph(0.06, 12, 8), glow("#fff2a0"), 0, 0.06, 0));
+    flower.add(halo("#e8ecff", 1.2, 0.5));
+    const light = new THREE.PointLight("#ffe6a0", 0.9, 4, 2); light.position.y = 1.2; g.add(light);
+    const moths = [];
+    for (let k = 0; k < 4; k++) { const m = moth(); m.scale.setScalar(k === 0 ? 1.15 : 0.7 + k * 0.06); g.add(m); moths.push({ m, k, ph: k * 1.7 }); }
+    return { g, update: t => {
+      moths.forEach(o => {
+        const sp = o.k === 0 ? 0.35 : 0.6 + o.k * 0.08, a = t * sp + o.ph, r = o.k === 0 ? 0.55 : 1.0 + (o.k % 2) * 0.35;
+        o.m.position.set(Math.cos(a) * r, 1.45 + (o.k % 3) * 0.3 + Math.sin(t * 2.2 + o.ph) * 0.12, Math.sin(a) * r);
+        o.m.rotation.y = faceTo(a); o.m.rotation.z = Math.sin(t * 2.2 + o.ph) * 0.15;
+        const flap = 0.35 + Math.sin(t * 9 + o.ph) * 0.75;
+        o.m.userData.wings.forEach(w => { w.rotation.x = -w.userData.s * flap; });
+      });
+      flower.rotation.y = t * 0.2; light.intensity = 0.8 + Math.sin(t * 1.5) * 0.15;
+    } };
+  } });
+
+// Shade Lynx: inky black cat, huge shining eyes, ear tufts, big silent paws
+MON.push({ name: "Shade Lynx", group: "Night", land: "Green Valley forests", ground: "#2f4a2c", ad: [
+  "Huge shining eyes see in almost total darkness", "Inky black fur vanishes into the night shadows", "Big, soft padded paws make no sound when it sneaks", "Ear tufts catch the tiniest rustle in the leaves"],
+  make() {
+    const g = new THREE.Group();
+    const fur = std("#27232f", { roughness: 0.38, metalness: 0.15 }), muzzleM = std("#3a3544", { roughness: 0.5 }), noseM = std("#5a3a4c", { roughness: 0.3 }),
+      eyeM = glow("#c8f04a"), pupilM = glow("#08060a"), padM = std("#4a4256", { roughness: 0.6 });
+    const body = new THREE.Group(); g.add(body);
+    body.add(mesh(sph(0.45, 26, 16), fur, -0.05, 0.85, 0, 1.6, 0.78, 0.74));
+    body.add(mesh(sph(0.36, 22, 14), fur, 0.45, 0.92, 0, 1, 1.05, 0.95));                       // chest
+    const head = new THREE.Group(); head.position.set(0.82, 1.22, 0); body.add(head);
+    head.add(mesh(sph(0.27, 24, 16), fur, 0, 0, 0, 1, 0.9, 1.05));
+    head.add(mesh(sph(0.13, 16, 12), muzzleM, 0.2, -0.08, 0, 0.9, 0.7, 1.3));                     // muzzle
+    head.add(mesh(sph(0.04, 10, 8), noseM, 0.31, -0.03, 0, 0.8, 0.7, 1.2));
+    const eyeMeshes = [];
+    [1, -1].forEach(s => {
+      const e = new THREE.Group(); e.position.set(0.19, 0.07, 0.115 * s); e.rotation.y = -s * 0.35; head.add(e);
+      e.add(mesh(sph(0.085, 20, 14), eyeM));                                                       // huge glowing eye
+      e.add(mesh(sph(0.05, 12, 10), pupilM, 0.06, 0, 0, 0.5, 1.4, 0.32));                         // slit pupil
+      e.add(mesh(sph(0.016, 8, 6), glow("#ffffff"), 0.08, 0.04, -0.02 * s));                      // shine
+      e.add(halo("#d8ff6a", 0.32, 0.35)); eyeMeshes.push(e);
+      const ear = new THREE.Group(); ear.position.set(-0.04, 0.2, 0.13 * s); ear.rotation.x = s * 0.25; head.add(ear);
+      ear.add(mesh(new THREE.ConeGeometry(0.09, 0.24, 12), fur, 0, 0.1, 0, 1, 1, 0.55));
+      ear.add(mesh(new THREE.ConeGeometry(0.018, 0.16, 6), fur, 0, 0.29, 0));                     // ear tuft
+      for (let k = 0; k < 3; k++) { const c = mesh(new THREE.ConeGeometry(0.06, 0.2, 8), fur, -0.02 - k * 0.05, -0.12 - k * 0.03, 0.22 * s, 1, 1, 0.5); c.rotation.x = s * (1.9 + k * 0.25); head.add(c); }   // cheek ruff
+    });
+    const legs = [];
+    [[0.5, 0.2], [0.5, -0.2], [-0.5, 0.2], [-0.5, -0.2]].forEach(([x, z], k) => {
+      const l = new THREE.Group(); l.position.set(x, 0.8, z); body.add(l);
+      const kx = x > 0 ? 0.03 : -0.1;
+      l.add(mesh(sph(0.15, 16, 12), fur, 0, 0.02, 0, 1.1, 1.2, 0.9));                               // shoulder / hip
+      l.add(limb(new V(0, 0, 0), new V(kx, -0.42, 0), 0.14, 0.09, fur));
+      l.add(mesh(sph(0.09, 14, 10), fur, kx, -0.42, 0));                                           // knee
+      l.add(limb(new V(kx, -0.42, 0), new V(0.02, -0.72, 0), 0.09, 0.08, fur));
+      l.add(mesh(sph(0.13, 16, 12), fur, 0.06, -0.74, 0, 1.35, 0.55, 1.2));                       // big padded paw
+      for (let c = -1; c <= 1; c++) l.add(mesh(sph(0.045, 10, 8), padM, 0.2, -0.76, c * 0.065, 1, 0.7, 1));  // soft toe pads
+      legs.push({ l, ph: [0, Math.PI, Math.PI, 0][k] });
+    });
+    const tail = new THREE.Group(); tail.position.set(-0.72, 1.0, 0); body.add(tail);
+    tail.add(mesh(sph(0.12, 14, 10), fur, -0.12, 0.06, 0, 1.6, 1, 1));                             // short bobtail
+    tail.add(mesh(sph(0.07, 12, 8), glow("#0a080c"), -0.28, 0.1, 0));
+    return { g, update: t => {
+      legs.forEach(o => o.l.rotation.z = Math.sin(t * 1.6 + o.ph) * 0.18);
+      body.position.y = -Math.abs(Math.sin(t * 1.6)) * 0.02;
+      head.rotation.y = Math.sin(t * 0.5) * 0.35; head.rotation.z = -0.05 + Math.sin(t * 0.8) * 0.05;
+      tail.rotation.z = 0.3 + Math.sin(t * 3.0) * 0.25;
+      const blink = (t % 4.5) > 4.35 ? 0.1 : 1; eyeMeshes.forEach(e => e.scale.y = blink);
+    } };
+  } });
+
+// Hootclaw: bear body with an owl's face, feathers and ear tufts; head swivels
+MON.push({ name: "Hootclaw", group: "Night", land: "Green Valley forests", ground: "#2f4a2c", ad: [
+  "Giant owl eyes gather moonlight to hunt in the dark", "Turns its head almost all the way round without moving its body", "Soft feathers muffle its heavy footsteps", "Strong bear arms and claws for climbing and digging"],
+  make() {
+    const g = new THREE.Group();
+    const furTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = "#6b4a32"; x.fillRect(0, 0, w, h); x.strokeStyle = "rgba(40,24,14,0.45)"; x.lineWidth = 2; for (let i = 0; i < 900; i++) { const px = Math.random() * w, py = Math.random() * h; x.beginPath(); x.moveTo(px, py); x.lineTo(px + (Math.random() - 0.5) * 6, py + 10); x.stroke(); } });
+    const fur = std("#ffffff", { map: furTex, roughness: 0.95 }), feathers = std("#ffffff", { map: scallops("#8a6440", "#4e341e"), roughness: 0.85 }),
+      bib = std("#ffffff", { map: scallops("#e2cfa4", "#a88a5c"), roughness: 0.85 }), face = std("#efe3c6", { roughness: 0.8 }), rimM = std("#3a2616"),
+      eyeM = glow("#ffb020"), beakM = std("#3a3430", { roughness: 0.35 }), claw = std("#2a2420", { roughness: 0.4 });
+    g.add(mesh(sph(0.75, 30, 20), fur, 0, 1.3, 0, 0.9, 1.1, 0.95));                               // bear body
+    g.add(mesh(sph(0.6, 28, 18), bib, 0.3, 1.4, 0, 0.62, 1.0, 0.92));                             // feathered chest
+    const head = new THREE.Group(); head.position.set(0.08, 2.25, 0); g.add(head);
+    head.add(mesh(sph(0.44, 28, 20), feathers, 0, 0, 0, 1, 0.95, 1.05));
+    head.add(mesh(sph(0.36, 26, 18), face, 0.3, -0.04, 0, 0.45, 0.88, 1.0));                      // flat facial disc
+    [1, -1].forEach(s => {
+      head.add(mesh(sph(0.19, 20, 14), face, 0.33, 0.05, 0.15 * s, 0.45, 1, 1));                  // heart-shaped face around each eye
+      head.add(mesh(sph(0.135, 18, 14), rimM, 0.36, 0.06, 0.15 * s, 0.6, 1, 1));                 // dark eye ring
+      head.add(mesh(sph(0.11, 20, 14), eyeM, 0.4, 0.06, 0.15 * s));                               // big glowing eye
+      head.add(mesh(sph(0.06, 14, 10), glow("#140a04"), 0.48, 0.06, 0.15 * s, 0.6, 1, 1));
+      head.add(mesh(sph(0.018, 8, 6), glow("#ffffff"), 0.51, 0.1, 0.13 * s));
+      const h = halo("#ffb030", 0.4, 0.3); h.position.set(0.46, 0.06, 0.15 * s); head.add(h);
+      const tuft = new THREE.Group(); tuft.position.set(-0.02, 0.32, 0.2 * s); tuft.rotation.x = s * 0.45; head.add(tuft);
+      for (let k = 0; k < 3; k++) { const f = mesh(new THREE.ConeGeometry(0.06 - k * 0.012, 0.32 - k * 0.06, 8), feathers, -k * 0.05, 0.13 - k * 0.03, 0, 1, 1, 0.45); f.rotation.z = 0.15 + k * 0.2; tuft.add(f); }  // ear tufts
+    });
+    const beak = mesh(new THREE.ConeGeometry(0.06, 0.2, 10), beakM, 0.48, -0.1, 0); beak.rotation.z = Math.PI + 0.3; head.add(beak);
+    [1, -1].forEach(s => {
+      g.add(mesh(sph(0.3, 18, 12), fur, 0.05, 1.8, 0.58 * s));                                      // shoulder
+      g.add(limb(new V(0.08, 1.75, 0.62 * s), new V(0.3, 1.05, 0.72 * s), 0.2, 0.15, fur));         // thick arm
+      for (let k = 0; k < 3; k++) { const f = mesh(sph(0.12, 10, 8), feathers, -0.1 - k * 0.02, 1.55 - k * 0.2, 0.78 * s, 0.5, 1.4, 0.4); f.rotation.x = s * 0.2; g.add(f); }  // arm feathers
+      g.add(mesh(sph(0.18, 16, 12), fur, 0.36, 0.98, 0.72 * s, 1.1, 0.9, 1));                      // paw
+      for (let k = -1; k <= 1; k++) { const c = mesh(new THREE.ConeGeometry(0.03, 0.14, 6), claw, 0.52, 0.88, 0.72 * s + k * 0.07); c.rotation.z = -Math.PI / 2 - 0.6; g.add(c); }
+      g.add(limb(new V(0, 0.75, 0.32 * s), new V(0.05, 0.2, 0.36 * s), 0.24, 0.2, fur));            // leg
+      g.add(mesh(sph(0.26, 18, 12), fur, 0.15, 0.1, 0.38 * s, 1.5, 0.45, 1.1));                     // big foot
+      for (let k = -1; k <= 1; k++) { const c = mesh(new THREE.ConeGeometry(0.035, 0.14, 6), claw, 0.54, 0.07, 0.38 * s + k * 0.1); c.rotation.z = -Math.PI / 2; g.add(c); }
+    });
+    for (let k = -2; k <= 2; k++) { const f = mesh(sph(0.16, 12, 8), feathers, -0.66, 0.7, k * 0.1, 0.4, 1.3, 0.5); f.rotation.x = k * 0.25; f.rotation.z = -0.5; g.add(f); }  // tail feathers
+    return { g, update: t => {
+      head.rotation.y = Math.sin(t * 0.45) ** 3 * 1.2;   // looks ahead, then slowly swivels its head far round
+      head.rotation.z = Math.sin(t * 0.9) * 0.06;
+      g.scale.y = 1 + Math.sin(t * 1.3) * 0.012;
+    } };
+  } });
+
+// Bog Wisp: floating see-through ghost lights over the pond
+MON.push({ name: "Bog Wisp", group: "Night", land: "Green Valley pond", ground: "#2e3e2a", ad: [
+  "Glows in the dark to lure curious creatures into the bog", "See-through body is almost invisible in daylight", "Floats just above the water and never gets wet", "Always drifts in small groups that bob and flicker together"],
+  make() {
+    const g = new THREE.Group();
+    const water = mesh(new THREE.CircleGeometry(1.8, 48), std("#1d3a44", { roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.9 }), 0, 0.02, 0);
+    water.rotation.x = -Math.PI / 2; water.castShadow = false; g.add(water);
+    const padM = std("#3f7a3a", { roughness: 0.5, side: THREE.DoubleSide }), reedM = std("#4a6a30"), tailM = std("#5a3a22");
+    [[0.9, 0.6, 0.28], [-0.8, -0.9, 0.22], [-1.1, 0.5, 0.18], [0.5, -1.2, 0.2]].forEach(([x, z, r], i) => { const p = mesh(new THREE.CircleGeometry(r, 20, 0.3, Math.PI * 2 - 0.6), padM, x, 0.035, z); p.rotation.x = -Math.PI / 2; p.rotation.z = i * 1.7; g.add(p); });
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + 0.3, r = 1.75 + (i % 3) * 0.1, h = 0.8 + (i % 4) * 0.2; const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      g.add(limb(new V(x, 0, z), new V(x * 1.03, h, z * 1.03), 0.02, 0.012, reedM)); if (i % 2 === 0) g.add(mesh(sph(0.045, 12, 8), tailM, x * 1.02, h - 0.14, z * 1.02, 1, 2.6, 1)); }
+    const colors = ["#7dffc8", "#6ad8ff", "#c8ff7a", "#9affe8"];
+    const wisps = colors.map((col, k) => {
+      const w = new THREE.Group(); g.add(w);
+      const shellM = addGlow(col, 0.32), coreM = glow("#f2fff8");
+      w.add(mesh(sph(0.09, 16, 12), coreM));
+      const drop = []; for (let i = 0; i <= 24; i++) { const a = Math.PI - i / 24 * Math.PI; drop.push(new THREE.Vector2(0.25 * Math.sin(a) * Math.pow(Math.sin(a / 2), 1.4), 0.3 * Math.cos(a) + 0.12)); }
+      const flame = mesh(new THREE.LatheGeometry(drop, 28), shellM); flame.castShadow = false; w.add(flame);   // teardrop ghost-light
+      const inner = mesh(sph(0.14, 18, 12), addGlow(col, 0.35), 0, -0.02, 0); inner.castShadow = false; w.add(inner);
+      w.add(halo(col, 1.1, 0.6));
+      if (k === 0) [1, -1].forEach(s => w.add(mesh(sph(0.035, 10, 8), glow("#0b2a20"), 0.16, 0.02, 0.07 * s, 0.6, 1.3, 1)));
+      const refl = mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ map: haloTex, color: C(col), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+      refl.rotation.x = -Math.PI / 2; refl.castShadow = false; g.add(refl);
+      w.scale.setScalar(k === 0 ? 1.3 : 0.75 + k * 0.08);
+      return { w, flame, refl, k, ph: k * 1.6 };
+    });
+    const light = new THREE.PointLight("#7dffc8", 1.2, 4, 2); g.add(light);
+    return { g, update: t => {
+      wisps.forEach(o => {
+        const a = t * 0.3 + o.ph, r = o.k === 0 ? 0.25 : 0.8 + (o.k % 2) * 0.3;
+        const x = Math.cos(a) * r, z = Math.sin(a) * r, y = (o.k === 0 ? 1.15 : 0.7 + o.k * 0.18) + Math.sin(t * 1.8 + o.ph) * 0.15;
+        o.w.position.set(x, y, z); o.w.rotation.y = o.k === 0 ? Math.sin(t * 0.4) * 0.6 : faceTo(a);
+        o.flame.scale.set(1, 1 + Math.sin(t * 9 + o.ph) * 0.15, 1);
+        o.refl.position.set(x, 0.04, z); o.refl.material.opacity = 0.5 - y * 0.15;
+      });
+      light.position.copy(wisps[0].w.position);
+    } };
+  } });
+
+// Cinder Bat: small dark bats with ember-glowing wings, find prey by heat
+MON.push({ name: "Cinder Bat", group: "Night", land: "Fire Mountain", ground: "#2a201c", ad: [
+  "A glowing heat-pit nose finds warm creatures in total darkness", "Big ears hear echoes bounce off the rocks", "Dark, sooty fur hides it in the night smoke", "Flies in swarms, wings glowing like embers"],
+  make() {
+    const g = new THREE.Group();
+    const veins = canvasTex(256, 256, (x, w, h) => {
+      x.fillStyle = "#000"; x.fillRect(0, 0, w, h); x.strokeStyle = "#ff7a20"; x.shadowColor = "#ffb040"; x.shadowBlur = 8; x.lineCap = "round";
+      [[0.85, 0], [0.55, 0.05], [0.3, 0.3], [0.05, 0.55], [0.0, 0.95]].forEach(([ex, ey], i) => { x.lineWidth = 5 - i * 0.6; x.beginPath(); x.moveTo(w * 0.8, h); x.quadraticCurveTo(w * (0.75 - i * 0.05), h * 0.6, w * ex, h * ey); x.stroke(); });
+      const gr = x.createLinearGradient(0, 0, w * 0.35, 0); gr.addColorStop(0, "rgba(255,110,30,0.9)"); gr.addColorStop(1, "rgba(255,110,30,0)"); x.fillStyle = gr; x.fillRect(0, 0, w * 0.35, h);   // glowing trailing edge
+    });
+    const wingM = std("#2a1a16", { side: THREE.DoubleSide, roughness: 0.95, emissive: new THREE.Color("#ffffff"), emissiveMap: veins, emissiveIntensity: 1.3 });
+    const fur = std("#2e2420", { roughness: 0.95 }), earIn = std("#3a2018", { emissive: C("#ff5a1a"), emissiveIntensity: 0.6 }), eyeM = glow("#ffc850"), noseM = glow("#ff5a1a");
+    const shape = new THREE.Shape(); shape.moveTo(0.1, 0); shape.lineTo(0.2, 0.42); shape.lineTo(0.06, 0.86);
+    shape.quadraticCurveTo(-0.02, 0.62, -0.18, 0.64); shape.quadraticCurveTo(-0.16, 0.4, -0.34, 0.36); shape.quadraticCurveTo(-0.22, 0.18, -0.18, 0); shape.lineTo(0.1, 0);
+    const wingG = fitUV(new THREE.ShapeGeometry(shape, 12));
+    const bat = () => {
+      const b = new THREE.Group();
+      b.add(mesh(sph(0.15, 18, 12), fur, 0, 0, 0, 1.35, 1, 0.95));
+      b.add(mesh(sph(0.12, 16, 12), fur, 0.18, 0.05, 0));
+      b.add(mesh(sph(0.035, 10, 8), noseM, 0.29, 0.03, 0, 0.8, 0.7, 1.2));
+      b.add(halo("#ff6a20", 0.3, 0.6)).children; b.children[b.children.length - 1].position.set(0.3, 0.03, 0);
+      const wings = [];
+      [1, -1].forEach(s => {
+        b.add(mesh(sph(0.026, 8, 6), eyeM, 0.26, 0.09, 0.05 * s));
+        const ear = new THREE.Group(); ear.position.set(0.15, 0.14, 0.06 * s); ear.rotation.x = s * 0.35; b.add(ear);
+        ear.add(mesh(new THREE.ConeGeometry(0.055, 0.17, 10), fur, 0, 0.07, 0, 1, 1, 0.55));
+        ear.add(mesh(new THREE.ConeGeometry(0.035, 0.12, 8), earIn, 0.012, 0.06, 0, 1, 1, 0.4));
+        const wg = new THREE.Group(); wg.position.set(0.02, 0.04, 0.09 * s); b.add(wg);
+        const wm = mesh(wingG, wingM); wm.rotation.x = s * Math.PI / 2; wm.castShadow = false; wg.add(wm);
+        wg.add(limb(new V(0.1, 0, 0), new V(0.2, 0, 0.42 * s), 0.014, 0.012, fur)); wg.add(limb(new V(0.2, 0, 0.42 * s), new V(0.06, 0, 0.86 * s), 0.012, 0.006, fur));  // wing arm bones
+        wings.push({ wg, s });
+        const foot = limb(new V(-0.12, -0.08, 0.04 * s), new V(-0.24, -0.13, 0.05 * s), 0.014, 0.01, fur); b.add(foot);
+      });
+      return { b, wings };
+    };
+    const bats = [];
+    for (let k = 0; k < 6; k++) { const o = bat(); o.b.scale.setScalar(k === 0 ? 1.5 : 0.8 + (k % 3) * 0.12); g.add(o.b); bats.push(Object.assign(o, { k, ph: k * 1.05 })); }
+    // a few hot rocks below
+    const rock = std("#3a2e28", { roughness: 0.95, flatShading: true, emissive: new THREE.Color("#ffffff"), emissiveMap: crackTex("#ff6a1a", 10), emissiveIntensity: 1 });
+    [[0.4, 0.3, 0.3], [-0.6, -0.5, 0.25], [0.2, -0.9, 0.2]].forEach(([x, z, r]) => { const m = mesh(new THREE.DodecahedronGeometry(r, 0), rock, x, r * 0.5, z); m.rotation.set(1, 2, 3); g.add(m); });
+    const n = 50, pos = new Float32Array(n * 3), off = []; for (let i = 0; i < n; i++) off.push([Math.random() * 3 - 1.5, Math.random() * 2.5, Math.random() * 3 - 1.5]);
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#ff9a40"), size: 0.05, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    const light = new THREE.PointLight("#ff7a2a", 1.2, 4, 2); light.position.set(0, 1.4, 0); g.add(light);
+    return { g, update: t => {
+      bats.forEach(o => {
+        const a = t * (o.k === 0 ? 0.4 : 0.9 + o.k * 0.08) + o.ph, r = o.k === 0 ? 0.35 : 0.95 + (o.k % 2) * 0.4;
+        o.b.position.set(Math.cos(a) * r, 1.4 + (o.k % 3) * 0.3 + Math.sin(t * 3 + o.ph) * 0.12, Math.sin(a) * r);
+        o.b.rotation.y = faceTo(a); o.b.rotation.x = -0.25 * (o.k ? 1 : 0.5);
+        const flap = 0.2 + Math.sin(t * 11 + o.ph) * 0.8; o.wings.forEach(w => w.wg.rotation.x = -w.s * flap);
+      });
+      wingM.emissiveIntensity = 1.2 + Math.sin(t * 3) * 0.3;
+      for (let i = 0; i < n; i++) { const o = off[i]; pos[i * 3] = o[0] + Math.sin(t * 0.6 + i) * 0.15; pos[i * 3 + 1] = (o[1] + t * 0.25) % 2.5; pos[i * 3 + 2] = o[2]; }
+      pg.attributes.position.needsUpdate = true;
+    } };
+  } });
+
+// Magma Glowworm: segmented rocky worm with glowing lava cracks, inching along
+MON.push({ name: "Magma Glowworm", group: "Night", land: "Fire Mountain", ground: "#2a201c", ad: [
+  "Glowing lava cracks light its way through dark tunnels at night", "Rocky segments bend so it can squeeze through tight cracks", "Comes out of the ground only when the rocks cool after sunset", "Glows brighter to warn hunters that it's too hot to bite"],
+  make() {
+    const g = new THREE.Group();
+    const rockM = std("#2c201b", { roughness: 0.6, emissive: new THREE.Color("#ffffff"), emissiveMap: crackTex("#ff7a20", 18), emissiveIntensity: 1.5 });
+    const leg = std("#1e1612", { roughness: 0.7 });
+    const N = 10, segs = [];
+    for (let i = 0; i < N; i++) {
+      const r = 0.24 * (1 - i / N * 0.55), s = new THREE.Group(); g.add(s);
+      s.add(mesh(sph(r, 22, 16), rockM, 0, 0, 0, 1.15, 1, 1));
+      const ringM = glow("#ff7a1a"), ring = mesh(new THREE.TorusGeometry(r * 0.93, r * 0.08, 8, 28), ringM, -r * 0.35, 0, 0); ring.rotation.y = Math.PI / 2; s.add(ring);
+      [1, -1].forEach(z => s.add(mesh(sph(r * 0.28, 8, 6), leg, 0, -r * 0.85, z * r * 0.55, 1, 0.6, 1)));   // stubby feet
+      segs.push({ s, r, ringM });
+    }
+    const head = new THREE.Group(); g.add(head);
+    head.add(mesh(sph(0.27, 24, 16), rockM, 0, 0, 0, 1.15, 0.95, 1));
+    head.add(mesh(sph(0.08, 14, 10), glow("#ff9a30"), 0.28, -0.1, 0, 0.5, 0.45, 1));               // glowing mouth
+    [1, -1].forEach(s => {
+      head.add(mesh(sph(0.06, 12, 8), glow("#fff2a0"), 0.22, 0.1, 0.12 * s));
+      head.add(mesh(sph(0.028, 8, 6), glow("#1a0c06"), 0.27, 0.1, 0.13 * s));
+      const m = mesh(new THREE.ConeGeometry(0.035, 0.16, 8), leg, 0.3, -0.06, 0.11 * s); m.rotation.set(-s * 0.6, 0, -Math.PI / 2); head.add(m);   // little mandibles
+    });
+    head.add(halo("#ff8a30", 1.2, 0.35));
+    // cooling lava puddles and rocks around it
+    const lavaTex = canvasTex(128, 128, (x, w, h) => { const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, "#ffe070"); gr.addColorStop(0.45, "#ff7a1a"); gr.addColorStop(0.8, "#a8300c"); gr.addColorStop(1, "#2a1410"); x.fillStyle = gr; x.fillRect(0, 0, w, h); });
+    const crust = std("#2a201c", { roughness: 1 });
+    [[1.2, 0.9, 0.35], [-1.3, -0.8, 0.45], [-0.3, 1.3, 0.25]].forEach(([x, z, r]) => { const p = mesh(new THREE.CircleGeometry(r, 28), new THREE.MeshBasicMaterial({ map: lavaTex }), x, 0.014, z); p.rotation.x = -Math.PI / 2; p.castShadow = false; g.add(p);
+      g.add(mesh(new THREE.TorusGeometry(r, r * 0.12, 6, 28), crust, x, 0.01, z, 1, 1, 0.4)).children; g.children[g.children.length - 1].rotation.x = -Math.PI / 2; });
+    const stone = std("#3a302a", { flatShading: true, roughness: 1 });
+    [[1.0, -1.0, 0.22], [-1.0, 1.0, 0.3], [1.5, 0.3, 0.16]].forEach(([x, z, r]) => g.add(mesh(new THREE.DodecahedronGeometry(r, 0), stone, x, r * 0.5, z)));
+    const light = new THREE.PointLight("#ff7a2a", 1.4, 4, 2); g.add(light);
+    const path = (u, t) => { // u: 0 = head, 1 = tail
+      const hump = Math.max(0, Math.sin(u * Math.PI * 2 - t * 2.6)) ** 2 * 0.22 * (1 - u * 0.4);
+      return new V(1.0 - u * 2.3, 0.22 * (1 - u * 0.5) + hump + (u < 0.15 ? (0.15 - u) * 1.6 * (0.5 + 0.5 * Math.sin(t * 0.9)) : 0), Math.sin(u * 3.5 - t * 1.2) * 0.22 * u);
+    };
+    return { g, update: t => {
+      segs.forEach((o, i) => { const u = (i + 1) / (N + 1); o.s.position.copy(path(u, t)); o.s.lookAt(path(u - 0.03, t)); o.s.rotateY(-Math.PI / 2);
+        o.ringM.color.copy(C("#ff7a1a")).multiplyScalar(0.7 + 0.6 * Math.max(0, Math.sin(t * 3 - i * 0.7))); });
+      head.position.copy(path(0, t)); head.lookAt(path(-0.05, t)); head.rotateY(-Math.PI / 2);
+      rockM.emissiveIntensity = 1.3 + Math.sin(t * 2) * 0.3;
+      light.position.copy(head.position).y += 0.4;
+    } };
+  } });
+
+// Moon Wolf: silver fur that shines in moonlight, sits and howls
+MON.push({ name: "Moon Wolf", group: "Night", land: "Frost Peaks", ground: "#a8b6c8", ad: [
+  "Silver fur shines in moonlight, so the pack can see each other at night", "Howls at the moon to call its pack together across the peaks", "Glowing eyes see clearly on the darkest nights", "A crescent mark on its forehead shows which pack it belongs to"],
+  make() {
+    const g = new THREE.Group();
+    const furTex = canvasTex(256, 256, (x, w, h) => { x.fillStyle = "#cfd8e6"; x.fillRect(0, 0, w, h); x.strokeStyle = "rgba(255,255,255,0.6)"; x.lineWidth = 2; for (let i = 0; i < 700; i++) { const px = Math.random() * w, py = Math.random() * h; x.beginPath(); x.moveTo(px, py); x.lineTo(px + 8, py + (Math.random() - 0.5) * 4); x.stroke(); } x.strokeStyle = "rgba(90,105,140,0.22)"; for (let i = 0; i < 300; i++) { const px = Math.random() * w, py = Math.random() * h; x.beginPath(); x.moveTo(px, py); x.lineTo(px + 8, py + (Math.random() - 0.5) * 4); x.stroke(); } });
+    const fur = std("#ffffff", { map: furTex, roughness: 0.32, metalness: 0.3, emissive: C("#4a5a88"), emissiveIntensity: 0.18 }),
+      dark = std("#7a88a8", { roughness: 0.4, metalness: 0.3 }), nose = std("#1e2430", { roughness: 0.3 }), markM = glow("#eaf4ff"), eyeM = glow("#8ae0ff");
+    // sitting body
+    g.add(mesh(sph(0.42, 24, 16), fur, -0.32, 0.45, 0, 1.15, 0.95, 1.0));                          // haunches
+    const torso = mesh(sph(0.42, 24, 16), fur, 0.02, 0.85, 0, 1.45, 0.85, 0.85); torso.rotation.z = 0.75; g.add(torso);
+    g.add(mesh(sph(0.36, 22, 14), fur, 0.3, 1.18, 0, 1, 1.1, 1));                                 // chest
+    const ruff = [];
+    for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; const c = mesh(new THREE.ConeGeometry(0.1, 0.3, 6), fur, 0.38, 1.35 + Math.sin(a) * 0.34, Math.cos(a) * 0.34); c.rotation.set(Math.cos(a) * 1.2, 0, -Math.sin(a) * 1.2 - 0.6); g.add(c); }
+    const head = new THREE.Group(); head.position.set(0.5, 1.7, 0); head.scale.setScalar(1.15); g.add(head);
+    head.add(mesh(sph(0.25, 20, 14), fur, 0, 0, 0, 1.1, 0.95, 0.95));
+    head.add(mesh(sph(0.13, 16, 10), fur, 0.27, -0.02, 0, 1.7, 0.6, 0.8));                        // upper snout
+    head.add(mesh(sph(0.05, 10, 8), nose, 0.5, 0.0, 0));
+    const jaw = new THREE.Group(); jaw.position.set(0.12, -0.1, 0); head.add(jaw);
+    jaw.add(mesh(sph(0.1, 14, 10), fur, 0.15, -0.01, 0, 1.8, 0.45, 0.7));
+    head.add(mesh(sph(0.09, 12, 8), std("#3a1a24"), 0.2, -0.08, 0, 1.6, 0.4, 0.6));                // mouth inside
+    eyes(head, 0.17, 0.08, 0.12, 0.04, "#8ae0ff", false);
+    [1, -1].forEach(s => { const h = halo("#8ae0ff", 0.22, 0.4); h.position.set(0.2, 0.08, 0.12 * s); head.add(h);
+      const e = mesh(new THREE.ConeGeometry(0.08, 0.22, 8), dark, -0.06, 0.24, 0.12 * s); e.rotation.x = s * 0.25; head.add(e); });
+    const mark = mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 16, Math.PI), markM, 0.2, 0.17, 0); mark.rotation.set(0, Math.PI / 2, Math.PI * 0.6); head.add(mark);   // crescent moon mark
+    [1, -1].forEach(s => {
+      g.add(limb(new V(0.38, 1.0, 0.18 * s), new V(0.45, 0.12, 0.2 * s), 0.1, 0.075, fur));         // straight front legs
+      g.add(mesh(sph(0.11, 14, 10), fur, 0.52, 0.07, 0.2 * s, 1.5, 0.55, 1.2));
+      g.add(mesh(sph(0.26, 18, 12), fur, -0.22, 0.38, 0.3 * s, 1.35, 1.0, 0.6));                     // folded hind leg
+      g.add(mesh(sph(0.12, 14, 10), fur, 0.0, 0.07, 0.36 * s, 2.2, 0.55, 1.0));                      // hind paw
+    });
+    const tail = new THREE.Group(); tail.position.set(-0.6, 0.16, 0.05); tail.rotation.y = -0.6; g.add(tail);   // bushy tail curled on the ground
+    tail.add(mesh(sph(0.16, 16, 10), fur, -0.28, 0, 0, 2.3, 0.8, 1.0));
+    tail.add(mesh(sph(0.1, 12, 8), dark, -0.62, 0, 0, 1.5, 0.85, 0.9));
+    // howl rings that float up from the mouth
+    const rings = []; for (let i = 0; i < 3; i++) { const r = mesh(new THREE.TorusGeometry(0.2, 0.02, 8, 40), addGlow("#9fd0ff", 0), 0, 0, 0); r.castShadow = false; g.add(r); rings.push(r); }
+    const light = new THREE.PointLight("#bcd4ff", 0.6, 4, 2); light.position.set(1.2, 2.2, 0.8); g.add(light);
+    const twinkles = [[0.3, 1.5, 0.3], [0.45, 1.2, -0.3], [-0.1, 1.05, 0.33], [-0.4, 0.75, -0.38], [-0.45, 0.55, 0.4], [0.15, 0.7, 0.3], [0.4, 1.9, 0.2], [-0.2, 1.0, -0.3], [-0.75, 0.25, 0.45]].map(([x, y, z], i) => {
+      const h = halo("#e8f2ff", 0.18, 0); h.position.set(x, y, z); g.add(h); return { h, ph: i * 2.1 }; });   // moonlight glints on the silver fur
+    const tip = new V();
+    return { g, update: t => {
+      const cyc = t % 7, howl = cyc > 3.5 ? Math.sin((cyc - 3.5) / 3.5 * Math.PI) : 0;
+      head.rotation.z = 0.05 + howl * 1.0 + Math.sin(t * 1.3) * 0.03 * (1 - howl); jaw.rotation.z = -howl * 0.45;
+      tail.rotation.y = -0.6 + Math.sin(t * 1.5) * 0.15 * (1 - howl);
+      fur.emissiveIntensity = 0.16 + Math.sin(t * 1.1) * 0.05;
+      twinkles.forEach(o => { const k = Math.max(0, Math.sin(t * 1.7 + o.ph)) ** 6; o.h.material.opacity = k; o.h.scale.setScalar(0.1 + k * 0.2); });
+      tip.set(0.55, 0, 0).applyAxisAngle(new V(0, 0, 1), head.rotation.z).add(head.position);
+      rings.forEach((r, i) => { const u = ((t * 0.6 + i / 3) % 1); r.position.set(tip.x + u * 0.5 * Math.cos(head.rotation.z), tip.y + u * 0.9, 0); r.scale.setScalar(0.4 + u * 1.4);
+        r.rotation.set(0, Math.PI / 2, head.rotation.z); r.material.opacity = howl > 0.3 ? (1 - u) * howl : 0; });
+    } };
+  } });
+
+// Star Jelly: see-through night-sky jelly full of twinkling stars
+MON.push({ name: "Star Jelly", group: "Night", land: "Sky Islands", ground: "#8f9cb4", ad: [
+  "Glows like a patch of starry sky so it hides among the real stars", "See-through, deep-blue bell is invisible against the night", "Trailing tentacles with glowing tips lure night insects", "Rises high above the islands only after dark"],
+  make() {
+    const g = new THREE.Group();
+    const bellM = new THREE.MeshPhysicalMaterial({ color: C("#3a4aa8"), roughness: 0.15, transparent: true, opacity: 0.5, emissive: C("#3a3ab8"), emissiveIntensity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+    const starTex = canvasTex(64, 64, (x, w, h) => { const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.15, "rgba(255,255,255,0.8)"); gr.addColorStop(0.4, "rgba(255,255,255,0.1)"); gr.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      x.fillStyle = "rgba(255,255,255,0.9)"; x.beginPath(); x.moveTo(32, 2); x.lineTo(35, 29); x.lineTo(62, 32); x.lineTo(35, 35); x.lineTo(32, 62); x.lineTo(29, 35); x.lineTo(2, 32); x.lineTo(29, 29); x.closePath(); x.fill(); });
+    const body = new THREE.Group(); g.add(body);
+    const pts = []; for (let i = 0; i <= 16; i++) { const a = i / 16 * Math.PI * 0.55; pts.push(new THREE.Vector2(Math.sin(a) * 0.8 * (1 + (i > 12 ? (i - 12) * 0.035 : 0)), Math.cos(a) * 0.65)); }
+    const bell = new THREE.Mesh(new THREE.LatheGeometry(pts, 40), bellM); body.add(bell);
+    body.add(mesh(sph(0.26, 18, 14), addGlow("#7a7aff", 0.5), 0, 0.28, 0, 1, 0.7, 1));
+    body.add(halo("#6a7aff", 2.6, 0.45));
+    // stars inside the bell
+    const makeStars = (n, size, col) => { const p = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 0.62, y = 0.08 + Math.random() * 0.48; const maxR = Math.sin(Math.acos(Math.min(1, y / 0.65))) * 0.75; p.set([Math.cos(a) * Math.min(r, maxR), y, Math.sin(a) * Math.min(r, maxR)], i * 3); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(p, 3));
+      return new THREE.Points(geo, new THREE.PointsMaterial({ map: starTex, color: C(col), size, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); };
+    const starsA = makeStars(40, 0.12, "#ffffff"), starsB = makeStars(25, 0.2, "#fff2b0"); body.add(starsA); body.add(starsB);
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; body.add(mesh(sph(0.03, 8, 6), glow("#c8d0ff"), Math.cos(a) * 0.86, 0.02, Math.sin(a) * 0.86)); }   // glowing rim dots
+    const tents = [], tipM = glow("#fff2b0");
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2, r = i % 2 ? 0.7 : 0.35, n = 14, len = i % 2 ? 1.7 : 1.15;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: n }, () => new V())), new THREE.LineBasicMaterial({ color: C(i % 2 ? "#a8b4ff" : "#d8c8ff"), transparent: true, opacity: 0.9 })); body.add(line);
+      const beads = []; for (let k = 2; k < n; k += 2) { const b = mesh(sph(0.022 - k * 0.0008, 8, 6), addGlow("#b8c4ff", 0.8)); b.castShadow = false; body.add(b); beads.push([k, b]); }
+      const tip = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, color: C("#fff2b0"), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); tip.scale.setScalar(0.22); body.add(tip);
+      tents.push({ a, r, n, len, line, beads, tip });
+    }
+    const light = new THREE.PointLight("#8a9aff", 1.0, 4, 2); light.position.y = 0.2; body.add(light);
+    const tmp = []; for (let k = 0; k < 14; k++) tmp.push(new V());
+    return { g, update: t => {
+      const pulse = Math.sin(t * 1.8);
+      body.position.y = 1.75 + Math.sin(t * 0.7) * 0.15 + pulse * 0.04; bell.scale.set(1 - pulse * 0.06, 1 + pulse * 0.08, 1 - pulse * 0.06);
+      starsA.material.opacity = 0.6 + Math.sin(t * 3.1) * 0.4; starsB.material.opacity = 0.6 + Math.sin(t * 2.3 + 1.5) * 0.4;
+      body.rotation.y = t * 0.15;
+      tents.forEach(o => {
+        for (let k = 0; k < o.n; k++) { const u = k / (o.n - 1); tmp[k].set(Math.cos(o.a) * o.r * (1 - u * 0.3) + Math.sin(t * 1.4 + u * 4 + o.a) * 0.12 * u, -u * o.len, Math.sin(o.a) * o.r * (1 - u * 0.3) + Math.cos(t * 1.2 + u * 4 + o.a) * 0.12 * u); }
+        o.line.geometry.setFromPoints(tmp.slice(0, o.n)); o.beads.forEach(([k, b]) => b.position.copy(tmp[k])); o.tip.position.copy(tmp[o.n - 1]);
+        o.tip.material.opacity = 0.6 + Math.sin(t * 4 + o.a * 3) * 0.4;
+      });
+    } };
+  } });
+
+// Abyss Angler: deep-sea fish with a glowing lure and a mouth full of fangs
+MON.push({ name: "Abyss Angler", group: "Night", land: "Ocean (the deep)", ground: "#1c2e3e", ad: [
+  "A glowing lure on its head draws prey right up to its mouth in the pitch-black deep", "Huge mouth and needle teeth: nothing that gets close escapes", "Dark skin is invisible where sunlight never reaches", "Rises to the surface only on moonless nights"],
+  make() {
+    const g = new THREE.Group();
+    const skin = std("#4e3f72", { roughness: 0.3, metalness: 0.1, map: blotch("#4e3f72", ["#2e2448", "#64528a", "#3a2e58"], 60, 14) }), belly = std("#6e5c88", { roughness: 0.35 }),
+      fin = std("#6a52a0", { side: THREE.DoubleSide, roughness: 0.4, transparent: true, opacity: 0.85, emissive: C("#3a2a7a"), emissiveIntensity: 0.4 }), toothM = std("#f2ecd8", { roughness: 0.25 }), mouthM = std("#4a0c1a", { roughness: 0.6 }),
+      lureM = glow("#c8fff2"), dotM = glow("#7affe8");
+    const fish = new THREE.Group(); g.add(fish);
+    fish.add(mesh(sph(0.6, 32, 22), skin, 0, 0, 0, 1.25, 1, 0.9));
+    fish.add(mesh(sph(0.5, 28, 18), belly, 0.05, -0.18, 0, 1.25, 0.75, 0.85));
+    fish.add(mesh(sph(0.36, 24, 16), mouthM, 0.58, -0.12, 0, 0.55, 0.62, 1.05));                   // dark open mouth
+    for (let k = 0; k < 9; k++) { const f = (k - 4) / 4, ang = f * 1.15;                              // upper fangs
+      const tth = mesh(new THREE.ConeGeometry(0.03, 0.13 + (k % 2) * 0.07, 8), toothM, 0.62 + Math.cos(ang) * 0.14, 0.05 - Math.abs(f) * 0.06, Math.sin(ang) * 0.36); tth.rotation.z = Math.PI + 0.25; fish.add(tth); }
+    const jaw = new THREE.Group(); jaw.position.set(0.1, -0.3, 0); fish.add(jaw);
+    jaw.add(mesh(sph(0.4, 26, 16), skin, 0.48, -0.06, 0, 1.25, 0.42, 0.98));                       // jutting lower jaw
+    for (let k = 0; k < 8; k++) { const f = (k - 3.5) / 3.5, ang = f * 1.15;                           // lower fangs
+      const tth = mesh(new THREE.ConeGeometry(0.035, 0.14 + (k % 2) * 0.08, 8), toothM, 0.58 + Math.cos(ang) * 0.3, 0.12, Math.sin(ang) * 0.36); tth.rotation.z = -0.2; jaw.add(tth); }
+    eyes(fish, 0.42, 0.28, 0.36, 0.06, "#bff4ff");
+    // lure on a curved stalk
+    const lure = new THREE.Group(); lure.position.set(0.3, 0.52, 0); fish.add(lure);
+    const curve = new THREE.CatmullRomCurve3([new V(0, 0, 0), new V(0.15, 0.4, 0), new V(0.5, 0.58, 0), new V(0.85, 0.42, 0), new V(0.98, 0.18, 0)]);
+    lure.add(mesh(new THREE.TubeGeometry(curve, 24, 0.022, 8), skin));
+    const bulb = new THREE.Group(); bulb.position.set(0.98, 0.1, 0); lure.add(bulb);
+    bulb.add(mesh(sph(0.065, 16, 12), lureM)); { const sh = mesh(sph(0.11, 18, 12), addGlow("#7affe0", 0.4)); sh.castShadow = false; bulb.add(sh); }
+    const bh = halo("#7affe0", 1.1, 0.8); bulb.add(bh);
+    const blight = new THREE.PointLight("#7affe0", 2.2, 4, 2); bulb.add(blight);
+    // fins
+    const tail = new THREE.Group(); tail.position.set(-0.7, 0, 0); fish.add(tail);
+    { const s = new THREE.Shape(); s.moveTo(0, 0); s.quadraticCurveTo(-0.3, 0.25, -0.5, 0.48); s.quadraticCurveTo(-0.35, 0, -0.5, -0.48); s.quadraticCurveTo(-0.3, -0.25, 0, 0); tail.add(mesh(new THREE.ShapeGeometry(s, 12), fin)); }
+    { const s = new THREE.Shape(); s.moveTo(0.2, 0); s.quadraticCurveTo(0.0, 0.3, -0.35, 0.22); s.quadraticCurveTo(-0.3, 0.05, -0.4, 0); s.lineTo(0.2, 0); const d = mesh(new THREE.ShapeGeometry(s, 10), fin, -0.15, 0.52, 0); fish.add(d); }
+    const pecs = [];
+    [1, -1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(-0.05, -0.12, 0.5 * s); fish.add(p);
+      const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(-0.15, 0.25, -0.38, 0.2); sh.quadraticCurveTo(-0.3, 0, -0.36, -0.15); sh.quadraticCurveTo(-0.15, -0.1, 0, 0);
+      const pm = mesh(new THREE.ShapeGeometry(sh, 10), fin); pm.rotation.x = s * 0.5; p.add(pm); pecs.push({ p, s });
+      for (let k = 0; k < 5; k++) fish.add(mesh(sph(0.022, 8, 6), dotM, -0.45 + k * 0.17, -0.2 - Math.sin(k) * 0.03, (0.5 - Math.abs(k - 2) * 0.03) * s * (k === 0 ? 0.85 : 1)));   // glowing side spots
+    });
+    // sea floor rocks and drifting marine snow
+    const rock = std("#24323e", { roughness: 1, flatShading: true });
+    [[0.9, -0.9, 0.35], [-1.1, 0.8, 0.45], [-0.6, -1.2, 0.25]].forEach(([x, z, r]) => g.add(mesh(new THREE.DodecahedronGeometry(r, 0), rock, x, r * 0.4, z)));
+    const n = 80, pos = new Float32Array(n * 3), off = []; for (let i = 0; i < n; i++) off.push([Math.random() * 4 - 2, Math.random() * 3, Math.random() * 4 - 2]);
+    const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: C("#cfe6f0"), size: 0.03, transparent: true, opacity: 0.7, depthWrite: false })));
+    return { g, update: t => {
+      fish.position.y = 1.05 + Math.sin(t * 0.9) * 0.1; fish.rotation.y = Math.sin(t * 0.4) * 0.15; fish.rotation.z = Math.sin(t * 0.9) * 0.04;
+      tail.rotation.y = Math.sin(t * 3) * 0.35; pecs.forEach(o => o.p.rotation.y = o.s * Math.sin(t * 4) * 0.3);
+      jaw.rotation.z = -(0.05 + Math.max(0, Math.sin(t * 0.8)) * 0.22);
+      lure.rotation.z = Math.sin(t * 1.3) * 0.08; bulb.position.y = 0.1 + Math.sin(t * 2.6) * 0.03;
+      const pul = 0.8 + Math.sin(t * 3) * 0.2; blight.intensity = 2.2 * pul; bh.material.opacity = 0.8 * pul;
+      for (let i = 0; i < n; i++) { const o = off[i]; pos[i * 3] = o[0] + Math.sin(t * 0.3 + i) * 0.1; pos[i * 3 + 1] = 3 - ((3 - o[1] + t * 0.08) % 3); pos[i * 3 + 2] = o[2]; }
+      pg.attributes.position.needsUpdate = true;
+    } };
+  } });
+
+// Gloom Spider: dark spider with glowing marks, in front of its glowing web
+MON.push({ name: "Gloom Spider", group: "Night", land: "Green Valley forests", ground: "#2a3a26", ad: [
+  "Spins a glowing web that lures night bugs (and lost travelers) into it", "Eight shining eyes spot the smallest movement in the dark", "Feels every twitch of its web through its hairy legs", "Glowing marks on its back warn that its bite is venomous"],
+  make() {
+    const g = new THREE.Group();
+    const shell = std("#2a2238", { roughness: 0.35, metalness: 0.1 }), legM = std("#342a44", { roughness: 0.5 }), markM = glow("#c890ff"), eyeM = glow("#b8f0ff"), fangM = std("#5a2a6a", { roughness: 0.3 });
+    const wood = std("#4a3828", { roughness: 0.9 }), webM = addGlow("#9ae8ff", 0.75);
+    // web frame: two dead branches with a glowing web between them, behind the spider
+    const WX = -1.0, WC = new V(WX, 1.55, 0);
+    g.add(limb(new V(WX, 0, 1.45), new V(WX + 0.05, 3.0, 1.35), 0.08, 0.05, wood)); g.add(limb(new V(WX, 0, -1.45), new V(WX - 0.05, 2.9, -1.4), 0.08, 0.05, wood));
+    g.add(limb(new V(WX + 0.02, 2.85, 1.55), new V(WX - 0.02, 2.8, -1.55), 0.05, 0.04, wood));
+    const thread = (a, b, r = 0.007) => { const m = limb(a, b, r, r, webM); m.castShadow = false; m.receiveShadow = false; g.add(m); return m; };
+    const SP = 14, RN = 9, R = 1.2, pt = (k, rr) => { const a = k / SP * Math.PI * 2; return new V(WX, WC.y + Math.sin(a) * rr, Math.cos(a) * rr); };
+    for (let k = 0; k < SP; k++) thread(WC, pt(k, R));
+    for (let j = 1; j <= RN; j++) { const rr = R * (0.1 + j / RN * 0.9); for (let k = 0; k < SP; k++) thread(pt(k, rr * (k % 2 ? 0.97 : 1)), pt(k + 1, rr * ((k + 1) % 2 ? 0.97 : 1))); }
+    [[0, 1.4], [2.5, 1.38], [3.5, 1.38], [5.6, 1.45], [7, 1.4], [8.4, 1.45], [10.5, 1.38], [11.5, 1.38]].forEach(([k]) => { const a = pt(k, R), d = a.clone().sub(WC).normalize(); const b = a.clone().addScaledVector(d, 1); b.z = Math.max(-1.42, Math.min(1.42, b.z)); b.y = Math.max(0.02, Math.min(2.83, b.y)); thread(a, b, 0.008); });   // anchor threads
+    for (let i = 0; i < 18; i++) { const k = Math.floor(Math.random() * SP), rr = R * (0.2 + Math.random() * 0.75); g.add(mesh(sph(0.018, 8, 6), glow("#e8fbff"), WX + 0.01, ...pt(k + 0.5, rr).toArray().slice(1))); }   // dew drops
+    const wlight = new THREE.PointLight("#8ad8ff", 0.9, 3.5, 2); wlight.position.copy(WC).x += 0.4; g.add(wlight);
+    // spider
+    const spider = new THREE.Group(); g.add(spider);
+    const abd = new THREE.Group(); abd.position.set(-0.35, 0.62, 0); spider.add(abd);
+    abd.add(mesh(sph(0.42, 28, 20), shell, 0, 0, 0, 1.2, 0.95, 1));
+    [[0.15, 0.38, 0], [-0.12, 0.36, 0], [-0.35, 0.22, 0], [0.0, 0.3, 0.2], [0.0, 0.3, -0.2], [-0.25, 0.25, 0.18], [-0.25, 0.25, -0.18]].forEach(([x, y, z], i) => {
+      const d = new V(x / 1.2, y / 0.95, z).normalize(); abd.add(mesh(sph(i < 3 ? 0.07 : 0.05, 12, 8), markM, d.x * 0.42 * 1.2, d.y * 0.42 * 0.95, d.z * 0.42, i < 3 ? 1.4 : 1, 0.5, 1)); });   // glowing warning marks
+    spider.add(mesh(sph(0.25, 22, 16), shell, 0.18, 0.55, 0, 1.2, 0.8, 1));                        // head-body
+    [[0.44, 0.6, 0.065, 0.05], [0.42, 0.68, 0.035, 0.035], [0.39, 0.66, 0.13, 0.03], [0.34, 0.62, 0.18, 0.025]].forEach(([x, y, z, r]) => [1, -1].forEach(s => spider.add(mesh(sph(r, 10, 8), eyeM, x, y, z * s))));   // eight eyes
+    spider.add(halo("#b8f0ff", 0.5, 0.35)).children; spider.children[spider.children.length - 1].position.set(0.46, 0.63, 0);
+    [1, -1].forEach(s => { const f = mesh(new THREE.ConeGeometry(0.035, 0.16, 8), fangM, 0.44, 0.44, 0.05 * s); f.rotation.z = Math.PI - 0.3; spider.add(f); spider.add(mesh(sph(0.012, 6, 6), markM, 0.47, 0.36, 0.05 * s)); });
+    const legs = [];
+    [0.8, 0.3, -0.25, -0.7].forEach((dx, k) => [1, -1].forEach(s => {
+      const l = new THREE.Group(); l.position.set(0.18 + dx * 0.12, 0.55, 0.16 * s); spider.add(l);
+      const knee = new V(dx * 0.45, 0.42, 0.5 * s), foot = new V(dx * 0.95, -0.53, 0.95 * s);
+      l.add(limb(new V(0, 0, 0), knee, 0.045, 0.035, legM)); l.add(limb(knee, foot, 0.035, 0.015, legM));
+      l.add(mesh(sph(0.045, 10, 8), legM, knee.x, knee.y, knee.z)); l.add(mesh(sph(0.018, 8, 6), markM, knee.x, knee.y + 0.04, knee.z));
+      legs.push({ l, ph: k * 1.3 + (s > 0 ? 0 : 0.7), s });
+    }));
+    return { g, update: t => {
+      spider.position.y = Math.sin(t * 1.4) * 0.02; abd.scale.setScalar(1 + Math.sin(t * 2) * 0.02);
+      const twitch = Math.max(0, Math.sin(t * 0.9)) ** 8;
+      legs.forEach(o => { o.l.rotation.x = o.s * Math.sin(t * 6 + o.ph) * 0.06 * twitch; o.l.rotation.y = Math.sin(t * 7 + o.ph) * 0.08 * twitch; });
+      webM.opacity = 0.55 + Math.sin(t * 1.5) * 0.2 + twitch * 0.2; wlight.intensity = 0.8 + Math.sin(t * 1.5) * 0.2;
+      markM.color.copy(C("#c890ff")).multiplyScalar(0.8 + Math.sin(t * 2.4) * 0.3);
+    } };
+  } });
+
+
+const SIZE_M = { "Goblin": 1.1, "Bog Toad": 1.0, "Lava Imp": 0.9, "Rock Troll": 3.8, "Ice Wraith": 2.6, "Snow Yeti": 3.2, "Vine Creeper": 1.8,
+  "Mud Eel": 1.6, "Snapjaw Turtle": 1.3, "Ember Beetle": 0.9, "Ash Lurker": 0.8, "Frost Wolf": 1.4, "Storm Harpy": 2.4, "Cloud Jelly": 10.0,
+  "Gust Sprite": 0.6, "Puffcap": 1.5, "Vine Dangler": 9.0, "Glowmoth Swarm": 1.5, "Shade Lynx": 1.3, "Hootclaw": 1.6, "Bog Wisp": 1.0,
+  "Cinder Bat": 0.8, "Magma Glowworm": 1.0, "Moon Wolf": 1.5, "Star Jelly": 6.5, "Abyss Angler": 3.5, "Gloom Spider": 1.4 };
+MON.forEach(m => m.sizeM = SIZE_M[m.name] || 1.5);
+return MON;
+})();
+
+// ================= monsters: they roam the lands and fight you while you ride (Petra 2026-11-09) =================
+// Each kind: its land, where it lives (water / night / how high it floats), level range, toughness, how it attacks.
+// hp/dmg are multipliers on the level formula; range is how far its attack reaches (game units); shot = it throws or spits something.
+const MONSTER = {
+  "Goblin":         { land: "Green Valley", lv: [1, 3], hp: 1.0, dmg: 1.0, speed: 7, atk: "Club swing", range: 2.6 },
+  "Bog Toad":       { land: "Green Valley", water: true, lv: [1, 3], hp: 1.3, dmg: 0.9, speed: 5, atk: "Tongue lash", range: 5 },
+  "Mud Eel":        { land: "Green Valley", water: true, lv: [2, 4], hp: 0.8, dmg: 1.1, speed: 8, atk: "Bite", range: 3 },
+  "Snapjaw Turtle": { land: "Green Valley", water: true, lv: [2, 4], hp: 1.7, dmg: 1.2, speed: 3, atk: "Crushing snap", range: 2.6 },
+  "Glowmoth Swarm": { land: "Green Valley", night: true, fly: 3, lv: [2, 4], hp: 0.6, dmg: 0.7, speed: 9, atk: "Dizzy dust", range: 4 },
+  "Bog Wisp":       { land: "Green Valley", night: true, water: true, fly: 2, lv: [3, 5], hp: 0.7, dmg: 1.0, speed: 8, atk: "Spooky zap", range: 12, shot: "#bfffe8" },
+  "Vine Creeper":   { land: "Deep Forest", lv: [3, 6], hp: 1.4, dmg: 1.1, speed: 2.5, atk: "Vine grab", range: 5 },
+  "Shade Lynx":     { land: "Deep Forest", night: true, lv: [4, 7], hp: 0.9, dmg: 1.4, speed: 13, atk: "Pounce", range: 3 },
+  "Hootclaw":       { land: "Deep Forest", night: true, fly: 6, lv: [4, 7], hp: 0.9, dmg: 1.2, speed: 11, atk: "Talon dive", range: 3 },
+  "Gloom Spider":   { land: "Deep Forest", night: true, lv: [5, 8], hp: 1.0, dmg: 1.2, speed: 8, atk: "Web spit", range: 13, shot: "#e8e8ff" },
+  "Abyss Angler":   { land: "Ocean", night: true, sea: true, lv: [6, 9], hp: 1.4, dmg: 1.3, speed: 7, atk: "Lure bite", range: 4 },
+  "Lava Imp":       { land: "Fire Mountain", fly: 3, lv: [5, 8], hp: 0.8, dmg: 1.1, speed: 10, atk: "Fireball", range: 14, shot: "#ff8a2a" },
+  "Rock Troll":     { land: "Fire Mountain", lv: [6, 9], hp: 1.9, dmg: 1.5, speed: 4.5, atk: "Rock throw", range: 18, shot: "#8b7d70", big: true },
+  "Ember Beetle":   { land: "Fire Mountain", lv: [5, 8], hp: 1.2, dmg: 1.0, speed: 6, atk: "Spark spray", range: 6 },
+  "Ash Lurker":     { land: "Fire Mountain", lv: [6, 9], hp: 1.0, dmg: 1.3, speed: 8, atk: "Ambush grab", range: 3.5 },
+  "Cinder Bat":     { land: "Fire Mountain", night: true, fly: 5, lv: [6, 9], hp: 0.7, dmg: 1.0, speed: 12, atk: "Ember bite", range: 2.6 },
+  "Magma Glowworm": { land: "Fire Mountain", night: true, lv: [7, 10], hp: 1.3, dmg: 1.2, speed: 4, atk: "Lava spit", range: 12, shot: "#ff6a1a" },
+  "Ice Wraith":     { land: "Frost Peaks", fly: 1.5, lv: [7, 10], hp: 1.0, dmg: 1.3, speed: 7, atk: "Frost breath", range: 10, shot: "#c8f0ff" },
+  "Snow Yeti":      { land: "Frost Peaks", lv: [8, 11], hp: 1.8, dmg: 1.5, speed: 6, atk: "Snowball", range: 16, shot: "#ffffff", big: true },
+  "Frost Wolf":     { land: "Frost Peaks", lv: [7, 10], hp: 1.0, dmg: 1.2, speed: 13, atk: "Bite", range: 2.8, pack: 3 },
+  "Moon Wolf":      { land: "Frost Peaks", night: true, lv: [8, 11], hp: 1.1, dmg: 1.3, speed: 14, atk: "Moon bite", range: 2.8, pack: 2 },
+  "Storm Harpy":    { land: "Sky Islands", fly: 4, lv: [9, 12], hp: 1.0, dmg: 1.3, speed: 13, atk: "Lightning claw", range: 3.5 },
+  "Cloud Jelly":    { land: "Sky Islands", fly: 3, lv: [9, 12], hp: 1.3, dmg: 1.1, speed: 3, atk: "Sting", range: 5 },
+  "Gust Sprite":    { land: "Sky Islands", fly: 2, lv: [9, 11], hp: 0.5, dmg: 0.8, speed: 14, atk: "Gust", range: 10, shot: "#e8f4ff", pack: 3 },
+  "Puffcap":        { land: "Sky Islands", fly: 1.5, lv: [9, 12], hp: 0.9, dmg: 1.0, speed: 2, atk: "Spore burst", range: 6 },
+  "Vine Dangler":   { land: "Sky Islands", under: true, grab: true, lv: [10, 13], hp: 1.3, dmg: 1.2, speed: 0, atk: "Vine grab", range: 9 },
+  "Star Jelly":     { land: "Sky Islands", night: true, fly: 4, lv: [10, 13], hp: 1.2, dmg: 1.2, speed: 3, atk: "Star sting", range: 5 },
+};
+const MON_LANDS = {};                                   // land -> kinds that live there
+for (const k in MONSTER) (MON_LANDS[MONSTER[k].land] = MON_LANDS[MONSTER[k].land] || []).push(k);
+const MON_DEF = Object.fromEntries(MONLIB.map(m => [m.name, m]));
+const MON_UNIT = 2.1 / 1.7;                              // game units per metre (a tamer is 1.7 m)
+const mons = [], monShots = [];
+let monSpawnT = 2, petHurtT = 0, clawCd = 0, breathCd = 0, dodgeT = 0, dodgeCd = 0, dodgeDir = 0, lastTap = { KeyA: -9, KeyD: -9 }, fightT = 0, monLand = "";
+const rollR = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
+const monStats = (kind, L) => { const d = MONSTER[kind], base = 3 + 1.2 * (L - 1);
+  return { hp: Math.round((18 + 7 * (L - 1)) * d.hp), dmg: [Math.max(1, Math.round(base * 0.85 * d.dmg)), Math.max(2, Math.round(base * 1.15 * d.dmg))] }; };
+const petMaxHp = () => petStats().hp;
+const petHp = () => (pet.hp === undefined || pet.hp > petMaxHp() ? (pet.hp = petMaxHp()) : pet.hp);
+const petMid = () => new V(pet.x, pet.y + 1.4 * pet.scale * (SP(pet.kind).size || 1), pet.z);
+const petRad = () => 1.8 * pet.scale * (SP(pet.kind).size || 1);
+
+// ---- HP bar sprite over a monster ----
+function monBar(m) {
+  const c = m.barC, x = c.getContext("2d"), w = c.width, h = c.height;
+  x.clearRect(0, 0, w, h);
+  x.fillStyle = "rgba(10,12,20,0.72)"; x.beginPath(); x.roundRect ? x.roundRect(4, 4, w - 8, h - 8, 14) : x.rect(4, 4, w - 8, h - 8); x.fill();
+  x.fillStyle = "#f3ece2"; x.font = "bold 30px sans-serif"; x.textAlign = "center"; x.fillText(`${m.kind} · Lv ${m.lv}`, w / 2, 40);
+  x.fillStyle = "#3a1414"; x.fillRect(22, 54, w - 44, 20);
+  const f = Math.max(0, m.hp / m.max); x.fillStyle = f > 0.5 ? "#6ad06a" : f > 0.25 ? "#e8c040" : "#e85040"; x.fillRect(22, 54, (w - 44) * f, 20);
+  m.bar.material.map.needsUpdate = true;
+}
+
+function spawnSpot(kind, land) {
+  const d = MONSTER[kind];
+  for (let tries = 0; tries < 12; tries++) {
+    let p;
+    if (d.sea) { const a = COAST.a + (Math.random() - 0.5) * 0.7, r = 150 + Math.random() * 50; p = new V(Math.cos(a) * r, WATER_Y, Math.sin(a) * r); if (height(p.x, p.z) > WATER_Y - 1) continue; }
+    else p = wildSpot(land, !!d.water);
+    if (!p) continue;
+    if (d.water && land === "Green Valley") { const a = Math.atan2(p.z - POND.z, p.x - POND.x), r = POND.r * (0.55 + Math.random() * 0.35); p.set(POND.x + Math.cos(a) * r, WATER_Y, POND.z + Math.sin(a) * r); }   // pond monsters live IN the pond
+    const dist = Math.hypot(p.x - me.x, p.z - me.z);
+    if (dist < 40 || dist > 170 || Math.hypot(p.x - NEST.x, p.z - NEST.z) < 30) continue;
+    return p;
+  }
+  return null;
+}
+function spawnMonster(kind, p, lv) {
+  const def = MON_DEF[kind], d = MONSTER[kind], inst = def.make();
+  inst.g.traverse(o => { if (o.isLight) o.visible = false; });   // no extra lights: changing the light count would make every material rebuild
+  const holder = new THREE.Group(); holder.add(inst.g); scene.add(holder);
+  inst.update(0, 0.016); holder.updateMatrixWorld(true);
+  const b = new THREE.Box3(), t = new THREE.Box3();
+  holder.traverse(o => { if (!o.isMesh || !o.visible || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); t.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); b.union(t); });
+  const h0 = Math.max(0.2, b.max.y - b.min.y), k = def.sizeM * MON_UNIT / h0;
+  holder.scale.setScalar(k);
+  const tall = b.max.y * k, rad = Math.max(0.6, Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * k * 0.45);
+  const mats = [];   // materials that can flash red (warning) or white (hit)
+  holder.traverse(o => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { if (mt.emissive && !mats.some(q => q.m === mt)) mats.push({ m: mt, e: mt.emissive.clone(), i: mt.emissiveIntensity }); }); });
+  const st = monStats(kind, lv);
+  const barC = document.createElement("canvas"); barC.width = 320; barC.height = 90;
+  const bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(barC), transparent: true, depthWrite: false, depthTest: false }));
+  bar.scale.set(4.2, 1.18, 1); bar.visible = false; bar.renderOrder = 10; scene.add(bar);
+  if (d.under) p = new V(p.x, p.y - tall - 0.2, p.z);   // the rock on its top tucks under the island
+  if (inst.auto !== undefined) inst.auto = false;
+  const m = { kind, d, lv, inst, holder, mats, bar, barC, tall, rad, hp: st.hp, max: st.hp, dmg: st.dmg, x: p.x, y: p.y, z: p.z, home: p.clone(), face: Math.random() * 6.28,
+    wander: null, wanderT: 0, cd: 1 + Math.random(), warn: 0, hitT: 0, dead: 0, aggro: false, hurt: 0, land: d.land, night: !!d.night, t0: Math.random() * 10 };
+  monBar(m); mons.push(m); return m;
+}
+function removeMonster(m) {
+  scene.remove(m.holder); scene.remove(m.bar);
+  m.holder.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  m.bar.material.map.dispose(); m.bar.material.dispose();
+  const i = mons.indexOf(m); if (i >= 0) mons.splice(i, 1);
+}
+function tint(m, col, k) { m.mats.forEach(q => { if (k > 0) { q.m.emissive.copy(col); q.m.emissiveIntensity = k; } else { q.m.emissive.copy(q.e); q.m.emissiveIntensity = q.i; } }); }
+const RED = new THREE.Color("#ff2a1a"), WHITE = new THREE.Color("#ffffff");
+
+// ---- your dragon gets hurt ----
+function hurtPet(dmg, m) {
+  if (dodgeT > 0 && !pet.held) { toast("Dodged!", ""); return; }
+  pet.hp = Math.max(0, petHp() - dmg); petHurtT = 0.35; fightT = 6;
+  burstAt(pet.x, pet.y + 1.5, pet.z, "#ff4a3a");
+  if (pet.hp <= 0) faint(m);
+}
+function faint(m) {
+  // Petra's rule: you wake up at the nest and keep your coins
+  toast(`${pet.name} fainted!`, `The ${m ? m.kind : "monster"} was too strong. You both woke up back at the nest. You kept your coins.`);
+  state = "grown"; camDist = 9; pet.dive = false; pet.fly = false; pet.speed = 0; $("rideKeys").hidden = true;
+  me.x = 3; me.z = 3; me.y = height(3, 3); me.vy = 0; pet.x = -2; pet.z = 2; pet.y = height(-2, 2); tamer.g.rotation.set(0, 0, 0);
+  pet.hp = petMaxHp(); fightT = 0; pet.held = null;
+  mons.forEach(q => { q.aggro = false; q.warn = 0; tint(q, null, 0); });
+  monShots.splice(0).forEach(s => scene.remove(s.mesh));
+  goal(`${pet.name} is rested. Press R to ride again`); petLabel("grown up"); writeSave();
+}
+
+// ---- your attacks ----
+function monInFront(maxD, halfAng, all) {
+  const mid = petMid(), out = [];
+  for (const m of mons) {
+    if (m.dead) continue;
+    const dx = m.x - mid.x, dz = m.z - mid.z, dy = (m.y + m.tall * 0.5) - mid.y, flat = Math.hypot(dx, dz);
+    const reach = maxD + m.rad + petRad();
+    if (Math.hypot(flat, dy) > reach) continue;
+    let da = ((Math.atan2(dz, dx) - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    if (flat > m.rad + 1 && Math.abs(da) > halfAng) continue;
+    if (Math.abs(dy) > 3 + m.tall * 0.5 + flat * 0.6) continue;
+    out.push({ m, d: Math.hypot(flat, dy) });
+  }
+  out.sort((a, b) => a.d - b.d);
+  return all ? out.map(o => o.m) : out.length ? [out[0].m] : [];
+}
+function damageMon(m, dmg, crit, how) {
+  m.hp -= dmg; m.hitT = 0.15; m.aggro = true; m.hurt = 5; fightT = 6;
+  burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
+  m.bar.visible = true; monBar(m);
+  toast(`${how === "breath" ? "Breath" : "Claw"}! ${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${Math.max(0, m.hp)} / ${m.max} HP`);
+  if (m.hp <= 0) killMon(m);
+}
+function killMon(m) {
+  m.dead = 0.001; m.warn = 0; tint(m, null, 0); m.bar.visible = false;
+  const xp = 3 + 2 * m.lv, c = m.lv >= 5 ? m.lv : 0;
+  if (c) { coins += c; showCoins(); }
+  const up = addXp(xp);
+  if (up) pet.hp = petMaxHp();   // levelling up heals (like the calculator game)
+  if (!up) toast(`You beat the ${m.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
+  burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080");
+  petLabel("grown up"); writeSave();
+}
+function canFight() { return state === "ride" && !uiOpen && dragon.root.visible; }
+function struggle() { const h = pet.held; if (!h) return; h.struggle++; if (h.struggle >= 3) release(true); }
+function release(broke) {
+  const h = pet.held; if (!h) return; pet.held = null; h.m.cd = 4; h.m.warn = 0;
+  if (broke) { toast(`${pet.name} broke free!`, "Fly away before it grabs you again"); burstAt(pet.x, pet.y + 1.5, pet.z, "#c8e070"); }
+  pet.y -= 2;
+}
+function clawAttack() {
+  if (!canFight() || clawCd > 0) return;
+  clawCd = 0.55;
+  const hit = pet.held ? [pet.held.m] : monInFront(3.2, 1.2, false);
+  if (pet.held) { struggle(); }
+  pet.speed = Math.max(pet.speed, 6 * flyMul());   // a little lunge
+  if (!hit.length) return;
+  const st = petStats(), crit = Math.random() < 0.1; let dmg = rollR(st.claw); if (crit) dmg = Math.round(dmg * 1.5);
+  damageMon(hit[0], dmg, crit, "claw");
+}
+const breathFx = [];
+function breathAttack() {
+  if (!canFight()) return;
+  if (breathCd > 0) { toast("Catching its breath...", `${Math.ceil(breathCd)} s`); return; }
+  breathCd = 3; struggle();
+  // a cone of glowing breath out of the mouth
+  dragon.root.updateMatrixWorld(); const h = new V(); dragon.sockets.head.getWorldPosition(h);
+  const dir = new V(Math.cos(pet.face), -0.12, Math.sin(pet.face)).normalize(), col = new THREE.Color(SP(pet.kind).pal.glow).convertSRGBToLinear();
+  for (let i = 0; i < 40; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: col, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.position.copy(h); scene.add(s);
+    const v = dir.clone().multiplyScalar(22 + Math.random() * 10).add(new V((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 7));
+    breathFx.push({ s, v, life: 0.55 + Math.random() * 0.2, delay: i * 0.008 });
+  }
+  const st = petStats();
+  monInFront(13, 0.5, true).forEach(m => { const crit = Math.random() < 0.1; let dmg = rollR(st.breath); if (crit) dmg = Math.round(dmg * 1.5); damageMon(m, dmg, crit, "breath"); });
+}
+function dodge(dir) {
+  if (!canFight() || dodgeCd > 0) return;
+  if (pet.held) { struggle(); dodgeCd = 0.3; return; }
+  dodgeT = 0.45; dodgeCd = 1.2; dodgeDir = dir;
+  burstAt(pet.x, pet.y + 1.2, pet.z, "#ffffff");
+}
+cv.addEventListener("mousedown", e => { if (state !== "ride" || uiOpen) return; if (e.button === 0) clawAttack(); else if (e.button === 2) { e.preventDefault(); breathAttack(); } });
+cv.addEventListener("contextmenu", e => { if (state === "ride") e.preventDefault(); });
+addEventListener("keydown", e => {   // double-tap A or D = dodge to that side
+  if (e.repeat || uiOpen || state !== "ride" || (e.code !== "KeyA" && e.code !== "KeyD")) return;
+  if (T - lastTap[e.code] < 0.3) { dodge(e.code === "KeyA" ? -1 : 1); lastTap[e.code] = -9; } else lastTap[e.code] = T;
+});
+
+// ---- the monsters' turn ----
+function monAttack(m) {
+  const d = m.d, mid = petMid();
+  if (d.grab) {   // the Vine Dangler wraps its arms round you and holds on (Petra)
+    if (Math.hypot(m.x - mid.x, m.z - mid.z) < d.range + petRad() && mid.y < m.y + m.tall * 0.4 && mid.y > m.y - m.tall) {
+      pet.held = { m, t: 5, struggle: 0, tick: 1 }; pet.dive = false;
+      toast(`The ${m.kind} grabbed ${pet.name}!`, "Claw, breathe or dodge to break free!");
+    }
+    return;
+  }
+  if (d.shot) {   // throws or spits something at where you are now: move and it misses
+    const from = new V(m.x, m.y + m.tall * 0.7, m.z), to = mid.clone(), v = to.sub(from).normalize().multiplyScalar(26);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.big ? 0.55 : 0.35, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(d.shot).convertSRGBToLinear() }));
+    mesh.position.copy(from); scene.add(mesh); monShots.push({ mesh, v, life: 1.6, m });
+  } else if (Math.hypot(m.x - mid.x, m.z - mid.z, (m.y + m.tall * 0.5) - mid.y) <= d.range + m.rad + petRad() + 0.8) {
+    hurtPet(rollR(m.dmg), m);
+    if (state === "ride") toast(`${m.kind}: ${d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`);
+  }
+}
+function moveMon(m, tx, ty, tz, sp, dt) {
+  const d = m.d, dx = tx - m.x, dz = tz - m.z, dist = Math.hypot(dx, dz);
+  if (dist > 0.3 && sp > 0) {
+    const step = Math.min(dist, sp * dt);
+    m.x += dx / dist * step; m.z += dz / dist * step;
+    m.face = angLerp(m.face, Math.atan2(dz, dx), Math.min(1, dt * 6));
+  }
+  if (d.under) return;                                       // the Vine Dangler stays put
+  if (d.fly) { const fy = Math.max(groundAt(m.x, m.z, m.y + 2), WATER_Y) + d.fly; m.y += ((ty !== null ? Math.max(ty, fy - d.fly + 0.5) : fy) - m.y) * Math.min(1, dt * 2); }
+  else if (d.water || d.sea) m.y = Math.max(groundAt(m.x, m.z, m.y + 1), WATER_Y - 0.15);
+  else m.y = groundAt(m.x, m.z, m.y + 2);
+}
+function updateMonsters(dt) {
+  if (state === "arena") { mons.forEach(m => { m.holder.visible = false; m.bar.visible = false; }); return; }
+  clawCd = Math.max(0, clawCd - dt); breathCd = Math.max(0, breathCd - dt); dodgeCd = Math.max(0, dodgeCd - dt); fightT = Math.max(0, fightT - dt);
+  // dodging: a quick sideways dash
+  if (dodgeT > 0) {
+    dodgeT -= dt; const sx = -Math.sin(pet.face) * dodgeDir, sz = Math.cos(pet.face) * dodgeDir, sp = 26 * dt;
+    if (pet.fly) { pet.x += sx * sp; pet.z += sz * sp; } else moveCircle(pet, sx * sp, sz * sp, 1.0);
+    pet.bank = -dodgeDir * 0.9;
+  }
+  // healing: resting at the nest heals fully; out of a fight your dragon slowly gets better
+  if (hasDragon() && Math.hypot(me.x - NEST.x, me.z - NEST.z) < 6 && petHp() < petMaxHp()) { pet.hp = petMaxHp(); toast(`${pet.name} rested at the nest`, "Full HP again"); }
+  else if (fightT <= 0 && pet.hp !== undefined && pet.hp < petMaxHp()) pet.hp = Math.min(petMaxHp(), pet.hp + dt * petMaxHp() / 60);
+  updatePetHpBar();
+  // breath particles
+  for (let i = breathFx.length - 1; i >= 0; i--) { const b = breathFx[i]; if (b.delay > 0) { b.delay -= dt; continue; } b.s.position.addScaledVector(b.v, dt); b.life -= dt; const k = Math.max(0, b.life); b.s.scale.setScalar(0.6 + (0.75 - k) * 4); b.s.material.opacity = Math.min(0.9, k * 1.6); if (b.life <= 0) { scene.remove(b.s); b.s.material.dispose(); breathFx.splice(i, 1); } }
+  // thrown rocks, spit and zaps
+  for (let i = monShots.length - 1; i >= 0; i--) {
+    const s = monShots[i]; s.mesh.position.addScaledVector(s.v, dt); s.life -= dt;
+    if (state === "ride" && s.mesh.position.distanceTo(petMid()) < petRad() + 0.6) { hurtPet(rollR(s.m.dmg), s.m); if (state === "ride") toast(`${s.m.kind}: ${s.m.d.atk}!`, `${pet.name} · ${pet.hp} / ${petMaxHp()} HP`); s.life = 0; }
+    if (s.life <= 0) { scene.remove(s.mesh); s.mesh.geometry.dispose(); monShots.splice(i, 1); }
+  }
+  // held by a Vine Dangler: stuck in its arms, squeezed now and then
+  if (pet.held) {
+    const h = pet.held, m = h.m;
+    if (m.dead || !mons.includes(m) || state !== "ride") pet.held = null;
+    else {
+      h.t -= dt; h.tick -= dt;
+      const c = new V(); m.inst.pod.getWorldPosition(c); c.y -= 3.2 * m.holder.scale.x;
+      pet.x += (c.x - pet.x) * Math.min(1, dt * 8); pet.z += (c.z - pet.z) * Math.min(1, dt * 8);
+      pet.y += (c.y - 1.4 * pet.scale * (SP(pet.kind).size || 1) - pet.y) * Math.min(1, dt * 8);
+      pet.speed = 0; pet.fly = true; pet.bank = Math.sin(T * 9) * 0.15;
+      if (h.tick <= 0) { h.tick = 1.2; hurtPet(Math.max(1, Math.round(rollR(m.dmg) * 0.6)), m); }
+      if (h.t <= 0 && pet.held) { release(false); toast(`The ${m.kind} let go`, ""); }
+    }
+  }
+  // spawning: only around the land you're in, more at night; night monsters only after dark
+  const land = landNow, kinds = (MON_LANDS[land] || []).filter(k => isNight || !MONSTER[k].night);
+  monSpawnT -= dt;
+  if (monSpawnT <= 0 && kinds.length && hasDragon()) {
+    monSpawnT = 3;
+    const cap = (land === "Green Valley" ? 6 : 5) + (isNight ? 3 : 0), here = mons.filter(m => m.land === land && !m.dead).length;
+    if (here < cap) {
+      const kind = kinds[Math.floor(Math.random() * kinds.length)], d = MONSTER[kind];
+      const p = d.under ? underSpot() : spawnSpot(kind, land);
+      if (p) { const lv = rollR(d.lv) + (isNight ? 1 : 0), n = d.pack ? 1 + Math.floor(Math.random() * d.pack) : 1;
+        for (let j = 0; j < n; j++) spawnMonster(kind, j ? p.clone().add(new V((Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6)) : p, lv); }
+    }
+  }
+  const riding = state === "ride", mid = petMid();
+  for (let i = mons.length - 1; i >= 0; i--) {
+    const m = mons[i], d = m.d;
+    const far = Math.hypot(m.x - me.x, m.z - me.z);
+    // tidy up: far away, or a night monster when the sun comes up and nobody is fighting it
+    if (far > 260 || (m.night && !isNight && !m.aggro && far > 60)) { removeMonster(m); continue; }
+    if (m.inst.reach !== undefined) {   // the Vine Dangler's arms: spread when a dragon is near, wrap round it when it grabs
+      m.inst.reach += ((m.aggro ? 1 : 0) - m.inst.reach) * Math.min(1, dt * 3);
+      m.inst.hold += ((pet.held && pet.held.m === m ? 1 : 0) - m.inst.hold) * Math.min(1, dt * 5);
+    }
+    m.inst.update(T + m.t0, dt);
+    if (m.dead) {   // shrink and sink away
+      m.dead += dt; m.holder.scale.multiplyScalar(Math.max(0.2, 1 - dt * 2.5)); m.y -= dt * 1.5;
+      m.holder.position.set(m.x, m.y, m.z);
+      if (m.dead > 0.7) removeMonster(m);
+      continue;
+    }
+    const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
+    const sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0);
+    // monsters only go after tamers who are riding; on foot you're safe
+    if (riding && pd < sense && (d.fly || d.shot || d.under || dy < 14 + d.range)) m.aggro = true;
+    if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > 90) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
+    m.hurt = Math.max(0, m.hurt - dt);
+    if (m.aggro) {
+      // close in (shooters keep some distance), turn to face you, then: red warning flash, then the attack
+      const want = d.shot ? Math.min(d.range * 0.7, 10) : d.range * 0.6 + m.rad + petRad();
+      if (pd > want) moveMon(m, mid.x, d.fly ? mid.y - m.tall * 0.4 : null, mid.z, d.speed * (riding ? 1 : 0.5), dt);
+      else { moveMon(m, m.x, d.fly ? mid.y - m.tall * 0.4 : null, m.z, 0, dt); m.face = angLerp(m.face, Math.atan2(mid.z - m.z, mid.x - m.x), Math.min(1, dt * 6)); }
+      if (m.warn > 0) {
+        m.warn -= dt; tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5);
+        if (m.warn <= 0) { tint(m, null, 0); monAttack(m); m.cd = 1.5 + Math.random() * 1.2; }
+      } else {
+        m.cd -= dt;
+        const inReach = d.shot ? pd < d.range + 6 : Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y) < d.range + m.rad + petRad() + 2;
+        if (m.cd <= 0 && inReach) m.warn = 0.75;   // the red flash: your cue to dodge
+      }
+      m.bar.visible = true;
+    } else {
+      // wander around home
+      m.wanderT -= dt;
+      if (m.wanderT <= 0) { m.wanderT = 3 + Math.random() * 5; const a = Math.random() * 6.28, r = Math.random() * 14; m.wander = Math.random() < 0.35 ? null : new V(m.home.x + Math.cos(a) * r, 0, m.home.z + Math.sin(a) * r); }
+      if (m.wander) moveMon(m, m.wander.x, null, m.wander.z, d.speed * 0.35, dt); else moveMon(m, m.x, null, m.z, 0, dt);
+      m.bar.visible = m.hp < m.max && pd < 60;
+    }
+    if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); }
+    m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+    if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
+  }
+}
+function underSpot() {   // under a sky island, where the Vine Dangler hangs
+  for (let i = 0; i < 20; i++) {
+    const s = ISLANDS[Math.floor(Math.random() * ISLANDS.length)], a = Math.random() * 6.283, f = Math.sqrt(Math.random()) * 0.5;
+    const x = s.x + Math.cos(a) * islandRim(s, a) * f, z = s.z + Math.sin(a) * islandRim(s, a) * f;
+    const top = ceilingAt(x, z, s.y - 30);
+    if (top < 300 && Math.hypot(x - me.x, z - me.z) > 40) return new V(x, top, z);
+  }
+  return null;
+}
+// your dragon's HP, shown while riding or while it's hurt
+const petHpEl = $("petHp");
+function updatePetHpBar() {
+  const show = hasDragon() && dragon.root.visible && (state === "ride" || (pet.hp !== undefined && pet.hp < petMaxHp())) && state !== "arena";
+  petHpEl.hidden = !show; if (!show) return;
+  const hp = petHp(), mx = petMaxHp();
+  petHpEl.querySelector("i").style.width = (hp / mx * 100) + "%";
+  petHpEl.querySelector("span").textContent = `${pet.name} · ${Math.ceil(hp)} / ${mx} HP` + (breathCd > 0 && state === "ride" ? ` · breath ${Math.ceil(breathCd)}s` : "");
+  petHpEl.classList.toggle("hurt", petHurtT > 0); petHurtT = Math.max(0, petHurtT - 1 / 60);
+}
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
