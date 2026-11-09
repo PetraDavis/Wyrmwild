@@ -148,6 +148,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
   <p class="goal" id="goal">Find the glowing egg</p>
   <p class="pet" id="pet" hidden></p>
   <p class="pet" id="coins"></p>
+  <p class="pet" id="quest" hidden></p>
 </div>
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
@@ -2240,7 +2241,7 @@ function makePerson(o) {
     add(scene, new THREE.BoxGeometry(0.8, 0.8, 0.8), lam("#a07a4a"), x + 0.6, Y + 0.4, z + 0.9);
     blockers.push({ x, z, r: 0.8, y: Y });
   });
-  const nb = new THREE.Group(), qd = H.quest.door; nb.position.set(qd.x + 4, Y, qd.z + 1); nb.rotation.y = H.quest.rot; scene.add(nb);
+  const nb = new THREE.Group(), qd = H.quest.door; nb.position.set(qd.x + 4, Y, qd.z + 1); nb.rotation.y = H.quest.rot; scene.add(nb); window.noticeBoard = nb.position;
   [1, -1].forEach(s => add(nb, new THREE.BoxGeometry(0.15, 2.2, 0.15), wood, s * 1, 1.1, 0));
   add(nb, new THREE.BoxGeometry(2.4, 1.3, 0.1), [trim, trim, trim, trim, signTex("NOTICES", "#e8dcc0"), trim], 0, 1.7, 0);
   // the village gate on the road to the nest
@@ -2288,8 +2289,8 @@ function makePerson(o) {
     { name: "Mayor Tilda", title: "Mayor", topics: [{ label: "Ask about the village", say: ["Our village is the oldest in the valley. The well is even older. Don't ask how old. It's rude.", "We have a baker, a smith, a mapmaker, a dragonologist and a very strange old woman. Something for everyone!", "The arena brings tamers from all over the land. Good for business. Bad for roofs."] }], home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
       "Welcome to our village! We don't get many dragon tamers these days.", "We're very proud of our well. It's a very good well.",
       "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably.", "I'm planning a festival. With bunting! Lots of bunting!", "The village budget is mostly spent on fixing roofs that dragons sat on.", "Old Nettle sent me a letter. It just said 'BEANS'. I don't know what to do with that.", "A mayor's work is never done. I've been signing papers since breakfast.", "Officer Brick says we need a bigger jail. For what? We have one goblin problem.", "Have you seen the arena? I opened it myself. With very big scissors.", "If you need anything, ask. If you need a statue, also ask. I know a good sculptor."] },
-    { name: "Gorran", title: "Quest Master", topics: [{ label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
-      "The quest board isn't ready yet. Monsters have been seen in the hills, though.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
+    { name: "Gorran", title: "Quest Master", topics: [{ label: "Show me the quest board", fn: "quests" }, { label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
+      "The quest board is right outside. Pick a job, any job! Well, one job at a time.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
       "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
     { name: "Mae", title: "Shopkeeper", topics: [{ label: "What will you sell?", say: ["Saddles, hats, scarves, capes... and a Bubble Charm so your dragon can breathe underwater! Soon!", "Dragon treats! The crunchy kind. And accessories. Lots of accessories."] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
       "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling.", "I'm saving a shelf for dragon treats. They'll be the crunchy kind.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Hats, saddles, scarves... soon, I promise!", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
@@ -2552,7 +2553,7 @@ function writeSave() {
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0]), wildWait,
-    shen: shenSave(),
+    shen: shenSave(), quest: questSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
@@ -2566,6 +2567,7 @@ function applySave(d) {
   if (d.ev && EVT[d.ev.id]) { EVS.cur = d.ev.id; EVS.land = d.ev.land; EVS.t = d.ev.t < 0 ? Infinity : d.ev.t; EVS.eggs = d.ev.eggs || {}; const e = EVT[d.ev.id]; epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a"); }
   if (d.wildWait) Object.assign(wildWait, d.wildWait);
   if (d.shen) shenLoad(d.shen);
+  if (d.quest) questLoad(d.quest);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k)));
@@ -2664,6 +2666,7 @@ function npcDialog(n, say) {
     else if (a === "topic") {
       const t = tps[i];
       if (t.fn === "books") return bookShelf(n);
+      if (t.fn === "quests") return questBoard();
       if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
       const pool = t.say || t.lines.map(k => n.lines[k]);
       npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
@@ -2693,6 +2696,8 @@ function talkTo() {
   if (talking) { talking = null; $("talk").hidden = true; return true; }
   const n = nearestNpc(3.2); if (!n) return false;
   if (n.name === "Officer Brick" && SHN.met && !SHN.asked && !SHN.told) { brickAsk(); return true; }
+  const ql = questTalk(n);
+  if (ql) { if (n.topics) npcDialog(n, ql); else { talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : ""); $("talkLine").textContent = ql; $("talk").hidden = false; } return true; }
   if (n.arena) { arenaMenu(); return true; }
   if (n.topics) { npcDialog(n, n.hazel && Math.random() < 0.4 ? (hazelPet() || npcNext(n)) : npcNext(n)); return true; }
   if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
@@ -2743,7 +2748,7 @@ function finishName() {
 // ================= actions =================
 const near = (ax, az, bx, bz, d) => Math.hypot(ax - bx, az - bz) < d;
 function act() {
-  if (shenTalk()) return;
+  if (shenTalk() || questAct()) return;
   if (state === "find" && near(me.x, me.z, eggSpot.x, eggSpot.z, 2.6)) {
     state = "carry"; beam.visible = false; goal("Carry the egg home to your nest");
     toast("You found an egg!", "It's warm. Take it back to the nest");
@@ -2972,6 +2977,7 @@ function frame() {
   updateWild(dt);
   updateMonsters(dt);
   updateShen(dt);
+  updateQuest(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -5152,6 +5158,7 @@ function killMon(m) {
   if (SHN.curse > 0) { SHN.curse--; c = c ? c * 2 : 2; }   // the Golden Coin (stops working after 15 wins)
   if (c) { coins += c; showCoins(); }
   if (MOVES[m.kind] && MOVES[m.kind].kill) MOVES[m.kind].kill(m);
+  questKill(m);
   const up = addXp(xp);
   if (up) pet.hp = petMaxHp();   // levelling up heals (like the calculator game)
   if (!up) toast(`You beat the ${m.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
@@ -6092,6 +6099,139 @@ function brickAsk() {
     }
     menuEl._dlg = null; menuAct = () => {};
   };
+}
+
+// ================= the quest board outside Gorran's quest hall (Petra 2026-11-09, like the calculator game) =================
+// Quest level 1-11: every finished quest raises it by one. Higher levels send you to farther lands, ask for more,
+// and pay more (up to 4x). One quest at a time; the board always shows three jobs to pick from.
+const QST = { lv: 1, done: 0, cur: null, offers: [] };
+const Q_LANDS = [[1, "Green Valley"], [3, "Deep Forest"], [5, "Fire Mountain"], [7, "Frost Peaks"], [8, "Desert"], [9, "Sky Islands"], [10, "Crystal Caves"]];
+const Q_RANKS = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
+const Q_ERRANDS = [["Farmer Bo", "Baker Rose", "a sack of flour"], ["Baker Rose", "Mayor Tilda", "a warm pie"], ["Mae", "Hamm", "a box of nails"], ["Hamm", "Officer Brick", "a polished helmet"],
+  ["Juno", "Mae", "a roll of cloth"], ["Odo", "Professor Hazel", "a new map"], ["Professor Hazel", "Old Nettle", "a stack of books"], ["Mayor Tilda", "Odo", "a sealed letter"],
+  ["Old Nettle", "Little Pip", "a jar of beans"], ["Baker Rose", "Fen", "two cookies (one is for Fern)"], ["Master Orla", "Gorran", "an arena poster"], ["Farmer Bo", "Juno", "a basket of wool"]];
+const qMult = () => 1 + (QST.lv - 1) * 0.3;                         // level 11 pays 4x
+const qLands = () => Q_LANDS.filter(([l]) => QST.lv >= l).map(([, n]) => n);
+const qPick = a => a[Math.floor(Math.random() * a.length)];
+const qPlural = (k, n) => n === 1 ? k : /Swarm$/.test(k) ? k + "s" : /(s|sh|ch)$/.test(k) ? k + "es" : /[^aeiou]y$/.test(k) ? k.slice(0, -1) + "ies" : k + "s";
+function qMake(type) {
+  const L = qLands(), far = L.slice(-3), lv = QST.lv;
+  if (type === "hunt") {
+    const land = qPick(far), kinds = MON_LANDS[land] || MON_LANDS["Green Valley"], kind = qPick(kinds), n = 2 + Math.floor(lv / 3) + Math.floor(Math.random() * 2);
+    return { type, kind, land, n, have: 0, pay: 30 * n, title: `Defeat ${n} ${qPlural(kind, n)}`, where: `${land}${MONSTER[kind].night ? " · only out at night" : ""}` };
+  }
+  if (type === "clear") {
+    const land = qPick(far), n = 4 + Math.floor(lv / 2);
+    return { type, land, n, have: 0, pay: 22 * n, title: `Defeat ${n} monsters in ${land}`, where: "Any kind of monster counts" };
+  }
+  if (type === "egg") {
+    const r = Q_RANKS[Math.min(3, Math.floor((lv + Math.random() * 3) / 4))];
+    return { type, rank: r, pay: { Common: 60, Uncommon: 110, Rare: 200, Epic: 380 }[r], title: `Bring ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg${r !== "Epic" ? " or rarer" : ""}`, where: "Hand it in from your backpack" };
+  }
+  if (type === "errand") {
+    const [from, to, what] = qPick(Q_ERRANDS);
+    return { type, from, to, what, got: false, pay: 45, title: `Take ${what} from ${from} to ${to}`, where: "In the village" };
+  }
+  // scout: find the blue flag somewhere in a land
+  const land = qPick(far.filter(l => l !== "Crystal Caves").concat(far.length ? [] : ["Green Valley"]));
+  return { type: "scout", land, pay: 70, title: `Find the blue flag in ${land}`, where: "Look for a blue light shining up into the sky" };
+}
+function qOffers() {
+  const types = ["hunt", "clear", "egg", "errand", "scout"].sort(() => Math.random() - 0.5).slice(0, 3);
+  QST.offers = types.map(qMake).map(q => Object.assign(q, { pay: Math.round(q.pay * qMult() / 5) * 5, xp: 8 * QST.lv + 6 }));
+}
+const qDone = q => q && (q.type === "hunt" || q.type === "clear" ? q.have >= q.n : q.type === "egg" ? qEggIdx(q) >= 0 : q.type === "errand" ? q.delivered : q.found);
+function qEggIdx(q) {
+  const need = TIER[q.rank]; let best = -1;
+  bag.forEach((k, i) => { const t = TIER[SP(k).rarity] ?? 0; if (k !== "Crestwyrm" && t >= need && t < 6 && (best < 0 || t < TIER[SP(bag[best]).rarity])) best = i; });
+  return best;
+}
+function qStatus(q) {
+  if (!q) return "";
+  if (q.type === "hunt" || q.type === "clear") return `${Math.min(q.have, q.n)} / ${q.n}`;
+  if (q.type === "egg") return qEggIdx(q) >= 0 ? "you have one!" : "none in your backpack yet";
+  if (q.type === "errand") return q.delivered ? "delivered!" : q.got ? `bring it to ${q.to}` : `pick it up from ${q.from}`;
+  return q.found ? "found it!" : "not found yet";
+}
+function qHud() {
+  const el = $("quest"); if (!el) return;
+  const q = QST.cur; el.hidden = !q;
+  if (q) el.textContent = `Quest: ${q.title} · ${qDone(q) ? "done! Go back to the quest board" : qStatus(q)}`;
+}
+// ---- the board ----
+function questBoard(msg) {
+  if (!QST.offers.length) qOffers();
+  const q = QST.cur;
+  const cur = q ? `<h4>Your quest</h4><div class="sec"><div><b>${q.title}</b><br><small>${q.where} · ${qStatus(q)} · reward ${q.pay} coins, ${q.xp} XP</small></div>
+      ${qDone(q) ? `<button data-act="turnin">Turn in</button>` : `<button data-act="quit">Give up</button>`}</div>` : "";
+  const offers = QST.offers.map((o, i) => `<div class="sec"><div><b>${o.title}</b><br><small>${o.where} · reward ${o.pay} coins, ${o.xp} XP</small></div><button data-act="take" data-i="${i}" ${q ? "disabled" : ""}>Take</button></div>`).join("");
+  openMenu("Quest Board", `<p class="who">Quest level ${QST.lv}${QST.lv >= 11 ? " (the hardest!)" : ""} · quests finished: ${QST.done}</p>${msg ? `<p class="good">${msg}</p>` : ""}${cur}
+    <h4>Jobs on the board</h4>${q ? "<p><small>Finish or give up your quest before you take a new one.</small></p>" : ""}${offers}`);
+  menuAct = (a, i) => {
+    if (a === "take" && !QST.cur) { QST.cur = QST.offers[i]; QST.offers = []; if (QST.cur.type === "scout") qFlag(); qHud(); writeSave(); questBoard(`Quest taken: ${QST.cur.title}. Good luck!`); }
+    if (a === "quit") { qClear(); qOffers(); qHud(); writeSave(); questBoard("You gave up the quest. Gorran sighs very loudly."); }
+    if (a === "turnin") questTurnIn();
+  };
+}
+function questTurnIn() {
+  const q = QST.cur; if (!qDone(q)) return questBoard();
+  if (q.type === "egg") bag.splice(qEggIdx(q), 1);
+  qClear(); coins += q.pay; QST.done++;
+  let extra = "";
+  if (QST.done % 5 === 0) { if (bag.length < BAG_MAX) { bag.push(randomKind(QST.lv >= 8 ? "Epic" : "Rare")); extra = ` Bonus for your ${QST.done}th quest: ${QST.lv >= 8 ? "an Epic" : "a Rare"} egg!`; } else { coins += 100; extra = " Bonus: 100 more coins (your backpack was full)."; } }
+  const up = QST.lv < 11; if (up) QST.lv++;
+  const lvUp = state === "grown" || state === "ride" ? addXp(q.xp) : 0; if (lvUp) pet.hp = petMaxHp();
+  showCoins(); qOffers(); qHud(); writeSave();
+  questBoard(`Quest done! +${q.pay} coins, +${q.xp} XP.${extra}${up ? ` Quest level ${QST.lv}: harder jobs, better pay.` : ""}`);
+}
+function qClear() { if (QST.cur && QST.cur.flag) { scene.remove(QST.cur.flag); } QST.cur = null; }
+// ---- the scout flag ----
+function qFlag() {
+  const q = QST.cur;
+  if (q.x === undefined) { const p = wildSpot(q.land, false) || wildSpot("Green Valley", false); q.x = p.x; q.y = p.y; q.z = p.z; }
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 6), new THREE.MeshLambertMaterial({ color: "#5a4030" })); pole.position.y = 1.6; g.add(pole);
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.8), new THREE.MeshLambertMaterial({ color: new THREE.Color("#2a6aff").convertSRGBToLinear(), side: THREE.DoubleSide }));
+  cloth.position.set(0.65, 2.75, 0); g.add(cloth);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 40, 8, 1, true), new THREE.MeshBasicMaterial({ color: "#4a8aff", transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 20; g.add(beam);
+  g.position.set(q.x, q.y, q.z); scene.add(g); Object.defineProperty(q, "flag", { value: g, enumerable: false, writable: true, configurable: true });
+  g.userData.cloth = cloth;
+}
+// ---- hooks from the rest of the game ----
+function questKill(m) {
+  const q = QST.cur; if (!q || (q.type !== "hunt" && q.type !== "clear") || q.have >= q.n) return;
+  if (q.type === "hunt" ? m.kind === q.kind : m.land === q.land) { q.have++; qHud(); if (q.have >= q.n) toast("Quest done!", "Go back to the quest board for your reward"); }
+}
+function questTalk(n) {             // errands: returns a line to say, or null
+  const q = QST.cur; if (!q || q.type !== "errand" || q.delivered) return null;
+  if (!q.got && n.name === q.from) { q.got = true; qHud(); writeSave(); return `Oh, the job from the quest board? Here's ${q.what}. Please take it to ${q.to}!`; }
+  if (q.got && n.name === q.to) { q.delivered = true; qHud(); writeSave(); toast("Delivered!", "Go back to the quest board for your reward"); return `${q.what.charAt(0).toUpperCase() + q.what.slice(1)}? For me? Thank you! Tell ${q.from} I said thanks.`; }
+  return null;
+}
+const nearBoard = () => window.noticeBoard && state !== "ride" && Math.hypot(noticeBoard.x - me.x, noticeBoard.z - me.z) < 3;
+function questAct() {
+  if (state === "ride" || uiOpen) return false;
+  if (nearBoard()) { questBoard(); return true; }
+  const q = QST.cur;
+  if (q && q.type === "scout" && !q.found && q.flag && Math.hypot(q.x - me.x, q.z - me.z) < 3) {
+    q.found = true; scene.remove(q.flag); q.flag = null; burstAt(q.x, q.y + 1.5, q.z, "#4a8aff"); qHud(); writeSave();
+    toast("You found the blue flag!", "Go back to the quest board for your reward"); return true;
+  }
+  return false;
+}
+let qHudT = 0;
+function updateQuest(dt) {
+  const q = QST.cur;
+  if ((qHudT -= dt) <= 0) { qHudT = 0.5; qHud(); }
+  if (q && q.flag) { q.flag.userData.cloth.rotation.y = Math.sin(T * 3) * 0.25; if (!uiOpen && state !== "ride" && Math.hypot(q.x - me.x, q.z - me.z) < 3) prompt("Press <kbd>E</kbd> to grab the blue flag"); }
+  if (!uiOpen && nearBoard()) prompt("Press <kbd>E</kbd> to read the quest board");
+}
+const questSave = () => ({ lv: QST.lv, done: QST.done, cur: QST.cur, offers: QST.offers });
+function questLoad(d) {
+  QST.lv = Math.min(11, d.lv || 1); QST.done = d.done || 0; QST.offers = Array.isArray(d.offers) ? d.offers : []; QST.cur = d.cur || null;
+  if (QST.cur && QST.cur.type === "scout" && !QST.cur.found) qFlag();
+  qHud();
 }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
