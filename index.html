@@ -134,7 +134,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
 <div id="keys" class="plate">
-  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
+  <span><kbd>W A S D</kbd> move</span><span><kbd>Shift</kbd> run</span><span id="lookHint">click the game to look with the mouse</span><span><kbd>E</kbd> use</span><span><kbd>C</kbd> sit</span><span id="rideKeys" hidden><kbd>R</kbd> ride · <kbd>Space</kbd> fly up · <kbd>Q</kbd> down · <kbd>S</kbd> hover · <kbd>Shift</kbd> fly fast · <kbd>Shift</kbd><kbd>Shift</kbd> dive bomb</span>
 </div>
 <div id="toast"></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
@@ -2718,15 +2718,15 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 8 : -4) : (pet.fly ? (run ? 30 : 14) : 0)) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? 0 : -4) : (pet.fly ? (run ? 30 : 14) : 0)) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
         target = 62 * flyMul(); vy = -48 * flyMul();
         if (!run || pet.y < groundAt(pet.x, pet.z, pet.y) + 7) { pet.dive = false; pet.speed = Math.max(pet.speed, 55 * flyMul()); burstAt(pet.x, pet.y, pet.z, "#ffffff"); }
       }
-      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? 0.8 : 2)));
-      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = -1.2;   // Q (or Ctrl) = fly down; Shift no longer pulls you down
+      pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? (iz < 0 && pet.fly ? 2.5 : 0.8) : 2)));
+      if (pet.dive) {} else if (keys.Space) vy = 12; else if (keys.KeyQ || keys.ControlLeft) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = iz < 0 ? 0 : -1.2;   // S in the air = hover in place (no sinking); Q (or Ctrl) = fly down; Shift no longer pulls you down
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
