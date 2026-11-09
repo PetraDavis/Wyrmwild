@@ -2250,7 +2250,7 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1)]), wildWait };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
 function applySave(d) {
@@ -2259,6 +2259,8 @@ function applySave(d) {
   Object.assign(seen, d.seen || {});
   if (d.eggKind) setEggKind(d.eggKind);
   if (typeof d.dayTime === "number") dayTime = d.dayTime;
+  (d.wild || []).forEach(a => { if (Array.isArray(a) && SPECIES.some(s => s.name === a[0])) addWild(a[0], a[1], new V(a[2], a[3], a[4])); });
+  if (d.wildWait) Object.assign(wildWait, d.wildWait);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k)));
@@ -2359,7 +2361,8 @@ function act() {
     state = "hatching"; hatchT = 0; scene.attach(egg);
     egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0);
     goal("Watch the egg..."); prompt("");
-  } else if ((state === "grown" || state === "baby") && near(me.x, me.z, 0, 0, 5)) nestMenu();
+  } else if (wildNear()) pickWild(wildNear());
+  else if ((state === "grown" || state === "baby") && near(me.x, me.z, 0, 0, 5)) nestMenu();
 }
 function ride() {
   if (state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5)) {
@@ -2460,7 +2463,7 @@ function frame() {
     }
     if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A baby ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
-    prompt(uiOpen ? "" : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
+    prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
     prompt(pet.fly ? "" : (keys.Space ? "" : "Press <kbd>Space</kbd> to take off · <kbd>R</kbd> to get off"));
   }
@@ -2573,6 +2576,7 @@ function frame() {
     if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
   updateNpcs(dt);
+  updateWild(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -2944,7 +2948,7 @@ function arenaCamera(dt) {
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "From the arena"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}</div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
@@ -2965,6 +2969,100 @@ function hatchEgg(kind) {
   setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
   egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
   egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
+}
+
+// ================= wild eggs: eggs turn up out in the lands once you have a dragon (Petra 2026-11-09) =================
+// each land keeps up to 3 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
+const WILD_PER_LAND = 3, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
+const WILD_LANDS = ["Green Valley", "Deep Forest", "Crystal Caves", "Desert", "Fire Mountain", "Frost Peaks", "Ocean", "Sky Islands"];
+const WATER_KINDS = new Set(HOME_LAND.Ocean);
+const wild = [];                                          // { kind, land, x, y, z, g }
+const wildWait = {};                                      // land -> seconds until the next egg may appear there
+const wildOk = (x, z, pad = 1.6) => !blockers.some(b => (b.y === undefined || b.y < 60) && Math.hypot(b.x - x, b.z - z) < b.r + pad);
+function wildSpot(land, water) {
+  const rr = Math.random;
+  for (let i = 0; i < 300; i++) {
+    let x, z, y;
+    if (land === "Sky Islands") {
+      const s = ISLANDS[i % 3 === 0 ? 1 + Math.floor(rr() * (ISLANDS.length - 1)) : 0], a = rr() * 6.283, f = Math.sqrt(rr()) * 0.7;
+      x = s.x + Math.cos(a) * islandRim(s, a) * f; z = s.z + Math.sin(a) * islandRim(s, a) * f; y = islandTopAt(s, x, z, islandFrac(s, x, z));
+      if (wildOk(x, z)) return new V(x, y, z);
+      continue;
+    }
+    if (land === "Ocean") {                               // on the beach, close to the waves
+      const a = COAST.a + (rr() - 0.5) * 0.8, d = 125 + rr() * 60; x = Math.cos(a) * d; z = Math.sin(a) * d; y = height(x, z);
+      if (coast(x, z) > 0.6 && y > WATER_Y + 0.3 && y < WATER_Y + 4 && wildOk(x, z)) return new V(x, y, z);
+      continue;
+    }
+    if (land === "Green Valley") {
+      if (water) { const a = rr() * 6.283, d = POND.r * (1.08 + rr() * 0.3); x = POND.x + Math.cos(a) * d; z = POND.z + Math.sin(a) * d; }
+      else { const a = rr() * 6.283, d = 30 + rr() * 115; x = Math.cos(a) * d; z = Math.sin(a) * d; }
+      y = height(x, z);
+      if (y > WATER_Y + 0.4 && waterTop(x, z) === -Infinity && Math.hypot(x - VIL.x, z - VIL.z) > VIL.r + 8 && !nearArena(x, z, 14)
+        && !LANDS.some(b => basinW(b, x, z) > 0.05) && coast(x, z) < 0.3 && wildOk(x, z)) return new V(x, y, z);
+      continue;
+    }
+    const b = LANDS.find(q => q.name === land);
+    if (water && land === "Desert") { const o = DESERT.oasis, a = rr() * 6.283, d = o.r * (1.25 + rr() * 0.4); x = o.x + Math.cos(a) * d; z = o.z + Math.sin(a) * d; }
+    else { const a = rr() * 6.283, d = Math.sqrt(rr()) * (b === CAVES ? CAVE_IN * 0.8 : b.R * 0.62); x = b.x + Math.cos(a) * d; z = b.z + Math.sin(a) * d; }
+    y = height(x, z);
+    if (b === FIRE && (y < FIRE.LAVA + 1 || Math.hypot(x - FIRE.x, z - FIRE.z) < 22)) continue;   // never in lava or the crater
+    if (b === FROST && Math.hypot(x - FROST.lake.x, z - FROST.lake.z) < FROST.lake.r) continue;   // not out on the thin ice
+    if (b === DESERT && !water && Math.hypot(x - DESERT.oasis.x, z - DESERT.oasis.z) < DESERT.oasis.r * 1.2) continue;
+    if (basinW(b, x, z) > 0.5 && wildOk(x, z)) return new V(x, y, z);
+  }
+  return null;
+}
+function wildKind(land) {
+  const wet = land === "Ocean" || land === "Green Valley" || land === "Desert";   // lands with water to lay by
+  for (let i = 0; i < 40; i++) { const k = rollKind(land); if (!WATER_KINDS.has(k) || wet) return k; }
+  return rollKind(null);
+}
+function addWild(kind, land, p) {
+  const g = new THREE.Group(); g.position.copy(p);
+  const e = makeEgg(SP(kind).pal); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
+  e.material.emissive.convertSRGBToLinear(); e.material.emissiveIntensity = 0.25;
+  // a soft glow and a short shimmer so you can spot it from a little way off
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(2.4, 2.4, 1); glow.position.y = 0.55; g.add(glow);
+  const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 7, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  sh.position.y = 3.7; g.add(sh);
+  g.userData = { e, glow, sh, ph: Math.random() * 6 };
+  scene.add(g); const w = { kind, land, x: p.x, y: p.y, z: p.z, g }; wild.push(w); return w;
+}
+function spawnWild(land) {
+  const kind = wildKind(land), p = wildSpot(land, WATER_KINDS.has(kind));
+  if (!p || Math.hypot(p.x - me.x, p.z - me.z) < 35) return false;      // never pop up right in front of you
+  addWild(kind, land, p); return true;
+}
+const hasDragon = () => state === "baby" || state === "grown" || state === "ride" || state === "arena" || state === "name";
+function updateWild(dt) {
+  const show = hasDragon();
+  wild.forEach(w => {
+    w.g.visible = show && Math.hypot(w.x - me.x, w.z - me.z) < 260;
+    if (!w.g.visible) return;
+    const u = w.g.userData;
+    u.e.position.y = 0.5 + Math.sin(T * 2 + u.ph) * 0.05; u.e.rotation.y += dt * 0.5;
+    u.glow.material.opacity = 0.35 + 0.2 * Math.sin(T * 2.5 + u.ph) + nightAmt * 0.3;
+    u.sh.material.opacity = 0.08 + 0.05 * Math.sin(T * 2 + u.ph) + nightAmt * 0.08;
+  });
+  if (!show) return;
+  WILD_LANDS.forEach(land => {
+    if (wild.filter(w => w.land === land).length >= WILD_PER_LAND) return;
+    if ((wildWait[land] = (wildWait[land] ?? 0) - dt) > 0) return;
+    if (spawnWild(land)) { wildWait[land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]); writeSave(); }
+    else wildWait[land] = 3;                               // try again in a moment
+  });
+}
+const wildNear = () => (state === "baby" || state === "grown") ? wild.find(w => w.g.visible && Math.hypot(w.x - me.x, w.z - me.z) < 2.6 && Math.abs(w.y - me.y) < 3) : null;
+function pickWild(w) {
+  if (bag.length >= BAG_MAX) { toast("Your backpack is full", `Hatch an egg at your nest first (${BAG_MAX} eggs max)`); return; }
+  bag.push(w.kind); scene.remove(w.g); wild.splice(wild.indexOf(w), 1);
+  wildWait[w.land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]);
+  const r = SP(w.kind).rarity;
+  toast(`You found ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg!`, "It's in your backpack. Hatch it at your nest"); burst(new V(w.x, w.y + 0.6, w.z));
+  showCoins(); writeSave();
 }
 
 // ================= the stadium =================
