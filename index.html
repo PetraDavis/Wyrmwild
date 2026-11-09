@@ -3004,6 +3004,7 @@ function frame() {
   updateShen(dt);
   updateQuest(dt);
   animDragonAcc(dragon, T);
+  updateLava(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -6588,6 +6589,41 @@ function underwaterFx(dt) {
 const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble });
 function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; }
 function petWater() { return WARD.bubble ? -Infinity : waterTop(pet.x, pet.z); }   // with the Bubble Charm, water is like air for your dragon
+
+// ================= lava hurts (Petra 2026-11-09) =================
+// Touching the lava in Fire Mountain burns your dragon (a bit of HP every half second) unless it's a fire dragon.
+// On foot it's far too hot: you get pushed back to where you last stood safely.
+const LAVA_SAFE = new Set(["Volcanox", "Blazequill", "Smoldedrake", "Ashveil"]);   // heat-proof fire dragons
+const inLava = (x, z, y) => Math.hypot(x - FIRE.x, z - FIRE.z) < FIRE.R && height(x, z) < FIRE.LAVA - 0.15 && y < FIRE.LAVA + 0.6;
+const LAVA = { t: 0, msg: 0, safe: null, safeSaid: false };
+function updateLava(dt) {
+  if (!started) return;
+  LAVA.msg -= dt;
+  // the tamer on foot
+  if (state !== "ride" && state !== "arena") {
+    if (inLava(me.x, me.z, me.y)) {
+      if (LAVA.safe) { me.x = LAVA.safe.x; me.y = LAVA.safe.y; me.z = LAVA.safe.z; me.vy = 0; }
+      burstAt(me.x, me.y + 0.5, me.z, "#ff7a2a");
+      if (LAVA.msg <= 0) { toast("Too hot!", "Lava burns! Ride a dragon over it, and stay out of it"); LAVA.msg = 3; }
+    } else LAVA.safe = { x: me.x, y: me.y, z: me.z };
+  }
+  // your dragon while you ride it
+  if (state === "ride" && dragon.root.visible && inLava(pet.x, pet.z, pet.y)) {
+    if (LAVA_SAFE.has(pet.kind)) {
+      if (!LAVA.safeSaid) { LAVA.safeSaid = true; toast(`${pet.name} doesn't mind the lava!`, "Fire dragons have heat-proof scales"); }
+      return;
+    }
+    LAVA.t -= dt;
+    if (LAVA.t <= 0) {
+      LAVA.t = 0.5;
+      const dmg = Math.max(2, Math.round(petMaxHp() * 0.06));
+      pet.hp = Math.max(0, petHp() - dmg); petHurtT = 0.35; fightT = Math.max(fightT, 3);
+      burstAt(pet.x, pet.y + 0.6, pet.z, "#ff6a1a");
+      if (LAVA.msg <= 0) { toast("Ouch! Lava!", `${pet.name} is burning. Fly up, quick!`); LAVA.msg = 3; }
+      if (pet.hp <= 0) faint({ kind: "lava" });
+    }
+  } else LAVA.t = 0;
+}
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
