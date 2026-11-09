@@ -52,7 +52,7 @@ The Ocean: a gap in the mountains south-east of the nest opens onto a sandy
 beach with palm trees, waves, sea stacks, jumping fish and a lighthouse out in
 the bay. You can fly far out over the water.
 
-Fire Mountain: through a pass in the mountains north-west of the village. A
+Fire Mountain: through a pass in the mountains (follow the dirt-coloured gap). A
 volcano with a glowing crater and a smoke plume, rivers and pools of lava,
 rising embers, dead trees and glowing magma rocks.
 
