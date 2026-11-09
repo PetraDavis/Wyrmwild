@@ -2568,7 +2568,7 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0]), wildWait,
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
@@ -2579,7 +2579,8 @@ function applySave(d) {
   Object.assign(seen, d.seen || {});
   if (d.eggKind) setEggKind(d.eggKind);
   if (typeof d.dayTime === "number") dayTime = d.dayTime;
-  (d.wild || []).forEach(a => { if (Array.isArray(a) && SPECIES.some(s => s.name === a[0])) addWild(a[0], a[1], new V(a[2], a[3], a[4])).ev = !!a[5]; });
+  (d.wild || []).forEach(a => { if (Array.isArray(a) && SPECIES.some(s => s.name === a[0])) addWild(a[0], a[1], new V(a[2], a[3], a[4]), !!a[6]).ev = !!a[5]; });
+  if (Array.isArray(d.dex)) DEX.push(...d.dex.filter(k => SPECIES.some(s => s.name === k)));
   if (d.ev && EVT[d.ev.id]) { EVS.cur = d.ev.id; EVS.land = d.ev.land; EVS.t = d.ev.t < 0 ? Infinity : d.ev.t; EVS.eggs = d.ev.eggs || {}; const e = EVT[d.ev.id]; epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a"); }
   if (d.wildWait) Object.assign(wildWait, d.wildWait);
   if (d.shen) shenLoad(d.shen);
@@ -2587,17 +2588,17 @@ function applySave(d) {
   if (d.shop) shopLoad(d.shop);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
-  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k)));
+  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
   if (Array.isArray(d.pen)) pen.push(...d.pen.filter(p => p && SPECIES.some(s => s.name === p.kind)));
   if (d.arena) { arena.entries = d.arena.entries || 0; [0, 1, 2, 3].forEach(k => { arena.won[k] = !!(d.arena.won || [])[k]; arena.owed[k] = !!(d.arena.owed || [])[k]; }); }
   showCoins();
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
-    pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
+    pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; pet.small = !!d.pet.small; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
     Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
-    state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
-    goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
+    state = d.stage; petLabel(state === "baby" ? (pet.small ? "small" : "baby") : "grown up");
+    goal(state === "baby" ? (pet.small ? `${pet.name} is a small dragon. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`) : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
   }
 }
 const saved = loadSave();
@@ -2758,8 +2759,8 @@ function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   pet.name = n.charAt(0).toUpperCase() + n.slice(1);
   nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse(); egg.userData.fromBag = false; setTimeout(writeSave, 0);
-  petLabel("baby");
-  goal(`Walk around with ${pet.name} so it can grow`);
+  petLabel(pet.small ? "small" : "baby");
+  goal(pet.small ? `${pet.name} is a small dragon and will always be little. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`);
   toast(`Hello, ${pet.name}!`, "Babies follow you everywhere");
   nameInput.blur();
 }
@@ -2874,11 +2875,15 @@ function frame() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind, evShiny()); pet.level = 1; pet.xp = 0; dragon.root.visible = true;
-      if (pet.shiny) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
+      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false;
+      const evS = evShiny(), sh = evS || (Math.random() < 1 / 50 ? rollShiny() : null);   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
+      setKind(eggKind, sh); pet.level = 1; pet.xp = 0; dragon.root.visible = true; if (!DEX.includes(eggKind)) DEX.push(eggKind);
+      if (evS) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
+      else if (sh) toast(`A SHINY! A ${sh} ${eggKind}!`, "Only 1 egg in 50 hatches shiny. Lucky you!");
+      else if (pet.small) toast(`It's a tiny ${eggKind}!`, "Small dragons stay little forever. Too small to ride, but so cute");
       else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
     }
-    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A baby ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
+    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
     prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
@@ -2899,7 +2904,8 @@ function frame() {
       } else pet.face = angLerp(pet.face, Math.atan2(me.z - pet.z, me.x - pet.x), dt * 2);
       fall(pet, dt); pet.fly = false; pet.bank = 0;
       pet.pitch += (slopePitch() - pet.pitch) * Math.min(1, dt * 6);
-      if (state === "baby") {
+      if (state === "baby" && pet.small) pet.scale = 0.45;
+      else if (state === "baby") {
         pet.age += dt * (walkAmt > 0.1 ? 1 : 0.35);
         pet.scale = 0.45 + Math.min(1, pet.age / 40) * 0.25;
         if (pet.age > 40) {
@@ -3081,7 +3087,8 @@ const TAMERS = [[{"n":"Timmy","k":"Pyrrak","l":2,"i":["Hi! I'm Timmy! This is my
 
 // ================= coins, backpack, pen =================
 let coins = 50;                                   // a few coins to start, so the first arena entry is free-ish
-const bag = [], pen = [];                         // backpack eggs (kinds) and dragons resting in the pen
+const bag = [], pen = [], DEX = [];   // DEX: every kind you've hatched (small eggs hatch one of these)
+const penUsed = () => pen.reduce((n, d) => n + (d.small ? 0.25 : 1), 0);   // small dragons take a quarter of a pen spot                         // backpack eggs (kinds) and dragons resting in the pen
 const BAG_MAX = 6, PEN_MAX = 10;
 const arena = { entries: 0, won: [false, false, false, false], owed: [false, false, false, false] };
 pet.xp = 0;
@@ -3372,35 +3379,36 @@ function arenaCamera(dt) {
 
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
-  const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k === "Dustmite" ? "Shiny" : SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
     <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
   const penStat = d => { const s = statsAt(d.kind, d.level || 1), c = gearAdd(d.gear, "claw"); return `HP ${s.hp + gearAdd(d.gear, "plate")} · Claw ${s.claw[0] + c}-${s.claw[1] + c} · Breath ${s.breath[0]}-${s.breath[1]}`; };
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
-  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" && !pet.small ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
     <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
-    <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
-  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
+    <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${penUsed()}/${PEN_MAX})</h4>${pens}`);
+  const ok = state === "grown" || (state === "baby" && pet.small), full = penUsed() + (pet.small ? 0.25 : 1) > PEN_MAX;
+  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown")) b.disabled = true; });
   menuAct = (a, i) => {
-    if (state !== "grown") return;
+    if (!ok) return;
     if (a === "glim") return glimMenu();
     if (a === "dress") return wardrobeMenu();
     if (a === "hatch") { const kind = bag.splice(i, 1)[0]; toPen(); closeMenu(); hatchEgg(kind); }
     if (a === "swap") { const d = pen.splice(i, 1)[0]; toPen(); takeOut(d); closeMenu(); }
   };
 }
-function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null }); }
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small }); }
 function takeOut(d) {
-  pet.gear = d.gear || null; pet.acc = d.acc || null; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
-  pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = "grown";
-  petLabel("grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
+  pet.gear = d.gear || null; pet.acc = d.acc || null; pet.small = !!d.small; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: pet.small ? 0.45 : 1 });
+  pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = pet.small ? "baby" : "grown";
+  petLabel(pet.small ? "small" : "grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
 function hatchEgg(kind) {
-  pet.gear = null; pet.acc = null;
+  pet.gear = null; pet.acc = null; pet.smallNext = kind.endsWith("*"); kind = kind.replace("*", "");
   setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
   egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
   egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
@@ -3453,9 +3461,9 @@ function wildKind(land) {
   for (let i = 0; i < 40; i++) { const k = rollKind(land); if (!WATER_KINDS.has(k) || wet) return k; }
   return rollKind(null);
 }
-function addWild(kind, land, p) {
+function addWild(kind, land, p, small) {
   const g = new THREE.Group(); g.position.copy(p);
-  const e = makeEgg(SP(kind).pal, SP(kind).rarity); e.scale.multiplyScalar(0.85); e.position.y = 0.5; g.add(e);
+  const e = makeEgg(SP(kind).pal, SP(kind).rarity); e.scale.multiplyScalar(small ? 0.45 : 0.85); e.position.y = 0.5; g.add(e);
   // a soft glow and a short shimmer so you can spot it from a little way off
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(2.4, 2.4, 1); glow.position.y = 0.55; g.add(glow);
@@ -3463,12 +3471,14 @@ function addWild(kind, land, p) {
     new THREE.MeshBasicMaterial({ color: new THREE.Color(SP(kind).pal.glow).convertSRGBToLinear(), transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   sh.position.y = 3.7; g.add(sh);
   g.userData = { e, glow, sh, ph: Math.random() * 6 };
-  scene.add(g); const w = { kind, land, x: p.x, y: p.y, z: p.z, g }; wild.push(w); return w;
+  if (small) { e.position.y = 0.28; glow.scale.set(1.4, 1.4, 1); }
+  scene.add(g); const w = { kind, land, x: p.x, y: p.y, z: p.z, g, small: !!small }; wild.push(w); return w;
 }
 function spawnWild(land) {
-  const kind = wildKind(land), p = wildSpot(land, WATER_KINDS.has(kind));
+  const small = DEX.length && Math.random() < 1 / 20;    // 1 egg in 20 is a small egg: a baby of a kind you've already hatched
+  const kind = small ? DEX[Math.floor(Math.random() * DEX.length)] : wildKind(land), p = wildSpot(land, WATER_KINDS.has(kind));
   if (!p || Math.hypot(p.x - me.x, p.z - me.z) < 35) return false;      // never pop up right in front of you
-  addWild(kind, land, p); return true;
+  addWild(kind, land, p, small); return true;
 }
 const hasDragon = () => state === "baby" || state === "grown" || state === "ride" || state === "arena" || state === "name";
 function updateWild(dt) {
@@ -3492,11 +3502,12 @@ function updateWild(dt) {
 const wildNear = () => (state === "baby" || state === "grown") ? wild.find(w => w.g.visible && Math.hypot(w.x - me.x, w.z - me.z) < 2.6 && Math.abs(w.y - me.y) < 3) : null;
 function pickWild(w) {
   if (bag.length >= BAG_MAX) { toast("Your backpack is full", `Hatch an egg at your nest first (${BAG_MAX} eggs max)`); return; }
-  if (SHN.luck && !w.ev) { const r = Math.random(); w.kind = randomKind(r < 0.6 ? "Rare" : r < 0.92 ? "Epic" : "Legendary"); SHN.luck = 0; }
-  bag.push(w.kind); scene.remove(w.g); wild.splice(wild.indexOf(w), 1);
+  if (SHN.luck && !w.ev && !w.small) { const r = Math.random(); w.kind = randomKind(r < 0.6 ? "Rare" : r < 0.92 ? "Epic" : "Legendary"); SHN.luck = 0; }
+  bag.push(w.small ? w.kind + "*" : w.kind); scene.remove(w.g); wild.splice(wild.indexOf(w), 1);
   if (!w.ev) wildWait[w.land] = WILD_WAIT[0] + Math.random() * (WILD_WAIT[1] - WILD_WAIT[0]);
   const r = SP(w.kind).rarity;
-  toast(`You found ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg!`, "It's in your backpack. Hatch it at your nest"); burst(new V(w.x, w.y + 0.6, w.z));
+  if (w.small) toast("You found a small egg!", "Tiny! It's in your backpack. Hatch it at your nest");
+  else toast(`You found ${/^[AEIOU]/.test(r) ? "an" : "a"} ${r} egg!`, "It's in your backpack. Hatch it at your nest"); burst(new V(w.x, w.y + 0.6, w.z));
   showCoins(); writeSave();
 }
 
@@ -6171,7 +6182,7 @@ function qOffers() {
 const qDone = q => q && (q.type === "hunt" || q.type === "clear" ? q.have >= q.n : q.type === "egg" ? qEggIdx(q) >= 0 : q.type === "errand" ? q.delivered : q.found);
 function qEggIdx(q) {
   const need = TIER[q.rank]; let best = -1;
-  bag.forEach((k, i) => { const t = TIER[SP(k).rarity] ?? 0; if (k !== "Crestwyrm" && t >= need && t < 6 && (best < 0 || t < TIER[SP(bag[best]).rarity])) best = i; });
+  bag.forEach((k, i) => { const t = TIER[SP(k.replace("*", "")).rarity] ?? 0; if (k !== "Crestwyrm" && !k.endsWith("*") && t >= need && t < 6 && (best < 0 || t < TIER[SP(bag[best]).rarity])) best = i; });
   return best;
 }
 function qStatus(q) {
