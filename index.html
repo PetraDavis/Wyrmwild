@@ -1,8 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wyrmwild</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze:wght@600;700&family=Nunito+Sans:wght@400;700;800&display=swap">
@@ -87,15 +87,49 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 #start h2 { font-family: var(--display); font-size: 3rem; margin: 0; line-height: 1; }
 #start p { color: var(--muted); margin: 10px 0 18px; line-height: 1.45; }
 #start button { font: 800 1.1rem var(--body); padding: 12px 30px; border-radius: 999px; border: 0; background: var(--ember); color: #1b1208; cursor: pointer; }
+#menu {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 18px 20px; width: min(520px, calc(100% - 32px));
+  max-height: calc(100% - 48px); overflow: auto; box-sizing: border-box;
+}
+#menu h2 { font-family: var(--display); font-size: 2rem; margin: 0 0 6px; }
+#menu h4 { margin: 14px 0 4px; color: var(--ember); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; }
+#menu p { margin: 6px 0; line-height: 1.45; }
+#menu .sec { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+#menu .sec small { color: var(--muted); }
+#menu .sec.locked { opacity: 0.55; }
+#menu .good { color: #8aef8a; font-weight: 700; } #menu .bad { color: #ff9a8a; font-weight: 700; }
+#menu button, #battle button {
+  font: 800 0.95rem var(--body); padding: 8px 18px; border-radius: 999px; border: 0; background: var(--ember); color: #1b1208; cursor: pointer; flex: none;
+}
+#menu button:disabled, #battle button:disabled { opacity: 0.4; cursor: default; }
+#menu button:focus-visible, #battle button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#menuClose { margin-top: 12px; background: transparent !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+#battle {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  padding: 12px 16px; width: min(640px, calc(100% - 32px)); box-sizing: border-box;
+}
+#battle .bars { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+#battle .side b { font-family: var(--display); font-size: 1.25rem; display: block; line-height: 1.1; }
+#battle .side span { font-size: 0.78rem; color: var(--muted); font-weight: 700; }
+#battle .bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,0.15); overflow: hidden; margin: 4px 0 2px; }
+#battle .bar i { display: block; height: 100%; background: linear-gradient(90deg, #4ad86a, #b8ef5a); transition: width 0.4s; }
+#battle .side.foe .bar i { background: linear-gradient(90deg, #ff6a4a, #ffb04a); }
+#battle .side.foe { text-align: right; }
+#battle #bRound { font-size: 0.75rem; color: var(--ember); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+#battle #bLog { margin: 10px 0; min-height: 2.8em; line-height: 1.4; }
+#battle .row { display: flex; gap: 8px; flex-wrap: wrap; }
+#battle kbd { font: 800 0.75em var(--body); background: rgba(0,0,0,0.25); border-radius: 5px; padding: 0 5px; margin-left: 4px; }
 </style>
 </head>
 <body>
+
 
 <div id="stage"></div>
 <div id="where" class="plate">
   <h1>Green Valley</h1>
   <p class="goal" id="goal">Find the glowing egg</p>
   <p class="pet" id="pet" hidden></p>
+  <p class="pet" id="coins"></p>
 </div>
 <div id="arrow" class="plate"><svg viewBox="0 0 24 24" id="arrowSvg"><path d="M12 2 L19 20 L12 15 L5 20 Z" fill="#ffa04d"/></svg><span id="dist">0 m</span></div>
 <div id="prompt" class="plate" hidden></div>
@@ -105,6 +139,16 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="toast"></div>
 <div id="talk" class="plate" hidden><h3 id="talkName"></h3><p id="talkLine"></p><div class="more"><kbd>E</kbd> close</div></div>
 <div id="cross" hidden></div>
+<div id="menu" class="plate" hidden><h2 id="menuTitle"></h2><div id="menuBody"></div><button id="menuClose" type="button">Close <kbd>Esc</kbd></button></div>
+<div id="battle" class="plate" hidden>
+  <div id="bRound"></div>
+  <div class="bars">
+    <div class="side"><b id="bMeName"></b><span id="bMeKind"></span><div class="bar"><i id="bMeHp"></i></div><span id="bMeNum"></span></div>
+    <div class="side foe"><b id="bFoeName"></b><span id="bFoeKind"></span><div class="bar"><i id="bFoeHp"></i></div><span id="bFoeNum"></span></div>
+  </div>
+  <p id="bLog"></p>
+  <div class="row" id="bBtns"></div>
+</div>
 <div id="namebox" class="plate" hidden>
   <h2>It hatched!</h2>
   <p id="nameKind">A baby dragon. What will you name it?</p>
@@ -559,6 +603,10 @@ function wing(zs) {
     tips = [new V(-1.2, 1.15, 2.9), new V(-1.6, 0.75, 2.1)];
     back = new V(-0.9, 0.0, 0.1); sagT = [0.1, 0.15];
   }
+  else if (type === "tattered") {   // ripped, ragged wings with deep tears between the fingers
+    tips = [new V(-0.3, 1.8, 2.4), new V(-0.8, 1.45, 2.75), new V(-1.3, 1.05, 2.7), new V(-1.75, 0.6, 2.2), new V(-2.0, 0.2, 1.4)];
+    back = new V(-1.5, -0.1, 0.05); sagT = [0.55, 0.6, 0.5, 0.62, 0.55];
+  }
   if (type === "flipper") g.scale.multiplyScalar(0.55);
   const boneR = fingers === "rays" ? 0.5 : 1;
   g.add(staticTube([S, E, W], [[0, 0.11], [0.5, 0.075], [1, 0.06]], M.bone, 20, 12));
@@ -582,7 +630,9 @@ function wing(zs) {
     const trim = staticTube(edge, [[0, 0.01], [0.5, 0.012 + 0.006 * (o.tier - 2)], [1, 0.01]], M.trim, edge.length * 8, 6); trim.castShadow = false; g.add(trim);
   }
   g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  wings.push({ pivot, zs });
+  // how steep the wing already rises at rest, so the up-stroke can stop before the wings cross over the back (up = biggest up-swing)
+  const lead = Math.max(...[E, W, ...tips].map(q => Math.atan2(q.y, q.z)));
+  wings.push({ pivot, zs, up: Math.max(0.15, 1.4 - lead) });
 }
 if (o.wings !== "none") { wing(1); wing(-1); }
 
@@ -590,6 +640,9 @@ if (o.wings !== "none") { wing(1); wing(-1); }
 const flame = new THREE.Group(); dragon.add(flame);
 const fl = [];
 const tailTip = new THREE.Group(); dragon.add(tailTip);
+// places to hang accessories: they follow the body as it moves (x = forward, y = up, z = side)
+const neckSock = new THREE.Group(), chestSock = new THREE.Group(), backSock = new THREE.Group(), tailSock = new THREE.Group(); [neckSock, chestSock, backSock, tailSock].forEach(k => dragon.add(k));
+const sockets = { head: null, neck: neckSock, chest: chestSock, back: backSock, tail: tailSock };
 const flameLight = new THREE.PointLight("#ff7a1c", o.tail === "flame" ? 1.4 : 0, 3.5, 2); flame.add(flameLight); if (o.orbGlow) flameLight.color.set(p.glow);
 if (o.tail === "flame" || o.tail === "smoke") {
   const mats = o.tail === "smoke" ? [M.smoke, M.smoke, M.flame] : [M.flame, M.flame, M.flame2];
@@ -629,7 +682,7 @@ if (TIER >= 4) {
   motes.userData.seed = seed; motes.frustumCulled = false; dragon.add(motes);
 }
 // ----- Secret dragons: their own special effects -----
-const orbit = []; let heart = null, heartLight = null, ring = null;
+const orbit = []; let heart = null, heartLight = null, ring = null, zap = null, core = null, coreLight = null;
 if (o.secret === "quantum") {
   // a glowing violet ring of runes circles it, and black void shards orbit
   ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.025, 8, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow).convertSRGBToLinear(), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -637,6 +690,10 @@ if (o.secret === "quantum") {
   const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.012, 6, 96), ring.material.clone()); ring2.material.color.set(p.glow2 || p.glow).convertSRGBToLinear(); ring.add(ring2);
   const shardM = new THREE.MeshStandardMaterial({ color: "#05040c", roughness: 0.15, metalness: 0.6, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.35 });
   for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), shardM); m.scale.set(0.6, 1.6, 0.6); m.userData.o = [i / 6 * 6.28, 1.7, 0.35 + (i % 2) * 0.3, 0.6]; dragon.add(m); orbit.push(m); }
+  // flickering violet lightning that jumps between the shards
+  const zg = new THREE.BufferGeometry(); zg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6 * 2 * 4 * 3), 3));
+  zap = new THREE.LineSegments(zg, new THREE.LineBasicMaterial({ color: new THREE.Color(p.eye).convertSRGBToLinear(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  zap.frustumCulled = false; dragon.add(zap);
 }
 if (o.secret === "petralith") {
   // floating pebbles and quartz shards circle it, and an amber heart glows in its chest
@@ -658,6 +715,12 @@ function updateSecret(t) {
   if (ring) { ring.position.set(c.x, c.y + 0.1, 0); ring.rotation.z = t * 0.4; ring.rotation.y = Math.sin(t * 0.5) * 0.25; ring.material.opacity = 0.55 + Math.sin(t * 2.3) * 0.25;
     // wings flicker as if it is half between places
     M.wing.transparent = true; M.wing.opacity = 0.72 + 0.28 * Math.abs(Math.sin(t * 1.7) * Math.sin(t * 4.1)); M.trim.opacity = 0.5 + 0.5 * Math.abs(Math.sin(t * 3.3)); }
+  if (zap) { const a = zap.geometry.attributes.position; let k = 0;
+    for (let i = 0; i < orbit.length; i++) { const A = orbit[i].position, B = orbit[(i + 1) % orbit.length].position; let prev = A;
+      for (let s = 1; s <= 4; s++) { const f = s / 4, j = s < 4 ? 0.18 : 0; const P2 = new V().lerpVectors(A, B, f).add(new V((Math.random() - 0.5) * j, (Math.random() - 0.5) * j, (Math.random() - 0.5) * j));
+        a.setXYZ(k++, prev.x, prev.y, prev.z); a.setXYZ(k++, P2.x, P2.y, P2.z); prev = P2; } }
+    a.needsUpdate = true; zap.material.opacity = Math.random() < 0.35 ? 0.9 : 0.15; }
+  if (core) { core.children.forEach((m, i) => { if (i) m.rotation.x = t * (i === 1 ? 2.2 : -3.1); }); const k = 1 + Math.sin(t * 3.1) * 0.12; core.scale.setScalar(k); coreLight.intensity = 0.7 + Math.sin(t * 3.1) * 0.35; }
   if (heart) { const k = 1 + Math.max(0, Math.sin(t * 2.4)) ** 6 * 0.25; heart.scale.set(k, 1.15 * k, 0.9 * k); heart.material.emissiveIntensity = 1.2 + (k - 1) * 4; heartLight.intensity = 0.6 + (k - 1) * 3; }
 }
 function updateMotes(t) {
@@ -682,8 +745,8 @@ function update(t, walk, flap, dt, bend = 0) {
   hb.makeBasis(fwd, up, side); hq.setFromRotationMatrix(hb).multiply(tilt);
   head.quaternion.copy(hq).multiply(headTurn.setFromAxisAngle(UP, -bendNow * 0.35));
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
-  const flapSpeed = o.flapSpeed || 7;
-  wings.forEach(w => { const rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = -0.1 + Math.sin(t * flapSpeed) * 0.85; w.pivot.rotation.x = w.zs * (flap ? fly : rest); });
+  const flapSpeed = o.flapSpeed || 7; // negative rotation = wings up; the up-stroke stops before the wings cross
+  wings.forEach(w => { const st = Math.sin(t * flapSpeed), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = st > 0 ? -0.1 + st * 0.85 : -0.1 + st * (w.up - 0.1); w.pivot.rotation.x = w.zs * (flap ? fly : rest); });
   walkT += dt * 8 * walk;
   legs.forEach((g, i) => {
     const ph = (i === 0 || i === 3) ? 0 : Math.PI;
@@ -695,17 +758,19 @@ function update(t, walk, flap, dt, bend = 0) {
   fl.forEach((c, i) => { const k = 1 + Math.sin(t * 13 + i * 2) * 0.12 + Math.sin(t * 7.3 + i) * 0.08; c.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k)); c.rotation.y = t * (1 + i); });
   if (o.tail === "flame") flameLight.intensity = 1.3 + Math.sin(t * 17) * 0.25;
   tb.makeBasis(tip.T.clone().negate(), tip.n, tip.side.clone().negate()); tailTip.quaternion.setFromRotationMatrix(tb); tailTip.position.copy(tip.p);
+  [[neckSock, 0.86], [chestSock, 0.7], [backSock, 0.56], [tailSock, 0.27]].forEach(([s, k]) => { const f = at(k); tb.makeBasis(f.T, f.n, f.side); s.quaternion.setFromRotationMatrix(tb); s.position.copy(f.p); s.userData.r = Math.max(f.r, 0.14); });
 }
 paint(p);
 dragon.traverse(m => { if (m.isMesh) m.castShadow = true; });
 update(0, 0, 0, 0.016);
-return { root: dragon, update, seat };
+sockets.head = head;
+return { root: dragon, update, seat, sockets, spikes: backParts.filter(m => !m.userData.mane) };   // spikes: so a saddle or cape can hide the ones it covers
 }
 
 // ================= dragon kinds =================
 // every dragon kind: colors, body plan and the adaptations it has for where it lives
 const P = (top, side, belly, glow, horn, wing, eye, extra = {}) => Object.assign({ top, side, belly, glow, horn, wing, eye, metal: 0.05 }, extra);
-const TIER = { Junk: 0, Common: 1, Uncommon: 2, Rare: 3, Epic: 4, Legendary: 5, Secret: 7 };
+const TIER = { Junk: 0, Common: 1, Uncommon: 2, Rare: 3, Epic: 4, Champion: 4.5, Legendary: 5, Secret: 7, Boss: 6 };
 const SPECIES = [
   { name: "Dustmite", size: 0.6, rarity: "Junk", home: "Wherever Shady Shen sold it", speed: 1, pal: P("#5a564e", "#8a857a", "#b0a898", "#a09a8a", "#6a655c", "#6a655c", "#2a2824", { smoke: "#a8a090" }),
     sp: { girth: 1.1, wingScale: 0.45, horns: "short", back: "none", tail: "smoke", frill: "ears", pattern: "spots", glow: 0.15, eyes: 0.8, legLen: 0.85 },
@@ -792,11 +857,24 @@ const SPECIES = [
   { name: "Bergdrake", rarity: "Rare", home: "Icy seas by the ocean", speed: 2, pal: P("#3a4a5a", "#6a8094", "#c8d8e0", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
     sp: { legThick: 1.3, feet: 1.4, girth: 1.5, wings: "flipper", tail: "fluke", tusks: true, horns: "none", back: "none", legLen: 0.8, pattern: "none", spots: "#8aa0b4", neck: 0.8 },
     ad: ["Thick blubber keeps it warm in freezing water", "Flippers instead of big wings: a great swimmer", "Tusks haul it up onto ice", "Big webbed feet paddle in the sea and grip on ice", "Slow on land, graceful in the sea"] },
+  // ----- champion: only from the arena -----
+  { name: "Crestwyrm", rarity: "Champion", home: "Bred at the arena (never found in the wild)", speed: 4, pal: P("#16245e", "#2c48b0", "#efe0b0", "#ffcc3a", "#fff0c0", "#14205a", "#ffd84a", { fin: "#ffcc3a", wingTip: "#e8a020", metal: 0.4 }),
+    sp: { tier: 4.5, frill: "crest", horns: "swept", back: "frill", backScale: 1.3, tail: "spike", pattern: "stripes", wingScale: 1.3, glow: 1.3, eyes: 1.15, neck: 1.1 },
+    ad: ["A royal blue champion with gold trim", "A tall golden crest on its head shows off to the crowd", "A golden frill runs down its whole back", "Bred by the arena masters, who mixed bloodlines to get its royal blue and gold. That's why none live in the wild", "The only way to get one: win every section of the arena"] },
+  // ----- bosses (not hatchable) -----
+  { name: "Dread Drake", size: 1.9, rarity: "Boss", home: "Wherever an Epic dragon roams", speed: 4,
+    pal: P("#3a3634", "#5a5450", "#7a706a", "#c8323a", "#e8dcc8", "#3a2a28", "#c86aff", { glow2: "#7a1a20", smoke: "#4a4440", metal: 0.1 }),
+    sp: { tier: 5, girth: 1.3, legThick: 1.3, horns: "ram", back: "plates", backScale: 1.25, tail: "club", pattern: "cracks", glow: 0.9, fangs: 2.8, eyes: 1.1, wingScale: 1.35, wings: "bat", frill: "crest", spots: "#2a2624" },
+    ad: ["Ash-grey armour plates, scarred from old fights", "Bone-white ram horns and huge fangs", "Red cracks glow like embers under its scales", "Glaring violet eyes", "A club tail that smashes rocks", "Only shows up when you own an Epic or better dragon. Beat it for a strange egg; run and it comes back later"] },
+  { name: "Shadow Wyrm", size: 2.5, rarity: "Boss", home: "Everywhere its shadow falls", speed: 5,
+    pal: P("#1c1c1e", "#2e2c2c", "#4a4644", "#c8ff5a", "#d8d2c4", "#141414", "#eaffb0", { smoke: "#2a2a2a", fin: "#1a1a1a", metal: 0.02 }),
+    sp: { tier: 6, len: 1.7, neck: 1.4, girth: 0.75, legLen: 1.25, legThick: 0.85, horns: "swept", back: "spikes", tail: "smoke", pattern: "streaks", glow: 0.9, eyes: 1.0, fangs: 3, wings: "tattered", wingScale: 1.9, frill: "none", flapSpeed: 3 },
+    ad: ["The monster that scared all the dragons away", "A long, thin, sooty body that trails smoke", "Huge ripped wings: its shadow covers whole lands", "Pale sickly-green eyes and fangs glow in the dark", "Beat it and the dragons return to every land"] },
   // ----- secret dragons -----
   { name: "Quantum", size: 1.05, rarity: "Secret", home: "Between places (nobody knows where)", speed: 5,
     pal: P("#040408", "#0a0a1c", "#16123a", "#9a5aff", "#2a1a5e", "#05051a", "#c89aff", { glow2: "#3a5aff", metal: 0.3 }),
     sp: { secret: "quantum", orbGlow: true, thin: 0.95, pattern: "runes", glow: 1.7, wingScale: 1.4, wingStars: true, eyes: 1.35, horns: "long", frill: "crest", tail: "orb", back: "fin" },
-    ad: ["Black skin swallows light, so it is almost invisible", "Violet eyes see in total darkness", "Starry wing edges flicker as it blinks between places", "Hardly needs to breathe at all", "Black void shards circle it"] },
+    ad: ["Black skin swallows light, so it is almost invisible", "Violet eyes see in total darkness", "Starry wing edges flicker as it blinks between places", "Hardly needs to breathe at all", "Black void shards circle it, with violet lightning jumping between them"] },
   { name: "Petralith", size: 1.25, rarity: "Secret", home: "Deep under the mountains", speed: 2,
     pal: P("#4a4742", "#7a756c", "#a89e8a", "#ffb02a", "#f4eefc", "#3e3b36", "#ffb02a", { crystal: "#f4eefc", hornTip: "#a05aff", crystalTip: "#5ac0ff", metal: 0.1 }),
     sp: { secret: "petralith", back: "crystal", backScale: 1.5, horns: "single", tail: "club", pattern: "cracks", glow: 1.4, wingScale: 1.3, spots: "#5a564e" },
@@ -805,20 +883,20 @@ const SPECIES = [
 
 // ----- battle stats at level 1 (+6 HP and +2 damage per level) -----
 // base by rarity, then each species leans its own way: tough, sharp claws, strong breath, or fast but fragile
-const BASE = { Junk: [14, 4, 5, 5, 6], Common: [20, 7, 9, 9, 12], Uncommon: [26, 9, 11, 11, 14], Rare: [32, 11, 13, 13, 16], Epic: [38, 13, 15, 15, 18], Legendary: [44, 15, 17, 17, 20] };
+const BASE = { Junk: [14, 4, 5, 5, 6], Common: [20, 7, 9, 9, 12], Uncommon: [26, 9, 11, 11, 14], Rare: [32, 11, 13, 13, 16], Epic: [38, 13, 15, 15, 18], Champion: [41, 14, 16, 16, 19], Legendary: [44, 15, 17, 17, 20] };
 const LEAN = { // [HP, claw, breath] changes from the rarity base
   Dustmite: [0, 0, 0], Pyrrak: [0, 0, 1], Smoldedrake: [6, -1, 0], Aquawyrm: [-2, 1, 0], Gillwing: [-5, 1, 1], Fernling: [-2, 0, 1], Lichenwing: [4, -1, -1], Stonewyrm: [8, 1, -3], Snowpaw: [4, 2, -3],
   Volcanox: [4, 0, 2], Ashveil: [-2, 0, 2], Glacius: [4, 0, 0], Tempestra: [-4, 1, 2], Thornwyrm: [2, 2, -2], Driftail: [-4, 0, 1], Rimefang: [0, 3, -1],
   Dawnwing: [-3, 0, 3], Pearlhorn: [4, 1, -1], Jadewyrm: [2, 1, 0], Petalwyrm: [-2, -1, 3], Aerolash: [-6, 2, 1], Auroran: [-2, 0, 2], Bergdrake: [10, 1, -3],
-  Blazequill: [-2, 1, 3], Abyssar: [-4, 2, 1], Rootwyrm: [8, 1, -2], Skyrune: [-2, 0, 2], Lumora: [0, 1, 1]
+  Blazequill: [-2, 1, 3], Abyssar: [-4, 2, 1], Rootwyrm: [8, 1, -2], Skyrune: [-2, 0, 2], Lumora: [0, 1, 1], Crestwyrm: [0, 1, 0]
 };
-const SECRET_STATS = { Quantum: [50, 21, 25, 25, 30], Petralith: [55, 21, 25, 21, 25] };
+const SECRET_STATS = { Quantum: [50, 21, 25, 25, 30], Petralith: [55, 21, 25, 21, 25], "Dread Drake": [70, 10, 12, 11, 14], "Shadow Wyrm": [110, 11, 13, 13, 16] };
 SPECIES.forEach(s => {
   // what grows each level follows the same lean: tough ones gain more HP, clawed ones more claw, and so on
   const g = (d, big, base) => base + (d >= big ? 1 : d <= -2 ? -1 : 0);
   if (SECRET_STATS[s.name]) {
     const [hp, c1, c2, b1, b2] = SECRET_STATS[s.name];
-    s.stats = { hp, claw: [c1, c2], breath: [b1, b2], grow: s.name === "Quantum" ? { hp: 6, claw: 3, breath: 4 } : { hp: 9, claw: 3, breath: 3 } }; return;
+    s.stats = { hp, claw: [c1, c2], breath: [b1, b2], grow: s.name === "Quantum" ? { hp: 6, claw: 3, breath: 4 } : s.rarity === "Boss" ? { hp: 0, claw: 0, breath: 0 } : { hp: 9, claw: 3, breath: 3 } }; return;
   }
   const [hp, c1, c2, b1, b2] = BASE[s.rarity], [dh, dc, db] = LEAN[s.name] || [0, 0, 0];
   s.stats = { hp: hp + dh, claw: [c1 + dc, c2 + dc], breath: [b1 + db, b2 + db],
@@ -827,12 +905,15 @@ SPECIES.forEach(s => {
   const gr = s.stats.grow;
   if (s.rarity === "Junk") { gr.hp = 4; gr.claw = 1; gr.breath = 1; }
   if (s.rarity === "Epic") gr.hp += 1;
+  if (s.rarity === "Champion") { gr.hp += 1; gr.claw += 1; }
   if (s.rarity === "Legendary") { gr.hp += 1; gr.claw += 1; gr.breath += 1; }
 });
 
 // ----- which land each kind's eggs turn up in most (Lumora: anywhere; secret dragons have their own way) -----
 const HOME_LAND = {
-  "Green Valley": ["Pyrrak", "Fernling", "Lichenwing", "Stonewyrm", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Dawnwing"],
+  "Green Valley": ["Pyrrak", "Lichenwing", "Dawnwing"],
+  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm"],
+  "Crystal Caves": ["Stonewyrm"],
   "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake"],
   "Fire Mountain": ["Smoldedrake", "Volcanox", "Ashveil", "Blazequill"],
   "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran"],
@@ -942,11 +1023,26 @@ function fbm(x, y, o = 5) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i+
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const NEST = new V(0, 0, 0), POND = { x: 62, z: -50, r: 30 }, WATER_Y = -1.4, EDGE = 190;
 const VIL = { x: -100, z: -35, r: 48, y: 1 };
+// where there is real water (the pond or the sea). Low dry ground is just ground, so you can walk there
+function waterTop(x, z) { return (Math.hypot(x - POND.x, z - POND.z) < POND.r * 1.05 || (coast(x, z) > 0.05 && Math.hypot(x, z) > 118)) ? WATER_Y : -Infinity; }
+// the arena stands just outside the village, toward the nest
+const ARENA = { x: VIL.x + Math.cos(-0.35) * 64, z: VIL.z + Math.sin(-0.35) * 64, r: 16, y: VIL.y };
+ARENA.gateA = Math.atan2(VIL.z - ARENA.z, VIL.x - ARENA.x);
+ARENA.gate = { x: ARENA.x + Math.cos(ARENA.gateA) * (ARENA.r + 11), z: ARENA.z + Math.sin(ARENA.gateA) * (ARENA.r + 11) };
+const nearArena = (x, z, pad) => Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + pad;
 const COAST = { a: 0.5 };  // direction of the gap in the mountains that opens onto the ocean
 function coast(x, z) { let d = Math.abs(Math.atan2(z, x) - COAST.a); if (d > Math.PI) d = Math.PI * 2 - d; return 1 - sstep(0.4, 0.75, d); }  // the village, west of the nest
 // ---------- the lands past the mountains: each is a big basin reached by a pass ----------
 const FIRE = { a: -1.9, d: 340, R: 135, LAVA: 6 }, FROST = { a: 2.0, d: 340, R: 135, ICE: 10 };
-[FIRE, FROST].forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
+// three more lands (Petra 2026-11-09): a giant Deep Forest, a Desert past the village, and Crystal Caves under a rock roof
+const FOREST = { a: -0.88, d: 340, R: 135 }, DESERT = { a: 2.85, d: 340, R: 135 }, CAVES = { a: -2.72, d: 330, R: 95, FLOOR: 5, RIM: 30, TOP: 54 };
+FIRE.name = "Fire Mountain"; FROST.name = "Frost Peaks"; FOREST.name = "Deep Forest"; DESERT.name = "Desert"; CAVES.name = "Crystal Caves";
+const LANDS = [FIRE, FROST, FOREST, DESERT, CAVES];
+LANDS.forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
+DESERT.oasis = { x: DESERT.x + 34 * Math.cos(DESERT.a - 1.4), z: DESERT.z + 34 * Math.sin(DESERT.a - 1.4), r: 15, y: 7 };
+// the cave roof: a rocky dome resting inside the mountain walls
+const CAVE_IN = CAVES.R * 0.9;
+function caveRoof(x, z) { const d = Math.hypot(x - CAVES.x, z - CAVES.z); if (d >= CAVE_IN) return -Infinity; return CAVES.RIM + (CAVES.TOP - CAVES.RIM) * Math.sqrt(1 - (d / CAVE_IN) ** 2); }
 FROST.lake = { x: FROST.x + 38 * Math.cos(FROST.a + 1.2), z: FROST.z + 38 * Math.sin(FROST.a + 1.2), r: 30 };
 function basinW(b, x, z) { return 1 - sstep(b.R * 0.72, b.R, Math.hypot(x - b.x, z - b.z)); }
 // a walkable pass through the mountains, along the line from the nest toward a basin
@@ -971,6 +1067,19 @@ function frostH(x, z) {
   h = (FROST.ICE - 2) + (h - FROST.ICE + 2) * sstep(FROST.lake.r * 0.9, FROST.lake.r * 1.6, dl);  // frozen lake
   return h;
 }
+function forestH(x, z) { return 8 + (fbm(x * 0.015 + 40, z * 0.015 - 60) - 0.5) * 22 + (fbm(x * 0.06, z * 0.06, 3) - 0.5) * 3; }
+function mesaAt(x, z) { return sstep(0.6, 0.64, fbm(x * 0.018 + 90, z * 0.018 - 30, 3)); }
+function desertH(x, z) {
+  let h = 10 + (fbm(x * 0.01 + 5, z * 0.01 + 5) - 0.5) * 12;
+  h += 5 * Math.pow(Math.abs(Math.sin((x * 0.8 + z * 0.6) * 0.045 + fbm(x * 0.02, z * 0.02, 3) * 4)), 1.6);   // rolling dunes
+  h += (34 - h) * mesaAt(x, z) * sstep(25, 40, Math.hypot(x - DESERT.oasis.x, z - DESERT.oasis.z));          // flat-topped red mesas
+  const o = DESERT.oasis, d = Math.hypot(x - o.x, z - o.z);
+  h = (o.y + 0.6) + (h - o.y - 0.6) * sstep(o.r * 1.2, o.r * 2.2, d);
+  h = (o.y - 2.5) + (h - o.y + 2.5) * sstep(o.r * 0.5, o.r * 1.15, d);                                       // the oasis pool
+  return h;
+}
+function cavesH(x, z) { return CAVES.FLOOR + (fbm(x * 0.04 + 3, z * 0.04 + 3, 3) - 0.5) * 5 + (fbm(x * 0.12, z * 0.12, 2) - 0.5) * 1.2; }
+const LAND_H = new Map([[FIRE, fireH], [FROST, frostH], [FOREST, forestH], [DESERT, desertH], [CAVES, cavesH]]);
 function roadDist(x, z) { const L = Math.hypot(VIL.x, VIL.z), t = Math.max(0, Math.min(1, (x * VIL.x + z * VIL.z) / (L * L))); return Math.hypot(x - VIL.x * t, z - VIL.z * t); }
 function height(x, z) {
   const r = Math.hypot(x, z);
@@ -984,12 +1093,14 @@ function height(x, z) {
   h += (m * m * 75 + m * (fbm(x * 0.03, z * 0.03, 4) - 0.3) * 30) * (1 - cst);
   h += (Math.max(h, 1.5 + sstep(30, 110, r) * 1.5) - h) * cst;                          // dry, gentle land toward the coast
   h += ((-9 + (fbm(x * 0.02, z * 0.02, 3) - 0.5) * 6) - h) * cst * sstep(118, 182, r);   // beach sloping into the sea
-  for (const b of [FIRE, FROST]) {                            // passes and the lands beyond
-    const pw = passW(b, x, z); if (pw > 0) h += (Math.min(h, passH(b, x, z)) - h) * pw;
-    const bw = basinW(b, x, z); if (bw > 0) h += ((b === FIRE ? fireH(x, z) : frostH(x, z)) - h) * bw;
+  for (const b of LANDS) {                                    // passes and the lands beyond
+    const pw = passW(b, x, z); if (pw > 0) h += (Math.max(1.5, Math.min(h, passH(b, x, z))) - h) * pw;  // a dry, walkable floor (never a pit below the water line)
+    const bw = basinW(b, x, z); if (bw > 0) h += (LAND_H.get(b)(x, z) - h) * bw;
   }
   const dv = Math.hypot(x - VIL.x, z - VIL.z);                // flat ground for the village
   h = VIL.y + (h - VIL.y) * sstep(VIL.r, VIL.r + 22, dv);
+  const da = Math.hypot(x - ARENA.x, z - ARENA.z);            // flat ground for the arena
+  h = ARENA.y + (h - ARENA.y) * sstep(ARENA.r + 11, ARENA.r + 28, da);
   return h;
 }
 const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
@@ -1023,6 +1134,26 @@ const mountain = (x, z) => sstep(150, 215, Math.hypot(x, z));
       sc.lerp(new THREE.Color("#bfe6f2"), 1 - sstep(FROST.lake.r * 0.95, FROST.lake.r * 1.2, Math.hypot(x - FROST.lake.x, z - FROST.lake.z)));
       c.lerp(sc, sw);
     }
+    const lw = b => Math.max(basinW(b, x, z), passW(b, x, z) * sstep(230, 300, Math.hypot(x, z)));
+    const ow = lw(FOREST);
+    if (ow > 0) {                                              // Deep Forest: dark moss and fallen leaves
+      let oc = new THREE.Color("#2e5a28").lerp(new THREE.Color("#4a7a30"), fbm(x * 0.05 + 4, z * 0.05, 3));
+      oc.lerp(new THREE.Color("#6a4a2a"), sstep(0.55, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 3, 3)) * 0.7);
+      c.lerp(oc, ow);
+    }
+    const dw = lw(DESERT);
+    if (dw > 0) {                                              // Desert: golden sand, red mesas, a green ring round the oasis
+      let dc = new THREE.Color("#e8c88a").lerp(new THREE.Color("#d4a462"), fbm(x * 0.03 + 2, z * 0.03, 3));
+      dc.lerp(new THREE.Color("#b8603a").lerp(new THREE.Color("#8a4428"), sstep(20, 34, h)), sstep(17, 24, h) * mesaAt(x, z));
+      const od = Math.hypot(x - DESERT.oasis.x, z - DESERT.oasis.z);
+      dc.lerp(new THREE.Color("#5a9a3a"), (1 - sstep(DESERT.oasis.r * 1.3, DESERT.oasis.r * 2.4, od)) * 0.9);
+      c.lerp(dc, dw);
+    }
+    const cw = lw(CAVES);
+    if (cw > 0) {                                              // Crystal Caves: dark purple-grey stone
+      let kc = new THREE.Color("#3a3444").lerp(new THREE.Color("#5a4e66"), fbm(x * 0.06 + 1, z * 0.06, 3));
+      c.lerp(kc, cw);
+    }
     const cs = coast(x, z) * sstep(105, 125, Math.hypot(x, z));
     c.lerp(sand, cs * sstep(4.5, 2, h));                       // sandy beach
     c.lerp(new THREE.Color("#5a8a9a"), cs * sstep(WATER_Y - 0.5, WATER_Y - 4, h));  // sea floor
@@ -1050,7 +1181,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const spots = [];
   for (let i = 0; i < 9000 && spots.length < 700; i++) {
     const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340, r = Math.hypot(x, z);
-    if (r < 26 || r > 165 || (r > 108 && coast(x, z) > 0.25) || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 8 || roadDist(x, z) < 4) continue;
+    if (r < 26 || r > 165 || (r > 108 && coast(x, z) > 0.25) || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 8 || nearArena(x, z, 16) || roadDist(x, z) < 4) continue;
     const h = height(x, z);
     if (h < WATER_Y + 1.2) continue;
     if (fbm(x * 0.02 + 40, z * 0.02) < 0.5 && rnd() > 0.12) continue;  // grow in groves
@@ -1075,7 +1206,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const rockG = new THREE.DodecahedronGeometry(1, 0), rockM = new THREE.MeshLambertMaterial({ color: "#8a847b", flatShading: true });
   const rocks = new THREE.InstancedMesh(rockG, rockM, 140); rocks.castShadow = rocks.receiveShadow = true; scene.add(rocks);
   for (let i = 0; i < 140; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 330; z = (rnd() - 0.5) * 330; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 170 || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 6 || roadDist(x, z) < 4);
+    let x, z; do { x = (rnd() - 0.5) * 330; z = (rnd() - 0.5) * 330; } while (Math.hypot(x, z) < 14 || Math.hypot(x, z) > 170 || Math.hypot(x - VIL.x, z - VIL.z) < VIL.r + 6 || nearArena(x, z, 16) || roadDist(x, z) < 4);
     const k = 0.4 + rnd() * 1.6;
     o.position.set(x, height(x, z) + k * 0.2, z); o.scale.set(k * 1.2, k * 0.7, k); o.rotation.set(rnd() * 3, rnd() * 3, 0); o.updateMatrix();
     rocks.setMatrixAt(i, o.matrix); if (k > 1) blockers.push({ x, z, r: k });
@@ -1085,7 +1216,7 @@ const blockers = [];  // {x, z, r} things you bump into
   const fl = new THREE.InstancedMesh(flG, new THREE.MeshLambertMaterial({ color: "#ffffff" }), 1800); scene.add(fl);
   const fc = ["#ffd84a", "#ff7aa8", "#ffffff", "#b58cff", "#ff8a4a"].map(c => new THREE.Color(c).convertSRGBToLinear());
   for (let i = 0; i < 1800; i++) {
-    let x, z; do { x = (rnd() - 0.5) * 320; z = (rnd() - 0.5) * 320; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 160 || height(x, z) < WATER_Y + 0.8 || Math.hypot(x - VIL.x, z - VIL.z) < 26 || roadDist(x, z) < 2.5 || (Math.hypot(x, z) > 112 && coast(x, z) > 0.3));
+    let x, z; do { x = (rnd() - 0.5) * 320; z = (rnd() - 0.5) * 320; } while (Math.hypot(x, z) < 8 || Math.hypot(x, z) > 160 || height(x, z) < WATER_Y + 0.8 || Math.hypot(x - VIL.x, z - VIL.z) < 26 || nearArena(x, z, 12) || roadDist(x, z) < 2.5 || (Math.hypot(x, z) > 112 && coast(x, z) > 0.3));
     o.position.set(x, height(x, z), z); o.scale.set(1, 1, 1); o.rotation.set(0, 0, 0); o.updateMatrix();
     fl.setMatrixAt(i, o.matrix); fl.setColorAt(i, fc[i % fc.length]);
   }
@@ -1128,6 +1259,7 @@ function islandBottomAt(s, f) { return s.y + 0.3 - s.d * Math.pow(Math.max(0, 1 
 // the ground under something at height y: an island top just below it, or the valley floor
 function groundAt(x, z, y) {
   let best = height(x, z);
+  const roof = caveRoof(x, z); if (roof > best && roof <= y + 1.6) best = roof;   // you can land on top of the cave roof
   for (const s of ISLANDS) {
     const f = islandFrac(s, x, z); if (f >= 1) continue;
     const t = islandTopAt(s, x, z, f);
@@ -1137,6 +1269,7 @@ function groundAt(x, z, y) {
 }
 // the underside of an island right above y (so dragons can't fly up through it)
 function ceilingAt(x, z, y) {
+  const roof = caveRoof(x, z); if (y < roof - 1.6) return roof - 0.8;   // inside the Crystal Caves
   for (const s of ISLANDS) {
     const f = islandFrac(s, x, z); if (f >= 1) continue;
     const b = islandBottomAt(s, f), t = islandTopAt(s, x, z, f);
@@ -1319,6 +1452,158 @@ const biomeAnims = [];
     const on = basinW(FROST, px, pz) > 0.2; snowP.visible = on; if (!on) return;
     sS.forEach(([x, y, z, sp], i) => { sP[i * 3] = px + x + Math.sin(t * 0.7 + i) * 1.5; sP[i * 3 + 1] = py - 10 + (((y - t * sp * 3) % 40) + 40) % 40; sP[i * 3 + 2] = pz + z; });
     sG.attributes.position.needsUpdate = true;
+  });
+})();
+
+// ---------- Deep Forest, Desert and Crystal Caves ----------
+(function () {
+  const lin = h => new THREE.Color(h).convertSRGBToLinear();
+  const rnd = (() => { let s = 9191; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+  const o = new THREE.Object3D();
+  const spotIn = (b, minD, maxD, ok) => { for (let k = 0; k < 60; k++) { const a = rnd() * 6.28, d = minD + rnd() * (maxD - minD), x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d; if (!ok || ok(x, z)) return [x, z]; } return null; };
+  const inst = (geo, mat, n, shadow = true) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.count = n; m.castShadow = shadow; m.receiveShadow = true; scene.add(m); return m; };
+  const set = (m, i, x, y, z, rx, ry, rz, sx, sy = sx, sz = sx) => { o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.scale.set(sx, sy, sz); o.updateMatrix(); m.setMatrixAt(i, o.matrix); };
+  const awayFromPass = b => (x, z) => passW(b, x, z) < 0.1;
+
+  // ===== DEEP FOREST: giant trees, mossy logs, ferns, glowing mushrooms, fireflies =====
+  const giants = [];
+  for (let i = 0; i < 3000 && giants.length < 75; i++) {
+    const s = spotIn(FOREST, 8, FOREST.R * 0.82); if (!s) continue;
+    if (giants.some(([x, z]) => Math.hypot(x - s[0], z - s[1]) < 15)) continue; giants.push(s);
+  }
+  const trunkG = new THREE.CylinderGeometry(0.75, 1.15, 1, 9); trunkG.translate(0, 0.5, 0);
+  const rootG = new THREE.ConeGeometry(0.5, 1, 5); rootG.translate(0, 0.5, 0);
+  const crownG = new THREE.IcosahedronGeometry(1, 1);
+  const barkM = new THREE.MeshLambertMaterial({ color: lin("#6e5038") }), leafM = new THREE.MeshLambertMaterial({ color: lin("#2a5a26"), flatShading: true }), leaf2M = new THREE.MeshLambertMaterial({ color: lin("#3a7030"), flatShading: true });
+  const gT = inst(trunkG, barkM, giants.length), gR = inst(rootG, barkM, giants.length * 4), gC = inst(crownG, leafM, giants.length * 3), gC2 = inst(crownG, leaf2M, giants.length * 2);
+  giants.forEach(([x, z], i) => {
+    const y = height(x, z), k = 0.8 + rnd() * 0.5, H = 34 * k, Rr = 1.8 * k;
+    set(gT, i, x, y - 0.5, z, 0, rnd() * 6, 0, Rr, H, Rr);
+    for (let j = 0; j < 4; j++) { const a = j / 4 * 6.28 + rnd(); set(gR, i * 4 + j, x + Math.cos(a) * Rr * 1.2, y - 0.4, z + Math.sin(a) * Rr * 1.2, Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9, Rr * 0.9, Rr * 2.6, Rr * 0.9); }
+    for (let j = 0; j < 3; j++) { const a = j / 3 * 6.28 + rnd(), r = 4 * k; set(gC, i * 3 + j, x + Math.cos(a) * r, y + H - 2 + rnd() * 3, z + Math.sin(a) * r, rnd(), rnd(), 0, 8 * k, 5 * k, 8 * k); }
+    for (let j = 0; j < 2; j++) set(gC2, i * 2 + j, x + (rnd() - 0.5) * 4, y + H + 3 + j * 3, z + (rnd() - 0.5) * 4, rnd(), rnd(), 0, 6.5 * k - j * 1.5, 4 * k, 6.5 * k - j * 1.5);
+    blockers.push({ x, z, r: Rr + 0.6 });
+  });
+  // smaller trees under the giants
+  const small = [];
+  for (let i = 0; i < 2000 && small.length < 160; i++) { const s = spotIn(FOREST, 5, FOREST.R * 0.85, awayFromPass(FOREST)); if (s && !giants.some(([x, z]) => Math.hypot(x - s[0], z - s[1]) < 5)) small.push(s); }
+  const sT = inst(trunkG, barkM, small.length), sC = inst(crownG, leaf2M, small.length);
+  small.forEach(([x, z], i) => { const y = height(x, z), k = 0.6 + rnd() * 0.6; set(sT, i, x, y - 0.3, z, 0, 0, 0, 0.35 * k, 7 * k, 0.35 * k); set(sC, i, x, y + 7 * k, z, rnd(), rnd(), 0, 2.6 * k, 3 * k, 2.6 * k); blockers.push({ x, z, r: 0.5 }); });
+  // ferns and mossy fallen logs
+  const fernG = new THREE.ConeGeometry(0.9, 1.2, 6, 1, true); fernG.rotateX(Math.PI); fernG.translate(0, 0.6, 0);   // an upside-down open cone looks like a fan of fronds
+  const ferns = inst(fernG, new THREE.MeshLambertMaterial({ color: lin("#4a8a3a"), side: THREE.DoubleSide, flatShading: true }), 260, false);
+  for (let i = 0; i < 260; i++) { const s = spotIn(FOREST, 3, FOREST.R * 0.85); set(ferns, i, s[0], height(s[0], s[1]) - 0.1, s[1], 0, rnd() * 6, 0, 0.8 + rnd() * 0.9, 0.6 + rnd() * 0.5, 0.8 + rnd() * 0.9); }
+  const logG = new THREE.CylinderGeometry(1, 1, 1, 9); logG.rotateZ(Math.PI / 2);
+  const logs = inst(logG, new THREE.MeshLambertMaterial({ color: lin("#5a4630") }), 18), moss = inst(new THREE.SphereGeometry(1, 8, 5, 0, 6.28, 0, 1.4), new THREE.MeshLambertMaterial({ color: lin("#5a9a3a"), flatShading: true }), 18);
+  for (let i = 0; i < 18; i++) { const s = spotIn(FOREST, 15, FOREST.R * 0.8, awayFromPass(FOREST)), y = height(s[0], s[1]), ry = rnd() * 6, L = 8 + rnd() * 8;
+    set(logs, i, s[0], y + 0.6, s[1], 0, ry, 0.04, L, 1.1, 1.1); set(moss, i, s[0], y + 1.2, s[1], 0, ry, 0, L * 0.4, 0.5, 1.0); blockers.push({ x: s[0], z: s[1], r: 1.5 }); }
+  // glowing mushrooms: they shine brighter at night
+  const stemG = new THREE.CylinderGeometry(0.12, 0.18, 1, 6); stemG.translate(0, 0.5, 0);
+  const capG = new THREE.SphereGeometry(1, 10, 6, 0, 6.28, 0, 1.5);
+  const shroomM = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5, emissive: "#ffffff", emissiveIntensity: 0.25 });
+  const N = 70 * 4, stems = inst(stemG, new THREE.MeshLambertMaterial({ color: lin("#e8e0cc") }), N, false), caps = inst(capG, shroomM, N, false);
+  const shroomCols = ["#4ae8ff", "#8a6aff", "#5affb0", "#ff6ad8"].map(lin);
+  for (let c = 0, i = 0; c < 70; c++) { const s = spotIn(FOREST, 5, FOREST.R * 0.85), col = shroomCols[c % 4];
+    for (let k = 0; k < 4; k++, i++) { const x = s[0] + (rnd() - 0.5) * 2.4, z = s[1] + (rnd() - 0.5) * 2.4, y = height(x, z) - 0.05, h = 0.4 + rnd() * 0.9, r = 0.3 + rnd() * 0.45;
+      set(stems, i, x, y, z, 0, 0, 0, 1, h, 1); set(caps, i, x, y + h, z, 0, 0, 0, r, r * 0.6, r); caps.setColorAt(i, col); } }
+  biomeAnims.push(t => { shroomM.emissiveIntensity = 0.25 + nightAmt * 1.1 + Math.sin(t * 1.3) * 0.08; });
+  const ffN = 160, ffP = new Float32Array(ffN * 3), ffS = [];
+  for (let i = 0; i < ffN; i++) ffS.push([(rnd() - 0.5) * 70, 0.5 + rnd() * 6, (rnd() - 0.5) * 70, rnd() * 6]);
+  const ffG = new THREE.BufferGeometry(); ffG.setAttribute("position", new THREE.BufferAttribute(ffP, 3));
+  const flies = new THREE.Points(ffG, new THREE.PointsMaterial({ color: lin("#e8ff7a"), size: 0.45, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); flies.frustumCulled = false; scene.add(flies);
+  biomeAnims.push((t, px, py, pz) => {
+    const on = basinW(FOREST, px, pz) > 0.2 && nightAmt > 0.3; flies.visible = on; if (!on) return;
+    flies.material.opacity = sstep(0.3, 0.7, nightAmt) * (0.7 + Math.sin(t * 5) * 0.3);
+    ffS.forEach(([x, y, z, ph], i) => { const fx = px + x + Math.sin(t * 0.5 + ph) * 3, fz = pz + z + Math.cos(t * 0.4 + ph) * 3; ffP[i * 3] = fx; ffP[i * 3 + 1] = height(fx, fz) + y + Math.sin(t * 1.3 + ph) * 0.6; ffP[i * 3 + 2] = fz; });
+    ffG.attributes.position.needsUpdate = true;
+  });
+
+  // ===== DESERT: cacti, sandstone rocks, an oasis with palms, old bones, tumbleweeds =====
+  const OA = DESERT.oasis, farOasis = (x, z) => Math.hypot(x - OA.x, z - OA.z) > OA.r * 2.6 && mesaAt(x, z) < 0.2;
+  const cacti = [];
+  for (let i = 0; i < 1500 && cacti.length < 90; i++) { const s = spotIn(DESERT, 6, DESERT.R * 0.85, farOasis); if (s) cacti.push(s); }
+  const cylG = new THREE.CylinderGeometry(1, 1, 1, 8); cylG.translate(0, 0.5, 0);
+  const domeG = new THREE.SphereGeometry(1, 8, 5, 0, 6.28, 0, Math.PI / 2);
+  const cactM = new THREE.MeshLambertMaterial({ color: lin("#4a8a42"), flatShading: true });
+  const cT = inst(cylG, cactM, cacti.length), cTop = inst(domeG, cactM, cacti.length * 3), cArm = inst(cylG, cactM, cacti.length * 4);
+  cacti.forEach(([x, z], i) => {
+    const y = height(x, z), k = 0.7 + rnd() * 0.7, H = 6 * k, r = 0.5 * k;
+    set(cT, i, x, y - 0.3, z, 0, 0, 0, r, H, r); set(cTop, i * 3, x, y - 0.3 + H, z, 0, 0, 0, r, r, r);
+    const ry = rnd() * 6;
+    [1, -1].forEach((sd, j) => {
+      const ah = H * (0.35 + rnd() * 0.25), ax = Math.cos(ry) * sd, az = Math.sin(ry) * sd, out = r * 2.2, up = H * (0.25 + rnd() * 0.15);
+      set(cArm, i * 4 + j * 2, x + ax * r * 0.5, y + ah, z + az * r * 0.5, 0, -ry, sd * -Math.PI / 2, r * 0.7, out, r * 0.7);           // sideways part
+      set(cArm, i * 4 + j * 2 + 1, x + ax * out, y + ah - r * 0.3, z + az * out, 0, 0, 0, r * 0.7, up, r * 0.7);                    // upward part
+      set(cTop, i * 3 + 1 + j, x + ax * out, y + ah - r * 0.3 + up, z + az * out, 0, 0, 0, r * 0.7, r * 0.7, r * 0.7);
+    });
+    blockers.push({ x, z, r: r + 0.4 });
+  });
+  const stoneM = new THREE.MeshLambertMaterial({ color: lin("#c88a5a"), flatShading: true });
+  const rocks = inst(new THREE.DodecahedronGeometry(1, 0), stoneM, 60);
+  for (let i = 0; i < 60; i++) { const s = spotIn(DESERT, 10, DESERT.R * 0.85, farOasis), k = 0.6 + rnd() * 2.2; set(rocks, i, s[0], height(s[0], s[1]) + k * 0.2, s[1], rnd() * 3, rnd() * 3, 0, k * 1.3, k * 0.8, k); if (k > 1.3) blockers.push({ x: s[0], z: s[1], r: k }); }
+  // oasis
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(OA.r * 1.05, 40), new THREE.MeshPhongMaterial({ color: lin("#3aa8c8"), transparent: true, opacity: 0.85, shininess: 90, specular: "#ffffff" }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(OA.x, OA.y - 0.3, OA.z); scene.add(pool);
+  const trunkM = new THREE.MeshLambertMaterial({ color: lin("#8a6a44") }), palmM = new THREE.MeshLambertMaterial({ color: lin("#4a9a3a"), side: THREE.DoubleSide });
+  for (let p = 0; p < 7; p++) {
+    const a = p / 7 * 6.28 + rnd() * 0.5, d = OA.r * (1.25 + rnd() * 0.5), x = OA.x + Math.cos(a) * d, z = OA.z + Math.sin(a) * d, palm = new THREE.Group();
+    palm.position.set(x, height(x, z) - 0.2, z); palm.rotation.y = -a + Math.PI; scene.add(palm);   // lean toward the water
+    const lean = 0.18 + rnd() * 0.12, top = new V();
+    for (let k = 0; k < 6; k++) { const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.24 - k * 0.025, 0.3 - k * 0.025, 1.5, 7), trunkM); seg.position.set(lean * k * k * 0.25, 0.75 + k * 1.45, 0); seg.rotation.z = -lean * k * 0.35; seg.castShadow = true; palm.add(seg); top.set(lean * k * k * 0.25, 1.5 + k * 1.45, 0); }
+    for (let k = 0; k < 7; k++) { const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 4), palmM); leaf.scale.set(2.1, 0.08, 0.5); const la = k / 7 * Math.PI * 2; leaf.position.set(top.x + Math.cos(la) * 1.6, top.y - 0.3, Math.sin(la) * 1.6); leaf.rotation.set(0, -la, -0.35); leaf.castShadow = true; palm.add(leaf); }
+    blockers.push({ x, z, r: 0.5 });
+  }
+  // a giant old dragon skeleton half-buried in the sand
+  { const boneM = new THREE.MeshLambertMaterial({ color: lin("#efe6d2") }), s = spotIn(DESERT, 40, 70, farOasis), y = height(s[0], s[1]), g = new THREE.Group();
+    g.position.set(s[0], y - 0.6, s[1]); g.rotation.y = rnd() * 6; scene.add(g);
+    for (let k = 0; k < 9; k++) { const rib = new THREE.Mesh(new THREE.TorusGeometry(3.4 - Math.abs(k - 3) * 0.3, 0.22, 6, 18, Math.PI), boneM); rib.position.set(k * 1.6 - 6, 0, 0); rib.rotation.y = Math.PI / 2; rib.castShadow = true; g.add(rib); }
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 16, 8), boneM); spine.rotation.z = Math.PI / 2; spine.position.set(0, 3.3, 0); g.add(spine);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(1.8, 12, 8), boneM); skull.scale.set(1.6, 0.9, 1); skull.position.set(10, 1.2, 0); g.add(skull);
+    [1, -1].forEach(z => { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.35, 3, 8), boneM); horn.position.set(9, 2.6, z * 0.9); horn.rotation.set(z * 0.3, 0, 1.0); g.add(horn); const eye = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ color: "#2a2018" })); eye.position.set(11, 1.6, z * 0.95); g.add(eye); });
+    blockers.push({ x: s[0], z: s[1], r: 5 }); }
+  // tumbleweeds roll across the sand
+  const twM = new THREE.MeshLambertMaterial({ color: lin("#a8824a"), wireframe: true });
+  for (let i = 0; i < 6; i++) {
+    const tw = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), twM); scene.add(tw);
+    const ph = rnd() * 100, lane = (rnd() - 0.5) * DESERT.R * 1.2, dir = DESERT.a + Math.PI / 2;
+    biomeAnims.push((t, px, py, pz) => {
+      if (basinW(DESERT, px, pz) < 0.05) { tw.visible = false; return; } tw.visible = true;
+      const u = ((t * 6 + ph * 13) % (DESERT.R * 1.6)) - DESERT.R * 0.8, x = DESERT.x + Math.cos(dir) * u + Math.cos(DESERT.a) * lane, z = DESERT.z + Math.sin(dir) * u + Math.sin(DESERT.a) * lane;
+      tw.position.set(x, height(x, z) + 0.9 + Math.abs(Math.sin(t * 3 + ph)) * 0.8, z); tw.rotation.set(t * 3, 0, t * 2);
+    });
+  }
+
+  // ===== CRYSTAL CAVES: a rock roof, stalactites, stalagmites and glowing crystals =====
+  { const g = new THREE.SphereGeometry(1, 56, 18, 0, Math.PI * 2, 0, Math.PI / 2), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + (fbm(x * 3 + 5, z * 3 + y * 2, 3) - 0.5) * 0.12; p.setXYZ(i, x * k, y * k, z * k); }
+    g.computeVertexNormals();
+    const roof = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: lin("#4a4252"), side: THREE.DoubleSide, flatShading: true }));
+    roof.scale.set(CAVE_IN, CAVES.TOP - CAVES.RIM, CAVE_IN); roof.position.set(CAVES.x, CAVES.RIM, CAVES.z); roof.castShadow = true; roof.receiveShadow = true; scene.add(roof); }
+  const rockM = new THREE.MeshLambertMaterial({ color: lin("#5a5066"), flatShading: true });
+  const spikeG = new THREE.ConeGeometry(1, 1, 6); spikeG.translate(0, -0.5, 0);
+  const tites = inst(spikeG, rockM, 140), mites = inst(new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0), rockM, 60);
+  for (let i = 0; i < 140; i++) { const s = spotIn(CAVES, 4, CAVE_IN * 0.95), k = 0.5 + rnd() * 1.6; set(tites, i, s[0], caveRoof(s[0], s[1]) + 0.5, s[1], 0, rnd() * 6, 0, k, k * (3 + rnd() * 5), k); }
+  for (let i = 0; i < 60; i++) { const s = spotIn(CAVES, 8, CAVES.R * 0.68, awayFromPass(CAVES)), k = 0.5 + rnd() * 1.2; set(mites, i, s[0], height(s[0], s[1]) - 0.3, s[1], 0, rnd() * 6, 0, k, k * (2.5 + rnd() * 4), k); blockers.push({ x: s[0], z: s[1], r: k + 0.3 }); }
+  const crysG = new THREE.OctahedronGeometry(1, 0); crysG.scale(0.5, 1.6, 0.5); crysG.translate(0, 1.2, 0);
+  const crysMs = ["#b06aff", "#5ad8ff", "#ff6ad0", "#6affc8", "#d8c8ff"].map(h => new THREE.MeshStandardMaterial({ color: lin(h), roughness: 0.1, metalness: 0.1, emissive: lin(h), emissiveIntensity: 0.6, transparent: true, opacity: 0.88, flatShading: true }));
+  const crysSets = crysMs.map(() => []);
+  for (let c = 0; c < 55; c++) { const s = spotIn(CAVES, 6, CAVES.R * 0.7), y = height(s[0], s[1]), L = crysSets[c % 5];
+    for (let k = 0; k < 6; k++) { const sz = 0.4 + rnd() * 1.2; L.push([s[0] + (rnd() - 0.5) * 3, y - 0.4, s[1] + (rnd() - 0.5) * 3, (rnd() - 0.5) * 1.0, rnd() * 6, (rnd() - 0.5) * 1.0, sz, sz * (1 + rnd()), sz]); }
+    blockers.push({ x: s[0], z: s[1], r: 1.8 }); }
+  for (let c = 0; c < 40; c++) { const s = spotIn(CAVES, 5, CAVE_IN * 0.9), y = caveRoof(s[0], s[1]), L = crysSets[(c + 2) % 5];   // crystals hanging from the roof too
+    for (let k = 0; k < 3; k++) { const sz = 0.5 + rnd() * 1.1; L.push([s[0] + (rnd() - 0.5) * 2.5, y + 0.6, s[1] + (rnd() - 0.5) * 2.5, Math.PI + (rnd() - 0.5) * 0.8, rnd() * 6, (rnd() - 0.5) * 0.8, sz, sz * (1 + rnd()), sz]); } }
+  crysSets.forEach((L, j) => { const m = inst(crysG, crysMs[j], L.length); L.forEach((a, i) => set(m, i, ...a)); });
+  const cl1 = new THREE.PointLight(lin("#a86aff"), 1.6, 90, 1.4), cl2 = new THREE.PointLight(lin("#4ad8ff"), 1.3, 80, 1.4);
+  cl1.position.set(CAVES.x + 20, CAVES.FLOOR + 14, CAVES.z - 15); cl2.position.set(CAVES.x - 22, CAVES.FLOOR + 12, CAVES.z + 18); scene.add(cl1); scene.add(cl2);
+  biomeAnims.push(t => { crysMs.forEach((m, j) => m.emissiveIntensity = 0.5 + Math.sin(t * 1.1 + j) * 0.18); cl1.intensity = 1.5 + Math.sin(t * 0.9) * 0.3; cl2.intensity = 1.2 + Math.sin(t * 1.3 + 1) * 0.3; });
+  const mN = 220, mP = new Float32Array(mN * 3), mS = [];
+  for (let i = 0; i < mN; i++) { const s = spotIn(CAVES, 0, CAVE_IN * 0.85); mS.push([s[0], s[1], rnd() * 20, 0.3 + rnd() * 0.6]); }
+  const mG = new THREE.BufferGeometry(); mG.setAttribute("position", new THREE.BufferAttribute(mP, 3));
+  const motes = new THREE.Points(mG, new THREE.PointsMaterial({ color: lin("#c8a8ff"), size: 0.35, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })); motes.frustumCulled = false; scene.add(motes);
+  biomeAnims.push((t, px, py, pz) => {
+    const on = basinW(CAVES, px, pz) > 0.1; motes.visible = on; if (!on) return;
+    mS.forEach(([x, z, ph, sp], i) => { mP[i * 3] = x + Math.sin(t * sp + ph) * 2; mP[i * 3 + 1] = CAVES.FLOOR + 2 + ((ph + t * sp) % 20); mP[i * 3 + 2] = z + Math.cos(t * sp * 0.8 + ph) * 2; });
+    mG.attributes.position.needsUpdate = true;
   });
 })();
 
@@ -1565,40 +1850,42 @@ function makePerson(o) {
   const people = [
     { name: "Farmer Bo", title: "Farmer", home: P(H.farm, 0, 2), wander: 9, look: { shirt: "#5a7a3a", pants: "#4a5a8a", hair: "#7a5a3a", hat: "straw", beard: "#7a5a3a", tool: "pitchfork", wide: 1.15 }, lines: [
       "Mornin'! These carrots won't water themselves.", "A dragon stepped on my pumpkins once. Squashed 'em flat. Still tasted good.",
-      "If you see goblins near my fields, shoo 'em off for me, will you?", "Rain's coming. My knee always knows.", "Old Nettle says my turnips are cursed. They're just lumpy!"] },
+      "If you see goblins near my fields, shoo 'em off for me, will you?", "Rain's coming. My knee always knows.", "Old Nettle says my turnips are cursed. They're just lumpy!", "Corn's taller than me this year. Taller than you too, I'd bet.", "My cow Daisy is afraid of dragons. And butterflies. And Tuesdays.", "Nettle came by asking for 'moon carrots'. I don't grow moon carrots! Nobody does!", "You can tell a good farmer by the dirt under his nails. I'm a VERY good farmer.", "If your dragon is hungry, don't let it near my sheep. Please.", "I once grew a potato shaped like the mayor. She didn't think it was funny.", "Early to bed, early to rise. Except when the owls are loud.", "Scarecrows don't work on dragons. I tried six of them."] },
     { name: "Baker Rose", title: "Baker", home: P(H.bakery), wander: 5, look: { shirt: "#e8e0d8", pants: "#c86a6a", hair: "#b04a2a", hairStyle: "bun", hat: "chef", apron: "#ffffff", dress: true }, lines: [
       "Fresh bread! Well, fresh-ish. Fresh this morning.", "Don't go near Old Nettle's hut. She talks to her teapot.", "Nettle paid me in buttons yesterday. BUTTONS.",
-      "Dragons love my honey buns. Keep yours away from the window.", "They say Nettle was a great tamer once. I don't believe a word of it."] },
+      "Dragons love my honey buns. Keep yours away from the window.", "They say Nettle was a great tamer once. I don't believe a word of it.", "Nettle sniffed my pie and said it smelled 'like Thursday'. What does that even MEAN?", "I've been baking since before the sun comes up. That's why I yawn so much.", "Little Pip keeps sneaking cookies to Nettle. I pretend I don't see.", "Cinnamon rolls on Mondays, berry tarts on Fridays, burnt toast whenever Fen and Fern help.", "Your dragon could heat my oven in one breath. Want a job?", "Nettle says she was a famous tamer. Famous for what, being odd?", "Flour gets EVERYWHERE. I found some in my ear yesterday.", "A good loaf needs patience. So does living next to Old Nettle."] },
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
-      "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail."] },
+      "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
     { name: "Old Nettle", title: "", home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
       "When I was young, a black dragon came out of nowhere and ate my good dragons. It had an egg, you know. It had an egg.",
       "The sky was wrong that night. Dark, dark blue... and purple eyes looking right at me.",
       "Under the mountains there's stone that breathes. I heard it once. Slow. Very, very slow.",
       "Gold in the cracks, dearie. Always look for gold in the cracks.", "My teapot says you'll do great things. My teapot is usually wrong.",
-      "Do you like soup? I made soup out of a boot once.", "Hee hee! Spin around three times before bed. Keeps the goblins confused."] },
+      "Do you like soup? I made soup out of a boot once.", "Hee hee! Spin around three times before bed. Keeps the goblins confused.", "My left shoe is my favourite. The right one knows what it did.", "Never trust a cloud that's shaped like a spoon.", "I counted all the stars once. There were eleven. Then I sneezed.", "Hee hee! The well tells jokes at midnight. Terrible ones.", "Have you seen my hat? I'm wearing it? Oh. Then have you seen my OTHER hat?", "Soup is just tea that's trying too hard.", "The mayor is three squirrels in a dress. Don't tell her I know.", "I taught a goat to whistle. It only whistles when I'm asleep.", "Socks go missing because they're off on adventures. Let them go, dearie.", "My teapot and I aren't speaking. It knows why.", "Did you know turnips can dream? They dream of being bigger turnips.", "Once I sat on a hill for a whole week. The hill was very polite about it.", "Don't eat yellow snow. Don't eat purple snow either. Just don't eat snow, dearie.", "Hee hee hee! Bubbles!"] },
     { name: "Mayor Tilda", title: "Mayor", home: P(H.mayor), wander: 6, look: { shirt: "#7a2a5a", pants: "#3a2a3a", hair: "#9a9a9a", hairStyle: "bun", hat: "crown", dress: true, glasses: true }, lines: [
       "Welcome to our village! We don't get many dragon tamers these days.", "We're very proud of our well. It's a very good well.",
-      "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably."] },
+      "Please don't land dragons on the roofs. We've had... incidents.", "Someday this village will have a statue. Of me, probably.", "I'm planning a festival. With bunting! Lots of bunting!", "The village budget is mostly spent on fixing roofs that dragons sat on.", "Old Nettle sent me a letter. It just said 'BEANS'. I don't know what to do with that.", "A mayor's work is never done. I've been signing papers since breakfast.", "Officer Brick says we need a bigger jail. For what? We have one goblin problem.", "Have you seen the arena? I opened it myself. With very big scissors.", "If you need anything, ask. If you need a statue, also ask. I know a good sculptor."] },
     { name: "Gorran", title: "Quest Master", home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
       "The quest board isn't ready yet. Monsters have been seen in the hills, though.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
-      "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon."] },
+      "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
     { name: "Mae", title: "Shopkeeper", home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
-      "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling."] },
+      "Welcome! My shelves are a bit empty. New stock is on the way!", "One day I'll sell saddles, hats, scarves... everything a dragon could want.", "No haggling! ...Okay, a little haggling.", "I'm saving a shelf for dragon treats. They'll be the crunchy kind.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Hats, saddles, scarves... soon, I promise!", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
     { name: "Hamm", title: "Blacksmith", home: P(H.smith), wander: 4, look: { shirt: "#5a4a3a", pants: "#2a2a2a", hair: "#1a1a1a", hairStyle: "bald", beard: "#3a2a1a", apron: "#3a2a1c", tool: "hammer", wide: 1.3, skin: "#c8946a" }, lines: [
-      "*CLANG* Oh! Didn't see you there.", "I'm working on dragon armor. Very heavy. Very shiny.", "Fire Mountain has the best metal. And the worst lava imps."] },
+      "*CLANG* Oh! Didn't see you there.", "I'm working on dragon armor. Very heavy. Very shiny.", "Fire Mountain has the best metal. And the worst lava imps.", "Hot metal, hot hands, hot temper. Mostly the metal though.", "I made a sword once. Too heavy. Now it's a doorstop.", "Bring me good ore and I'll make your dragon shine.", "*CLANG* Sorry. *CLANG* Busy. *CLANG*", "Old Nettle asked me to fix her spoon. It wasn't broken. She just wanted to talk to it.", "Dragon fire is great for melting metal. Can I borrow yours?"] },
     { name: "Officer Brick", title: "Officer", home: new V(VIL.x + 8, Y, VIL.z + 6), wander: 18, look: { shirt: "#3a4a7a", pants: "#2a2a3a", hair: "#3a2a1a", hat: "helmet", wide: 1.2 }, lines: [
-      "Move along. Nothing to see here. ...Actually, have you seen anything suspicious?", "I keep this village safe. Mostly from goblins. And from Pip.", "Report anything shady to me, got it?"] },
+      "Move along. Nothing to see here. ...Actually, have you seen anything suspicious?", "I keep this village safe. Mostly from goblins. And from Pip.", "Report anything shady to me, got it?", "The twins keep 'hiding' behind the well. I can see them. Every time.", "Arena fights are fine. Arena fights OUTSIDE the arena are not.", "If anyone sells you an egg in a dark alley, don't buy it.", "Old Nettle reported a 'talking cloud' again. I wrote it down. Again.", "Keep your dragon on the path, please. The flowers have rights too."] },
     { name: "Odo", title: "Mapmaker", home: P(H.map), wander: 5, look: { shirt: "#2f8a8a", pants: "#4a3a2a", hair: "#c8c8c8", hat: "pointy", hatColor: "#2a5a6a", glasses: true, beard: "#d8d8d8", tool: "scroll" }, lines: [
       "Past the mountains is Fire Mountain. Hot enough to cook an egg on the rocks!", "Beyond that, the Frost Peaks. Bring a scarf. Bring three scarves.",
-      "Look up! Those islands float because of the crystals inside them. Probably.", "Somewhere past the hills is the ocean. Big water, big waves, big fish.", "My maps are always right. The land is sometimes wrong."] },
+      "Look up! Those islands float because of the crystals inside them. Probably.", "Somewhere past the hills is the ocean. Big water, big waves, big fish.", "My maps are always right. The land is sometimes wrong.", "Up north the mountains have a pass. It leads to the hottest land you'll ever see.", "The Frost Peaks have a frozen lake. I fell through it once. Don't recommend.", "Every map I draw, Nettle adds a little doodle in the corner. Usually a duck.", "Sky Islands drift a bit every year. My maps have to keep up.", "If you ever find a land I haven't mapped, tell me first!", "The ocean has a lighthouse. Nobody knows who lights it."] },
     { name: "Fen", title: "Twin", home: new V(VIL.x - 6, Y, VIL.z + 4), wander: 10, fast: true, look: { shirt: "#c84a3a", pants: "#4a3a2a", hair: "#d8a040", scale: 0.6 }, lines: [
-      "I'm Fen. That's Fern. She's the annoying one.", "Tag! You're it!", "We're racing to the well. Bet you can't catch us!"] },
+      "I'm Fen. That's Fern. She's the annoying one.", "Tag! You're it!", "We're racing to the well. Bet you can't catch us!", "Fern ate the last cookie. I saw her.", "Bet you can't jump as high as me. Watch! ...Ow.", "I'm going to be a dragon tamer AND a baker AND a knight.", "Brick can't catch us. He's too slow. Don't tell him I said that.", "Nettle showed me a coin trick. The coin's still missing."] },
     { name: "Fern", title: "Twin", home: new V(VIL.x - 4, Y, VIL.z - 6), wander: 10, fast: true, look: { shirt: "#3a8ac8", pants: "#4a3a2a", hair: "#d8a040", hairStyle: "pigtails", scale: 0.6 }, lines: [
-      "I'm Fern. Fen is the annoying one.", "Is your dragon a boy or a girl? Can it breathe fire? Can it do a flip?", "Shh! We're hiding from Officer Brick."] },
+      "I'm Fern. Fen is the annoying one.", "Is your dragon a boy or a girl? Can it breathe fire? Can it do a flip?", "Shh! We're hiding from Officer Brick.", "Fen's lying. I didn't eat the cookie. I ate TWO cookies.", "When I grow up my dragon will be pink. Very pink.", "We're making a fort. You can join if you know the password. It's 'password'.", "Nettle says my freckles are a map to treasure. I'm going to find it!", "Shh! Is Brick looking? Okay, run!"] },
+    { name: "Master Orla", title: "Arena Master", arena: true, home: new V(ARENA.x + Math.cos(ARENA.gateA) * (ARENA.r - 3), Y, ARENA.z + Math.sin(ARENA.gateA) * (ARENA.r - 3)), wander: 2, slow: true,
+      look: { shirt: "#c8322a", pants: "#2a2a3a", hair: "#e8e0d0", hairStyle: "bun", hat: "crown", wide: 1.1, scale: 1.05 }, lines: ["Welcome to the arena!"] },
     { name: "Juno", title: "Weaver", home: P(H.c1), wander: 5, look: { shirt: "#c86aa8", pants: "#5a3a5a", hair: "#2a1a10", hairStyle: "long", dress: true }, lines: [
-      "I'm knitting a scarf for a dragon. It's taking a while.", "Dragon scales make lovely buttons. Shed ones! Only shed ones.", "Have you met Old Nettle? She's... colorful."] },
+      "I'm knitting a scarf for a dragon. It's taking a while.", "Dragon scales make lovely buttons. Shed ones! Only shed ones.", "Have you met Old Nettle? She's... colorful.", "I'm weaving a blanket with every colour I can find. I'm on colour 84.", "Baker Rose thinks Nettle stole her rolling pin. Nettle says it 'walked off'.", "Wool from Frost Peaks yaks is the warmest. Very itchy though.", "A scarf for a dragon needs about forty balls of yarn. And patience.", "I made Pip a tiny cape. He hasn't taken it off in a week.", "Knit one, purl two, drop three. Oops."] },
   ];
   people.forEach((p, i) => {
     const m = makePerson(p.look); scene.add(m.g);
@@ -1670,7 +1957,7 @@ const egg = makeEgg(SP(eggKind).pal); scene.add(egg);
 let eggSpot = (function () {
   for (let i = 0; i < 400; i++) {
     const a = Math.random() * Math.PI * 2, d = 65 + Math.random() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
-    if (height(x, z) > WATER_Y + 1.5 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 6 && Math.hypot(x - VIL.x, z - VIL.z) > VIL.r + 8) return new V(x, height(x, z), z);
+    if (height(x, z) > WATER_Y + 1.5 && Math.hypot(x - POND.x, z - POND.z) > POND.r + 6 && Math.hypot(x - VIL.x, z - VIL.z) > VIL.r + 8 && !nearArena(x, z, 14)) return new V(x, height(x, z), z);
   }
   return new V(-80, height(-80, 30), 30);
 })();
@@ -1709,24 +1996,31 @@ const speedMul = () => 0.55 + 0.15 * speedOf();
 const speedDots = () => "●".repeat(speedOf()) + "○".repeat(5 - speedOf());
 // stats at the pet's level: level 1 values plus that species' growth for each level after
 function petStats() { const st = SP(pet.kind).stats, L = (pet.level || 1) - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; }
-function petLabel(stage) { petEl.hidden = false; const s = petStats(); petEl.textContent = `${pet.name} the ${SP(pet.kind).rarity} ${pet.kind} · ${stage} · Lv ${pet.level || 1} · HP ${s.hp} · speed ${speedDots()}`; }
+function petLabel(stage) { petEl.hidden = false; const s = petStats(); petEl.textContent = `${pet.name} the ${SP(pet.kind).rarity} ${pet.kind} · ${stage} · Lv ${pet.level || 1} (XP ${pet.xp || 0}/${(pet.level || 1) * 10}) · HP ${s.hp} · speed ${speedDots()}`; }
 
 // ================= input =================
 const keys = {};
 addEventListener("keydown", e => {
   if (document.activeElement === nameInput) return;
+  if (uiOpen) {
+    if (e.code === "Escape" && !menuEl.hidden) closeMenu();
+    else if (!e.repeat && pressKey(e.code)) e.preventDefault();
+    if (e.code === "Space") e.preventDefault();
+    return;
+  }
   const first = !e.repeat; keys[e.code] = true;
   if (["Space", "ArrowUp", "ArrowDown"].includes(e.code)) e.preventDefault();
   if ((e.code === "ShiftLeft" || e.code === "ShiftRight") && first) {
     if (state === "ride" && pet.fly && T - lastShift < 0.35 && pet.y > groundAt(pet.x, pet.z, pet.y) + 12) { pet.dive = true; toast("Dive!", ""); }
     lastShift = T;
   }
+  if ((e.code === "Escape" || e.code === "KeyM") && document.exitPointerLock) document.exitPointerLock();   // M also frees the mouse, in case the app keeps Esc for itself
   if (e.code === "KeyE" && first) { if (!talkTo()) act(); }
   if (e.code === "KeyR") ride();
 });
 addEventListener("keyup", e => { keys[e.code] = false; });
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
-// mouse look: click the game to lock the mouse, then moving it turns the camera (Esc frees it).
+// mouse look: click the game to lock the mouse, then moving it turns the camera (Esc or M frees it).
 // If the browser won't lock the mouse, dragging still works.
 const cv = renderer.domElement;
 let locked = false;
@@ -1734,7 +2028,7 @@ function lockMouse() { try { const r = cv.requestPointerLock && cv.requestPointe
 document.addEventListener("pointerlockchange", () => {
   locked = document.pointerLockElement === cv;
   $("cross").hidden = !locked;
-  $("lookHint").textContent = locked ? "mouse to look · Esc frees the mouse" : "click the game to look with the mouse";
+  $("lookHint").textContent = locked ? "mouse to look · Esc or M frees the mouse" : "click the game to look with the mouse";
 });
 document.addEventListener("mousemove", e => {
   if (!locked) return;
@@ -1742,7 +2036,7 @@ document.addEventListener("mousemove", e => {
   camPitch = Math.min(1.2, Math.max(-0.85, camPitch + e.movementY * 0.0028));
 });
 let drag = null;
-cv.addEventListener("pointerdown", e => { if (!locked && nameBox.hidden && $("start").hidden) lockMouse(); drag = locked ? null : { x: e.clientX, y: e.clientY }; if (drag) cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointerdown", e => { if (!locked && nameBox.hidden && $("start").hidden && !uiOpen) lockMouse(); drag = locked ? null : { x: e.clientX, y: e.clientY }; if (drag) cv.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!drag) return;
   camYaw += (e.clientX - drag.x) * 0.006; camPitch = Math.min(1.2, Math.max(-0.85, camPitch + (e.clientY - drag.y) * 0.004));
@@ -1765,9 +2059,10 @@ let started = false;
 function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
 function writeSave() {
   if (!started) return;
-  const stage = state === "ride" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
+  if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
+  const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
 function applySave(d) {
@@ -1777,11 +2072,16 @@ function applySave(d) {
   if (d.eggKind) setEggKind(d.eggKind);
   if (typeof d.dayTime === "number") dayTime = d.dayTime;
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
+  if (typeof d.coins === "number") coins = d.coins;
+  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k)));
+  if (Array.isArray(d.pen)) pen.push(...d.pen.filter(p => p && SPECIES.some(s => s.name === p.kind)));
+  if (d.arena) { arena.entries = d.arena.entries || 0; [0, 1, 2, 3].forEach(k => { arena.won[k] = !!(d.arena.won || [])[k]; arena.owed[k] = !!(d.arena.owed || [])[k]; }); }
+  showCoins();
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
     setKind(d.pet.kind || "Pyrrak");
-    Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
+    Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
     state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
     goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
   }
@@ -1816,6 +2116,7 @@ function talkTo() {
   if (state === "ride" || state === "name" || state === "hatching") return false;
   if (talking) { talking = null; $("talk").hidden = true; return true; }
   const n = nearestNpc(3.2); if (!n) return false;
+  if (n.arena) { arenaMenu(); return true; }
   if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
   talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : "");
   $("talkLine").textContent = n.lines[n.deck.pop()]; $("talk").hidden = false; n.talks++;
@@ -1823,8 +2124,8 @@ function talkTo() {
 }
 function updateNpcs(dt) {
   if (talking && (state === "ride" || Math.hypot(talking.x - me.x, talking.z - me.z) > 5)) { talking = null; $("talk").hidden = true; }
-  const close = state !== "ride" && state !== "name" ? nearestNpc(3.2) : null;
-  if (talking) prompt(""); else if (close) prompt(`Press <kbd>E</kbd> to talk to ${close.name}`);
+  const close = state !== "ride" && state !== "name" && state !== "arena" && !uiOpen ? nearestNpc(3.2) : null;
+  if (talking) prompt(""); else if (close) prompt(close.arena ? `Press <kbd>E</kbd> to talk to ${close.name} about the arena` : `Press <kbd>E</kbd> to talk to ${close.name}`);
   for (const n of npcs) {
     const dme = Math.hypot(n.x - me.x, n.z - me.z);
     if (dme > 150) continue;
@@ -1853,7 +2154,7 @@ nameInput.addEventListener("keydown", e => { if (e.key === "Enter") finishName()
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   pet.name = n.charAt(0).toUpperCase() + n.slice(1);
-  nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse();
+  nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse(); egg.userData.fromBag = false; setTimeout(writeSave, 0);
   petLabel("baby");
   goal(`Walk around with ${pet.name} so it can grow`);
   toast(`Hello, ${pet.name}!`, "Babies follow you everywhere");
@@ -1870,7 +2171,7 @@ function act() {
     state = "hatching"; hatchT = 0; scene.attach(egg);
     egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0);
     goal("Watch the egg..."); prompt("");
-  }
+  } else if ((state === "grown" || state === "baby") && near(me.x, me.z, 0, 0, 5)) nestMenu();
 }
 function ride() {
   if (state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5)) {
@@ -1909,8 +2210,9 @@ function moveCircle(o, dx, dz, r) {
   }
   if ((o.y || 0) < 20) {
     if (Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
-    if (height(nx, nz) < WATER_Y - 1.1) return;                          // the sea is too deep too
-    const lim = 172 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (rr > lim) { nx *= lim / rr; nz *= lim / rr; }
+    if (waterTop(nx, nz) > -Infinity && height(nx, nz) < WATER_Y - 1.1) return;   // the sea is too deep too (dry dips are fine)
+    const open = LANDS.some(b => passW(b, nx, nz) > 0.2 || basinW(b, nx, nz) > 0.05);
+    const lim = 172 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (!open && rr > lim) { nx *= lim / rr; nz *= lim / rr; }
   }
   o.x = nx; o.z = nz;
 }
@@ -1928,9 +2230,10 @@ function frame() {
   let ix = 0, iz = 0;
   if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1;
   if (keys.KeyD || keys.ArrowRight) ix += 1; if (keys.KeyA || keys.ArrowLeft) ix -= 1;
+  if (uiOpen) { ix = 0; iz = 0; }
   const run = keys.ShiftLeft || keys.ShiftRight;
 
-  if (state !== "ride") {
+  if (state !== "ride" && state !== "arena") {
     // ---- walking tamer ----
     let moving = false;
     if (ix || iz) {
@@ -1964,12 +2267,12 @@ function frame() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind); pet.level = 1; dragon.root.visible = true;
+      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind); pet.level = 1; pet.xp = 0; dragon.root.visible = true;
       toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
     }
     if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A baby ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
-    prompt(state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : "");
+    prompt(uiOpen ? "" : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
     prompt(pet.fly ? "" : (keys.Space ? "" : "Press <kbd>Space</kbd> to take off · <kbd>R</kbd> to get off"));
   }
@@ -1999,6 +2302,8 @@ function frame() {
         }
       }
       if (state === "grown" && pet.scale < 1) pet.scale = Math.min(1, pet.scale + dt * 0.3);
+    } else if (state === "arena") {
+      updateArena(dt); walkAmt = fx.me.lunge > 0 ? 0.6 : 0; pet.bank = fx.me.ko * 1.2; pet.y = spotMe().y - fx.me.ko * 0.4;
     } else if (state === "ride") {
       // ---- riding and flying ----
       const ground = groundAt(pet.x, pet.z, pet.y);
@@ -2016,14 +2321,14 @@ function frame() {
       pet.speed += (target - pet.speed) * Math.min(1, dt * (pet.dive ? 3 : (pet.speed > target ? 0.8 : 2)));
       if (pet.dive) {} else if (keys.Space) vy = 12; else if (run) vy = pet.fly ? -14 : 0; else if (pet.fly) vy = -1.2;
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
-      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim) { pet.x *= lim / rr; pet.z *= lim / rr; } }
+      if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 200 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
-      pet.y = Math.min(230, Math.max(Math.max(ground, WATER_Y), pet.y + vy * dt));
+      pet.y = Math.min(230, Math.max(Math.max(ground, waterTop(pet.x, pet.z)), pet.y + vy * dt));
       // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
-      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, WATER_Y) < 3) pet.y = Math.max(ground, WATER_Y);
+      if (!pet.fly && !keys.Space && pet.y - Math.max(ground, waterTop(pet.x, pet.z)) < 3) pet.y = Math.max(ground, waterTop(pet.x, pet.z));
       const ceil = ceilingAt(pet.x, pet.z, pet.y); if (pet.y > ceil - 2.5) pet.y = ceil - 2.5;
-      if (pet.y > Math.max(ground, WATER_Y) + 0.6) pet.fly = true;
-      if (pet.fly && pet.y <= Math.max(ground, WATER_Y) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
+      if (pet.y > Math.max(ground, waterTop(pet.x, pet.z)) + 0.6) pet.fly = true;
+      if (pet.fly && pet.y <= Math.max(ground, waterTop(pet.x, pet.z)) + 0.05 && !keys.Space) { pet.fly = false; pet.speed *= 0.4; }
       pet.bank += ((pet.fly ? -ix * 0.45 : 0) - pet.bank) * Math.min(1, dt * 4);
       pet.pitch += ((pet.dive ? -1.0 : pet.fly ? vy * 0.025 : slopePitch()) - pet.pitch) * Math.min(1, dt * (pet.fly ? 4 : 6));
       walkAmt = pet.fly ? 0 : Math.min(1, Math.abs(pet.speed) / 8);
@@ -2070,22 +2375,32 @@ function frame() {
   skyAnims.forEach(f => f(T));
   // which land are we in?
   const ly = state === "ride" ? pet.y : me.y;
-  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : basinW(FIRE, me.x, me.z) > 0.15 ? "Fire Mountain" : basinW(FROST, me.x, me.z) > 0.15 ? "Frost Peaks" : (Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 && ly < 40) ? "Village" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley";
+  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : (LANDS.find(b => basinW(b, me.x, me.z) > 0.15) || {}).name || (((Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 || nearArena(me.x, me.z, 12)) && ly < 40) ? "Village" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley");
   if (land !== landNow) {
     const firstTime = !seen[land]; landNow = land; landEl.textContent = land; seen[land] = true;
-    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake" })[land] || "" : "");
+    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake", "Deep Forest": "Giant trees and glowing mushrooms", "Desert": "Hot sand, tall mesas and a hidden oasis", "Crystal Caves": "Deep under the mountains, lit by glowing crystals" })[land] || "" : "");
     if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
   updateNpcs(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
-  const fogT = baseFog.clone().lerp(new THREE.Color("#b07a5a"), basinW(FIRE, me.x, me.z) * 0.8).lerp(new THREE.Color("#d8e6f2"), basinW(FROST, me.x, me.z) * 0.5);
+  const caveDark = (Math.hypot(me.x - CAVES.x, me.z - CAVES.z) < CAVE_IN && ly < caveRoof(me.x, me.z)) ? basinW(CAVES, me.x, me.z) : 0;
+  const fogT = baseFog.clone().lerp(new THREE.Color("#b07a5a"), basinW(FIRE, me.x, me.z) * 0.8).lerp(new THREE.Color("#d8e6f2"), basinW(FROST, me.x, me.z) * 0.5)
+    .lerp(new THREE.Color("#3e5a3a"), basinW(FOREST, me.x, me.z) * 0.55 * (1 - nightAmt * 0.6)).lerp(new THREE.Color("#f2dca8"), basinW(DESERT, me.x, me.z) * 0.55 * (1 - nightAmt))
+    .lerp(new THREE.Color("#1a1428"), caveDark * 0.9);
+  caveDim += (caveDark - caveDim) * Math.min(1, dt * 2);   // the caves are dark, even at noon
+
   scene.fog.color.lerp(fogT, Math.min(1, dt * 2));
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
 
   // ---- camera ----
   const focus = state === "ride" ? new V(pet.x, pet.y + 3.2, pet.z) : new V(me.x, me.y + 1.6, me.z);
+  if (state === "arena") {
+    const look = arenaCamera(dt); updateDay(dt, look);
+    sun.position.copy(look).addScaledVector(SUN_DIR, 80); sun.target.position.copy(look);
+    renderer.render(scene, camera); requestAnimationFrame(frame); return;
+  }
   const cd = camDist * Math.cos(camPitch);
   const cam = new V(focus.x - Math.cos(camYaw) * cd, focus.y + camDist * Math.sin(camPitch), focus.z - Math.sin(camYaw) * cd);
   cam.y = Math.max(cam.y, groundAt(cam.x, cam.z, cam.y) + 0.8);
@@ -2095,11 +2410,13 @@ function frame() {
   if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   updateDay(dt, focus);
+  hemi.intensity *= 1 - caveDim * 0.7; sun.intensity *= 1 - caveDim * 0.92;   // the caves are dark, even at noon
   sun.position.copy(focus).addScaledVector(SUN_DIR, 80); sun.target.position.copy(focus);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 let growT = 0;
+let caveDim = 0;
 let landNow = "Green Valley"; const seen = { "Green Valley": true };
 const landEl = document.querySelector("#where h1");
 // walking things fall off the edge of a sky island
@@ -2117,12 +2434,20 @@ function slopePitch() {
   const hf = groundAt(pet.x + cx, pet.z + cz, pet.y + 1), hb = groundAt(pet.x - cx, pet.z - cz, pet.y + 1);
   return Math.max(-0.6, Math.min(0.6, Math.atan2(Math.max(hf, WATER_Y) - Math.max(hb, WATER_Y), 2 * L)));
 }
-function burstAt(x, y, z) { burst(new V(x, y, z)); }
-function burst(at) {
+// a soft round dot for sparkles (plain points would be squares)
+let _dot = null;
+function dotTex() {
+  if (_dot) return _dot;
+  const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d");
+  const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.4, "rgba(255,255,255,0.7)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 32, 32); return (_dot = new THREE.CanvasTexture(c));
+}
+function burstAt(x, y, z, color) { burst(new V(x, y, z), color); }
+function burst(at, color) {
   const n = 60, pos = new Float32Array(n * 3), vel = [];
   for (let i = 0; i < n; i++) { pos.set([at.x, at.y, at.z], i * 3); vel.push(new V((Math.random() - 0.5) * 6, Math.random() * 7 + 2, (Math.random() - 0.5) * 6)); }
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: PYR.glow, size: 0.35, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ map: dotTex(), color: color || PYR.glow, size: 0.45, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   scene.add(p); bursts.push({ p, vel, life: 1.6 });
 }
 function updateBurst(dt) {
@@ -2133,7 +2458,380 @@ function updateBurst(dt) {
     if (b.life <= 0) { scene.remove(b.p); bursts.splice(k, 1); }
   }
 }
-window.__ww = { me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
+const TAMERS = [[{"n":"Timmy","k":"Pyrrak","l":2,"i":["Hi! I'm Timmy! This is my first tournament!","My Pyrrak is gonna toast you! ...Probably."],"r":["Is that a LUMORA?! Those are, like, super legendary!","WHAT is THAT?! It looks like space! Is it even real?!","A ROCK DRAGON?! With GOLD cracks?! Best rock EVER!"]},{"n":"Lulu","k":"Fernling","l":4,"i":["I'm Lulu. Aww, is that your dragon? It's so tiny!"],"r":["A Lumora?! Okay, that is NOT tiny. That's amazing.","What... IS that? I'm scared. And also jealous.","Is it... a statue? Wait, it MOVED! Ahh!"]},{"n":"Rocco","k":"Stonewyrm","l":5,"i":["Name's Rocco.","Rocks beat everything. That's science."],"r":["","That thing isn't rock. I don't trust it. At all.","A dragon made of ROCK! I TOLD you rocks are the best!"]},{"n":"Mira","k":"Aquawyrm","l":7,"i":["I'm Mira. I've never lost. Not once. Ever. Don't ruin it."],"r":["A Lumora... I've only seen one in a painting.","I've never seen a dragon like that. What IS it?","Gold cracks and crystals? Is that even a dragon?"]},{"n":"Dex","k":"Smoldedrake","l":8,"i":["Dex. Remember it, because you'll be crying it later."],"r":["","",""]},{"n":"Captain Vex","k":"Gillwing","l":11,"i":["Captain Vex! I've beaten 100 tamers. You're number 101."],"r":["A Lumora! Stars on its wings, like a sailor's night sky!","Blimey! What beast is THAT? It's like the night itself!","That's no dragon, it's a walking treasure chest! Arr!"]},{"n":"Duchess Ivy","k":"Lichenwing","l":13,"i":["I am Duchess Ivy.","Kneel before my Lichenwing, peasant!"],"r":["A Lumora! Even I don't own one. How dare you.","That dragon... it's darker than my castle dungeon!","Gold AND crystals! The fanciest dragon in all the land!"]},{"n":"Grim","k":"Ashveil","l":14,"i":["...I'm Grim.","...Your dragon looks tired already."],"r":["","......! ...Finally. A dragon as dark as me.","...A stone dragon. ...It looks older than the mountains."]},{"n":"Sheen","k":"Dustmite","l":15,"i":["A hooded tamer with yellow eyes steps up.","Name's Sheen. NOT Shen. Never heard of him. Heh.","Behold my super rare GOLDEN DRAGON! Shiny, huh? Heh heh."],"r":["","Ooh, nice dragon. Wanna sell it? I'll give you 20 coins.","Those crystals look valuable. Wanna trade? Heh heh."]},{"n":"Aurora","k":"Tempestra","l":16,"i":["I'm Aurora, the champion. So you made it this far.","Impressive. Now watch me end it."],"r":["A Lumora! I've always wanted one. Lucky you.","I've never seen that dragon. Not even in books.","A dragon of stone? I didn't know they existed. Amazing."]}],[{"n":"Gus","k":"Volcanox","l":19,"i":["GUS! I'M GUS! I YELL A LOT!","SORRY! NOT SORRY! LET'S FIGHT!"],"r":["A LUMORA?! THAT'S SO COOL I'M YELLING MORE!","WHAT IS THAT?! IT'S SO DARK! I CAN'T STOP YELLING!","A ROCK DRAGON?! WITH GOLD?! THAT'S LOUD-LEVEL COOL!"]},{"n":"Ash","k":"Ashveil","l":18,"i":["I'm Ash. Like the dragon. Like what fire leaves behind.","Guess which one you'll be soon."],"r":["Stars on its wings. Fire could never burn that bright.","That thing is darker than ash. I don't like it.","Stone doesn't burn. That's... a problem for me."]},{"n":"*Cole","k":"Glacius","l":21,"i":["...","...My Glacius does the talking."],"r":["...! ...Nice Lumora.","...... ...What IS that?","... ...Whoa."]},{"n":"Bree","k":"Tempestra","l":19,"i":["Bree here! I talk fast, I fight fast, I win fast!","Ready? Set? GO!"],"r":["LumoraLumoraLumora! I can't talk fast enough for this!","Wait-what-is-that? I've never seen that! Not ever!","Is-that-a-ROCK? That-MOVES?! Okay, I'm-slowing-down."]},{"n":"Kip","k":"Tempestra","l":18,"i":["Hi, I'm Kip! I'm the youngest in Section 2!","Don't go easy on me. I won't!"],"r":["Is that a real Lumora?! Can I touch it? Please?","Whoa... it's like a shadow with eyes. I'm scared!","A dragon made of rocks?! I want to be you when I grow up!"]},{"n":"Ivo","k":"Thornwyrm","l":22,"i":["Ivo's the name. Thorns are my game.","Touch my dragon and you'll regret it."],"r":["Even my thorns bow to a Lumora. Respect.","Thorns can't hurt a shadow. What is that thing?!","Thorns on stone just snap. Great. Just great."]},{"n":"Otto","k":"Thornwyrm","l":20,"i":["I'm Otto. I grow the best turnips in the land.","Also, I crush tamers. Hobby."],"r":["A Lumora! Worth more than every turnip I've grown.","That's no turnip. That's no dragon I know, either!","I hate rocks in my field. But THAT rock I'd keep!"]},{"n":"Pia","k":"Glacius","l":18,"i":["Pia! I've never won a match.","But today feels different!"],"r":["A Lumora?! Okay, today does NOT feel different now.","What is THAT?! Never mind. I've lost already.","A walking boulder! Maybe I'll win next year..."]},{"n":"*Quinn","k":"Ashveil","l":23,"i":["Fastest tamer alive. Don't blink.","You blinked. That's one point for me."],"r":["A Lumora. My fast eyes saw that one coming.","I blinked. And that thing was still staring.","Fast beats rock? ...Usually. Not that rock."]},{"n":"*Max","k":"Volcanox","l":24,"i":["Maximum power. Maximum speed.","Minimum mercy."],"r":["Maximum Lumora. Maximum jealous.","Maximum creepy. Minimum idea what that thing is.","Maximum rock. Maximum gold. Maximum unfair."]},{"n":"Eli","k":"Dawnwing","l":21,"i":["Eli. I wake up at dawn every day to train.","What time did YOU wake up? Thought so."],"r":["A Lumora! Like the sky right before dawn.","That thing is darker than the night before dawn.","Gold cracks, like the sun rising through stone."]},{"n":"Luna","k":"Dawnwing","l":25,"i":["I'm Luna. I only fight at night...","...but I'll make an exception for you."],"r":["Stars on its wings... my kind of dragon.","I love the night. But THAT is darker than night.","It shines gold in the dark. I like it."]},{"n":"Faye","k":"Pearlhorn","l":20,"i":["I'm Faye, and this is Princess Pearl. Say hi, Pearl!","She says you're going down."],"r":["Princess Pearl, look! A Lumora! Be polite!","Princess Pearl is hiding behind me. Me too, honestly.","Pearl says rocks aren't pretty. She's WRONG this time."]},{"n":"Hana","k":"Jadewyrm","l":24,"i":["I'm Hana. I've read every dragon book in the library.","I already know your weak spot."],"r":["A Lumora! It's on page 1 of every dragon book I own!","That's in NO book I've read. And I've read them all!","Not in any book! I'm writing my own book now."]},{"n":"Jade","k":"Jadewyrm","l":22,"i":["I'm Jade, and yes, my dragon is a Jadewyrm.","We match. It's a whole thing."],"r":["A Lumora! We don't match, but I'll allow it.","That one matches nothing. Not even the night.","Gold and stone. That matches everything."]},{"n":"Dina","k":"Petalwyrm","l":21,"i":["I'm Dina! I braid flowers into my dragon's tail.","Pretty AND deadly!"],"r":["A Lumora! I'd braid starflowers into its tail!","No flower would grow near that. Brr.","I'd put flowers in its cracks! So pretty!"]},{"n":"*Rex","k":"Pearlhorn","l":26,"i":["Names are for winners. Call me 'The End'.","...Okay, that one sounded cooler in my head."],"r":["A Lumora. Fine. 'The End' is still coming. For you.","...'The End' doesn't want to fight that thing.","A rock dragon?! ...Call me 'The Beginning'."]},{"n":"*Nora","k":"Petalwyrm","l":25,"i":["I found my dragon in a cave nobody came out of.","Want to know why? Heh."],"r":["Even my secret cave had no Lumora in it.","I've been in dark caves. Nothing THAT dark.","It looks like it crawled out of MY cave. Hmm."]},{"n":"Sage","k":"Jadewyrm","l":27,"i":["I am Sage. I have meditated for three days.","I already know how this ends."],"r":["A Lumora. My meditation did not foresee that.","I meditated three days. I did not see THAT.","Stone is calm. Stone is patient. Stone is... winning."]},{"n":"Sir Cedric","k":"Blazequill","l":28,"i":["I am Sir Cedric, keeper of the second gate.","Nineteen tamers fell before me. You will be the twentieth."],"r":["A Lumora at my gate. A worthy challenger at last.","In all my years at this gate, never one like THAT.","A knight of stone and gold! Even my gate bows to it."]}],[{"n":"Tara","k":"Petalwyrm","l":31,"i":["I'm Tara. Welcome to Section 3, where dreams end.","Just kidding! ...Mostly."],"r":["A Lumora! Okay, your dreams might NOT end here.","What is THAT?! I'm the one whose dreams are ending.","Stone and gold? Section 3 just got scary for ME."]},{"n":"*Ugo","k":"Jadewyrm","l":34,"i":["I don't need an intro. People know me.","...You don't? Rude."],"r":["A Lumora? People will know YOU now. Rude.","Nobody knows what THAT is. Not even me.","Everybody will talk about that rock. Not me. Rude."]},{"n":"Wade","k":"Pearlhorn","l":30,"i":["Wade here. I'm a fisherman. So is my Pearlhorn.","We're fishing for a win today."],"r":["A Lumora! The best catch I've ever seen!","That came from deeper than any fish I've caught.","Can't fish a rock. Can't beat one either, I bet."]},{"n":"Yuri","k":"Dawnwing","l":32,"i":["Yuri. I paint my dragon's wins on its scales.","I'm running out of room."],"r":["I'd paint that Lumora on my dragon's scales!","I don't have paint dark enough for that thing.","Gold cracks! It already looks painted!"]},{"n":"Dot","k":"Dawnwing","l":30,"i":["I'm Dot! I'm tiny, but my dragon isn't!","Size isn't everything!"],"r":["A Lumora! It's even bigger than my dragon!","That thing is scary AND big! Size IS everything!","A giant rock! Okay, size is kind of everything."]},{"n":"Iris","k":"Petalwyrm","l":35,"i":["I'm Iris. My dragon can see every color.","And it sees you losing."],"r":["My dragon sees every color. It sees stars now.","My dragon sees every color. It can't see THAT.","Gold, silver and grey. My dragon loves those colors."]},{"n":"Kai","k":"Jadewyrm","l":33,"i":["I'm Kai. I surf on my dragon's back. Gnarly!","Let's ride, dude!"],"r":["A Lumora! Totally gnarly, dude!","Dude... that is NOT gnarly. That is creepy, dude.","Dude, you can't surf on a rock! ...Can you?"]},{"n":"Gwen","k":"Pearlhorn","l":31,"i":["I'm Gwen, the dragon doctor! I fix hurt dragons.","Your dragon will need me later."],"r":["A Lumora! I'd love to check its heartbeat!","I don't know how to fix whatever THAT is.","A stone dragon! My bandages won't stick to that."]},{"n":"Pax","k":"Petalwyrm","l":32,"i":["Hi! I'm Pax. I love peace and making friends!","...Right after I beat you, though."],"r":["A Lumora! Let's be friends! After I beat you.","I want to make friends with that. ...From far away.","Rocks are good friends. They never leave. Or move."]},{"n":"Thea","k":"Jadewyrm","l":36,"i":["Thea. I collect badges. I have 49.","You'll be number 50."],"r":["A Lumora! You should get a badge just for that!","There's no badge for whatever that is. I'd know.","A rock dragon badge! That'd be number 50!"]},{"n":"Xena","k":"Blazequill","l":38,"i":["I'm Xena, warrior tamer! My dragon and I are ONE!","Feel our POWER!"],"r":["A Lumora! Our POWER meets its LIGHT!","Even a warrior feels fear. That thing... is fear.","A warrior made of stone! Finally, a real fight!"]},{"n":"Bea","k":"Blazequill","l":33,"i":["Bea! Like a bee! Buzz buzz!","...And yes, I sting. Hard."],"r":["Buzz! A Lumora! Even bees like stars!","Bees run from smoke. I'm running from THAT.","Stinging a rock hurts the bee. I learned that."]},{"n":"Ezra","k":"Blazequill","l":37,"i":["Ezra. I've studied your fights. All of them.","I have notes. Lots of notes."],"r":["A Lumora. Note: change strategy. Big time.","My notes say nothing about that. NOTHING.","Note: stone. Note: gold. Note: I'm worried."]},{"n":"*Flint","k":"Blazequill","l":39,"i":["Spark. Fire. Done.","That's how fast this goes."],"r":["Lumora. Bright. Nice.","Dark. Too dark. Nope.","Stone. Fire won't help. Ugh."]},{"n":"Orin","k":"Blazequill","l":36,"i":["Orin. I forge swords AND tame dragons.","Both are hot. Both burn."],"r":["A Lumora! I'd forge a sword from its starlight.","I've worked dark forges. Never seen THAT kind of dark.","Gold veins in stone! Best metal I've ever seen."]},{"n":"Abel","k":"Abyssar","l":34,"i":["I'm Abel. I came all the way from across the sea.","I'm not going home a loser."],"r":["Across the sea they only TALK about Lumoras!","Nobody across the sea has seen anything like that.","I crossed the sea to see THAT? Worth the trip."]},{"n":"*Jax","k":"Abyssar","l":40,"i":["I used to be a pirate. Now I'm something worse.","A pirate with a dragon."],"r":["A Lumora! My pirate heart says steal it. I won't.","Even pirates know when to sail away. Like now.","Gold in the rock! That's treasure, matey!"]},{"n":"Rue","k":"Abyssar","l":38,"i":["I'm Rue. You'll rue the day you met me.","Get it? Rue? ...Nobody laughs."],"r":["You'll rue the day... wait, a Lumora? I rue it.","I rue the day I saw that. Get it? ...Brr.","Rock beats me. Rue... ME. Oh no."]},{"n":"*Vic","k":"Abyssar","l":41,"i":["My name? Let's just say it's short for victory.","My parents knew."],"r":["A Lumora? Victory just got harder.","Short for victory. Not short for 'fight THAT'.","That rock is short for 'I lose'."]},{"n":"Lark","k":"Rootwyrm","l":35,"i":["Lark! I sing to my dragon before every fight. La la la!","This one's a sad song. For you."],"r":["A Lumora! I'll write a happy song about it!","La la... la. I forgot the words. What IS that?","A rock song! I finally get to sing one!"]},{"n":"Cyrus","k":"Rootwyrm","l":42,"i":["Cyrus. My family has tamed dragons for 300 years.","You're just a beginner."],"r":["A Lumora. My family has met only two.","300 years of tamers. Not one saw THAT.","My family never tamed a rock. Until now?"]},{"n":"*Hugo","k":"Rootwyrm","l":44,"i":["The biggest tamer in the arena. Literally.","I'm 7 feet tall. Scared yet?"],"r":["A Lumora! For once I feel small. Nice.","7 feet tall, and I'm hiding. What IS that?","That rock is bigger than me! Feels weird."]},{"n":"*Nell","k":"Rootwyrm","l":40,"i":["...","I don't smile. ...Okay, maybe when I win."],"r":["... ...I'm smiling. Don't tell anyone.","... ...I'm not smiling. At all.","... ...Okay. That's cool. Fine."]},{"n":"Una","k":"Rootwyrm","l":43,"i":["I'm Una. Number one. Always.","Literally. Una means one."],"r":["A Lumora! Number one dragon. Ugh, I'm number two.","That's not number one. That's number zero. Scary.","One rock dragon. Only one. Like me."]},{"n":"Vera","k":"Rootwyrm","l":45,"i":["I'm Vera. I've won every tournament for 10 years.","Except one. We don't talk about it."],"r":["A Lumora. In 10 years I've seen only two.","10 years of tournaments. Never seen THAT.","Remember the one I lost? Not to that. Phew."]},{"n":"Zoe","k":"Abyssar","l":39,"i":["I'm Zoe, and this is my Abyssar. Pretty, right?","She's even prettier when she wins."],"r":["A Lumora! Okay, that's prettier than my Abyssar.","Pretty? No. Scary. Super scary.","Gold and stone! Pretty AND tough. I'm jealous."]},{"n":"Milo","k":"Rootwyrm","l":41,"i":["I'm Milo. My Rootwyrm was a gift from my grandpa.","He never lost. Neither will I."],"r":["Grandpa told me about Lumoras. He'd love this.","Grandpa never told me about anything like that.","Grandpa liked rocks. He'd have LOVED that."]},{"n":"Skye","k":"Abyssar","l":42,"i":["I'm Skye. My dragon has never touched the ground.","You won't either after this hit."],"r":["A Lumora! Its wings look like the night sky.","That came from somewhere darker than the sky.","A rock that flies? Now I've seen everything."]},{"n":"Wren","k":"Rootwyrm","l":44,"i":["I'm Wren, the last one before the Grandmaster.","Nobody has passed me in two years."],"r":["A Lumora. Maybe you WILL get past me.","Two years nobody passed me. That thing might.","A stone wall, like me. Who blinks first?"]},{"n":"Grandmaster Zora","k":"Lumora","l":46,"i":["So. You're the one everyone whispers about.","I am Grandmaster Zora. Nobody has ever beaten me."],"r":["Another Lumora. Two stars in one arena. Only one will shine.","In all my years I have never seen such a creature.","Stone and gold. I thought I'd seen it all. I was wrong."]}],[{"n":"Bram","k":"Jadewyrm","l":48,"i":["Welcome to Section 4, rookie. I'm Bram, the doorman.","Nobody gets past the door."],"r":["A Lumora at my door? Fine. Come in. Then lose.","I'm the doorman. THAT is not coming in.","A boulder at the door. Great. Just great."]},{"n":"Cleo","k":"Petalwyrm","l":48,"i":["I'm Cleo. My Petalwyrm has won 40 flower shows.","And 40 fights."],"r":["Even my flowers turn to look at a Lumora.","My flowers just wilted. What did you DO?","Gold in stone. My flowers would grow great in those cracks."]},{"n":"*Moss","k":"Rootwyrm","l":49,"i":["...","The forest sent me."],"r":["...The forest bows to that one.","...The forest is hiding from that.","...The forest remembers stones like that."]},{"n":"Dante","k":"Volcanox","l":49,"i":["Dante. Born on Fire Mountain. Raised in lava.","Okay, near lava. Close enough."],"r":["A Lumora. Even lava can't glow like that.","That thing is colder than the Frost Peaks.","Hot rock meets old rock. Let's see who cracks."]},{"n":"Fenna","k":"Fernling","l":50,"i":["I'm Fenna, and this Fernling is level 50!","Yes, a Fernling. Laugh. I dare you."],"r":["A Lumora versus a Fernling. Fair. Totally fair.","My Fernling hid in a bush. I want to join it.","A rock! My Fernling loves hiding behind rocks!"]},{"n":"Rook","k":"Stonewyrm","l":50,"i":["Rook. I play chess with my Stonewyrm.","It always wins. So will I."],"r":["Checkmate in... no. A Lumora changes everything.","That's not on the chessboard. That's not on ANY board.","Stone versus stone. A fair game at last."]},{"n":"Ines","k":"Glacius","l":51,"i":["I'm Ines. I live on a glacier.","I'll keep this cool."],"r":["A Lumora! It sparkles like ice at night.","That is colder than my glacier. And scarier.","Ice cracks stone. Usually. Hopefully."]},{"n":"*Vale","k":"Ashveil","l":51,"i":["You won't see me coming.","You won't see me going either."],"r":["I can't hide from a light like that.","Even in smoke, I'd see THAT staring at me.","Ash settles on stone. Stone doesn't care."]},{"n":"Tobin","k":"Thornwyrm","l":52,"i":["Tobin's the name. I trim hedges for the king.","And I trim tamers."],"r":["A Lumora. The king would pay a fortune.","The king does NOT want that in his garden.","My shears won't cut that. I checked."]},{"n":"Marisol","k":"Pearlhorn","l":52,"i":["I'm Marisol. I dive for pearls with my Pearlhorn.","Today I dive for a win."],"r":["A Lumora is rarer than any pearl.","That came from deeper than any ocean.","A pearl inside a rock? Ooh, I want to look."]},{"n":"Kestrel","k":"Driftail","l":53,"i":["Kestrel! I nap on clouds with my Driftail.","Then I wake up and win."],"r":["A Lumora! It makes the night sky look plain.","I'm not napping near THAT. Ever.","A flying rock. Gravity is crying."]},{"n":"Bo-Ran","k":"Snowpaw","l":53,"i":["I'm Bo-Ran. My Snowpaw dug a tunnel to this arena.","Through a mountain."],"r":["A Lumora! Shiny stars! Snowpaw wants to dig for more.","Snowpaw dug a hole and hid. Smart Snowpaw.","Snowpaw tried to dig through a rock like that once. Ouch."]},{"n":"Ottilie","k":"Rimefang","l":54,"i":["Ottilie. My Rimefang's fangs are pure ice.","They don't melt. Neither do I."],"r":["A Lumora. Even my icy heart melted a little.","My Rimefang is shivering. It never shivers.","Ice fangs on stone. Not my favourite sound."]},{"n":"Sol","k":"Dawnwing","l":54,"i":["I'm Sol. I only fight at sunrise.","...It's always sunrise somewhere."],"r":["A Lumora. The moon to my sun.","That thing swallows light. My Dawnwing hates it.","Gold cracks! Like a sunrise trapped in stone."]},{"n":"Grit","k":"Bergdrake","l":55,"i":["GRIT. Bergdrake. Big. Strong.","Me too."],"r":["Star dragon. Pretty. Grit likes.","Grit... scared. Grit never scared.","Rock dragon. Grit respects rock."]},{"n":"*Echo","k":"Tempestra","l":55,"i":["...echo... echo...","Just kidding. Let's fight."],"r":["A Lumora... Lumora... Lumora. Wow.","...That thing doesn't even make an echo.","Rock... rock... rock. It echoes nicely."]},{"n":"Pip Senior","k":"Aerolash","l":56,"i":["I'm Pip Senior. Little Pip in the village is my grandkid.","Don't tell them I lost."],"r":["A Lumora! Little Pip would scream with joy.","Little Pip must never see that thing.","A rock dragon! Pip would call it Mr. Pebble."]},{"n":"Rosalind","k":"Auroran","l":56,"i":["Rosalind. My Auroran paints the night sky.","Shall we dance in the dark?"],"r":["A Lumora! Our dragons should paint the sky together.","That is the darkness BETWEEN the colours.","Gold, stone and crystal. My Auroran approves."]},{"n":"Tiberius","k":"Blazequill","l":57,"i":["I am Tiberius, and my Blazequill's feathers are fire.","Try not to get singed."],"r":["A Lumora. Starlight beats firelight. Rude.","Fire can't light up THAT darkness.","Fire on stone. It just... sits there. Annoying."]},{"n":"Wynn","k":"Abyssar","l":57,"i":["Wynn here. My Abyssar comes from the deepest trench.","It's never seen sunlight."],"r":["A Lumora! Its stars look like my Abyssar's spots!","My Abyssar's from the dark. Even it thinks that's dark.","Deep sea meets deep earth. Interesting."]},{"n":"*Fable","k":"Skyrune","l":58,"i":["Every tamer has a story.","Yours ends here."],"r":["A Lumora. That's a story I'd read.","Some stories are too scary to tell.","An old stone in an old story. I like it."]},{"n":"Juniper","k":"Rootwyrm","l":58,"i":["Juniper! My Rootwyrm is 300 years old.","It's seen a lot of tamers lose."],"r":["Even 300 years and it's never seen a Lumora this close.","300 years old, and it's never seen that.","300 years... and that rock is older."]},{"n":"Corvin","k":"Tempestra","l":59,"i":["Corvin. I chase storms for fun.","You're just a drizzle."],"r":["A Lumora in a storm. That's a painting.","That's not a storm. That's the end of the world.","Lightning on stone. Boom. Nothing happens."]},{"n":"Elodie","k":"Petalwyrm","l":59,"i":["I'm Elodie. My Petalwyrm smells like roses.","Victory smells like roses too."],"r":["A Lumora! It should smell like starlight.","That smells like... nothing. Creepy.","Roses grow great around rocks. Just saying."]},{"n":"*Nyx","k":"Abyssar","l":60,"i":["Night is my friend.","You are not."],"r":["A Lumora. The night has a new favourite.","Even the night is afraid of that one.","Stone in the dark. Quiet. Patient. Like me."]},{"n":"Barnaby","k":"Stonewyrm","l":60,"i":["Barnaby. I've been a tamer for 60 years.","I'm 70. Do the math."],"r":["In 60 years I've seen one Lumora. Now two.","In 60 years... nope. Never. Not that.","Ah, now THAT'S a rock dragon. They don't make them like that."]},{"n":"Saffron","k":"Blazequill","l":61,"i":["I'm Saffron! Spicy tamer, spicy dragon!","Hot hot HOT!"],"r":["A Lumora! Not spicy, but so pretty.","That's not spicy. That's terrifying.","Gold cracks like fire in stone. Spicy rock!"]},{"n":"Hale","k":"Glacius","l":61,"i":["Hale. I climbed every peak in the Frost Peaks.","This is just one more."],"r":["A Lumora. I saw one once from the highest peak.","Not even the highest peak is that cold.","A stone that glows. Like a summit at sunset."]},{"n":"*Wraith","k":"Skyrune","l":62,"i":["...","I don't talk. I win."],"r":["...Nice stars.",".....","...Rock. Respect."]},{"n":"Fiona","k":"Aerolash","l":62,"i":["Fiona! Fastest tamer in Section 4!","Catch me if you can!"],"r":["A Lumora! It's not fast, but WOW.","That thing doesn't move. It just... appears. Stop it.","Fast versus rock. Rock wins standing still. Unfair."]},{"n":"Magnus","k":"Bergdrake","l":63,"i":["I am Magnus. I sail the icy seas with my Bergdrake.","The sea has never beaten us."],"r":["A Lumora over the icy sea. What a sight.","The sea itself would run from that.","An iceberg made of stone. Fascinating."]},{"n":"Lyra","k":"Lumora","l":64,"i":["I'm Lyra. My Lumora and I have trained under the stars for years.","Ready to see real starlight?"],"r":["Two Lumoras! The sky is jealous tonight.","My Lumora's stars just went dim. What did that thing do?","Stone and stars. Old friends, maybe."]},{"n":"Atlas","k":"Rootwyrm","l":64,"i":["Atlas. I carry the weight of 63 wins on my back.","You'll be 64."],"r":["A Lumora! Heavy competition.","That's too heavy even for Atlas.","A mountain in dragon shape. I like it."]},{"n":"*Specter","k":"Abyssar","l":65,"i":["Boo.","...Did that work?"],"r":["A Lumora. It glows. I hate glowing.","Finally, something scarier than me.","Rocks can't be haunted. I tried."]},{"n":"Seraphina","k":"Skyrune","l":65,"i":["I am Seraphina. My Skyrune flies above the clouds.","You will look up to me."],"r":["A Lumora! A star that flies.","That thing came from above the stars.","Even from the sky, that rock looks huge."]},{"n":"Gideon","k":"Blazequill","l":66,"i":["Gideon. Three-time champion of Fire Mountain.","Four after today."],"r":["A Lumora. Cooler than fire. Literally.","Fire can't touch that. I tried. Once.","Fire forged that stone, I bet."]},{"n":"Odessa","k":"Auroran","l":67,"i":["I'm Odessa. I've followed the northern lights my whole life.","They led me here."],"r":["A Lumora! The lights led me to YOU.","The lights went out when that showed up.","Gold under the lights. Beautiful."]},{"n":"Thorne","k":"Lumora","l":68,"i":["Thorne. Second-best tamer alive.","The best is behind me."],"r":["Another Lumora. Mine's brighter. Obviously.","My Lumora stopped glowing. That's never happened.","A rock dragon. Mine glows better. Still."]},{"n":"Valkyria","k":"Lumora","l":69,"i":["I am Valkyria, the Champion's right hand.","None shall pass to her."],"r":["A Lumora against a Lumora. Only one shines tonight.","In all my battles, I've never seen that.","Stone that glows gold. Worthy."]},{"n":"Champion Aurelia","k":"Crestwyrm","l":70,"i":["So. You've beaten 99 tamers to stand before me.","I am Aurelia, the Champion. My Crestwyrm has never lost.","Show me everything you have."],"r":["A Lumora. Then this will be a fight worth remembering.","I have fought every dragon in this land. Never THAT one.#...Show me what it can do.","A dragon older than the arena itself.#It is an honour."]}]];
+
+// ================= coins, backpack, pen =================
+let coins = 50;                                   // a few coins to start, so the first arena entry is free-ish
+const bag = [], pen = [];                         // backpack eggs (kinds) and dragons resting in the pen
+const BAG_MAX = 6, PEN_MAX = 10;
+const arena = { entries: 0, won: [false, false, false, false], owed: [false, false, false, false] };
+pet.xp = 0;
+let uiOpen = false;                               // a menu or the battle is on screen
+const coinsEl = $("coins");
+function showCoins() { coinsEl.textContent = `Coins: ${coins}` + (bag.length ? ` · eggs in backpack: ${bag.length}` : ""); }
+showCoins();
+const xpNeed = () => (pet.level || 1) * 10;      // Lv n needs n x 10 XP to reach the next level
+function addXp(n) {
+  pet.xp = (pet.xp || 0) + n; let up = 0;
+  while (pet.xp >= xpNeed()) { pet.xp -= xpNeed(); pet.level = (pet.level || 1) + 1; up++; }
+  if (up) { petLabel("grown up"); toast(`${pet.name} reached level ${pet.level}!`, `HP ${petStats().hp} · it grew stronger`); }
+  return up;
+}
+
+// ================= generic menu panel =================
+const menuEl = $("menu");
+function openMenu(title, html, onClose) {
+  uiOpen = true; if (document.exitPointerLock) document.exitPointerLock();
+  $("menuTitle").textContent = title; $("menuBody").innerHTML = html; menuEl.hidden = false; menuEl._onClose = onClose || null;
+  prompt("");
+}
+function closeMenu() { if (menuEl.hidden) return; menuEl.hidden = true; uiOpen = state === "arena"; const f = menuEl._onClose; menuEl._onClose = null; if (f) f(); else lockMouse(); }
+$("menuClose").onclick = () => closeMenu();
+menuEl.addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (b && !b.disabled) menuAct(b.dataset.act, +b.dataset.i); });
+let menuAct = () => {};
+
+// ================= the arena: 4 sections, 10 + 20 + 30 + 40 = 100 tamers =================
+const SEC_PRIZE = ["1000 coins", "a Rare egg", "an Epic egg", "a Crestwyrm egg"];
+const fee = () => Math.min(500, 25 + 25 * arena.entries);
+const roundCoins = (sec, i) => [6 + 2 * i, 15 + 3 * i, 25 + 4 * i, 40 + 5 * i][sec];   // i = 1 for the first win
+const SHINY_RATE = [12, 15, 18, 20];               // percent of tamers in each section with a shiny dragon
+function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function tamerShiny(t, sec) {
+  if (t.n === "Sheen") return "Gold";               // "polished" - it flakes off
+  const h = hashStr(t.n + t.k);
+  if (h % 100 >= SHINY_RATE[sec]) return null;
+  const r = (h >>> 8) % 100;                         // Silver 40, Gold 30, Neon 20, Purple & blue 10
+  return r < 40 ? "Silver" : r < 70 ? "Gold" : r < 90 ? "Neon" : "Purple & blue";
+}
+function shinyPal(kind, type) {
+  const s = SP(kind), sh = PAL[type];
+  return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null });
+}
+const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
+const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
+const shownName = t => t.n.startsWith("*") ? "???" : t.n;
+
+function arenaMenu() {
+  if (state !== "grown") {
+    openMenu("The Arena", `<p>${state === "baby" ? `${pet.name} is still a baby. Come back when it's grown up!` : "You need a grown-up dragon to fight here. Find an egg and hatch one first!"}</p>`);
+    menuAct = () => {}; return;
+  }
+  // a prize that didn't fit in the backpack waits here
+  let note = "";
+  arena.owed.forEach((o, k) => { if (o && givePrize(k)) { arena.owed[k] = false; note += `<p class="good">Here's the prize you couldn't carry before: ${SEC_PRIZE[k]}!</p>`; } });
+  const rows = TAMERS.map((list, k) => {
+    const lv = list.map(t => t.l), open = k === 0 || arena.won[k - 1];
+    return `<div class="sec ${open ? "" : "locked"}"><div><b>Section ${k + 1}</b> · ${list.length} tamers · levels ${Math.min(...lv)}-${Math.max(...lv)}<br>
+      <small>${arena.won[k] ? "Won! ✓ First-win prize collected" : `First full win: ${SEC_PRIZE[k]}`}${open ? "" : ` · win Section ${k} to open`}</small></div>
+      <button data-act="enter" data-i="${k}" ${open ? "" : "disabled"}>Enter</button></div>`;
+  }).join("");
+  openMenu("The Arena", `${note}<p>Fight the tamers one after another with ${pet.name} (Lv ${pet.level}). Your dragon heals between fights.
+    Lose once and the run ends, but you keep every coin you won. Entry: <b>${fee()} coins</b> (goes up by 25 each time, up to 500). You have <b>${coins}</b>.</p>
+    ${rows}<div class="sec"><div><b>Practice</b> · free · a friendly fight at your level<br><small>No prizes, just a few coins and XP</small></div><button data-act="practice">Practice</button></div>`);
+  menuAct = (a, k) => {
+    if (a === "practice") { closeMenu(); startRun(-1); return; }
+    if (a === "enter") {
+      if (coins < fee()) { $("menuBody").insertAdjacentHTML("afterbegin", `<p class="bad">You need ${fee()} coins to enter. Try a free practice fight to earn some.</p>`); return; }
+      coins -= fee(); arena.entries++; showCoins(); closeMenu(); startRun(k);
+    }
+  };
+}
+function randomKind(rarity) { const l = SPECIES.filter(s => s.rarity === rarity); return l[Math.floor(Math.random() * l.length)].name; }
+function givePrize(k) {
+  if (k === 0) { coins += 1000; showCoins(); return true; }
+  if (bag.length >= BAG_MAX) return false;
+  bag.push(k === 1 ? randomKind("Rare") : k === 2 ? randomKind("Epic") : "Crestwyrm"); showCoins(); return true;
+}
+
+// ---- the stadium spots ----
+const AR = ARENA, axis = new V(1, 0, 0);
+const spotMe = () => new V(AR.x - 5.5, AR.y + 0.1, AR.z), spotFoe = () => new V(AR.x + 5.5, AR.y + 0.1, AR.z);
+let run = null, foe = null, foeDragon = null, foePerson = null, busy = false;
+const fx = { me: { lunge: 0, hit: 0, ko: 0 }, foe: { lunge: 0, hit: 0, ko: 0 } };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const battleEl = $("battle"), logEl = $("bLog"), btnEl = $("bBtns");
+function buttons(list) {
+  btnEl.innerHTML = list.map(([label, key], i) => `<button type="button" data-i="${i}"${key ? ` title="key ${key}"` : ""}>${label}${key ? ` <kbd>${key}</kbd>` : ""}</button>`).join("");
+  btnEl._list = list;
+}
+btnEl.addEventListener("click", e => { const b = e.target.closest("button"); if (b && btnEl._list) btnEl._list[+b.dataset.i][2](); });
+function pressKey(code) {
+  const list = btnEl._list; if (!list || battleEl.hidden) return false;
+  const k = { Digit1: "1", Digit2: "2", Digit3: "3", Enter: "Enter", Space: "Enter", KeyE: "Enter" }[code];
+  const b = list.find(x => x[1] === k || (k === "Enter" && list.length === 1)); if (b) { b[2](); return true; } return false;
+}
+function bars() {
+  const me = run.me, f = run.foe;
+  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind}`;
+  $("bMeHp").style.width = Math.max(0, me.hp / me.max * 100) + "%"; $("bMeNum").textContent = `${Math.max(0, me.hp)} / ${me.max} HP`;
+  $("bFoeName").textContent = `${shownName(foe)} · Lv ${foe.l}`;
+  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k}`;
+  $("bFoeHp").style.width = Math.max(0, f.hp / f.max * 100) + "%"; $("bFoeNum").textContent = `${Math.max(0, f.hp)} / ${f.max} HP`;
+  $("bRound").textContent = run.sec < 0 ? "Practice" : `Section ${run.sec + 1} · fight ${run.i + 1} of ${TAMERS[run.sec].length} · won ${run.earned} coins`;
+}
+function say(html) { logEl.innerHTML = html; }
+
+function startRun(sec) {
+  run = { sec, i: 0, earned: 0, xp: 0 };
+  state = "arena"; uiOpen = true; camDist = 9; $("rideKeys").hidden = true; talking = null; $("talk").hidden = true;
+  if (document.exitPointerLock) document.exitPointerLock();
+  battleEl.hidden = false; arrowEl.hidden = true; $("keys").hidden = true;
+  nextFoe();
+}
+function placeFighters() {
+  const a = spotMe(), b = spotFoe();
+  pet.x = a.x; pet.z = a.z; pet.y = a.y; pet.face = 0; pet.fly = false; pet.bank = 0; pet.pitch = 0; pet.scale = 1; pet.lastFace = 0; pet.turnRate = 0;
+  me.x = a.x - 4.2; me.z = a.z + 2.2; me.y = a.y; me.face = 0;
+  tamer.g.position.set(me.x, me.y, me.z); tamer.g.rotation.set(0, 0, 0);
+  tamer.legs.forEach(l => l.rotation.set(0, 0, 0)); tamer.arms.forEach(a2 => a2.rotation.set(0, 0, 0));
+  foeDragon.root.position.copy(b); foeDragon.root.rotation.set(0, -Math.PI, 0); foeDragon.root.scale.setScalar(SP(foe.k).size || 1);
+  foePerson.g.position.set(b.x + 4.2, b.y, b.z + 2.2); foePerson.g.rotation.y = Math.PI;
+}
+function clearFoe() {
+  if (foeDragon) scene.remove(foeDragon.root); if (foePerson) scene.remove(foePerson.g); foeDragon = foePerson = null;
+}
+function buildFoe(shiny) {
+  if (foeDragon) scene.remove(foeDragon.root);
+  const s = SP(foe.k), pal = shiny ? shinyPal(foe.k, shiny) : s.pal;
+  foeDragon = makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); scene.add(foeDragon.root);
+}
+function practiceFoe() {
+  const lv = Math.max(1, (pet.level || 1) + Math.floor(Math.random() * 3) - 1);
+  const pool = SPECIES.filter(s => s.rarity === "Common" || s.rarity === "Uncommon");
+  const names = ["Coach Pell", "Trainee Bo", "Sparring Sam", "Coach Wren"];
+  return { n: names[Math.floor(Math.random() * names.length)], k: pool[Math.floor(Math.random() * pool.length)].name, l: lv,
+    i: ["Ready for a practice round? I'll go easy. Maybe."], r: ["", "", ""] };
+}
+async function nextFoe() {
+  foe = run.sec < 0 ? practiceFoe() : TAMERS[run.sec][run.i];
+  const shiny = run.sec < 0 ? null : tamerShiny(foe, run.sec);
+  clearFoe(); buildFoe(shiny);
+  const h = hashStr(foe.n), pick = a => a[h % a.length];
+  foePerson = makePerson({ shirt: pick(["#c84a3a", "#3a7ac8", "#5a9a3a", "#8a4ab0", "#d8a030", "#2a8a8a", "#a03a6a"]), pants: pick(["#3a3a4a", "#4a3a2a", "#2a3a5a"]),
+    hair: ["#2a1a10", "#d8a040", "#7a3a1a", "#e8e0d0", "#1a1a1a"][(h >>> 4) % 5], hairStyle: ["short", "long", "bun", "wild", "pigtails"][(h >>> 7) % 5],
+    hat: foe.n.startsWith("*") ? "pointy" : /Captain|Sir|Duchess|Grandmaster|Champion/.test(foe.n) ? "crown" : [null, null, "cap", "straw"][(h >>> 10) % 4],
+    hatColor: "#2a2a3a", capColor: pick(["#c03030", "#3050c0", "#30a050"]) });
+  scene.add(foePerson.g);
+  placeFighters();
+  fx.me.ko = fx.foe.ko = 0;
+  const st = petStats(), fs = statsAt(foe.k, foe.l);
+  run.me = { hp: st.hp, max: st.hp, claw: st.claw, breath: st.breath, speed: speedOf(), tired: false, guard: false };
+  run.foe = { hp: fs.hp, max: fs.hp, claw: fs.claw, breath: fs.breath, speed: SP(foe.k).speed || 3, tired: false, guard: false, shiny, flaked: false };
+  bars();
+  // the tamer talks first: their intro, then what they think of your dragon
+  const lines = foe.i.slice(), react = { Lumora: 0, Quantum: 1, Petralith: 2 }[pet.kind];
+  if (react !== undefined && foe.r[react]) lines.push(foe.r[react]);
+  for (let k = 0; k < lines.length; k++) {
+    say(`<b>${shownName(foe)}:</b> ${lines[k]}`);
+    await new Promise(res => buttons([[k < lines.length - 1 ? "Next" : "Fight!", "Enter", res]]));
+  }
+  if (shiny) toast(`A ${shiny} ${foe.k}!`, "A shiny dragon! (it's just colour, not power)");
+  crowd.hype = 1;
+  turnMenu(`${shownName(foe)} sends out ${shiny ? "a shiny " : ""}${foe.k}! What will ${pet.name} do?`);
+}
+function turnMenu(msg) {
+  say(msg); busy = false;
+  const m = run.me;
+  buttons([["Claw", "1", () => turn("claw")], [m.tired ? "Breath (tired)" : "Breath", "2", () => !m.tired && turn("breath")], ["Guard", "3", () => turn("guard")]]);
+  [...btnEl.children][1].disabled = m.tired;
+}
+function foeMove() {
+  const f = run.foe;
+  if (f.hp < f.max * 0.35 && Math.random() < 0.25) return "guard";
+  if (!f.tired && Math.random() < 0.55) return "breath";
+  return "claw";
+}
+async function act1(who, move) {
+  const A = run[who], D = run[who === "me" ? "foe" : "me"], aName = who === "me" ? pet.name : `${shownName(foe)}'s ${foe.k}`;
+  const dName = who === "me" ? `${shownName(foe)}'s ${foe.k}` : pet.name;
+  if (move === "guard") { A.guard = true; A.tired = false; say(`${aName} braces itself and catches its breath.`); await sleep(700); return; }
+  const breath = move === "breath";
+  A.tired = breath;
+  fx[who].lunge = 1;
+  await sleep(320);
+  if (Math.random() < 0.08) { say(`${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
+  let dmg = rnd(breath ? A.breath : A.claw), crit = Math.random() < 0.1;
+  if (crit) dmg = Math.round(dmg * 1.5);
+  if (D.guard) dmg = Math.ceil(dmg / 2);
+  D.hp -= dmg; fx[who === "me" ? "foe" : "me"].hit = 1; crowd.hype = 1;
+  const at = who === "me" ? spotFoe() : spotMe();
+  const col = who === "me" ? SP(pet.kind).pal.glow : (run.foe.shiny ? PAL[run.foe.shiny].glow : SP(foe.k).pal.glow);
+  burst(at.clone().add(new V(0, 1.6, 0)), breath ? col : "#ffffff");
+  say(`${aName} uses ${breath ? "Breath" : "Claw"}! ${crit ? "<b>Critical hit!</b> " : ""}${D.guard ? "(guarded) " : ""}${dName} takes <b>${dmg}</b>.`);
+  bars(); await sleep(900);
+  // Sheen's "golden" dragon is only polish, and it flakes off
+  if (who === "me" && foe.n === "Sheen" && !run.foe.flaked && run.foe.hp <= run.foe.max / 2 && run.foe.hp > 0) {
+    run.foe.flaked = true; run.foe.shiny = null; buildFoe(null); placeFighters(); bars();
+    say(`The gold is flaking off! It was just polish. It's a plain old Dustmite!`); await sleep(1500);
+  }
+}
+async function turn(move) {
+  if (busy) return; busy = true; buttons([]);
+  const me = run.me, f = run.foe, fm = foeMove();
+  // guarding always comes first; otherwise the faster dragon goes first (ties go to you)
+  const order = (move === "guard") !== (fm === "guard") ? (move === "guard" ? ["me", "foe"] : ["foe", "me"]) : (f.speed > me.speed ? ["foe", "me"] : ["me", "foe"]);
+  for (const who of order) {
+    await act1(who, who === "me" ? move : fm);
+    if (f.hp <= 0 || me.hp <= 0) break;
+  }
+  me.guard = f.guard = false;
+  if (f.hp <= 0) return winFight();
+  if (me.hp <= 0) return loseFight();
+  turnMenu(`What will ${pet.name} do?`);
+}
+async function winFight() {
+  crowd.hype = 2;
+  if (run.sec < 0) {
+    const xp = 5 + 2 * foe.l; coins += 5; showCoins(); say(`You won the practice fight! +5 coins, +${xp} XP.`); addXp(xp);
+    buttons([["Leave", "Enter", endRun]]); writeSave(); return;
+  }
+  const i = run.i + 1, c = roundCoins(run.sec, i), xp = foe.l * 3;
+  coins += c; run.earned += c; showCoins(); addXp(xp); bars();
+  const list = TAMERS[run.sec];
+  if (i >= list.length) {
+    let msg = `<b>You won Section ${run.sec + 1}!</b> +${c} coins (${run.earned} in all), +${xp} XP.`;
+    if (!arena.won[run.sec]) {
+      arena.won[run.sec] = true;
+      if (givePrize(run.sec)) msg += ` First-win prize: <b>${SEC_PRIZE[run.sec]}</b>!${run.sec ? " It's in your backpack. Hatch it at your nest." : ""}`;
+      else { arena.owed[run.sec] = true; msg += ` Your backpack is full, so the Arena Master will keep your prize (${SEC_PRIZE[run.sec]}) until you make room.`; }
+      if (run.sec < 3) msg += ` Section ${run.sec + 2} is open!`;
+    }
+    toast(`Section ${run.sec + 1} champion!`, run.sec === 3 ? "You beat all 100 tamers!" : "The crowd goes wild");
+    say(msg); buttons([["Leave", "Enter", endRun]]); writeSave(); return;
+  }
+  run.i = i; writeSave();
+  say(`${shownName(foe)}'s ${foe.k} can't fight anymore. You win! +${c} coins, +${xp} XP. Next up: ${shownName(list[i])} (Lv ${list[i].l}).`);
+  buttons([["Next fight", "Enter", () => nextFoe()], [`Leave with ${run.earned} coins`, "3", endRun]]);
+}
+function loseFight() {
+  crowd.hype = 0.6;
+  const xp = run.sec < 0 ? 3 : foe.l; addXp(xp);
+  say(`${pet.name} can't fight anymore. ${run.sec < 0 ? "Good practice!" : `The run is over, but you keep the ${run.earned} coins you won.`} +${xp} XP for trying.`);
+  buttons([["Leave", "Enter", endRun]]); writeSave();
+}
+function endRun() {
+  clearFoe(); battleEl.hidden = true; $("keys").hidden = false; buttons([]); run = null; uiOpen = false;
+  // back outside the arena gate, with the dragon
+  const g = AR.gate; me.x = g.x; me.z = g.z; me.y = height(g.x, g.z); me.face = AR.gateA;
+  pet.x = g.x - Math.cos(AR.gateA) * 3; pet.z = g.z - Math.sin(AR.gateA) * 3 + 2; pet.y = height(pet.x, pet.z); pet.face = AR.gateA;
+  state = "grown"; camYaw = AR.gateA; petLabel("grown up"); goal(`Explore with ${pet.name}. Press R to ride`);
+  lockMouse(); writeSave();
+}
+// the arena camera and the fighters' little lunges and hit shakes
+function updateArena(dt) {
+  const a = spotMe(), b = spotFoe();
+  for (const k of ["me", "foe"]) { fx[k].lunge = Math.max(0, fx[k].lunge - dt * 2.2); fx[k].hit = Math.max(0, fx[k].hit - dt * 2.5); if (run && run[k] && run[k].hp <= 0) fx[k].ko = Math.min(1, fx[k].ko + dt * 1.5); }
+  const lm = Math.sin(fx.me.lunge * Math.PI) * 2.6, lf = Math.sin(fx.foe.lunge * Math.PI) * 2.6;
+  pet.x = a.x + lm + Math.sin(fx.me.hit * 40) * 0.25 * fx.me.hit;
+  if (foeDragon) {
+    foeDragon.root.position.set(b.x - lf + Math.sin(fx.foe.hit * 40) * 0.25 * fx.foe.hit, b.y - fx.foe.ko * 0.4, b.z);
+    foeDragon.root.rotation.set(fx.foe.ko * 1.2, -Math.PI, 0, "YXZ");
+    foeDragon.update(T, fx.foe.lunge > 0 ? 0.6 : 0, 0, dt, 0);
+  }
+  if (foePerson) foePerson.arms.forEach((m, i) => m.rotation.z = (i ? 1 : -1) * Math.abs(Math.sin(T * 3)) * 0.5 * (fx.foe.lunge > 0 ? 2 : 0.3));
+}
+function arenaCamera(dt) {
+  const c = new V(AR.x, AR.y + 6.5, AR.z + 13.5), look = new V(AR.x, AR.y + 2, AR.z);
+  camera.position.lerp(c, Math.min(1, dt * 4)); camera.lookAt(look);
+  return look;
+}
+
+// ================= the nest: hatch backpack eggs and swap dragons from the pen =================
+function nestMenu() {
+  const cur = state === "grown" ? `${pet.name} the ${pet.kind} (Lv ${pet.level})` : `${pet.name} (still a baby)`;
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${SP(k).rarity} egg</b><br><small>${k === "Crestwyrm" ? "The champion's prize" : "From the arena"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}</div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" ? ". Wait until it grows up before you swap or hatch." : ""}</p>
+    <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${pen.length}/${PEN_MAX})</h4>${pens}`);
+  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (state !== "grown" || (b.dataset.act === "hatch" && pen.length >= PEN_MAX)) b.disabled = true; });
+  menuAct = (a, i) => {
+    if (state !== "grown") return;
+    if (a === "hatch") { const kind = bag.splice(i, 1)[0]; toPen(); closeMenu(); hatchEgg(kind); }
+    if (a === "swap") { const d = pen.splice(i, 1)[0]; toPen(); takeOut(d); closeMenu(); }
+  };
+}
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, level: pet.level || 1, xp: pet.xp || 0 }); }
+function takeOut(d) {
+  setKind(d.kind); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: 1 });
+  pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = "grown";
+  petLabel("grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
+}
+function hatchEgg(kind) {
+  setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
+  egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
+  egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
+}
+
+// ================= the stadium =================
+const crowd = { hype: 0 };
+(function () {
+  const lam = c => new THREE.MeshLambertMaterial({ color: new THREE.Color(c).convertSRGBToLinear() });
+  const Y = AR.y, gA = AR.gateA, g = new THREE.Group(); g.position.set(AR.x, Y, AR.z); scene.add(g);
+  const gap = a => { let d = Math.abs(a - gA) % (Math.PI * 2); if (d > Math.PI) d = Math.PI * 2 - d; return d < 0.3; };
+  const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = m.receiveShadow = true; g.add(m); return m; };
+  // sand floor with a painted ring
+  add(new THREE.CylinderGeometry(AR.r, AR.r, 0.2, 64), lam("#dcc48e"), 0, 0.02, 0).castShadow = false;
+  const ring = add(new THREE.RingGeometry(5, 5.4, 64), new THREE.MeshLambertMaterial({ color: new THREE.Color("#f4ecd8").convertSRGBToLinear() }), 0, 0.14, 0);
+  ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+  // the wall around the floor, then three rows of seats, then the outer wall
+  const stone = lam("#a8a092"), dark = lam("#7a7268"), wood = lam("#8a6440"), segs = 48;
+  for (let i = 0; i < segs; i++) {
+    const a = (i + 0.5) / segs * Math.PI * 2; if (gap(a)) continue;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    add(new THREE.BoxGeometry(0.6, 2.2, 2.25), stone, ca * (AR.r + 0.6), 1.1, sa * (AR.r + 0.6), -a);
+    blockers.push({ x: AR.x + ca * (AR.r + 0.6), z: AR.z + sa * (AR.r + 0.6), r: 1.25, y: Y });
+    for (let k = 0; k < 3; k++) add(new THREE.BoxGeometry(1.8, 2.2 + k * 1.1, 2.6 + k * 0.25), k % 2 ? wood : dark, ca * (AR.r + 2 + k * 1.8), (2.2 + k * 1.1) / 2, sa * (AR.r + 2 + k * 1.8), -a);
+    add(new THREE.BoxGeometry(0.7, 5.6, 3.2), stone, ca * (AR.r + 7.6), 2.8, sa * (AR.r + 7.6), -a);
+    blockers.push({ x: AR.x + ca * (AR.r + 7.6), z: AR.z + sa * (AR.r + 7.6), r: 1.6, y: Y });
+  }
+  // banners on the outer wall
+  const bc = ["#c8322a", "#2f63b8", "#e8b030", "#3a9a4a"];
+  for (let i = 0; i < 12; i++) {
+    const a = (i + 0.25) / 12 * Math.PI * 2; if (gap(a)) continue;
+    const x = Math.cos(a) * (AR.r + 7.6), z = Math.sin(a) * (AR.r + 7.6);
+    add(new THREE.CylinderGeometry(0.08, 0.08, 4, 6), dark, x, 7.6, z);
+    const f = add(new THREE.PlaneGeometry(1.4, 2), new THREE.MeshLambertMaterial({ color: new THREE.Color(bc[i % 4]).convertSRGBToLinear(), side: THREE.DoubleSide }), x, 8.4, z, -a + Math.PI / 2);
+    f.position.x += Math.cos(a + Math.PI / 2) * 0.7; f.position.z += Math.sin(a + Math.PI / 2) * 0.7;
+    skyAnims.push(t => { f.rotation.y = -a + Math.PI / 2 + Math.sin(t * 2 + i) * 0.25; });
+  }
+  // the gate: two towers and a sign
+  const gx = Math.cos(gA), gz = Math.sin(gA), px = -gz, pz = gx;
+  [1, -1].forEach(s => {
+    add(new THREE.BoxGeometry(2, 8, 2), stone, gx * (AR.r + 7.6) + px * 4 * s, 4, gz * (AR.r + 7.6) + pz * 4 * s, -gA);
+    add(new THREE.ConeGeometry(1.6, 2, 4), lam("#b8322a"), gx * (AR.r + 7.6) + px * 4 * s, 9, gz * (AR.r + 7.6) + pz * 4 * s, Math.PI / 4 - gA);
+    blockers.push({ x: AR.x + gx * (AR.r + 7.6) + px * 4 * s, z: AR.z + gz * (AR.r + 7.6) + pz * 4 * s, r: 1.5, y: Y });
+  });
+  const c = document.createElement("canvas"); c.width = 512; c.height = 128; const x = c.getContext("2d");
+  x.fillStyle = "#3a2614"; x.fillRect(0, 0, 512, 128); x.fillStyle = "#ffcc4a"; x.font = "bold 84px Georgia"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("ARENA", 256, 68);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+  const sign = add(new THREE.BoxGeometry(0.3, 1.6, 7), [new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex }), wood, wood, wood, wood], gx * (AR.r + 7.9), 6.6, gz * (AR.r + 7.9), -gA);
+  sign.material[1].map = tex;
+  // the crowd: little people on the seats who cheer when something happens
+  const body = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 0.6, 0.4), new THREE.MeshLambertMaterial(), 240);
+  const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), lam("#e8b48a"), 240);
+  const people = [], o3 = new THREE.Object3D(), cols = ["#c84a3a", "#3a7ac8", "#5a9a3a", "#8a4ab0", "#d8a030", "#e8e0d8", "#2a8a8a", "#a03a6a"];
+  for (let k = 0; k < 3; k++) {
+    const r = AR.r + 2 + k * 1.8, top = 2.2 + k * 1.1, n = Math.floor(r * Math.PI * 2 / 1.25);
+    for (let i = 0; i < n && people.length < 240; i++) {
+      const a = (i + 0.5) / n * Math.PI * 2; if (gap(a) || Math.random() < 0.3) continue;
+      people.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, y: top, ph: Math.random() * 6, a });
+    }
+  }
+  people.forEach((p, i) => body.setColorAt(i, new THREE.Color(cols[i % cols.length]).convertSRGBToLinear()));
+  body.count = head.count = people.length; body.instanceColor.needsUpdate = true; g.add(body); g.add(head);
+  skyAnims.push(t => {
+    if (Math.hypot(me.x - AR.x, me.z - AR.z) > 140) return;
+    crowd.hype = Math.max(state === "arena" ? 0.15 : 0.03, crowd.hype - 0.012);
+    people.forEach((p, i) => {
+      const j = Math.max(0, Math.sin(t * 9 + p.ph)) * 0.35 * crowd.hype;
+      o3.position.set(p.x, p.y + 0.3 + j, p.z); o3.rotation.set(0, -p.a, 0); o3.updateMatrix(); body.setMatrixAt(i, o3.matrix);
+      o3.position.y = p.y + 0.82 + j; o3.updateMatrix(); head.setMatrixAt(i, o3.matrix);
+    });
+    body.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
+  });
+})();
+
+window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
 })();
 </script>
