@@ -107,7 +107,7 @@ body { background: #8fb8e6; color: var(--ink); font-family: var(--body); overflo
 <div id="cross" hidden></div>
 <div id="namebox" class="plate" hidden>
   <h2>It hatched!</h2>
-  <p>A baby Pyrrak. What will you name it?</p>
+  <p id="nameKind">A baby dragon. What will you name it?</p>
   <input id="nameInput" maxlength="12" autocomplete="off" placeholder="Ember">
   <button id="nameOk" type="button">Name it</button>
 </div>
@@ -197,7 +197,10 @@ function staticTube(points, rlist, mat, segs = 24, radial = 14, sx = 1, sy = 1) 
   fillTube(geo, new THREE.CatmullRomCurve3(points).getPoints(segs), knots(rlist), sx, sy, true);
   const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m;
 }
-function makeDragon(p) {
+// sp: body plan for a species (all optional; empty = Pyrrak)
+function makeDragon(p, sp = {}) {
+const o = Object.assign({ len: 1, girth: 1, neck: 1, legLen: 1, legThick: 1, feet: 1, wings: "bat", wingScale: 1, tail: "flame",
+  horns: "swept", back: "fin", frill: "frill", eyes: 1, pattern: "streaks", glow: 1, tusks: false, whiskers: false, mane: false, spots: null }, sp);
 // ---------- materials ----------
 const skinC = document.createElement("canvas"); skinC.width = 1024; skinC.height = 256;
 const glowC = document.createElement("canvas"); glowC.width = 1024; glowC.height = 256;
@@ -206,16 +209,21 @@ const eyeT = new THREE.CanvasTexture(eyeC); eyeT.encoding = THREE.sRGBEncoding;
 const skinT = new THREE.CanvasTexture(skinC), glowT = new THREE.CanvasTexture(glowC);
 [skinT, glowT].forEach(t => { t.flipY = false; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; });
 const M = {
-  body: new THREE.MeshStandardMaterial({ map: skinT, emissiveMap: glowT, emissive: new THREE.Color("#ffffff"), emissiveIntensity: 1.1, roughness: 0.5 }),
+  body: new THREE.MeshStandardMaterial({ map: skinT, emissiveMap: glowT, emissive: new THREE.Color("#ffffff"), emissiveIntensity: 1.1 * o.glow, roughness: 0.5 }),
   top: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
   belly: new THREE.MeshStandardMaterial({ roughness: 0.6 }),
   horn: new THREE.MeshStandardMaterial({ roughness: 0.35 }),
   wing: new THREE.MeshStandardMaterial({ roughness: 0.7, side: THREE.DoubleSide }),
   fin: new THREE.MeshStandardMaterial({ roughness: 0.45, side: THREE.DoubleSide }),
+  fur: new THREE.MeshStandardMaterial({ roughness: 0.95 }),
+  bone: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
+  trim: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+  crystal: new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }),
   eye: new THREE.MeshBasicMaterial({ map: eyeT }),
   pupil: new THREE.MeshBasicMaterial({ color: "#120806" }),
   flame: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
-  flame2: new THREE.MeshBasicMaterial({ color: "#fff3c4", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+  flame2: new THREE.MeshBasicMaterial({ color: "#fff3c4", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+  smoke: new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.55, depthWrite: false, roughness: 1 })
 };
 const mix = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t);
 function paint(p) {
@@ -228,25 +236,73 @@ function paint(p) {
     else c = new THREE.Color(p.side);
     g.fillStyle = "#" + c.getHexString(); g.fillRect(0, y, W, 1);
   }
-  // glow markings: teardrop streaks on both sides of the back, plus a tail stripe
+  if (o.spots) { // skin blotches (moss, freckles, pearls...)
+    g.fillStyle = o.spots; g.globalAlpha = 0.55;
+    for (let i = 0; i < 160; i++) { g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H * 0.5, 6 + Math.random() * 16, 4 + Math.random() * 9, Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha = 1;
+  }
+  // glow markings
   const e = glowC.getContext("2d");
   e.fillStyle = "#000"; e.fillRect(0, 0, W, H);
-  e.fillStyle = p.glow; e.shadowColor = p.glow; e.shadowBlur = 8;
-  for (let x = 150, k = 0; x < 760; x += 46, k++) {
-    const sz = 1 - Math.abs(x - 470) / 420;
-    [0.17, 0.33].forEach(v => {
-      const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2;
-      e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill();
-    });
+  e.fillStyle = p.glow; e.strokeStyle = p.glow; e.shadowColor = p.glow; e.shadowBlur = 8;
+  const pat = o.pattern;
+  if (pat === "streaks") {
+    for (let x = 150, k = 0; x < 760; x += 46, k++) {
+      const sz = 1 - Math.abs(x - 470) / 420;
+      [0.17, 0.33].forEach(v => { const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2; e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill(); });
+    }
+    e.fillRect(0, H * 0.245, 150, 3);
+  } else if (pat === "spots") {
+    for (let i = 0; i < 70; i++) { const x = 60 + Math.random() * 760, y = (0.08 + Math.random() * 0.36) * H; e.beginPath(); e.arc(x, y, 3 + Math.random() * 5, 0, Math.PI * 2); e.fill(); }
+  } else if (pat === "stripes") {
+    e.lineWidth = 7; for (let x = 120; x < 800; x += 38) { e.beginPath(); e.moveTo(x, H * 0.05); e.lineTo(x - 14, H * 0.25); e.lineTo(x + 4, H * 0.45); e.stroke(); }
+  } else if (pat === "stars") {
+    for (let i = 0; i < 90; i++) { const x = Math.random() * 900, y = Math.random() * H * 0.5, r = 1.5 + Math.random() * 3.5; e.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2, rr = k % 2 ? r * 0.4 : r * 1.4; e.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } e.fill(); }
+  } else if (pat === "aurora") {
+    const bands = [p.glow, p.glow2 || p.glow].concat(p.glow3 ? [p.glow3] : []), gap = bands.length > 2 ? 0.11 : 0.16;
+    bands.forEach((c, i) => { e.strokeStyle = c; e.shadowColor = c; e.lineWidth = 9; e.beginPath(); for (let x = 60; x < 860; x += 10) e.lineTo(x, H * (0.12 + i * gap) + Math.sin(x * 0.02 + i * 2) * 14); e.stroke(); });
+  } else if (pat === "cracks") {
+    e.lineWidth = 3; e.lineCap = "round";
+    for (let i = 0; i < 26; i++) { let x = 60 + Math.random() * 760, y = Math.random() * H * 0.5; e.beginPath(); e.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.5) * 30; e.lineTo(x, y); } e.stroke(); }
+  } else if (pat === "runes") {
+    e.lineWidth = 4;
+    for (let x = 160; x < 760; x += 70) { const y = H * 0.25; e.beginPath(); e.arc(x, y, 12, 0, Math.PI * 2); e.moveTo(x - 18, y); e.lineTo(x + 18, y); e.moveTo(x, y - 18); e.lineTo(x, y + 18); e.stroke(); }
+  } else if (pat === "gills") {
+    e.lineWidth = 4; for (let k = 0; k < 4; k++) [0.12, 0.38].forEach(v => { e.beginPath(); e.arc(735 + k * 14, v * H, 10, -1, 1); e.stroke(); });
+    for (let x = 150; x < 700; x += 60) { e.beginPath(); e.arc(x, H * 0.25, 4, 0, Math.PI * 2); e.fill(); }
   }
-  e.fillRect(0, H * 0.245, 150, 3);
   skinT.needsUpdate = glowT.needsUpdate = true;
   M.body.metalness = p.metal;
   M.top.color.set(p.side).lerp(new THREE.Color(p.top), 0.35).convertSRGBToLinear(); M.top.metalness = p.metal;
   M.belly.color.set(p.belly).convertSRGBToLinear();
   M.horn.color.set(p.horn).convertSRGBToLinear(); M.horn.metalness = p.metal * 0.6;
-  M.wing.color.set(p.wing).convertSRGBToLinear(); M.wing.emissive.set(p.glow); M.wing.emissiveIntensity = 0.06; M.wing.metalness = p.metal * 0.5;
-  M.fin.color.set(p.top).convertSRGBToLinear(); M.fin.emissive.set(p.glow); M.fin.emissiveIntensity = 0.22;
+  M.wing.color.set(p.wing).convertSRGBToLinear(); M.wing.emissive.set(p.glow); M.wing.emissiveIntensity = 0.06 * o.glow; M.wing.metalness = p.metal * 0.5;
+  M.fin.color.set(p.fin || p.top).convertSRGBToLinear(); M.fin.emissive.set(p.glow); M.fin.emissiveIntensity = 0.22 * o.glow;
+  M.fur.color.set(p.fur || p.belly).convertSRGBToLinear();
+  M.crystal.color.set(p.crystal || p.horn).convertSRGBToLinear(); M.crystal.emissive.set(p.glow); M.crystal.emissiveIntensity = 0.45;
+  M.smoke.color.set(p.smoke || "#4a4a4a").convertSRGBToLinear();
+  // ----- rarity flair: every tier up looks a bit fancier -----
+  const T = o.tier ?? 1;
+  M.body.roughness = M.top.roughness = Math.max(0.2, 0.55 - 0.04 * T);
+  if (T >= 3) { M.body.metalness = M.top.metalness = Math.min(0.6, (p.metal || 0) + 0.1 * (T - 2)); } // Rare+: shinier scales
+  M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * T);
+  M.horn.emissive.set(p.glow); M.horn.emissiveIntensity = T >= 3 ? 0.08 * T : T >= 2 ? 0.07 : 0;
+  if (!p.wingTip && T >= 1) p = Object.assign({}, p, { wingTip: "#" + mix(p.wing, p.glow, Math.min(0.6, 0.12 + 0.07 * T)).getHexString() });
+  M.bone.color.copy(M.top.color); M.bone.metalness = M.top.metalness; M.bone.roughness = M.top.roughness;
+  M.bone.emissive.set(p.glow); M.bone.emissiveIntensity = T >= 3 ? 0.25 + 0.1 * (T - 3) : 0;
+  M.trim.color.set(T >= 6 ? (p.glow2 || p.glow) : p.glow).convertSRGBToLinear();
+  if (p.wingTip && !(o.pattern === "stars" || o.wingStars)) { // wings fade to a different colour toward the tips
+    const wc = document.createElement("canvas"); wc.width = 4; wc.height = 256; const w = wc.getContext("2d");
+    const gr = w.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, p.wingTip); gr.addColorStop(0.2, p.wingTip); gr.addColorStop(0.75, p.wing); gr.addColorStop(1, p.wing);
+    w.fillStyle = gr; w.fillRect(0, 0, 4, 256);
+    const t = new THREE.CanvasTexture(wc); t.encoding = THREE.sRGBEncoding; M.wing.map = t; M.wing.color.set("#ffffff"); M.wing.emissiveMap = t; M.wing.emissive.set("#ffffff"); M.wing.emissiveIntensity = 0.12;
+  }
+  if (o.pattern === "stars" || o.wingStars) { // starry wings
+    const wc = document.createElement("canvas"); wc.width = wc.height = 256; const w = wc.getContext("2d");
+    w.fillStyle = p.wing; w.fillRect(0, 0, 256, 256); w.fillStyle = p.glow;
+    for (let i = 0; i < 70; i++) { const x = Math.random() * 256, y = Math.random() * 256, r = 1 + Math.random() * 3; w.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2, rr = k % 2 ? r * 0.4 : r * 1.5; w.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } w.fill(); }
+    const t = new THREE.CanvasTexture(wc); t.encoding = THREE.sRGBEncoding; M.wing.map = t; M.wing.color.set("#ffffff"); M.wing.emissiveMap = t; M.wing.emissive.set("#ffffff"); M.wing.emissiveIntensity = 0.5;
+  }
   const ec = eyeC.getContext("2d"), r = 64;
   const ig = ec.createRadialGradient(r, r, 4, r, r, r);
   ig.addColorStop(0, "#" + mix(p.eye, "#ffffff", 0.55).getHexString());
@@ -256,27 +312,35 @@ function paint(p) {
   ec.fillStyle = ig; ec.fillRect(0, 0, 128, 128);
   ec.strokeStyle = "rgba(0,0,0,0.18)"; ec.lineWidth = 2;
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; ec.beginPath(); ec.moveTo(r + Math.cos(a) * 18, r + Math.sin(a) * 18); ec.lineTo(r + Math.cos(a) * 52, r + Math.sin(a) * 52); ec.stroke(); }
-  ec.fillStyle = "#0b0503"; ec.beginPath(); ec.ellipse(r, r, 7, 40, 0, 0, Math.PI * 2); ec.fill();
+  ec.fillStyle = "#0b0503"; ec.beginPath();
+  if (o.eyes > 1.3) ec.ellipse(r, r, 22, 26, 0, 0, Math.PI * 2); else ec.ellipse(r, r, 7, 40, 0, 0, Math.PI * 2);   // big round pupils for dark places
+  ec.fill();
   ec.fillStyle = "rgba(255,255,255,0.9)"; ec.beginPath(); ec.arc(r - 18, r - 20, 9, 0, Math.PI * 2); ec.fill();
   ec.beginPath(); ec.arc(r + 14, r + 18, 4, 0, Math.PI * 2); ec.fill();
   eyeT.needsUpdate = true;
-  M.flame.color.set(p.glow);
-  flameLight.color.set(p.glow);
+  M.flame.color.set(p.flame || p.glow);
+  flameLight.color.set(p.flame || p.glow);
 }
 
-// ---------- dragon ----------
+// ---------- body ----------
 const dragon = new THREE.Group();
 const SEGS = 140, RAD = 28;
 const spineGeo = makeTube(SEGS, RAD);
 const spine = new THREE.Mesh(spineGeo, M.body); spine.castShadow = true; spine.receiveShadow = true;
 dragon.add(spine);
+const lift = (o.legLen - 1) * 1.1;
 const BASE = [[-3.3, 0.3, 0], [-2.45, 0.55, 0], [-1.55, 0.95, 0], [-0.62, 1.38, 0], [0.3, 1.48, 0],
-              [1.1, 1.50, 0], [1.6, 1.94, 0], [1.88, 2.50, 0], [2.18, 2.87, 0]];
-const R0 = knots([[0, 0.02], [0.1, 0.07], [0.22, 0.16], [0.33, 0.32], [0.42, 0.46], [0.52, 0.53],
+              [1.1, 1.50, 0], [1.6, 1.94, 0], [1.88, 2.50, 0], [2.18, 2.87, 0]].map(([x, y, z], k) => {
+  if (k <= 3) x = -0.62 + (x + 0.62) * o.len;                       // longer or shorter tail
+  if (k >= 6) { const dx = x - 1.1, dy = y - 1.5; x = 1.1 + dx * (0.75 + 0.25 * o.neck); y = 1.5 + dy * o.neck; }  // neck
+  return [x, y + lift, z];
+});
+const R0b = knots([[0, 0.02], [0.1, 0.07], [0.22, 0.16], [0.33, 0.32], [0.42, 0.46], [0.52, 0.53],
                   [0.62, 0.47], [0.7, 0.33], [0.78, 0.23], [0.9, 0.2], [1, 0.23]]);
+const gBump = s => 1 + (o.girth - 1) * Math.max(0, Math.sin(Math.min(1, Math.max(0, (s - 0.2) / 0.55)) * Math.PI));
+const R0 = s => R0b(s) * gBump(s) * (o.thin || 1);
 let breath = 1;
 const rad = s => R0(s) * (s > 0.33 && s < 0.68 ? breath : 1);
-// bend > 0 curves the body into a right turn: head and tail swing toward the turn, the middle stays put
 const BEND = [1.1, 0.7, 0.32, 0.06, 0, 0.06, 0.28, 0.6, 0.95];
 function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
@@ -292,189 +356,334 @@ function spinePts(t, bend = 0) {
 let frames = fillTube(spineGeo, spinePts(0), rad, 0.9, 1.05);
 const at = s => frames[Math.round(s * SEGS)];
 
-// back fins
+// ---------- back: fins, plates, spikes, leaves, fur or crystals ----------
 const finShape = new THREE.Shape();
 finShape.moveTo(-0.45, -0.1); finShape.lineTo(0.5, -0.1);
 finShape.quadraticCurveTo(0.15, 0.45, -0.75, 1.0);
 finShape.quadraticCurveTo(-0.45, 0.4, -0.45, -0.1);
 const finGeo = new THREE.ShapeGeometry(finShape, 8);
-const fins = [];
-for (let s = 0.07; s < 0.84; s += 0.042) {
-  const m = new THREE.Mesh(finGeo, M.fin); m.castShadow = true; m.userData.s = s; dragon.add(m); fins.push(m);
-}
+const plateShape = new THREE.Shape(); plateShape.moveTo(-0.55, -0.1); plateShape.lineTo(0.55, -0.1); plateShape.lineTo(-0.05, 0.9); plateShape.closePath();
+const frillShape = new THREE.Shape(); frillShape.moveTo(-0.6, -0.1); frillShape.lineTo(0.6, -0.1); frillShape.quadraticCurveTo(0.5, 0.6, 0, 0.62); frillShape.quadraticCurveTo(-0.55, 0.6, -0.6, -0.1);
+const leafShape = new THREE.Shape(); leafShape.moveTo(0, -0.1); leafShape.quadraticCurveTo(0.45, 0.35, 0, 1.0); leafShape.quadraticCurveTo(-0.45, 0.35, 0, -0.1);
+const backParts = [];
+(function () {
+  const st = o.back; if (st === "none") return;
+  const step = st === "frill" ? 0.03 : st === "fur" ? 0.035 : st === "crystal" || st === "spikes" ? 0.06 : 0.042;
+  const geo = st === "plates" ? new THREE.ShapeGeometry(plateShape) : st === "frill" ? new THREE.ShapeGeometry(frillShape, 8) : st === "leaves" ? new THREE.ShapeGeometry(leafShape, 8)
+    : st === "spikes" ? new THREE.ConeGeometry(0.12, 0.6, 8) : st === "fur" ? new THREE.IcosahedronGeometry(0.3, 1) : st === "crystal" ? new THREE.OctahedronGeometry(0.22, 0) : finGeo;
+  let mat = st === "plates" ? M.top : st === "spikes" ? M.horn : st === "fur" ? M.fur : st === "crystal" ? M.crystal : M.fin;
+  if (st === "spikes" || st === "crystal") geo.translate(0, st === "spikes" ? 0.3 : 0.2, 0);
+  if (st === "crystal" && p.crystalTip) { // back crystals fade to another colour at their tips
+    const pa = geo.attributes.position, col = [], a = new THREE.Color(p.crystal || p.horn).convertSRGBToLinear(), b = new THREE.Color(p.crystalTip).convertSRGBToLinear();
+    for (let i = 0; i < pa.count; i++) { const t = Math.min(1, Math.max(0, (pa.getY(i) + 0.02) / 0.44)); const k = a.clone().lerp(b, t); col.push(k.r, k.g, k.b); }
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.1, emissive: new THREE.Color(p.crystalTip).convertSRGBToLinear(), emissiveIntensity: 0.2 });
+  }
+  for (let s = o.backFrom || 0.07; s < (o.backTo || 0.84); s += step) {
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.userData.s = s; m.userData.k = backParts.length; dragon.add(m); backParts.push(m);
+  }
+})();
 const basis = new THREE.Matrix4();
-function placeFins() {
-  fins.forEach(m => {
-    const f = at(m.userData.s), h = 0.1 + R0(m.userData.s) * 0.62;
+function placeBack() {
+  const st = o.back, sc = o.backScale || 1;
+  backParts.forEach(m => {
+    if (m.userData.mane) return;
+    const f = at(m.userData.s), h = (0.1 + R0(m.userData.s) * 0.62) * sc;
     basis.makeBasis(f.T, f.n, f.side);
     m.quaternion.setFromRotationMatrix(basis);
-    m.position.copy(f.p).addScaledVector(f.n, f.r * 1.0);
-    m.scale.set(h * 0.85, h, 1);
+    m.position.copy(f.p).addScaledVector(f.n, f.r * (st === "fur" ? 0.75 : 1.0));
+    if (st === "fur") m.scale.set(h * 1.3, h * 0.9, h * 1.4);
+    else if (st === "crystal") m.scale.set(h * 0.8, h * (1.6 + (m.userData.k % 3) * 0.5), h * 0.8);
+    else if (st === "spikes") m.scale.set(h * 0.9, h * (1.2 + (m.userData.k % 2) * 0.4), h * 0.9);
+    else if (st === "frill") m.scale.set(h * 0.6, h * 0.9, 1);
+    else m.scale.set(h * 0.85, h, 1);
   });
 }
+// mane of fur around the neck
+if (o.mane) for (let i = 0; i < 16; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), M.fur); m.userData.a = i / 16 * Math.PI * 2; m.castShadow = true; dragon.add(m); backParts.push(m); m.userData.mane = true; }
+function placeMane() {
+  if (!o.mane) return; const f = at(0.74);
+  backParts.forEach(m => { if (!m.userData.mane) return; const a = m.userData.a; m.position.copy(f.p).addScaledVector(f.n, Math.cos(a) * f.r * 1.05).addScaledVector(f.side, Math.sin(a) * f.r * 1.05); });
+}
 
-// legs
+// ---------- legs ----------
 const legs = [];
 function leg(s, zOff, pts, radii, toeLen) {
   const f = at(s);
   const g = new THREE.Group();
   g.position.set(f.p.x, f.p.y, zOff);
   const vs = pts.map(p => new V(...p));
-  // upper leg starts inside the body so it blends in like a muscle
-  g.add(staticTube(vs, radii, M.top, 40, 16, 0.85, 1));
+  const bodyK = Math.min(1, R0(s) / R0b(s));
+  // big feet get thicker lower legs so the leg flows into the foot
+  const lowK = 1 + Math.max(0, o.feet - 1) * 0.7;
+  const rr = radii.map(([a, r], i) => [a, i < 2 ? r * bodyK * Math.min(1, o.legThick) * (i ? 1 + (o.legThick - 1) * 0.3 : 1) : r * o.legThick * (1 + (lowK - 1) * (i - 1) / (radii.length - 2))]);
+  g.add(staticTube(vs, rr, M.top, 40, 16, 0.85, 1));
+  // round hip cap so the open top of the leg tube never shows from above
+  const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
+  hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
   const last = vs[vs.length - 1];
-  // big foot: a broad pad, three thick front toes and a back toe, all with claws
-  // round ankle joint so the leg flows into the foot
-  const endR = radii[radii.length - 1][1];
+  const endR = radii[radii.length - 1][1] * o.legThick * lowK;
   const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), M.top);
   ank.position.copy(last); g.add(ank);
-  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 14), M.top);
+  if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
+    const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), M.top);
+    hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); g.add(hl);
+  }
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), M.top);
   pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); g.add(pad);
   const sgn = zOff > 0 ? 1 : -1;
-  // three front toes and one back toe (like a bird's), each with a claw
-  [[-0.5, 1, 0], [0, 1.1, 0], [0.5, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lift]) => {
+  [[-0.5, 1, 0], [0, 1.1, 0], [0.5, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lft]) => {
     const dir = new V(Math.cos(a), 0, Math.sin(a) * sgn);
-    const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08);
-    const t2 = t1.clone().addScaledVector(dir, toeLen * len).add(new V(0, -0.03 + lift, 0));
-    g.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07], [1, 0.042]], M.top, 10, 10));
-    const c = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.17, 10), M.horn);
-    c.position.copy(t2).addScaledVector(dir, 0.065).add(new V(0, -0.02, 0));
+    const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08 * o.feet);
+    const t2 = t1.clone().addScaledVector(dir, toeLen * len * o.feet).add(new V(0, -0.03 + lft, 0));
+    g.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet], [1, 0.042 * o.feet]], M.top, 10, 10));
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.04 * o.feet, 0.17 * o.feet * (o.digClaws ? 1.6 : 1), 10), M.horn);
+    c.position.copy(t2).addScaledVector(dir, 0.065 * o.feet).add(new V(0, -0.02, 0));
     c.quaternion.setFromUnitVectors(UP, dir.clone().add(new V(0, -0.5, 0)).normalize());
     g.add(c);
   });
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   dragon.add(g); legs.push(g);
 }
-// hind legs: big thigh, knee forward, hock back, standing on toes
 const yH = at(0.4).p.y, yF = at(0.635).p.y;
 const LH = yH - 0.06, LF = yF - 0.06;
 const hind = z => [[-0.05, 0.12, 0], [0.12, -0.26 * LH, z * 0.12], [0.32, -0.5 * LH, z * 0.16], [-0.06, -0.8 * LH, z * 0.18], [0.02, -LH, z * 0.18]];
 const front = z => [[0, 0.1, 0], [-0.05, -0.2 * LF, z * 0.1], [-0.18, -0.44 * LF, z * 0.13], [0.0, -0.76 * LF, z * 0.14], [0.08, -LF, z * 0.14]];
 const hindR = [[0, 0.37], [0.25, 0.3], [0.45, 0.17], [0.75, 0.115], [1, 0.095]];
 const frontR = [[0, 0.3], [0.3, 0.22], [0.5, 0.15], [0.8, 0.11], [1, 0.09]];
-leg(0.4, 0.22, hind(1), hindR, 0.27);
-leg(0.4, -0.22, hind(-1), hindR, 0.27);
-leg(0.635, 0.2, front(1), frontR, 0.23);
-leg(0.635, -0.2, front(-1), frontR, 0.23);
+// legs sit just under the sides of the body, however wide or thin the body is
+const zH = 0.5 * R0(0.4), zF = 0.44 * R0(0.635);
+leg(0.4, zH, hind(1), hindR, 0.27);
+leg(0.4, -zH, hind(-1), hindR, 0.27);
+leg(0.635, zF, front(1), frontR, 0.23);
+leg(0.635, -zF, front(-1), frontR, 0.23);
 
-// head
+// ---------- head ----------
 const head = new THREE.Group(); dragon.add(head);
 (function () {
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 24), M.top);
   skull.scale.set(1.25, 0.9, 0.95); skull.castShadow = true; head.add(skull);
-  head.add(staticTube([new V(0.1, 0.02, 0), new V(0.42, -0.02, 0), new V(0.78, -0.08, 0)],
-    [[0, 0.24], [0.6, 0.17], [1, 0.11]], M.top, 20, 20, 1, 0.78));
+  head.add(staticTube([new V(0.1, 0.02, 0), new V(0.42, -0.02, 0), new V(0.78, -0.08, 0)], [[0, 0.24], [0.6, 0.17], [1, 0.11]], M.top, 20, 20, 1, 0.78));
   const tip = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 14), M.top);
   tip.scale.set(1, 0.78, 1); tip.position.set(0.78, -0.08, 0); head.add(tip);
-  const jaw = staticTube([new V(0.0, -0.14, 0), new V(0.4, -0.2, 0), new V(0.72, -0.21, 0)],
-    [[0, 0.2], [0.6, 0.14], [1, 0.09]], M.belly, 20, 18, 1, 0.72);
-  head.add(jaw);
-  // chin and throat: round off the jaw tip and fill in under the skull
+  head.add(staticTube([new V(0.0, -0.14, 0), new V(0.4, -0.2, 0), new V(0.72, -0.21, 0)], [[0, 0.2], [0.6, 0.14], [1, 0.09]], M.belly, 20, 18, 1, 0.72));
   const chin = new THREE.Mesh(new THREE.SphereGeometry(0.09, 18, 12), M.belly);
   chin.scale.set(1.1, 0.75, 1); chin.position.set(0.71, -0.22, 0); head.add(chin);
   const throat = new THREE.Mesh(new THREE.SphereGeometry(0.21, 24, 16), M.belly);
   throat.scale.set(1.35, 0.85, 0.95); throat.position.set(0.05, -0.17, 0); head.add(throat);
+  const E = o.eyes;
+  if ((o.tier ?? 1) >= 3) { // Rare and up: eyes give off a soft glow
+    const gc = document.createElement("canvas"); gc.width = gc.height = 64; const gx = gc.getContext("2d");
+    const gg = gx.createRadialGradient(32, 32, 0, 32, 32, 32); gg.addColorStop(0, "rgba(255,255,255,0.9)"); gg.addColorStop(0.25, "rgba(255,255,255,0.35)"); gg.addColorStop(1, "rgba(255,255,255,0)");
+    gx.fillStyle = gg; gx.fillRect(0, 0, 64, 64);
+    const sm = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), color: new THREE.Color(p.eye).convertSRGBToLinear(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 + 0.05 * o.tier });
+    [1, -1].forEach(z => { const s = new THREE.Sprite(sm); s.scale.setScalar(0.28 * E + 0.02 * o.tier); s.position.set(0.27, 0.1, (0.24 + 0.044 * E) * z); head.add(s); });
+  }
   [1, -1].forEach(z => {
-    // eye: dark eyeball with an iris disc (colored ring, slit pupil, shine)
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 14), M.pupil);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.075 * E, 20, 14), M.pupil);
     ball.scale.set(1.2, 0.85, 0.6); ball.position.set(0.24, 0.1, 0.205 * z); head.add(ball);
-    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.066, 32), M.eye);
-    iris.scale.set(1.2, 0.85, 1);
-    iris.position.set(0.25, 0.1, (0.205 + 0.044) * z);
-    iris.rotation.y = z > 0 ? 0.35 : Math.PI - 0.35;
-    head.add(iris);
-    const brow = staticTube([new V(0.38, 0.12, 0.13 * z), new V(0.24, 0.2, 0.2 * z), new V(0.06, 0.2, 0.2 * z)],
-      [[0, 0.02], [0.5, 0.05], [1, 0.03]], M.top, 12, 10);
-    head.add(brow);
-    head.add(staticTube([new V(-0.02, 0.18, 0.14 * z), new V(-0.4, 0.34, 0.24 * z), new V(-0.72, 0.62, 0.3 * z), new V(-0.82, 0.86, 0.3 * z)],
-      [[0, 0.075], [0.5, 0.045], [1, 0.004]], M.horn, 24, 12));
-    head.add(staticTube([new V(-0.1, -0.05, 0.2 * z), new V(-0.38, 0.0, 0.34 * z), new V(-0.55, 0.08, 0.42 * z)],
-      [[0, 0.04], [1, 0.003]], M.horn, 12, 10));
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.066 * E, 32), M.eye);
+    iris.scale.set(1.2, 0.85, 1); iris.position.set(0.25, 0.1, (0.205 + 0.044 * E) * z); iris.rotation.y = z > 0 ? 0.35 : Math.PI - 0.35; head.add(iris);
+    head.add(staticTube([new V(0.38, 0.12 + 0.03 * (E - 1), 0.13 * z), new V(0.24, 0.2 + 0.05 * (E - 1), 0.2 * z), new V(0.06, 0.2, 0.2 * z)], [[0, 0.02], [0.5, 0.05], [1, 0.03]], M.top, 12, 10));
+    const H = o.horns;
+    if (H === "swept") {
+      head.add(staticTube([new V(-0.02, 0.18, 0.14 * z), new V(-0.4, 0.34, 0.24 * z), new V(-0.72, 0.62, 0.3 * z), new V(-0.82, 0.86, 0.3 * z)], [[0, 0.075], [0.5, 0.045], [1, 0.004]], M.horn, 24, 12));
+      head.add(staticTube([new V(-0.1, -0.05, 0.2 * z), new V(-0.38, 0.0, 0.34 * z), new V(-0.55, 0.08, 0.42 * z)], [[0, 0.04], [1, 0.003]], M.horn, 12, 10));
+    } else if (H === "ram") {   // thick curled horns for head-butting rocks
+      const pts = []; for (let i = 0; i <= 12; i++) { const a = i / 12 * Math.PI * 1.6; pts.push(new V(-0.05 - Math.sin(a) * 0.3, 0.2 + (1 - Math.cos(a)) * 0.12 - i * 0.012, (0.18 + i * 0.022) * z)); }
+      head.add(staticTube(pts, [[0, 0.1], [0.6, 0.06], [1, 0.02]], M.horn, 30, 12));
+    } else if (H === "antler") {   // branching antlers like twigs
+      const a0 = new V(-0.02, 0.2, 0.12 * z), a1 = new V(-0.3, 0.55, 0.26 * z), a2 = new V(-0.45, 0.95, 0.38 * z);
+      head.add(staticTube([a0, a1, a2], [[0, 0.05], [1, 0.015]], M.horn, 16, 8));
+      [[a1, new V(-0.05, 0.85, 0.3 * z)], [new V().lerpVectors(a1, a2, 0.5), new V(-0.7, 0.95, 0.5 * z)], [new V().lerpVectors(a0, a1, 0.5), new V(0.05, 0.55, 0.32 * z)]].forEach(([s, e]) =>
+        head.add(staticTube([s, new V().lerpVectors(s, e, 0.5).add(new V(0, 0.05, 0)), e], [[0, 0.03], [1, 0.008]], M.horn, 10, 6)));
+    } else if (H === "crystal") {   // ice crystals instead of horns
+      [[-0.15, 0.35, 0.16, 0.5, 0.6], [-0.35, 0.3, 0.22, 0.35, 0.9], [-0.05, 0.3, 0.22, 0.25, 0.2]].forEach(([x, y, zz, h, tilt]) => {
+        const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), M.crystal); c.scale.set(1, h / 0.07 * 0.5, 1); c.position.set(x, y, zz * z); c.rotation.set(z * 0.3, 0, tilt); head.add(c);
+      });
+    } else if (H === "short") {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.18, 10), M.horn); c.position.set(-0.05, 0.27, 0.13 * z); c.rotation.z = 0.5; head.add(c);
+    } else if (H === "long") {   // long straight horns swept far back (wind racers)
+      head.add(staticTube([new V(-0.02, 0.18, 0.12 * z), new V(-0.6, 0.3, 0.16 * z), new V(-1.15, 0.38, 0.18 * z)], [[0, 0.06], [1, 0.004]], M.horn, 20, 10));
+    }
+    if (o.tusks) head.add(staticTube([new V(0.55, -0.2, 0.08 * z), new V(0.68, -0.4, 0.1 * z), new V(0.6, -0.62, 0.08 * z)], [[0, 0.045], [1, 0.006]], M.horn, 14, 10));
+    if (o.whiskers) head.add(staticTube([new V(0.8, -0.06, 0.08 * z), new V(0.9, -0.15, 0.4 * z), new V(0.75, -0.3, 0.7 * z), new V(0.55, -0.45, 0.8 * z)], [[0, 0.015], [1, 0.004]], M.fin, 16, 6));
+    if (o.frill === "ears") {   // big fin ears
+      const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.1, 0.12, 0.24 * z); f.rotation.set(z * 1.1, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);
+    }
+    if (o.frill === "fur") { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 1), M.fur); f.position.set(-0.1, 0.0, 0.25 * z); head.add(f); }
     const nos = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), M.flame2);
     nos.position.set(0.86, -0.02, 0.05 * z); head.add(nos);
-    for (let k = 0; k < 4; k++) {
-      const t = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 6), M.horn);
-      t.rotation.z = Math.PI; t.position.set(0.5 + k * 0.08, -0.15, 0.085 * z); head.add(t);
+    for (let k = 0; k < 4; k++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.014 * (o.fangs || 1), 0.05 * (o.fangs || 1), 6), M.horn); t.rotation.z = Math.PI; t.position.set(0.5 + k * 0.08, -0.15 - 0.02 * ((o.fangs || 1) - 1), 0.085 * z); head.add(t); }
+  });
+  if (o.horns === "single") {
+    const c = staticTube([new V(0.35, 0.12, 0), new V(0.5, 0.45, 0), new V(0.62, 0.85, 0)], [[0, 0.07], [1, 0.005]], M.horn, 16, 12); head.add(c);
+    if (p.hornTip) { // crystal horn fades to another colour at the tip
+      const pa = c.geometry.attributes.position, col = [], a = new THREE.Color(p.horn).convertSRGBToLinear(), b = new THREE.Color(p.hornTip).convertSRGBToLinear();
+      for (let i = 0; i < pa.count; i++) { const t = Math.min(1, Math.max(0, (pa.getY(i) - 0.3) / 0.5)); const k = a.clone().lerp(b, t * t * (3 - 2 * t)); col.push(k.r, k.g, k.b); }
+      c.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      c.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.1, emissive: new THREE.Color(p.hornTip).convertSRGBToLinear(), emissiveIntensity: 0.15 });
     }
-  });
-  // head frill
-  [-0.1, -0.25].forEach((x, i) => {
-    const f = new THREE.Mesh(finGeo, M.fin); f.position.set(x, 0.22 - i * 0.04, 0);
-    f.scale.set(0.24 - i * 0.04, 0.26 - i * 0.05, 1); f.rotation.z = 0.25; head.add(f);
-  });
-  head.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  }
+  if (o.frill === "frill") [-0.1, -0.25].forEach((x, i) => { const f = new THREE.Mesh(finGeo, M.fin); f.position.set(x, 0.22 - i * 0.04, 0); f.scale.set(0.24 - i * 0.04, 0.26 - i * 0.05, 1); f.rotation.z = 0.25; head.add(f); });
+  if (o.frill === "crest") [0, -0.18, -0.36].forEach((x, i) => { const f = new THREE.Mesh(finGeo, M.fin); f.position.set(x, 0.24 - i * 0.03, 0); f.scale.set(0.42 - i * 0.06, 0.6 - i * 0.12, 1); f.rotation.z = 0.1; head.add(f); });
+  if (o.frill === "petals") for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 6), M.fin); const a = -1.2 + i / 6 * 2.4; f.position.set(-0.2, 0.05, 0); f.rotation.set(a, 0, 1.2); f.scale.setScalar(0.42); head.add(f); }
+  head.traverse(m => { if (m.isMesh) m.castShadow = true; });
 })();
 
-// wings (opaque)
+// ---------- wings ----------
 const wings = [];
 function wing(zs) {
   const pivot = new THREE.Group();
   const f = at(0.6);
   pivot.position.copy(f.p).addScaledVector(f.n, f.r * 0.75).addScaledVector(f.side, f.r * 0.45 * zs);
   dragon.add(pivot);
-  const g = new THREE.Group(); g.scale.z = zs; pivot.add(g);
-  const S = new V(0, 0, 0), E = new V(-0.25, 0.75, 0.55), W = new V(0.15, 1.35, 1.15);
-  const tips = [new V(-0.35, 1.7, 2.35), new V(-1.15, 1.05, 2.45), new V(-1.75, 0.45, 1.75)];
-  const back = new V(-1.35, -0.05, 0.05);
-  g.add(staticTube([S, E, W], [[0, 0.11], [0.5, 0.075], [1, 0.06]], M.top, 20, 12));
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), M.top); knob.position.copy(W); g.add(knob);
-  const claw = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 8), M.horn);
-  claw.position.copy(W).add(new V(0.1, 0.1, 0)); claw.rotation.z = -0.8; g.add(claw);
-  tips.forEach(tp => {
-    const mid = new V().lerpVectors(W, tp, 0.5).add(new V(0, 0.12, 0));
-    g.add(staticTube([W, mid, tp], [[0, 0.05], [1, 0.008]], M.top, 16, 8));
-  });
-  // membrane: fan from the wrist through a scalloped edge
-  const sag = (a, b, t) => new V().lerpVectors(a, b, 0.5).lerp(W, t).add(new V(0, -0.08, 0));
-  const outline = [E, S, back, sag(back, tips[2], 0.28), tips[2], sag(tips[2], tips[1], 0.22), tips[1], sag(tips[1], tips[0], 0.2), tips[0]];
-  // rings between the wrist and the edge, with a gentle billow, so the skin shades smoothly
-  const RINGS = 6, pos = [], ix = [];
-  outline.forEach((o, i) => {
-    for (let r = 0; r <= RINGS; r++) {
-      const t = r / RINGS, v = new V().lerpVectors(W, o, t);
-      v.y -= Math.sin(t * Math.PI) * 0.12; v.z += Math.sin(t * Math.PI) * 0.06;
-      pos.push(v.x, v.y, v.z);
-    }
-  });
-  for (let i = 0; i < outline.length - 1; i++) for (let r = 0; r < RINGS; r++) {
-    const a = i * (RINGS + 1) + r, b = a + RINGS + 1;
-    ix.push(a, a + 1, b, b, a + 1, b + 1);
+  const g = new THREE.Group(); const ws = o.wingScale; g.scale.set(ws, ws, zs * ws); pivot.add(g);
+  const type = o.wings;
+  let S = new V(0, 0, 0), E = new V(-0.25, 0.75, 0.55), W = new V(0.15, 1.35, 1.15);
+  let tips = [new V(-0.35, 1.7, 2.35), new V(-1.15, 1.05, 2.45), new V(-1.75, 0.45, 1.75)];
+  let back = new V(-1.35, -0.05, 0.05), sagT = [0.28, 0.22, 0.2], fingers = true;
+  if (type === "fin" || type === "flipper") {   // rounded fin with thin rays, like a fish
+    E = new V(-0.2, 0.45, 0.45); W = new V(0, 0.75, 0.9);
+    tips = [new V(-0.3, 0.95, 1.9), new V(-0.9, 0.7, 2.0), new V(-1.4, 0.35, 1.5), new V(-1.6, 0.05, 0.8)];
+    back = new V(-1.3, -0.05, 0.1); sagT = [-0.12, -0.12, -0.12, -0.12]; fingers = "rays";
+  } else if (type === "feather") {   // many long feather points, for gliding far
+    tips = [new V(-0.2, 1.65, 2.5), new V(-0.75, 1.35, 2.7), new V(-1.25, 1.0, 2.55), new V(-1.7, 0.6, 2.1), new V(-1.95, 0.25, 1.5)];
+    sagT = [0.12, 0.35, 0.35, 0.35, 0.35]; fingers = "rays";
+  } else if (type === "leaf") {   // a big leaf on each side
+    E = new V(-0.2, 0.6, 0.5); W = new V(0, 1.0, 1.0);
+    tips = [new V(-0.6, 1.25, 2.4), new V(-1.5, 0.4, 1.6)];
+    sagT = [-0.18, -0.2]; fingers = "rays";
+  } else if (type === "narrow") {   // long, thin, swept-back wings for speed
+    E = new V(-0.3, 0.55, 0.5); W = new V(-0.1, 1.0, 1.1);
+    tips = [new V(-1.2, 1.15, 2.9), new V(-1.6, 0.75, 2.1)];
+    back = new V(-0.9, 0.0, 0.1); sagT = [0.1, 0.15];
   }
-  const mg = new THREE.BufferGeometry(); mg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); mg.setIndex(ix); mg.computeVertexNormals();
+  if (type === "flipper") g.scale.multiplyScalar(0.55);
+  const boneR = fingers === "rays" ? 0.5 : 1;
+  g.add(staticTube([S, E, W], [[0, 0.11], [0.5, 0.075], [1, 0.06]], M.bone, 20, 12));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), M.bone); knob.position.copy(W); g.add(knob);
+  if (fingers === true) { const claw = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 8), M.horn); claw.position.copy(W).add(new V(0.1, 0.1, 0)); claw.rotation.z = -0.8; g.add(claw); }
+  tips.forEach(tp => { const mid = new V().lerpVectors(W, tp, 0.5).add(new V(0, 0.12, 0)); g.add(staticTube([W, mid, tp], [[0, 0.05 * boneR], [1, 0.008]], M.bone, 16, 8)); });
+  const sag = (a, b, t) => new V().lerpVectors(a, b, 0.5).lerp(W, t).add(new V(0, t > 0 ? -0.08 : 0, 0));
+  const outline = [E, S, back, sag(back, tips[tips.length - 1], sagT[0])];
+  for (let i = tips.length - 1; i >= 0; i--) { outline.push(tips[i]); if (i > 0) outline.push(sag(tips[i], tips[i - 1], sagT[Math.min(sagT.length - 1, tips.length - i)])); }
+  const RINGS = 6, pos = [], ix = [];
+  outline.forEach(pt => { for (let r = 0; r <= RINGS; r++) { const t = r / RINGS, v = new V().lerpVectors(W, pt, t); v.y -= Math.sin(t * Math.PI) * 0.12; v.z += Math.sin(t * Math.PI) * 0.06; pos.push(v.x, v.y, v.z); } });
+  // v = how far from the shoulder, so colour fades smoothly from the body out to the tips
+  const dist = []; for (let k = 0; k < pos.length; k += 3) dist.push(Math.hypot(pos[k] - S.x, pos[k + 1] - S.y, pos[k + 2] - S.z));
+  const dMax = Math.max(...dist) || 1;
+  const uvs = []; outline.forEach((pt, i) => { for (let r = 0; r <= RINGS; r++) uvs.push(i / (outline.length - 1), dist[i * (RINGS + 1) + r] / dMax); });
+  for (let i = 0; i < outline.length - 1; i++) for (let r = 0; r < RINGS; r++) { const a = i * (RINGS + 1) + r, b = a + RINGS + 1; ix.push(a, a + 1, b, b, a + 1, b + 1); }
+  const mg = new THREE.BufferGeometry(); mg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); mg.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); mg.setIndex(ix); mg.computeVertexNormals();
   const mem = new THREE.Mesh(mg, M.wing); mem.castShadow = true; g.add(mem);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  if ((o.tier ?? 1) >= 3) { // Rare and up: a glowing trim along the wing's edge (thicker each tier)
+    const edge = outline.slice(3);
+    const trim = staticTube(edge, [[0, 0.01], [0.5, 0.012 + 0.006 * (o.tier - 2)], [1, 0.01]], M.trim, edge.length * 8, 6); trim.castShadow = false; g.add(trim);
+  }
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   wings.push({ pivot, zs });
 }
-wing(1); wing(-1);
+if (o.wings !== "none") { wing(1); wing(-1); }
 
-// tail flame
+// ---------- tail tip ----------
 const flame = new THREE.Group(); dragon.add(flame);
 const fl = [];
-[[0.2, 0.75, M.flame], [0.13, 0.5, M.flame], [0.06, 0.28, M.flame2]].forEach(([r, h, m], i) => {
-  const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 16, 1, true), m);
-  c.position.y = h / 2 - 0.04; flame.add(c); fl.push(c);
-});
-const flameLight = new THREE.PointLight("#ff7a1c", 1.4, 3.5, 2); flame.add(flameLight);
+const tailTip = new THREE.Group(); dragon.add(tailTip);
+const flameLight = new THREE.PointLight("#ff7a1c", o.tail === "flame" ? 1.4 : 0, 3.5, 2); flame.add(flameLight); if (o.orbGlow) flameLight.color.set(p.glow);
+if (o.tail === "flame" || o.tail === "smoke") {
+  const mats = o.tail === "smoke" ? [M.smoke, M.smoke, M.flame] : [M.flame, M.flame, M.flame2];
+  [[0.2, 0.75], [0.13, 0.5], [0.06, 0.28]].forEach(([r, h], i) => { const c = new THREE.Mesh(new THREE.ConeGeometry(r * (o.tail === "smoke" ? 1.4 : 1), h * (o.tail === "smoke" ? 1.3 : 1), 16, 1, true), mats[i]); c.position.y = h / 2 - 0.04; flame.add(c); fl.push(c); });
+} else {
+  // the tail tip is built pointing along +x (backwards out of the tail)
+  const T = o.tail;
+  if (T === "fluke") [1, -1].forEach(s => { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), M.fin); f.rotation.set(Math.PI / 2, 0, -Math.PI / 2 - s * 0.7); f.scale.set(0.7, 0.8, 1); tailTip.add(f); });
+  if (T === "ribbon") { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), M.fin); f.rotation.z = -Math.PI / 2; f.scale.set(0.45, 1.8, 1); tailTip.add(f); }
+  if (T === "club") { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), M.top); c.position.x = 0.15; tailTip.add(c); for (let i = 0; i < 6; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), M.horn); const a = i / 6 * Math.PI * 2; sp.position.set(0.15, Math.cos(a) * 0.27, Math.sin(a) * 0.27); sp.rotation.x = a; tailTip.add(sp); } }
+  if (T === "leaf") { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), M.fin); f.rotation.z = -Math.PI / 2; f.scale.set(0.9, 1.0, 1); tailTip.add(f); }
+  if (T === "spike") { const c = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 10), M.horn); c.rotation.z = -Math.PI / 2; c.position.x = 0.28; tailTip.add(c); }
+  if (T === "crystal") [[0.25, 0, 0, 0], [0.12, 0.12, 0.08, 0.6], [0.12, -0.1, -0.08, -0.6]].forEach(([x, y, z, a]) => { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), M.crystal); c.scale.set(2.6, 0.9, 0.9); c.position.set(x, y, z); c.rotation.z = a; tailTip.add(c); });
+  if (T === "tuft") for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M.fur); c.position.set(0.1 + Math.random() * 0.25, (Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.22); tailTip.add(c); }
+  if (T === "flower") for (let i = 0; i < 6; i++) { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 6), M.fin); f.rotation.set(i / 6 * Math.PI * 2, 0, -Math.PI / 2 + 0.6); f.scale.setScalar(0.38); tailTip.add(f); }
+  if (T === "orb") { const c = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), o.orbGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.35)).convertSRGBToLinear() }) : M.flame2); c.position.x = 0.12; tailTip.add(c); flameLight.intensity = 1; tailTip.add(flameLight); }
+  tailTip.traverse(m => { if (m.isMesh) m.castShadow = true; });
+}
 const hb = new THREE.Matrix4(), hq = new THREE.Quaternion(), tilt = new THREE.Quaternion().setFromAxisAngle(new V(0, 0, 1), -0.12);
 const sf = at(0.56), seat = sf.p.clone().addScaledVector(sf.n, sf.r * 1.05);
-let walkT = 0;
-let bendNow = 0;
-const headTurn = new THREE.Quaternion();
+let walkT = 0, bendNow = 0;
+const headTurn = new THREE.Quaternion(), tb = new THREE.Matrix4();
+// ----- Epic and up: glowing motes drift around the dragon -----
+const TIER = o.tier ?? 1; let motes = null;
+if (TIER >= 4) {
+  const n = 14 * (TIER - 3), pos = new Float32Array(n * 3), cols = [], seed = [];
+  const pc = [p.glow, p.glow2 || p.glow, p.crystalTip || p.glow, p.hornTip || p.eye || p.glow];
+  for (let i = 0; i < n; i++) {
+    seed.push([Math.random() * 6.28, 0.55 + Math.random() * 0.8, Math.random() * 6.28, (Math.random() - 0.5) * 2.4, 0.4 + Math.random() * 0.8]);
+    const c = new THREE.Color(TIER >= 6 ? pc[i % 4] : (i % 3 ? p.glow : mix(p.glow, "#ffffff", 0.5))); cols.push(c.r, c.g, c.b);
+  }
+  const mc = document.createElement("canvas"); mc.width = mc.height = 64; const mx = mc.getContext("2d");
+  const rg = mx.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.3, "rgba(255,255,255,0.6)"); rg.addColorStop(1, "rgba(255,255,255,0)");
+  mx.fillStyle = rg; mx.fillRect(0, 0, 64, 64);
+  const mg = new THREE.BufferGeometry(); mg.setAttribute("position", new THREE.BufferAttribute(pos, 3)); mg.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
+  motes = new THREE.Points(mg, new THREE.PointsMaterial({ size: 0.22 + 0.04 * TIER, map: new THREE.CanvasTexture(mc), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  motes.userData.seed = seed; motes.frustumCulled = false; dragon.add(motes);
+}
+// ----- Secret dragons: their own special effects -----
+const orbit = []; let heart = null, heartLight = null, ring = null;
+if (o.secret === "quantum") {
+  // a glowing violet ring of runes circles it, and black void shards orbit
+  ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.025, 8, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow).convertSRGBToLinear(), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  ring.rotation.x = Math.PI / 2; ring.visible = false; dragon.add(ring); // Petra: no hoop, but ring still drives the wing flicker
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.012, 6, 96), ring.material.clone()); ring2.material.color.set(p.glow2 || p.glow).convertSRGBToLinear(); ring.add(ring2);
+  const shardM = new THREE.MeshStandardMaterial({ color: "#05040c", roughness: 0.15, metalness: 0.6, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.35 });
+  for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), shardM); m.scale.set(0.6, 1.6, 0.6); m.userData.o = [i / 6 * 6.28, 1.7, 0.35 + (i % 2) * 0.3, 0.6]; dragon.add(m); orbit.push(m); }
+}
+if (o.secret === "petralith") {
+  // floating pebbles and quartz shards circle it, and an amber heart glows in its chest
+  const stoneM = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.side).convertSRGBToLinear(), roughness: 0.9 });
+  const qM = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.crystalTip || p.crystal).convertSRGBToLinear(), roughness: 0.15, emissive: new THREE.Color(p.crystalTip || p.crystal).convertSRGBToLinear(), emissiveIntensity: 0.4, transparent: true, opacity: 0.9 });
+  for (let i = 0; i < 9; i++) {
+    const q = i % 3 === 0, m = new THREE.Mesh(q ? new THREE.OctahedronGeometry(0.1, 0) : new THREE.DodecahedronGeometry(0.07 + Math.random() * 0.06, 0), q ? qM : stoneM);
+    if (q) m.scale.set(0.7, 1.8, 0.7); m.castShadow = true;
+    m.userData.o = [i / 9 * 6.28, 1.35 + (i % 2) * 0.35, 0.1 + (i % 3) * 0.25, 0.35]; dragon.add(m); orbit.push(m);
+  }
+  const hf = at(0.68);
+  heart = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 14), new THREE.MeshStandardMaterial({ color: "#ffb02a", emissive: new THREE.Color("#ff9a1a").convertSRGBToLinear(), emissiveIntensity: 1.5, roughness: 0.2 }));
+  heart.position.copy(hf.p).addScaledVector(hf.n, -hf.r * 0.72).addScaledVector(hf.T, 0.12).add(new V(0, 0, 0)); heart.scale.set(1, 1.15, 0.9); dragon.add(heart);
+  heartLight = new THREE.PointLight(0xffa030, 1.2, 3); heartLight.position.copy(heart.position).add(new V(0, -0.2, 0)); dragon.add(heartLight);
+}
+function updateSecret(t) {
+  const c = at(0.5).p;
+  orbit.forEach(m => { const [a0, r, h, sp] = m.userData.o, a = a0 + t * sp; m.position.set(c.x + Math.cos(a) * r, c.y + h + Math.sin(t * 1.5 + a0) * 0.12, Math.sin(a) * r); m.rotation.y = t * 1.5 + a0; m.rotation.z = Math.sin(t + a0) * 0.4; });
+  if (ring) { ring.position.set(c.x, c.y + 0.1, 0); ring.rotation.z = t * 0.4; ring.rotation.y = Math.sin(t * 0.5) * 0.25; ring.material.opacity = 0.55 + Math.sin(t * 2.3) * 0.25;
+    // wings flicker as if it is half between places
+    M.wing.transparent = true; M.wing.opacity = 0.72 + 0.28 * Math.abs(Math.sin(t * 1.7) * Math.sin(t * 4.1)); M.trim.opacity = 0.5 + 0.5 * Math.abs(Math.sin(t * 3.3)); }
+  if (heart) { const k = 1 + Math.max(0, Math.sin(t * 2.4)) ** 6 * 0.25; heart.scale.set(k, 1.15 * k, 0.9 * k); heart.material.emissiveIntensity = 1.2 + (k - 1) * 4; heartLight.intensity = 0.6 + (k - 1) * 3; }
+}
+function updateMotes(t) {
+  updateSecret(t);
+  if (!motes) return; const c = at(0.5).p, a = motes.geometry.attributes.position;
+  motes.userData.seed.forEach(([s0, r, s2, dx, sp], i) => {
+    const ang = s0 + t * sp * 0.5;
+    a.setXYZ(i, c.x + dx + Math.sin(ang * 1.3) * 0.2, c.y + 0.25 + Math.sin(t * sp * 1.6 + s2) * 0.45, Math.cos(ang) * r);
+  });
+  a.needsUpdate = true; motes.material.opacity = 0.75 + Math.sin(t * 3) * 0.2;
+}
 function update(t, walk, flap, dt, bend = 0) {
+  updateMotes(t);
+  if (TIER >= 3) M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * TIER) * (1 + Math.sin(t * 1.8) * 0.18);
   bendNow += (Math.max(-1, Math.min(1, bend)) - bendNow) * Math.min(1, dt * 5);
   breath = 1 + Math.sin(t * (flap ? 3 : 1.7)) * 0.025;
   frames = fillTube(spineGeo, spinePts(t, bendNow), rad, 0.9, 1.05);
-  placeFins();
+  placeBack(); placeMane();
   const end = frames[SEGS];
   const fwd = new V(end.T.x, end.T.y * 0.25, end.T.z).normalize();
   const side = new V().crossVectors(fwd, UP).normalize(), up = new V().crossVectors(side, fwd);
   hb.makeBasis(fwd, up, side); hq.setFromRotationMatrix(hb).multiply(tilt);
-  head.quaternion.copy(hq).multiply(headTurn.setFromAxisAngle(UP, -bendNow * 0.35)); // head looks into the turn
+  head.quaternion.copy(hq).multiply(headTurn.setFromAxisAngle(UP, -bendNow * 0.35));
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
-  wings.forEach(w => {
-    const rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = -0.1 + Math.sin(t * 7) * 0.85;
-    w.pivot.rotation.x = w.zs * (flap ? fly : rest);
-  });
+  const flapSpeed = o.flapSpeed || 7;
+  wings.forEach(w => { const rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = -0.1 + Math.sin(t * flapSpeed) * 0.85; w.pivot.rotation.x = w.zs * (flap ? fly : rest); });
   walkT += dt * 8 * walk;
   legs.forEach((g, i) => {
     const ph = (i === 0 || i === 3) ? 0 : Math.PI;
@@ -484,12 +693,142 @@ function update(t, walk, flap, dt, bend = 0) {
   const tip = frames[0];
   flame.position.copy(tip.p);
   fl.forEach((c, i) => { const k = 1 + Math.sin(t * 13 + i * 2) * 0.12 + Math.sin(t * 7.3 + i) * 0.08; c.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k)); c.rotation.y = t * (1 + i); });
-  flameLight.intensity = 1.3 + Math.sin(t * 17) * 0.25;
+  if (o.tail === "flame") flameLight.intensity = 1.3 + Math.sin(t * 17) * 0.25;
+  tb.makeBasis(tip.T.clone().negate(), tip.n, tip.side.clone().negate()); tailTip.quaternion.setFromRotationMatrix(tb); tailTip.position.copy(tip.p);
 }
 paint(p);
-dragon.traverse(o => { if (o.isMesh) o.castShadow = true; });
+dragon.traverse(m => { if (m.isMesh) m.castShadow = true; });
+update(0, 0, 0, 0.016);
 return { root: dragon, update, seat };
 }
+
+// ================= dragon kinds =================
+// every dragon kind: colors, body plan and the adaptations it has for where it lives
+const P = (top, side, belly, glow, horn, wing, eye, extra = {}) => Object.assign({ top, side, belly, glow, horn, wing, eye, metal: 0.05 }, extra);
+const TIER = { Junk: 0, Common: 1, Uncommon: 2, Rare: 3, Epic: 4, Legendary: 5, Secret: 7 };
+const SPECIES = [
+  { name: "Dustmite", size: 0.6, rarity: "Junk", home: "Wherever Shady Shen sold it", speed: 1, pal: P("#5a564e", "#8a857a", "#b0a898", "#a09a8a", "#6a655c", "#6a655c", "#2a2824", { smoke: "#a8a090" }),
+    sp: { girth: 1.1, wingScale: 0.45, horns: "short", back: "none", tail: "smoke", frill: "ears", pattern: "spots", glow: 0.15, eyes: 0.8, legLen: 0.85 },
+    ad: ["Plain gray and dusty, it hides in the corner of any shed", "Its tail puffs out a little dust cloud", "Tiny wings: it can barely hop off the ground", "Very tough to get rid of"] },
+  { name: "Pyrrak", rarity: "Common", home: "Green Valley (warm hills)", speed: 3, pal: PAL.Normal, sp: {},
+    ad: ["Glowing markings and a flame tail keep it warm on cool nights", "All-round body: good at walking, climbing and flying", "Back fins help it steer"] },
+  { name: "Smoldedrake", rarity: "Common", home: "Fire Mountain foothills", speed: 2, pal: P("#3a2a26", "#6a3a2a", "#c8885a", "#ff6a2a", "#2a2220", "#3a2420", "#ffb04a", { smoke: "#5a5250" }),
+    sp: { girth: 1.2, back: "plates", horns: "ram", tail: "smoke", pattern: "cracks", legThick: 1.15 },
+    ad: ["Thick armor plates protect it from falling rocks", "Its tail puffs smoke to hide from bigger dragons", "Heavy and slow, but very hard to knock over"] },
+  { name: "Aquawyrm", size: 0.82, rarity: "Common", home: "Ocean shallows", speed: 4, pal: P("#0f4a7a", "#2a8ac8", "#bfe8f0", "#6fe8ff", "#d8f4ff", "#1a6aa8", "#7fffe0", { fin: "#3fb8d8" }),
+    sp: { wings: "fin", tail: "fluke", back: "frill", frill: "ears", girth: 0.85, len: 1.15, horns: "short", pattern: "spots" },
+    ad: ["Swimming against the water made it small but very strong and fast", "Fin-shaped wings double as flippers underwater", "A fish-like tail fluke pushes it through the water", "Slim body slips through waves easily", "Ear fins close up when it dives"] },
+  { name: "Gillwing", size: 0.78, rarity: "Common", home: "Rivers and the ocean", speed: 5, pal: P("#1a5a4a", "#2fa080", "#d8f0d0", "#9affc8", "#e0fff0", "#1f7a62", "#e8ff7a", { fin: "#4fd0a0" }),
+    sp: { wings: "fin", wingScale: 1.2, tail: "fluke", back: "frill", frill: "ears", girth: 0.8, pattern: "gills", horns: "none" },
+    ad: ["Swimming against the water made it small but very strong and fast", "Gills on its neck let it breathe underwater", "Big fin-wings: it can 'fly' through water as fast as through air", "Very slim and quick"] },
+  { name: "Fernling", rarity: "Common", home: "Green Valley forests", speed: 2, pal: P("#2f5a22", "#5a9a3a", "#e0e8a0", "#c8ff6a", "#a07a4a", "#4f8a2e", "#ffe04a", { fin: "#5aaa3a" }),
+    sp: { wings: "leaf", tail: "leaf", back: "leaves", horns: "antler", girth: 0.9, legLen: 0.9, pattern: "spots" },
+    ad: ["Leaf wings and leaf frills hide it in bushes", "Little twig antlers look like branches", "Small and light, good at hopping between trees"] },
+  { name: "Lichenwing", rarity: "Common", home: "Mossy rocks in the forest", speed: 2, pal: P("#4a5a42", "#7a8a6a", "#d8d0b0", "#d0ff9a", "#c8c0a0", "#6a7a5a", "#fff0a0", { fur: "#6a9a4a", fin: "#7a8a5a" }, ),
+    sp: { wings: "leaf", back: "fur", spots: "#9ac060", tail: "tuft", horns: "short", pattern: "none" },
+    ad: ["Moss grows on its back so it looks like a mossy rock", "Gray-green blotches blend with lichen", "Sits still for hours waiting for bugs"] },
+  { name: "Stonewyrm", rarity: "Common", home: "Rocky hills and cliffs", speed: 1, pal: P("#4a4640", "#7a756c", "#b8b0a0", "#ffcf6a", "#d8d0c0", "#5a554c", "#ffcf6a"),
+    sp: { girth: 1.3, back: "plates", horns: "ram", tail: "club", legThick: 1.35, legLen: 0.85, wingScale: 0.75, pattern: "none", spots: "#5a554c", digClaws: true },
+    ad: ["Stone-gray plates make it look like a boulder", "Thick legs and big claws for climbing cliffs", "A club tail for smashing rocks", "Small wings: it'd rather climb than fly"] },
+  { name: "Volcanox", rarity: "Uncommon", home: "Fire Mountain lava fields", speed: 2, pal: P("#141010", "#2a1e1a", "#5a3020", "#ff5a1a", "#3a2a24", "#1e1412", "#ffcc3a", { flame: "#ff6a1a" }),
+    sp: { girth: 1.15, back: "spikes", horns: "ram", tail: "club", pattern: "cracks", glow: 1.4, legThick: 1.15 },
+    ad: ["Black, cracked skin: lava glows through the cracks", "Heat-proof scales let it walk on cooling lava", "Spikes and a club tail for fighting", "Stores heat inside like a furnace"] },
+  { name: "Ashveil", rarity: "Uncommon", home: "Ash clouds around the volcano", speed: 3, pal: P("#3a3a3e", "#6a6a70", "#a8a8ae", "#ff8a4a", "#2a2a2e", "#4a4a50", "#ff8a4a", { smoke: "#7a7a80" }),
+    sp: { tail: "smoke", back: "fin", pattern: "spots", eyes: 1.2, frill: "crest" },
+    ad: ["Ash-gray scales hide it inside smoke clouds", "Ember spots glow like sparks in the ash", "Clear inner eyelids let it see through smoke"] },
+  { name: "Glacius", rarity: "Uncommon", home: "Frost Peaks glaciers", speed: 2, pal: P("#5a8ab8", "#a8d0f0", "#f0f8ff", "#a8f0ff", "#e8f8ff", "#7aa8d0", "#c8f8ff", { crystal: "#c8f0ff", metal: 0.25 }),
+    sp: { legThick: 1.25, feet: 1.45, back: "crystal", horns: "crystal", tail: "crystal", girth: 1.1, pattern: "none", spots: "#e8f4ff" },
+    ad: ["Ice crystals grow along its back like a glacier", "Pale blue scales blend into ice and snow", "A thick body keeps its warmth in", "Wide feet spread its weight so it doesn't crack the ice", "Crystal horns can break through ice"] },
+  { name: "Tempestra", rarity: "Uncommon", home: "Storm clouds above the peaks", speed: 5, pal: P("#1a2244", "#2a3a6a", "#a8b8d8", "#fff04a", "#e8e8ff", "#202a50", "#fff04a"),
+    sp: { legThick: 0.8, thin: 0.85, wings: "feather", wingScale: 1.3, girth: 0.7, tail: "ribbon", pattern: "stripes", frill: "crest", glow: 1.3, horns: "long", flapSpeed: 9 },
+    ad: ["Lightning-yellow stripes glow when storms build up", "Huge feathery wings ride storm winds", "A light body: one of the fastest dragons", "Its crest catches static and tells it when lightning is coming"] },
+  { name: "Thornwyrm", rarity: "Uncommon", home: "Thick bramble forests", speed: 2, pal: P("#1f3a1a", "#3a5a2a", "#a0b070", "#d0ff4a", "#c8a85a", "#2a4a20", "#ff6a3a", { fin: "#3a6a2a" }),
+    sp: { back: "spikes", horns: "antler", tail: "spike", wings: "leaf", pattern: "spots", backScale: 1.2 },
+    ad: ["Thorny spikes all over: nothing wants to bite it", "Dark green body hides in brambles", "Pushes through thorn bushes without getting scratched"] },
+  { name: "Dawnwing", rarity: "Rare", home: "High meadows at sunrise", speed: 4, pal: P("#c84a6a", "#f0a07a", "#fff0c8", "#ffd27a", "#fff4e0", "#e87a8a", "#ffe08a"),
+    sp: { legThick: 0.85, thin: 0.88, girth: 0.78, wings: "feather", wingScale: 1.25, tail: "tuft", frill: "crest", pattern: "streaks", glow: 1.2, horns: "swept" },
+    ad: ["Sunrise colors make it hard to see against the morning sky", "Slim, light body so it stays up with little effort", "Big feathery wings for long gliding flights", "Glows warm to soak up the first sunlight"] },
+  { name: "Pearlhorn", size: 0.85, rarity: "Rare", home: "Deep reefs in the ocean", speed: 4, pal: P("#c8c0d8", "#ece8f4", "#ffffff", "#ffd8f8", "#fff8ff", "#d8d0e8", "#a8e8ff", { metal: 0.45, fin: "#f0e0f8" }),
+    sp: { wings: "fin", tail: "fluke", horns: "single", back: "frill", frill: "ears", pattern: "spots", spots: "#ffffff" },
+    ad: ["Swimming against the water made it small but very strong and fast", "Pearly scales shimmer like the inside of a shell", "One long horn pries open giant clams", "Fin-wings and a fluke for swimming deep"] },
+  { name: "Jadewyrm", rarity: "Rare", home: "Misty bamboo forests", speed: 3, pal: P("#1a5a3a", "#2f9a6a", "#e8f0c8", "#8affc8", "#f0e0a0", "#2a7a5a", "#ffd04a", { fin: "#e8c05a" }),
+    sp: { len: 1.5, wingScale: 0.7, whiskers: true, frill: "crest", back: "frill", tail: "tuft", horns: "antler", pattern: "streaks", legLen: 0.9 },
+    ad: ["A very long body winds between bamboo stalks", "Whiskers feel the air for danger in thick mist", "Small wings: it slithers more than it flies"] },
+  { name: "Petalwyrm", rarity: "Rare", home: "Flower fields", speed: 3, pal: P("#c84a8a", "#f08ab8", "#fff0f4", "#ffd0f0", "#fff8d8", "#f0a0c8", "#7a3aaa", { fin: "#ff9ad0" }),
+    sp: { wings: "leaf", tail: "flower", back: "leaves", frill: "petals", pattern: "spots", spots: "#ffe0f0", girth: 0.9 },
+    ad: ["Petal frills and a flower tail hide it in flower fields", "Sweet smell attracts bugs to eat", "Light and graceful, it hovers like a bee"] },
+  { name: "Blazequill", rarity: "Epic", home: "The volcano's crater", speed: 4, pal: P("#a82a0a", "#ff6a1a", "#ffd88a", "#ffe04a", "#fff0a0", "#c83a10", "#ffffff", { flame: "#ffb02a" }),
+    sp: { back: "spikes", backScale: 1.6, tail: "flame", wings: "feather", pattern: "stripes", glow: 1.6, frill: "crest" },
+    ad: ["Glowing fire quills can be shaken loose at enemies", "Feathery flame wings ride the volcano's hot air", "So hot inside that rain turns to steam on it"] },
+  { name: "Abyssar", size: 0.88, rarity: "Epic", home: "The deepest ocean trench", speed: 5, pal: P("#060a1e", "#0e1840", "#1e3060", "#3affff", "#8affff", "#0a1430", "#3affff", { fin: "#12305a" }),
+    sp: { wings: "fin", wingScale: 1.1, flapSpeed: 3.5, tail: "fluke", back: "frill", frill: "ears", eyes: 1.7, len: 1.4, girth: 0.9, pattern: "spots", glow: 1.8, horns: "none", legLen: 0.8 },
+    ad: ["Swimming against the water made it small but very strong and fast", "Its wings have turned into wide fins for gliding through deep water", "Huge round eyes see in total darkness", "Glowing spots light up the deep and lure fish", "A long body and big fluke for swimming"] },
+  { name: "Rootwyrm", rarity: "Epic", home: "Under the oldest forest", speed: 1, pal: P("#3a2a1a", "#6a4a2a", "#a8885a", "#9aff6a", "#c8b080", "#4a3a20", "#d0ff6a", { fur: "#4a8a2a", fin: "#5a7a2a" }),
+    sp: { girth: 1.25, horns: "antler", back: "fur", tail: "club", legThick: 1.3, wings: "leaf", wingScale: 0.8, pattern: "cracks", spots: "#3a2a14", digClaws: true },
+    ad: ["Bark-like skin with moss growing on top", "Big antlers like tree roots", "Huge claws dig tunnels between the roots", "Glowing cracks, like sap moving under the bark"] },
+  { name: "Lumora", rarity: "Legendary", home: "Night skies", speed: 4, pal: P("#0a0a14", "#14142a", "#2a2a44", "#ffe04a", "#ffe8a0", "#0e0e1e", "#ffe04a"),
+    sp: { thin: 0.9, girth: 0.85, pattern: "stars", wingScale: 1.25, eyes: 1.4, tail: "orb", frill: "crest", glow: 1.5 },
+    ad: ["Black with yellow stars, so it disappears into the night sky", "Big eyes see perfectly in the dark", "A glowing tail orb lights its way"] },
+  // ----- new sky dragons -----
+  { name: "Driftail", rarity: "Uncommon", home: "Sky Islands, in the clouds", speed: 4, pal: P("#a8c8e8", "#e8f2ff", "#ffffff", "#d0f0ff", "#ffffff", "#c8dcf0", "#5aa8ff", { fur: "#ffffff", fin: "#d8e8ff" }),
+    sp: { legThick: 0.8, thin: 0.85, wings: "feather", wingScale: 1.35, back: "fur", tail: "ribbon", girth: 0.72, mane: true, pattern: "none", flapSpeed: 5 },
+    ad: ["Fluffy white fur makes it look like a cloud", "Under the fluff its body is thin and light as air", "Huge wings let it glide for days without flapping", "A long ribbon tail steers on the wind"] },
+  { name: "Aerolash", rarity: "Rare", home: "Windy cliffs of the Sky Islands", speed: 5, pal: P("#3a5a5a", "#8ab8b0", "#e8f4f0", "#7affd8", "#e8fff8", "#4a7a74", "#ffffff", { metal: 0.3 }),
+    sp: { legThick: 0.75, thin: 0.8, wings: "narrow", wingScale: 1.3, girth: 0.62, tail: "spike", len: 1.3, horns: "long", back: "none", pattern: "stripes", neck: 0.85, flapSpeed: 11 },
+    ad: ["Long, narrow, swept-back wings: built for racing", "Super slim body cuts through the wind", "A whip tail snaps to make sharp turns", "The fastest wings of all"] },
+  { name: "Skyrune", rarity: "Epic", home: "Highest point of the sky", speed: 5, pal: P("#c85a0a", "#f0a02a", "#fff0c0", "#fff6a0", "#fff8e0", "#ff8a1a", "#3ab8ff"),
+    sp: { legThick: 0.8, thin: 0.82, wings: "feather", wingScale: 1.45, girth: 1.0, pattern: "runes", glow: 1.4, frill: "crest", tail: "ribbon" },
+    ad: ["Big lungs (a wide chest) breathe the thin air up high, but the rest of it is slim and light", "Orange sun-wings soak up sunlight for energy", "Glowing runes shine when it flies above the clouds"] },
+  // ----- new ice dragons -----
+  { name: "Snowpaw", rarity: "Common", home: "Frost Peaks snowfields", speed: 2, pal: P("#c8d4e0", "#eef4fa", "#ffffff", "#bfe8ff", "#8aa0b8", "#d8e4f0", "#3a5a8a", { fur: "#ffffff" }),
+    sp: { legThick: 1.35, back: "fur", mane: true, feet: 1.95, legLen: 0.75, girth: 1.15, wingScale: 0.65, tail: "tuft", horns: "short", frill: "fur", digClaws: true, pattern: "none" },
+    ad: ["Thick white fur keeps it warm and hidden in snow", "Huge paws work like snowshoes and shovels", "Burrows into snow to sleep", "Short legs and a round body hold in heat"] },
+  { name: "Rimefang", rarity: "Uncommon", home: "Icicle caves", speed: 3, pal: P("#3a5a8a", "#7aa8d8", "#dceeff", "#9ae0ff", "#e8f8ff", "#4a6a9a", "#e0ffff", { crystal: "#d8f8ff" }),
+    sp: { legThick: 1.2, feet: 1.4, back: "crystal", horns: "crystal", tail: "crystal", fangs: 2.2, pattern: "spots", spots: "#c8e8ff" },
+    ad: ["Icicle spikes grow along its back", "Long ice fangs", "Big gripping feet hold on to slippery ice walls", "Blue scales hide it in icy caves"] },
+  { name: "Auroran", rarity: "Rare", home: "Night sky over the Frost Peaks", speed: 4, pal: P("#0a3a30", "#13604a", "#7ab89a", "#5aff9a", "#ffd0ec", "#0e4a3a", "#ff9ad8", { glow2: "#b06aff", glow3: "#ff6ac8", wingTip: "#9a4aff" }),
+    sp: { legThick: 1.15, feet: 1.35, pattern: "aurora", glow: 1.6, wingScale: 1.2, wingStars: false, frill: "crest", tail: "ribbon", eyes: 1.2 },
+    ad: ["Glowing aurora stripes, green, purple and pink", "Dark green body vanishes in the polar night", "Big wings with purple tips for long flights between the peaks", "Wide feet for landing on deep snow"] },
+  { name: "Bergdrake", rarity: "Rare", home: "Icy seas by the ocean", speed: 2, pal: P("#3a4a5a", "#6a8094", "#c8d8e0", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
+    sp: { legThick: 1.3, feet: 1.4, girth: 1.5, wings: "flipper", tail: "fluke", tusks: true, horns: "none", back: "none", legLen: 0.8, pattern: "none", spots: "#8aa0b4", neck: 0.8 },
+    ad: ["Thick blubber keeps it warm in freezing water", "Flippers instead of big wings: a great swimmer", "Tusks haul it up onto ice", "Big webbed feet paddle in the sea and grip on ice", "Slow on land, graceful in the sea"] },
+  // ----- secret dragons -----
+  { name: "Quantum", size: 1.05, rarity: "Secret", home: "Between places (nobody knows where)", speed: 5,
+    pal: P("#040408", "#0a0a1c", "#16123a", "#9a5aff", "#2a1a5e", "#05051a", "#c89aff", { glow2: "#3a5aff", metal: 0.3 }),
+    sp: { secret: "quantum", orbGlow: true, thin: 0.95, pattern: "runes", glow: 1.7, wingScale: 1.4, wingStars: true, eyes: 1.35, horns: "long", frill: "crest", tail: "orb", back: "fin" },
+    ad: ["Black skin swallows light, so it is almost invisible", "Violet eyes see in total darkness", "Starry wing edges flicker as it blinks between places", "Hardly needs to breathe at all", "Black void shards circle it"] },
+  { name: "Petralith", size: 1.25, rarity: "Secret", home: "Deep under the mountains", speed: 2,
+    pal: P("#4a4742", "#7a756c", "#a89e8a", "#ffb02a", "#f4eefc", "#3e3b36", "#ffb02a", { crystal: "#f4eefc", hornTip: "#a05aff", crystalTip: "#5ac0ff", metal: 0.1 }),
+    sp: { secret: "petralith", back: "crystal", backScale: 1.5, horns: "single", tail: "club", pattern: "cracks", glow: 1.4, wingScale: 1.3, spots: "#5a564e" },
+    ad: ["Stone hide: it looks like part of the mountain", "Gold cracks glow with stored energy", "Quartz crystals on its back fade to light blue and catch the light", "One big crystal horn, purple at the tip, breaks through rock", "A boulder tail for smashing", "Its amber heart beats slowly, and stones float around it"] },
+];
+
+// ----- battle stats at level 1 (+6 HP and +2 damage per level) -----
+// base by rarity, then each species leans its own way: tough, sharp claws, strong breath, or fast but fragile
+const BASE = { Junk: [14, 4, 5, 5, 6], Common: [20, 7, 9, 9, 12], Uncommon: [26, 9, 11, 11, 14], Rare: [32, 11, 13, 13, 16], Epic: [38, 13, 15, 15, 18], Legendary: [44, 15, 17, 17, 20] };
+const LEAN = { // [HP, claw, breath] changes from the rarity base
+  Dustmite: [0, 0, 0], Pyrrak: [0, 0, 1], Smoldedrake: [6, -1, 0], Aquawyrm: [-2, 1, 0], Gillwing: [-5, 1, 1], Fernling: [-2, 0, 1], Lichenwing: [4, -1, -1], Stonewyrm: [8, 1, -3], Snowpaw: [4, 2, -3],
+  Volcanox: [4, 0, 2], Ashveil: [-2, 0, 2], Glacius: [4, 0, 0], Tempestra: [-4, 1, 2], Thornwyrm: [2, 2, -2], Driftail: [-4, 0, 1], Rimefang: [0, 3, -1],
+  Dawnwing: [-3, 0, 3], Pearlhorn: [4, 1, -1], Jadewyrm: [2, 1, 0], Petalwyrm: [-2, -1, 3], Aerolash: [-6, 2, 1], Auroran: [-2, 0, 2], Bergdrake: [10, 1, -3],
+  Blazequill: [-2, 1, 3], Abyssar: [-4, 2, 1], Rootwyrm: [8, 1, -2], Skyrune: [-2, 0, 2], Lumora: [0, 1, 1]
+};
+const SECRET_STATS = { Quantum: [50, 21, 25, 25, 30], Petralith: [55, 21, 25, 21, 25] };
+SPECIES.forEach(s => {
+  // what grows each level follows the same lean: tough ones gain more HP, clawed ones more claw, and so on
+  const g = (d, big, base) => base + (d >= big ? 1 : d <= -2 ? -1 : 0);
+  if (SECRET_STATS[s.name]) {
+    const [hp, c1, c2, b1, b2] = SECRET_STATS[s.name];
+    s.stats = { hp, claw: [c1, c2], breath: [b1, b2], grow: s.name === "Quantum" ? { hp: 6, claw: 3, breath: 4 } : { hp: 9, claw: 3, breath: 3 } }; return;
+  }
+  const [hp, c1, c2, b1, b2] = BASE[s.rarity], [dh, dc, db] = LEAN[s.name] || [0, 0, 0];
+  s.stats = { hp: hp + dh, claw: [c1 + dc, c2 + dc], breath: [b1 + db, b2 + db],
+    grow: { hp: 6 + Math.max(-2, Math.min(3, Math.round(dh / 3))), claw: g(dc, 2, 2), breath: g(db, 2, 2) } };
+  // rarer kinds grow a little faster; junk grows slowly
+  const gr = s.stats.grow;
+  if (s.rarity === "Junk") { gr.hp = 4; gr.claw = 1; gr.breath = 1; }
+  if (s.rarity === "Epic") gr.hp += 1;
+  if (s.rarity === "Legendary") { gr.hp += 1; gr.claw += 1; gr.breath += 1; }
+});
 
 // ================= world =================
 const stage = document.getElementById("stage");
@@ -1136,11 +1475,21 @@ function makeEgg(pal) {
 
 // ================= game state =================
 const PYR = PAL.Normal;
+const SP = name => SPECIES.find(s => s.name === name) || SPECIES.find(s => s.name === "Pyrrak");
+// the first egg can be any normal kind, rarer kinds less often (no junk, no secret dragons)
+const EGG_ODDS = { Common: 60, Uncommon: 25, Rare: 10, Epic: 4, Legendary: 1 };
+function rollKind() {
+  const pool = SPECIES.filter(s => EGG_ODDS[s.rarity]), n = r => pool.filter(s => s.rarity === r).length;
+  let r = Math.random() * pool.reduce((t, s) => t + EGG_ODDS[s.rarity] / n(s.rarity), 0);
+  for (const s of pool) { r -= EGG_ODDS[s.rarity] / n(s.rarity); if (r <= 0) return s.name; }
+  return "Pyrrak";
+}
+let eggKind = rollKind();
 const tamer = makeTamer(); scene.add(tamer.g);
 const me = { x: 4, z: 6, y: 0, face: -2.3, vy: 0, walk: 0 };
 let camYaw = -2.3, camPitch = 0.32, camDist = 9;
 let state = "find"; // find -> carry -> hatching -> name -> baby -> grown -> ride
-const egg = makeEgg(PYR); scene.add(egg);
+const egg = makeEgg(SP(eggKind).pal); scene.add(egg);
 let eggSpot = (function () {
   for (let i = 0; i < 400; i++) {
     const a = Math.random() * Math.PI * 2, d = 65 + Math.random() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -1151,9 +1500,9 @@ let eggSpot = (function () {
 egg.position.copy(eggSpot).add(new V(0, 0.5, 0));
 // light beam so the egg can be seen from far away
 const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 60, 16, 1, true),
-  new THREE.MeshBasicMaterial({ color: PYR.glow, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  new THREE.MeshBasicMaterial({ color: SP(eggKind).pal.glow, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
 beam.position.copy(eggSpot).add(new V(0, 30, 0)); scene.add(beam);
-const eggLight = new THREE.PointLight(PYR.glow, 1.5, 12, 2); egg.add(eggLight);
+const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add(eggLight);
 
 // colours above were written as sRGB hex: convert world and tamer materials once
 (function fixColors() {
@@ -1163,18 +1512,27 @@ const eggLight = new THREE.PointLight(PYR.glow, 1.5, 12, 2); egg.add(eggLight);
     ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
-const dragon = makeDragon(PYR);
+function buildDragon(kind) { const s = SP(kind); return makeDragon(s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp)); }
+let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
+function setKind(kind) {
+  const vis = dragon.root.visible; scene.remove(dragon.root);
+  dragon = buildDragon(kind); dragon.root.visible = vis; scene.add(dragon.root); pet.kind = SP(kind).name;
+}
+function setEggKind(kind) {
+  eggKind = SP(kind).name; const pal = SP(eggKind).pal;
+  egg.material = makeEgg(pal).material; beam.material.color.set(pal.glow); eggLight.color.set(pal.glow);
+}
 const pet = { lastFace: 0, turnRate: 0, x: 0, z: 0, y: 0, face: 0, scale: 0.45, name: "", age: 0, fly: false, speed: 0, vy: 0, bank: 0, pitch: 0 };
 let hatchT = 0, lastShift = -9;
-// how fast each kind of dragon is, 1 (slow) to 5 (fastest). Sky dragons are the quickest, heavy ones the slowest.
-const SPEED = { Pyrrak: 3, Smoldedrake: 2, Aquawyrm: 3, Gillwing: 4, Fernling: 2, Lichenwing: 2, Stonewyrm: 1, Volcanox: 2, Ashveil: 3,
-  Glacius: 2, Tempestra: 5, Thornwyrm: 2, Dawnwing: 4, Pearlhorn: 3, Jadewyrm: 3, Petalwyrm: 3, Blazequill: 4, Abyssar: 3, Rootwyrm: 1, Lumora: 4,
-  Driftail: 4, Aerolash: 5, Skyrune: 5, Snowpaw: 2, Rimefang: 3, Auroran: 4, Bergdrake: 1 };
-pet.kind = "Pyrrak";
-const speedMul = () => 0.55 + 0.15 * (SPEED[pet.kind] || 3);
-const speedDots = () => "●".repeat(SPEED[pet.kind] || 3) + "○".repeat(5 - (SPEED[pet.kind] || 3));
-function petLabel(stage) { petEl.hidden = false; petEl.textContent = `${pet.name} the ${pet.kind} · ${stage} · speed ${speedDots()}`; }
+// speed, size and battle stats come from the species list
+pet.kind = eggKind; pet.level = 1;
+const speedOf = () => SP(pet.kind).speed || 3;
+const speedMul = () => 0.55 + 0.15 * speedOf();
+const speedDots = () => "●".repeat(speedOf()) + "○".repeat(5 - speedOf());
+// stats at the pet's level: level 1 values plus that species' growth for each level after
+function petStats() { const st = SP(pet.kind).stats, L = (pet.level || 1) - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; }
+function petLabel(stage) { petEl.hidden = false; const s = petStats(); petEl.textContent = `${pet.name} the ${SP(pet.kind).rarity} ${pet.kind} · ${stage} · Lv ${pet.level || 1} · HP ${s.hp} · speed ${speedDots()}`; }
 
 // ================= input =================
 const keys = {};
@@ -1231,19 +1589,21 @@ function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); return t ?
 function writeSave() {
   if (!started) return;
   const stage = state === "ride" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
-  const d = { v: 1, stage, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    pet: { name: pet.name, kind: pet.kind, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
+  const d = { v: 1, stage, eggKind, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
+    pet: { name: pet.name, kind: pet.kind, level: pet.level || 1, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck) };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
 function applySave(d) {
   eggSpot.set(d.egg.x, d.egg.y, d.egg.z); egg.position.copy(eggSpot).add(new V(0, 0.5, 0)); beam.position.copy(eggSpot).add(new V(0, 30, 0));
   me.x = d.me.x; me.y = d.me.y; me.z = d.me.z;
   Object.assign(seen, d.seen || {});
+  if (d.eggKind) setEggKind(d.eggKind);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
-    Object.assign(pet, { name: d.pet.name, kind: d.pet.kind || "Pyrrak", age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
+    setKind(d.pet.kind || "Pyrrak");
+    Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
     state = d.stage; petLabel(state === "baby" ? "baby" : "grown up");
     goal(state === "baby" ? `Walk around with ${pet.name} so it can grow` : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
   }
@@ -1426,9 +1786,10 @@ function frame() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; dragon.root.visible = true;
+      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; setKind(eggKind); pet.level = 1; dragon.root.visible = true;
+      toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
     }
-    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
+    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A baby ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
     prompt(state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : "");
   } else if (state === "ride") {
@@ -1494,7 +1855,7 @@ function frame() {
     }
     dragon.root.position.set(pet.x, pet.y, pet.z);
     dragon.root.rotation.set(pet.bank, -pet.face, pet.pitch, "YXZ");
-    dragon.root.scale.setScalar(pet.scale);
+    dragon.root.scale.setScalar(pet.scale * (SP(pet.kind).size || 1));
     // how fast it's turning: bends the body, and makes it step in place when turning on the spot
     let df = ((pet.face - pet.lastFace + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
     pet.turnRate += ((dt > 0 ? df / dt : 0) - pet.turnRate) * Math.min(1, dt * 8); pet.lastFace = pet.face;
@@ -1593,5 +1954,6 @@ window.__ww = { me, pet, keys, setState: s => { state = s; }, get state() { retu
 frame();
 })();
 </script>
+
 </body>
 </html>

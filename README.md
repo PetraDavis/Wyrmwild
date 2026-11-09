@@ -20,8 +20,13 @@ repository and open the Pages link).
 
 ## What's in it so far
 
-Green Valley: find the glowing egg, carry it to your nest, hatch and name a
-Pyrrak, walk with it until it grows up, then ride and fly it.
+Green Valley: find the glowing egg, carry it to your nest, hatch and name your
+dragon, walk with it until it grows up, then ride and fly it.
+
+Dragon kinds: the egg can hatch any of 28 normal kinds (Common to Legendary;
+rarer kinds hatch less often). Each kind has its own body shape, colours, size,
+speed, HP, claw and breath damage, and its own growth per level. Rarer kinds
+look fancier: glowing horns, wing bones, wing-edge glow and floating sparkles.
 
 Sky Islands: one huge floating island (Sky Haven) and five small ones high
 above Green Valley, with pink
@@ -40,8 +45,8 @@ Press E near someone to talk; nobody repeats a line until you've heard them all.
 Saving: progress saves in your browser every few seconds. Press Continue on the
 start screen to carry on, or New game to start over.
 
-Dragon speed: every kind of dragon has a speed from 1 to 5 (sky dragons are
-fastest). Pyrrak is a 3.
+Dragon speed: every kind of dragon has a speed from 1 to 5 (sky and water
+dragons are fastest, heavy ones slowest).
 
 The Ocean: a gap in the mountains south-east of the nest opens onto a sandy
 beach with palm trees, waves, sea stacks, jumping fish and a lighthouse out in
