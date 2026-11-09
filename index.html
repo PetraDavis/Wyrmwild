@@ -2569,7 +2569,7 @@ function writeSave() {
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
-    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(),
+    shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {}
 }
@@ -2587,6 +2587,7 @@ function applySave(d) {
   if (d.quest) questLoad(d.quest);
   if (d.shop) shopLoad(d.shop);
   if (d.boss) bossLoad(d.boss);
+  if (d.secret) secLoad(d.secret);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
@@ -3007,6 +3008,7 @@ function frame() {
   animDragonAcc(dragon, T);
   updateLava(dt);
   updateBosses(dt);
+  updateSecrets(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -3383,7 +3385,7 @@ function arenaCamera(dt) {
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? "Dark and strangely cold. Nobody knows what's inside" : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
@@ -5391,10 +5393,11 @@ function updateMonsters(dt) {
     let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
     if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
-    if (d.boss) sense = 120;                                                           // bosses hunt you down
+    if (d.boss) sense = 120;
+    if (d.sense) sense = d.sense;                                                           // bosses hunt you down
     // monsters only go after tamers who are riding; on foot you're safe
     if (riding && pd < sense && (d.fly || d.shot || d.under || d.ceil || dy < 14 + d.range)) { if (!m.aggro && d.disguise && m.hurt <= 0) toast(d.disguise, `It's a ${m.kind}!`); m.aggro = true; }
-    if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > (d.boss ? 260 : 90)) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
+    if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > (d.boss ? 260 : d.leash || 90)) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
     m.hurt = Math.max(0, m.hurt - dt);
     const mvk = MOVES[m.kind];
     const own = m.aggro && mvk && mvk.tick ? mvk.tick(m, dt, mid, pd) : false;
@@ -6717,6 +6720,158 @@ function theEnd() {
 }
 const bossSave = () => ({ dd: BOSS.dd, sw: BOSS.sw });
 function bossLoad(d) { BOSS.dd = d.dd || 0; BOSS.sw = !!d.sw; }
+
+// ================= secret paths: the hidden stone chamber in the Crystal Caves (Petra's list, item 10) =================
+// Deep in the Crystal Caves, a ring of giant stone columns hides a sealed chamber. The rock door has strange letters carved on it: P E T R A.
+// Only a LEGENDARY (or better) dragon at your side can wake the stone and open it (Petra: you only need to own a Legendary).
+// Inside sleeps the Stone Titan: a Sky Titan that dug after the stone dragons, got trapped and turned to stone.
+// Beat it and it crumbles, leaving a heavy stone "???" egg. SECRET RULE: no message here ever names the secret dragons.
+MONSTER["Stone Titan"] = { land: "Boss", titan: true, lv: [26, 26], hp: 4.5, dmg: 0.8, speed: 5, atk: "Boulder hurl", range: 20, shot: "#8a8680", big: true, warn: 1.0, sense: 60, leash: 30 };
+MON_DEF["Stone Titan"] = { name: "Stone Titan", sizeM: 8.5, make() {
+  const g = new THREE.Group(), C = c => new THREE.Color(c).convertSRGBToLinear();
+  const stone = new THREE.MeshStandardMaterial({ color: C("#8a8680"), flatShading: true, roughness: 0.95 }), dark = new THREE.MeshStandardMaterial({ color: C("#5e5a56"), flatShading: true, roughness: 0.95 });
+  const gold = new THREE.MeshStandardMaterial({ color: C("#ffc24a"), emissive: C("#ffa21a"), emissiveIntensity: 1.2, roughness: 0.4 });
+  const quartz = new THREE.MeshStandardMaterial({ color: C("#d8e4ff"), emissive: C("#8aa8ff"), emissiveIntensity: 0.4, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 });
+  const chunk = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 1), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.set(Math.random(), Math.random(), Math.random()); m.castShadow = true; g.add(m); return m; };
+  const crack = (x, y, z, len, rx, rz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.035, len, 0.035), gold); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); g.add(m); };
+  // a huge hunched body standing on two thick legs, +x is the front
+  chunk(0.85, stone, 0, 1.9, 0, 1.0, 1.15, 1.05);                 // chest
+  chunk(0.7, dark, -0.15, 1.15, 0, 1.0, 0.9, 1.0);                // belly
+  chunk(0.6, stone, -0.2, 2.7, 0, 1.4, 0.75, 1.5);                // great hunched shoulders
+  const head = chunk(0.36, stone, 0.62, 2.85, 0, 1.3, 0.9, 1.0);  // heavy head pushed forward
+  chunk(0.2, dark, 0.95, 2.7, 0, 1.2, 0.7, 0.9);                  // jaw
+  [1, -1].forEach(s => {
+    // amber eyes that glow like the cracks
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), gold); e.position.set(1.0, 2.95, 0.14 * s); g.add(e);
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.65, 6), dark); horn.position.set(0.5, 3.25, 0.22 * s); horn.rotation.set(s * 0.5, 0, -0.9); g.add(horn);
+    chunk(0.42, dark, 0, 2.55, 0.95 * s);                          // shoulder boulders
+    chunk(0.34, stone, 0.2, 1.85, 1.15 * s, 1, 1.4, 1);            // huge arms
+    chunk(0.4, dark, 0.45, 1.1, 1.2 * s, 1.1, 1, 1.1);             // fists
+    chunk(0.4, stone, -0.05, 0.55, 0.45 * s, 1, 1.4, 1);           // thick legs
+    chunk(0.32, dark, 0.15, 0.14, 0.48 * s, 1.5, 0.5, 1.1);        // feet
+    // broken stone wings folded on its back: it was once a SKY Titan
+    const w = new THREE.Group(); w.position.set(-0.5, 2.8, 0.55 * s); w.rotation.set(s * 0.35, 0, 0.5); g.add(w);
+    for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0), i % 2 ? dark : stone); p.scale.set(0.5, 1.8 - i * 0.25, 0.25); p.position.set(-0.35 * i, 0.45 + i * 0.1, s * 0.12 * i); p.rotation.z = 0.25 * i; p.castShadow = true; w.add(p); }
+  });
+  // gold cracks of old magic all over the stone, and quartz growing out of its back after centuries asleep
+  [[0.75, 2.1, 0.3, 0.7, 0.4, 0.3], [0.8, 1.6, -0.25, 0.5, -0.3, 0.2], [0.55, 2.6, 0.5, 0.45, 0.8, 0.5], [0.3, 1.0, 0.55, 0.4, 0.2, -0.4], [0.62, 2.95, -0.1, 0.3, 0, 1.2], [0.4, 1.3, -0.62, 0.45, -0.5, 0.3], [0.2, 2.2, 0.9, 0.5, 0.3, 0]]
+    .forEach(([x, y, z, l, a, b]) => crack(x, y, z, l, a, b));
+  [[-0.65, 3.1, 0.2, 0.5, 0.3], [-0.75, 2.9, -0.35, 0.4, -0.4], [-0.5, 3.25, -0.05, 0.6, 0]].forEach(([x, y, z, h, t]) => { const q = new THREE.Mesh(new THREE.ConeGeometry(0.1, h, 6), quartz); q.position.set(x, y, z); q.rotation.set(t, 0, 0.5); g.add(q); });
+  return { g, update: (t) => { head.rotation.y = Math.sin(t * 0.5) * 0.15; g.position.y = Math.sin(t * 0.9) * 0.02; } };
+} };
+
+const SEC = { open: false, beat: false, msgT: 0, opening: 0 };
+const CH = { x: CAVES.x + Math.cos(CAVES.a) * 58, z: CAVES.z + Math.sin(CAVES.a) * 58, R: 13 };
+CH.y = height(CH.x, CH.z); CH.door = CAVES.a + Math.PI;                          // the door faces back into the cave
+CH.dx = CH.x + Math.cos(CH.door) * CH.R; CH.dz = CH.z + Math.sin(CH.door) * CH.R;
+const DOOR_H = 14;
+let chDoor = null, chStatue = null, chRubble = null, chDoorBlk = [];
+(function buildChamber() {
+  const C = c => new THREE.Color(c).convertSRGBToLinear();
+  const rockM = new THREE.MeshStandardMaterial({ color: C("#6a6470"), flatShading: true, roughness: 0.95 });
+  const crysM = [new THREE.MeshStandardMaterial({ color: C("#b07aff"), emissive: C("#8a4aff"), emissiveIntensity: 0.6, roughness: 0.2 }),
+    new THREE.MeshStandardMaterial({ color: C("#7ad8ff"), emissive: C("#3aa8ff"), emissiveIntensity: 0.6, roughness: 0.2 })];
+  const N = 18;
+  const column = (x, z, y0, y1, r) => {
+    const h = y1 - y0, geo = new THREE.CylinderGeometry(r * 0.85, r * 1.15, h, 8, Math.max(2, Math.round(h / 4)));
+    const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 1 + Math.sin(p.getY(i) * 0.7 + x) * 0.12 + (Math.random() - 0.5) * 0.16; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, rockM); m.position.set(x, y0 + h / 2, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+    for (let y = y0; y <= y1; y += 7) blockers.push({ x, z, r: r + 0.4, y });
+    if (Math.random() < 0.6) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2.4, 6), crysM[Math.random() < 0.5 ? 0 : 1]); c.position.set(x + (Math.random() - 0.5) * r, y0 + 2 + Math.random() * 6, z + (Math.random() - 0.5) * r); c.rotation.set(Math.random() - 0.5, 0, Math.random() - 0.5); scene.add(c); }
+  };
+  for (let i = 0; i < N; i++) {
+    const a = CH.door + i / N * Math.PI * 2, x = CH.x + Math.cos(a) * CH.R, z = CH.z + Math.sin(a) * CH.R, top = caveRoof(x, z) + 1, y0 = height(x, z) - 1;
+    if (i === 0) column(x, z, y0 + DOOR_H, top, 2.6);              // the stone above the door
+    else column(x, z, y0, top, 2.6);
+  }
+  // the door: a big slab with letters carved into it that glow faintly gold
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 448; const c = cv.getContext("2d");
+  c.fillStyle = "#6a6470"; c.fillRect(0, 0, 256, 448);
+  for (let k = 0; k < 1200; k++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? "0,0,0" : "255,255,255"},${0.05 + Math.random() * 0.07})`; c.fillRect(Math.random() * 256, Math.random() * 448, 2 + Math.random() * 5, 2 + Math.random() * 5); }
+  c.font = "bold 58px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle";
+  "PETRA".split("").forEach((ch, i) => { const y = 60 + i * 82; c.fillStyle = "rgba(30,20,10,0.85)"; c.fillText(ch, 130, y + 3); c.fillStyle = "#e8b04a"; c.fillText(ch, 128, y); });
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
+  const face = new THREE.MeshStandardMaterial({ map: tex, emissive: C("#ffffff"), emissiveMap: tex, emissiveIntensity: 0.25, roughness: 0.9 });
+  chDoor = new THREE.Mesh(new THREE.BoxGeometry(8, DOOR_H, 2.2), [rockM, rockM, rockM, rockM, face, rockM]);
+  const dy = height(CH.dx, CH.dz);
+  chDoor.position.set(CH.dx, dy + DOOR_H / 2 - 0.5, CH.dz); chDoor.rotation.y = Math.atan2(Math.cos(CH.door), Math.sin(CH.door)); chDoor.castShadow = chDoor.receiveShadow = true; scene.add(chDoor);
+  CH.doorY = chDoor.position.y;
+  for (let y = 0; y < DOOR_H; y += 5) { const b = { x: CH.dx, z: CH.dz, r: 4.2, y: dy + y }; blockers.push(b); chDoorBlk.push(b); }
+  // the sleeping statue in the middle, facing the door
+  const inst = MON_DEF["Stone Titan"].make(); chStatue = new THREE.Group(); chStatue.add(inst.g); scene.add(chStatue);
+  chStatue.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(chStatue);
+  chStatue.scale.setScalar(MON_DEF["Stone Titan"].sizeM * MON_UNIT / Math.max(0.2, bb.max.y - bb.min.y));
+  chStatue.position.set(CH.x, CH.y, CH.z); chStatue.rotation.y = -CH.door;
+  // a heap of rubble, shown once the Titan is beaten
+  chRubble = new THREE.Group(); for (let i = 0; i < 9; i++) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8 + Math.random() * 1.2, 0), rockM); r.position.set((Math.random() - 0.5) * 7, 0.3, (Math.random() - 0.5) * 7); r.rotation.set(Math.random(), Math.random(), 0); chRubble.add(r); }
+  chRubble.position.set(CH.x, CH.y, CH.z); chRubble.visible = false; scene.add(chRubble);
+})();
+function openChamber(now) {
+  SEC.open = true; chDoorBlk.forEach(b => { const i = blockers.indexOf(b); if (i >= 0) blockers.splice(i, 1); });
+  if (now) chDoor.visible = false; else SEC.opening = 0.001;
+}
+const titanNow = () => mons.find(m => m.kind === "Stone Titan" && !m.dead);
+const partnerWakes = () => hasDragon() && !pet.small && (state === "ride" || state === "grown") && (TIER[SP(pet.kind).rarity] || 0) >= 5;
+function updateSecrets(dt) {
+  if (!started) return;
+  SEC.msgT -= dt;
+  if (SEC.opening > 0) {   // the door sinks slowly into the floor with a rumble
+    SEC.opening += dt; chDoor.position.y = CH.doorY - SEC.opening / 3 * (DOOR_H + 1); chDoor.position.x = CH.dx + Math.sin(T * 40) * 0.08;
+    if (Math.random() < dt * 8) burstAt(CH.dx + (Math.random() - 0.5) * 8, CH.y + 0.5, CH.dz + (Math.random() - 0.5) * 3, "#9a9490");
+    if (SEC.opening >= 3) { SEC.opening = 0; chDoor.visible = false; }
+  }
+  const who = state === "ride" ? pet : me, dDoor = Math.hypot(who.x - CH.dx, who.z - CH.dz);
+  // at the closed door
+  if (!SEC.open && dDoor < 11 && Math.abs(who.y - CH.y) < 16 && SEC.msgT <= 0) {
+    SEC.msgT = 20;
+    if (partnerWakes()) {
+      toast(`${pet.name} growls at the rock... and the stone wakes up!`, "The great door is sinking into the floor!");
+      openChamber(false); writeSave();
+    } else toast("Strange letters are carved into this rock: P E T R A", "The stone feels warm, as if something behind it is breathing...");
+  }
+  // the Stone Titan: a statue until a rider comes in
+  const t = titanNow();
+  chStatue.visible = !SEC.beat && !t; chRubble.visible = SEC.beat;
+  if (SEC.open && !SEC.beat && !t && !SEC.opening) {
+    const dIn = Math.hypot(who.x - CH.x, who.z - CH.z);
+    if (dIn < CH.R - 2 && Math.abs(who.y - CH.y) < 20) {
+      if (state === "ride") {
+        const m = spawnMonster("Stone Titan", new V(CH.x, CH.y, CH.z), 26); m.aggro = true; m.face = Math.atan2(pet.z - CH.z, pet.x - CH.x); m.home = { x: CH.x, z: CH.z };
+        toast("The statue's eyes light up... THE STONE TITAN!", "It has slept here for a thousand years, and you woke it!");
+      } else if (SEC.msgT <= 0) { SEC.msgT = 15; toast("A giant stone statue...", "Its cracks glow gold. Better be riding your dragon if it ever wakes up"); }
+    }
+  }
+}
+MOVES["Stone Titan"] = {
+  attack(m) {
+    m.mv = ((m.mv || 0) + 1) % 3; const mid = petMid();
+    if (m.mv === 0) {   // BOULDER HURL: rips a boulder out of the floor and throws it
+      lob(m, "#8a8680", 1.3, p => { burstAt(p.x, p.y, p.z, "#b0a8a0"); spray(p, new V(0, 1, 0), "#a09890", 30, 8, 12); if (p.distanceTo(petMid()) < 7 + petRad()) landed(m, 1, "Boulder smash!"); }, 22);
+    } else if (m.mv === 1) {   // CAVE-IN: it stamps and rocks fall from the roof all around you
+      burstAt(m.x, m.y + 0.5, m.z, "#9a9490");
+      for (let i = 0; i < 7; i++) { const a = Math.random() * 6.283, r = i ? 3 + Math.random() * 9 : 0;
+        strikeAt(m, new V(mid.x + Math.cos(a) * r, mid.y, mid.z + Math.sin(a) * r), 3.2, 1.0 + i * 0.15, "#c8b89a", 0.8, "Cave-in!"); }
+    } else {   // STONE GAZE: its golden eyes make your dragon's scales heavy as stone
+      spray(mouth(m), petMid().sub(mouth(m)).normalize(), "#ffc24a", 40, 20, 3);
+      if (nearPet(m, 30) && landed(m, 0.5, "Stone gaze!")) { pet.slow = 5; toast("Stone gaze!", `${pet.name}'s scales feel heavy as stone! Slowed down`); }
+    }
+    return true;
+  },
+  post(m) {   // it never leaves its chamber
+    const dx = m.x - CH.x, dz = m.z - CH.z, d = Math.hypot(dx, dz), lim = CH.R - 4;
+    if (d > lim) { m.x = CH.x + dx / d * lim; m.z = CH.z + dz / d * lim; m.holder.position.set(m.x, m.y, m.z); }
+  },
+  kill(m) {
+    SEC.beat = true; coins += 500; showCoins();
+    const p = new V(CH.x + Math.cos(CH.door) * 3, CH.y, CH.z + Math.sin(CH.door) * 3);
+    const w = addWild("Petralith", "Crystal Caves", p); w.ev = true;
+    toast("The Stone Titan crumbles to rubble!", "Something round was hidden inside it... a heavy stone egg ??? (and 500 coins)");
+    writeSave(); return true;
+  },
+};
+const secSave = () => ({ open: SEC.open, beat: SEC.beat });
+function secLoad(d) { SEC.beat = !!d.beat; if (d.open && !SEC.open) openChamber(true); }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
