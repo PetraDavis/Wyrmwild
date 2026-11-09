@@ -2912,8 +2912,8 @@ function tamerShiny(t, sec) {
   if (t.n === "Sheen") return "Gold";               // "polished" - it flakes off
   const h = hashStr(t.n + t.k);
   if (h % 100 >= SHINY_RATE[sec]) return null;
-  const r = (h >>> 8) % 100;                         // Silver 40, Gold 30, Neon 20, Purple & blue 10
-  return r < 40 ? "Silver" : r < 70 ? "Gold" : r < 90 ? "Neon" : "Purple & blue";
+  const r = (h >>> 8) % 100;                         // Silver 40, Gold 30, Purple & blue 20, Neon 10 (Neon rarest, Petra)
+  return r < 40 ? "Silver" : r < 70 ? "Gold" : r < 90 ? "Purple & blue" : "Neon";
 }
 function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
