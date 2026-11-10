@@ -2872,7 +2872,7 @@ function makePerson(o) {
     { name: "Gorran", title: "Quest Master", topics: [{ label: "Show me the quest board", fn: "quests" }, { label: "Any tips about monsters?", say: ["Monsters only bother tamers who are riding. On foot, they ignore you. Mostly.", "More monsters come out at night. Bring a strong dragon, or stay home.", "The farther lands have tougher monsters. Fire Mountain and Frost Peaks are no picnic.", "If your dragon gets hurt, rest it at the nest. Simple as that."] }], home: P(H.quest), wander: 4, look: { shirt: "#8a2a2a", pants: "#3a2a1c", hair: "#2a1a10", beard: "#2a1a10", wide: 1.2, scale: 1.08 }, lines: [
       "The quest board is right outside. Pick a job, any job! Well, one job at a time.", "A good tamer trains every day. A great tamer trains every day AND eats breakfast.",
       "Strange things live on the Sky Islands. Fly carefully up there.", "Bring me proof you've beaten a monster, and you'll get paid. Soon, soon.", "Back in my day we fought goblins with a stick. A BIG stick.", "The arena's good training. Losing teaches you more than winning.", "Strange lights show up near the pond at night. I'd stay away.", "I've got a list of jobs as long as my beard. Coming soon.", "A strong dragon is nice. A clever tamer is better.", "Fire Mountain monsters hit hard. Bring a tough dragon.", "I once wrestled a bog toad. It was slippery. I lost."] },
-    { name: "Mae", title: "Shopkeeper", topics: [{ label: "Let me see the shop", fn: "shop" }, { label: "What do you sell?", say: ["Hats, scarves, saddles, capes... thirty-two things to wear! And a Bubble Charm so your dragon can swim under the sea.", "Dragon treats! The crunchy kind. They heal, too.", "Each dragon keeps its own outfit. Dress them up at your nest!"] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
+    { name: "Mae", title: "Shopkeeper", topics: [{ label: "Let me see the shop", fn: "shop" }, { label: "What do you sell?", say: ["Hats, scarves, saddles, capes... thirty-two things to wear! A Bubble Charm so your dragon can swim under the sea. And bigger backpacks and bigger pens, for tamers who can't stop collecting.", "Dragon treats! The crunchy kind. They heal, too.", "Each dragon keeps its own outfit. Dress them up at your nest!"] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
       "Welcome! Have a look around. Everything's dragon-sized!", "Saddles, hats, scarves... everything a dragon could want!", "No haggling! ...Okay, a little haggling.", "Dragon treats are the crunchy kind. Dragons love crunchy.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Try the Bubble Charm! Your dragon can swim under the sea with it.", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
     { name: "Professor Hazel", title: "Dragonologist", hazel: true, topics: [{ label: "Tell me about my dragon", fn: "hazelPet" }, { label: "Can I see your dragon books?", fn: "books" }], home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
       "Dark backs, pale bellies! From above they blend into the ground, from below into the sky. Clever, clever dragons.",
@@ -3838,7 +3838,7 @@ const TAMERS = [[{"n":"Timmy","k":"Pyrrak","l":2,"i":["Hi! I'm Timmy! This is my
 let coins = 50;                                   // a few coins to start, so the first arena entry is free-ish
 const bag = [], pen = [], DEX = [];   // DEX: every kind you've hatched (small eggs hatch one of these)
 const penUsed = () => pen.reduce((n, d) => n + (d.small ? 0.25 : 1), 0);   // small dragons take a quarter of a pen spot                         // backpack eggs (kinds) and dragons resting in the pen
-const BAG_MAX = 8, PEN_MAX = 30;   // Petra 2026-11-09: bigger storage
+let BAG_MAX = 8, PEN_MAX = 30;   // Petra 2026-11-09: bigger storage; Mae sells bigger backpacks and pens (shop.js)
 const arena = { entries: 0, won: [false, false, false, false], owed: [false, false, false, false] };
 pet.xp = 0;
 let uiOpen = false;                               // a menu or the battle is on screen
@@ -8958,7 +8958,11 @@ function animAccessory(g, t) {
 // ================= Mae's shop: accessories to wear, dragon treats and the Bubble Charm (Petra 2026-11-09) =================
 // Accessories you buy are yours for good (the wardrobe). Each dragon wears its own set: one per slot (head, neck, chest, back, tail).
 // The Bubble Charm lets ANY of your dragons swim under water (you have to buy it to go under; Petra).
-const WARD = { own: [], bubble: false };
+const WARD = { own: [], bubble: false, bagLv: 0, penLv: 0 };
+// Bigger backpacks and pens (Petra 2026-11-10). Level 0 = what you start with. Each step costs more.
+const BAG_UP = [{ n: 8 }, { n: 12, c: 300, name: "Big Backpack" }, { n: 16, c: 700, name: "Huge Backpack" }, { n: 24, c: 1500, name: "Explorer's Pack" }, { n: 32, c: 3000, name: "Dragon Hoard Bag" }];
+const PEN_UP = [{ n: 30 }, { n: 40, c: 400, name: "Bigger Pen" }, { n: 55, c: 900, name: "Pen Meadow" }, { n: 75, c: 1800, name: "Dragon Ranch" }, { n: 100, c: 3500, name: "Sky Ranch" }];
+function applyStorage() { BAG_MAX = BAG_UP[WARD.bagLv].n; PEN_MAX = PEN_UP[WARD.penLv].n; }
 const ACC = n => ACCESSORIES.find(a => a.name === n);
 const ACC_PRICE = { Bow: 30, Flower: 25, "Party hat": 40, Goggles: 60, "Bunny ears": 50, "Chef hat": 50, "Top hat": 70, "Cowboy hat": 70, "Pirate hat": 80, Headphones: 70, Sunglasses: 60,
   "Wizard hat": 90, "Viking helmet": 100, "Flower crown": 80, Tiara: 130, Crown: 160, Halo: 200,
@@ -8985,11 +8989,15 @@ const redress = () => { if (pet.kind) setKind(pet.kind, pet.shiny); };
 // ---- the shop ----
 let shopTab = "head";
 function shopMenu(n, msg) {
-  const tabs = ["head", "neck", "chest", "back", "tail", "other"];
-  const tabBar = `<div class="choices tabs">${tabs.map(t => `<button data-act="tab" data-i="${tabs.indexOf(t)}" ${t === shopTab ? 'aria-pressed="true"' : ""}>${t === "other" ? "Treats & charms" : SLOT_NAME[t]}</button>`).join("")}</div>`;
+  const tabs = ["head", "neck", "chest", "back", "tail", "other", "storage"];
+  const tabBar = `<div class="choices tabs">${tabs.map(t => `<button data-act="tab" data-i="${tabs.indexOf(t)}" ${t === shopTab ? 'aria-pressed="true"' : ""}>${t === "other" ? "Treats & charms" : t === "storage" ? "Backpacks & pens" : SLOT_NAME[t]}</button>`).join("")}</div>`;
   const grown = state === "grown", worn = grown ? wornOf() : {};
   let rows;
-  if (shopTab === "other") {
+  const upRow = (what, list, lv, act, unit) => { const nx = list[lv + 1];
+    return `<div class="sec"><div><b>${nx ? nx.name : "All done!"}</b> · ${nx ? nx.c + " coins" : "biggest one"}<br><small>${what} now holds <b>${list[lv].n}</b> ${unit}.${nx ? ` This makes it <b>${nx.n}</b>.` : " You have the biggest there is."}</small></div>${nx ? `<button data-act="${act}" ${coins < nx.c ? "disabled" : ""}>Buy</button>` : "<button disabled>Owned</button>"}</div>`; };
+  if (shopTab === "storage") {
+    rows = upRow("Your backpack", BAG_UP, WARD.bagLv, "bagUp", "eggs") + upRow("Your pen", PEN_UP, WARD.penLv, "penUp", "dragons (babies take a quarter space)");
+  } else if (shopTab === "other") {
     rows = `<div class="sec"><div><b>Bubble Charm</b> · ${WARD.bubble ? "yours!" : "250 coins"}<br><small>A magic bubble lets your dragons swim under water. Hold Q or Ctrl over water to go under</small></div>${WARD.bubble ? "<button disabled>Owned</button>" : `<button data-act="bubble" ${coins < 250 ? "disabled" : ""}>Buy</button>`}</div>
       <div class="sec"><div><b>Dragon Treat</b> · 15 coins<br><small>Crunchy! Heals your dragon by 40 HP</small></div><button data-act="treat" ${coins < 15 || !hasDragon() ? "disabled" : ""}>Buy</button></div>`;
   } else {
@@ -9003,6 +9011,11 @@ function shopMenu(n, msg) {
   menuAct = (a, i) => {
     if (a === "tab") { shopTab = tabs[i]; return shopMenu(n, msg); }
     if (a === "bubble") { if (coins < 250 || WARD.bubble) return; coins -= 250; WARD.bubble = true; showCoins(); writeSave(); return shopMenu(n, "The Bubble Charm! Fly over water and hold Q or Ctrl to dive under. Your dragon can breathe down there. Magic!"); }
+    if (a === "bagUp" || a === "penUp") {
+      const bagW = a === "bagUp", list = bagW ? BAG_UP : PEN_UP, k = bagW ? "bagLv" : "penLv", nx = list[WARD[k] + 1];
+      if (!nx || coins < nx.c) return; coins -= nx.c; WARD[k]++; applyStorage(); showCoins(); writeSave();
+      return shopMenu(n, bagW ? `The ${nx.name}! Now you can carry ${nx.n} eggs.` : `The ${nx.name}! Your pen now has room for ${nx.n} dragons. They'll love the space.`);
+    }
     if (a === "treat") { if (coins < 15) return; coins -= 15; showCoins(); pet.hp = Math.min(petMaxHp(), petHp() + 40); writeSave(); return shopMenu(n, `${pet.name} crunches the treat happily. HP ${pet.hp} / ${petMaxHp()}`); }
     const acc = ACCESSORIES[i]; if (!acc) return;
     if (a === "buy") {
@@ -9045,8 +9058,9 @@ function underwaterFx(dt) {
     if (!pet.wasUnder) { pet.wasUnder = true; toast("Splash! Under the water", "The Bubble Charm lets your dragon breathe. Space to swim up"); }
   } else pet.wasUnder = false;
 }
-const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble });
-function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; }
+const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble, bagLv: WARD.bagLv, penLv: WARD.penLv });
+function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble;
+  WARD.bagLv = Math.max(0, Math.min(BAG_UP.length - 1, d.bagLv | 0)); WARD.penLv = Math.max(0, Math.min(PEN_UP.length - 1, d.penLv | 0)); applyStorage(); }
 function petWater() { return WARD.bubble ? -Infinity : waterTop(pet.x, pet.z); }   // with the Bubble Charm, water is like air for your dragon
 
 // ================= lava hurts (Petra 2026-11-09) =================
