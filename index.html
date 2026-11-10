@@ -492,21 +492,15 @@ const R0 = s => Math.max(R0b(s) * gBump(s) * (o.thin || 1) * tailK(s), TS === "t
 let breath = 1;
 const rad = s => R0(s) * (s > 0.33 && s < 0.68 ? breath : 1);
 const BEND = [1.1, 0.7, 0.32, 0.06, 0, 0.06, 0.28, 0.6, 0.95];
-// the hanging tail for hovering: each tail joint bends a little more than the one before, so it makes one smooth arc
-const CURL = (() => { const out = BASE.map(b => b.slice()), step = [0.12, 0.26, 0.34, 0.38];   // bend added at joints 4,3,2,1 (hip to tip)
-  let ang = 0; for (let k = 3; k >= 0; k--) { ang += step[3 - k]; const a = BASE[k + 1], b = BASE[k], dx = b[0] - a[0], dy = b[1] - a[1], c = Math.cos(ang), sn = Math.sin(ang), prev = out[k + 1];
-    out[k] = [prev[0] + dx * c - dy * sn, prev[1] + dx * sn + dy * c, b[2]]; }
-  return out; })();
-const _cv = new V();
 function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
-    if (hoverK > 0.01 && k < 4) v.lerp(_cv.set(...CURL[k]), hoverK);   // hovering: the tail hangs down in a soft curve (Petra)
+    if (hoverK > 0.01 && k < 3 && !o.skyRun) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
     if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
-    if (k < 4 && hoverK < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
+    if (k < 4 && (hoverK < 0.5 || o.skyRun)) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.12 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w + look.yaw * 0.15 * w * idleK; }   // the neck only leans a little; the HEAD does the turning
     v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
@@ -1082,17 +1076,25 @@ function update(t, walk, flap, dt, bend = 0) {
   wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
     if (shells.length) { w.pivot.rotation.y = w.zs * f * -0.52; w.pivot.rotation.z = 0; w.pivot.scale.set(1 - 0.45 * f, 1 - 0.45 * f, 1 - 0.78 * f); w.pivot.position.y = w.y0 - f * 0.22; } });
   const airRun = flap && airPuffs.length;   // skyRun dragons bound through the air instead of tucking their legs
-  if (api) { const c = walkT; api.airBob = airRun ? 0.28 * Math.sin(c - 0.6) : hoverK * 0.16 * Math.sin(wingPh - 1.2); api.airPitch = airRun ? 0.16 * Math.cos(c) : hoverK * (0.22 + 0.04 * Math.sin(wingPh)); }   // hover: each downstroke lifts the body a little, nose tipped up   // rise during the stretch, dip into the next push; nose up as it pushes off
+  if (api) { const c = walkT; const tread = airRun && hoverK > 0.5; api.airBob = tread ? 0.05 * Math.sin(c * 2) : airRun ? 0.28 * Math.sin(c - 0.6) : hoverK * 0.16 * Math.sin(wingPh - 1.2); api.airPitch = tread ? 0.04 * Math.sin(c) : airRun ? 0.16 * Math.cos(c) : hoverK * (0.22 + 0.04 * Math.sin(wingPh)); }   // hover: each downstroke lifts the body a little, nose tipped up   // rise during the stretch, dip into the next push; nose up as it pushes off
   walkT += dt * (airRun ? 3.4 * (1 - 0.35 * hoverK) : 8 * walk);   // air leaps: one bound every ~1.8 s
   legs.forEach((g, i) => {
     const ph = (i === 0 || i === 3) ? 0 : Math.PI;
+    if (airRun && hoverK > 0.5) {   // HOVERING on air (Petra): treads the air in place, diagonal pairs stepping on glowing puffs, paws kept flat
+      const ph = (i === 0 || i === 3) ? 0 : Math.PI, c = walkT * 1.6 + ph, lift = Math.max(0, Math.sin(c)), k = Math.min(1, dt * 8), front = i >= 2;
+      g.rotation.z += (Math.cos(c) * 0.22 - g.rotation.z) * k;
+      const kn = g.userData.knee; if (kn) kn.rotation.z += ((front ? 0.9 : -0.7) * lift - kn.rotation.z) * k;
+      const an = g.userData.ankle; if (an) an.rotation.z += (-(g.rotation.z + (kn ? kn.rotation.z : 0)) - an.rotation.z) * k;   // paw stays flat, like standing on a floor
+      const pf = airPuffs[i]; if (pf) { const down = 1 - lift; pf.material.opacity += (0.1 + 0.55 * down * down - pf.material.opacity) * Math.min(1, dt * 10); pf.scale.set(1.2 + down * 0.5, 0.4, 1.2 + down * 0.5); }
+      return;
+    }
     if (airRun) {   // BOUNDING through the air (Petra): legs stretch out together (front reach forward, back kick back), then gather under the body and push off a glowing puff
       const c = walkT, str = Math.sin(c), front = i >= 2, k = Math.min(1, dt * 7);
       const hip = front ? str * 0.95 : -str * 0.9;                      // stretched: front forward, back legs back; gathered: both tucked under the belly
       g.rotation.z += (hip - g.rotation.z) * k;
       const tuck = Math.max(0, -str);                                   // knees fold while gathered
       const kn = g.userData.knee; if (kn) kn.rotation.z += ((front ? 1.1 : -0.5) * tuck + (front ? 0.15 : 0) - kn.rotation.z) * k;
-      const an = g.userData.ankle; if (an) an.rotation.z += ((front ? -0.5 : 0.6) * tuck + (front ? 0 : -0.5) * Math.max(0, str) - an.rotation.z) * k;
+      const an = g.userData.ankle; if (an) an.rotation.z += ((front ? (-0.5 * tuck) : -(g.rotation.z + (kn ? kn.rotation.z : 0) + (api && api.airPitch || 0))) - an.rotation.z) * k;   // hind paws stay flat on the 'floor' of air (Petra)
       const pf = airPuffs[i]; if (pf) { const push = Math.max(0, -Math.sin(c + (front ? 0.5 : -0.3))) ** 2; pf.material.opacity += (0.08 + 0.7 * push - pf.material.opacity) * Math.min(1, dt * 10); const sc = 1.1 + push * 1.1; pf.scale.set(sc, 0.4, sc); }
       return;
     }
