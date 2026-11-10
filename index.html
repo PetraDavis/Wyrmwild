@@ -8191,7 +8191,7 @@ const EVT = {
   fog:     { name: "Fog", lands: ["Green Valley", "Deep Forest"], kind: "Wispwyrm", len: [160, 260], msg: "A thick fog is rolling in", hint: "Wispwyrm eggs appear only in the fog",
              sky: "#cdd3d6", bg: "#cdd3d6", fog: "#cdd3d6", hemi: "#e0e6ea", fogFar: 38, dark: 0.2 },
 };
-const EVS = { cur: null, t: 0, land: null, eggs: {}, amt: 0, here: 0, roll: 30, eggT: 20, wasNight: false, boltT: 4, metT: 1, bigT: 20 };
+const EVS = { cur: null, t: 0, land: null, eggs: {}, amt: 0, here: 0, roll: 150, eggT: 20, wasNight: false, boltT: 4, metT: 1, bigT: 20 };
 const evC = h => new THREE.Color(h);
 // ---- the event banner ----
 const evEl = document.createElement("div"); evEl.className = "plate"; evEl.hidden = true;
@@ -8282,6 +8282,7 @@ function startEvent(id, land, t) {
 }
 function endEvent(quiet) {
   const e = EVT[EVS.cur]; if (!e) return;
+  EVS.roll = Math.max(EVS.roll, 300);   // a quiet spell after every event
   if (!quiet && started) toast(e.night ? (e.name.includes("Moon") ? "The moon is back to normal" : "The meteor shower is over") : e.day ? "The sun is back!" : `The ${e.name.toLowerCase()} is over`, "Any event eggs you haven't found are still out there");
   EVS.cur = null; EVS.land = null; epSet(null);
   writeSave();
@@ -8310,14 +8311,14 @@ function updateEvents(dt) {
     const e = EVT[EVS.cur];
     if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
     if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
-      const id = r < 0.1 ? "red" : r < 0.18 ? "blue" : r < 0.28 ? "harvest" : r < 0.4 ? "meteor" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }
+      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
   }
   if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
   else if (hasDragon() && state !== "arena") {
     EVS.roll -= dt;
-    if (EVS.roll <= 0) { EVS.roll = 40 + Math.random() * 30; const r = Math.random(), sunUp = dayTime > 0.08 && dayTime < 0.42;
-      if (!isNight && sunUp && r < 0.04) startEvent("eclipse");
-      else if (r < 0.24) startEvent(["sand", "blizzard", "storm", "fog"][Math.floor(Math.random() * 4)]); }
+    if (EVS.roll <= 0) { EVS.roll = 90 + Math.random() * 60; const r = Math.random(), sunUp = dayTime > 0.08 && dayTime < 0.42;   // rare (Petra 2026-11-10): weather about once per 40 minutes of play
+      if (!isNight && sunUp && r < 0.012) startEvent("eclipse");
+      else if (r < 0.06) startEvent(["sand", "blizzard", "storm", "fog"][Math.floor(Math.random() * 4)]); }
   }
   const e = EVT[EVS.cur];
   EVS.amt += ((e ? 1 : 0) - EVS.amt) * Math.min(1, dt * 0.5);
