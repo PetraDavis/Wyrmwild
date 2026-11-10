@@ -352,15 +352,6 @@ function paint(p) {
     for (let i = 0; i < 160; i++) { g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H * 0.5, 6 + Math.random() * 16, 4 + Math.random() * 9, Math.random() * 3, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
   }
-  if (p.foxMarks) { // Vulpyre (Petra: MORE red): a rich fox-red saddle, red flame tongues licking down both flanks, a red stripe up the neck, red bands near the rump
-    const hg = g.createLinearGradient(330, 0, 740, 0); hg.addColorStop(0, "rgba(0,0,0,0)"); hg.addColorStop(0.15, p.foxMarks); hg.addColorStop(0.88, p.foxMarks); hg.addColorStop(1, "rgba(0,0,0,0)");
-    for (let y = 0; y < H * 0.5; y++) { const k = Math.max(0, 1 - Math.abs(y - H * 0.25) / (H * 0.15)); if (!k) continue; g.globalAlpha = Math.min(1, k * 1.8) * 0.9; g.fillStyle = hg; g.fillRect(330, y, 410, 1); }
-    g.globalAlpha = 0.92; g.fillStyle = p.foxMarks;
-    [1, -1].forEach(sd => { for (let x = 380, i = 0; x < 720; x += 34, i++) { const len = [46, 32, 54, 38][i % 4], w = 11, yb = H * 0.25 + sd * 26, yt = yb + sd * len; g.beginPath(); g.moveTo(x - w, yb); g.quadraticCurveTo(x - w * 0.3, (yb + yt) / 2, x - 10, yt); g.quadraticCurveTo(x + w * 0.8, (yb + yt) / 2, x + w, yb); g.closePath(); g.fill(); } });   // flame tongues licking down from the saddle, leaning back like it runs
-    for (let x = 720; x < 1000; x += 2) { const w = 15 * (1 - (x - 720) / 330); g.fillRect(x, H * 0.25 - w, 2, w * 2); }   // red stripe up the back of the neck to the head
-    [[300, 9], [262, 7], [228, 5]].forEach(([x, w]) => { for (let y = 0; y < H; y++) { const up = Math.sin(y / H * Math.PI * 2); if (up > -0.2) { g.globalAlpha = 0.85 * Math.min(1, (up + 0.2) * 3); g.fillRect(x - w, y, w * 2, 1); } } });   // red rings round the base of the tails
-    g.globalAlpha = 1;
-  }
   // glow markings
   const e = glowC.getContext("2d");
   e.fillStyle = "#000"; e.fillRect(0, 0, W, H);
@@ -372,24 +363,21 @@ function paint(p) {
       [0.17, 0.33].forEach(v => { const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2; e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill(); });
     }
     e.fillRect(0, H * 0.245, 150, 3);
-  } else if (pat === "foxfire") {   // Vulpyre (Petra: mystical + magical): a sweeping spirit tendril on each flank that ends in a spiral, flame wisps rising off it, a crescent moon on the shoulder, a little constellation, and a rune line up the neck
-    [[g, p.glow, p.glow2 || p.glow, 0], [e, p.glow, p.glow2 || p.glow, 12]].forEach(([c, col, col2, blur]) => {
-      c.save(); c.globalAlpha = 1; c.fillStyle = c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = c.lineJoin = "round";
+  } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, fresh): glowing FOX-RED swirls flowing from the spine down both sides, smaller ones up the neck
+    const red = p.foxMarks || p.glow, hot = p.foxGlow || red;   // the glow is fox red too, not flame orange
+    const swirl = (c, x, sd, len, r0, lw) => {   // a stroke from the spine curving down the side, ending in a spiral curl
+      const Y = v => H * 0.25 + sd * v, pts = [];
+      for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([x - t * len * 0.35 + Math.sin(t * Math.PI) * len * 0.25, 4 + t * len]); }
+      const [ex, ev] = pts[pts.length - 1]; for (let a = 0; a < 8; a += 0.22) { const r = r0 * (1 - a / 9); pts.push([ex + r0 - Math.cos(a) * r, ev - r0 * 0.15 + Math.sin(a) * r * 0.9 - (a > 0 ? 0 : 0)]); }
+      for (let i = 1; i < pts.length; i++) { const t = i / pts.length; c.lineWidth = 1.5 * Math.max(lw * 0.3, lw * (0.45 + 0.55 * Math.sin(Math.min(1, t * 1.6) * Math.PI / 2)) * (1 - t * 0.55)); c.beginPath(); c.moveTo(pts[i - 1][0], Y(pts[i - 1][1])); c.lineTo(pts[i][0], Y(pts[i][1])); c.stroke(); }
+    };
+    [[g, red, 0], [e, hot, 10]].forEach(([c, col, blur]) => {
+      c.save(); c.globalAlpha = 1; c.strokeStyle = c.fillStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = c.lineJoin = "round";
+      c.lineWidth = 6; c.beginPath(); c.moveTo(340, H * 0.25); c.lineTo(980, H * 0.25); c.stroke();   // a fine line down the spine joins them
       [1, -1].forEach(sd => {
-        const Y = v => H * 0.25 + sd * v;   // v = how far down the side from the spine
-        const pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, w = 1 - t; pts.push([w * w * w * 700 + 3 * w * w * t * 600 + 3 * w * t * t * 500 + t * t * t * 450, w * w * w * 22 + 3 * w * w * t * 64 + 3 * w * t * t * 30 + t * t * t * 38]); }
-        const cx = 450, cv = 50; for (let a = 0; a < 7.5; a += 0.25) { const r = 16 * (1 - a / 8.5); pts.push([cx - 4 + Math.cos(a + 1.2) * r * -1, cv + Math.sin(a + 1.2) * r]); }   // the tendril curls into a spiral at the hip
-        for (let i = 1; i < pts.length; i++) { c.lineWidth = Math.max(2.5, 12 * Math.sin(Math.min(1, i / pts.length * 1.15) * Math.PI) ** 0.6 * (1 - i / pts.length * 0.6)); c.beginPath(); c.moveTo(pts[i - 1][0], Y(pts[i - 1][1])); c.lineTo(pts[i][0], Y(pts[i][1])); c.stroke(); }
-        [[625, 62, 40], [565, 56, 36], [510, 40, 28]].forEach(([x, v, len]) => { const yb = Y(v), yt = Y(v - len), w = 8; c.beginPath(); c.moveTo(x - w, yb); c.quadraticCurveTo(x - w * 0.2, (yb + yt) / 2, x + len * 0.45, yt); c.quadraticCurveTo(x + w, (yb + yt) / 2, x + w, yb); c.closePath(); c.fill(); });   // flame wisps rising off the tendril
-        c.lineWidth = 6; c.beginPath(); c.arc(662, Y(44), 14, sd > 0 ? 0.6 : -2.6, sd > 0 ? 3.7 : 0.5); c.stroke();   // crescent moon on the shoulder
-        const st = [[520, 74], [548, 82], [580, 76], [598, 88]]; c.lineWidth = 2; c.beginPath(); st.forEach(([x, v], i) => i ? c.lineTo(x, Y(v)) : c.moveTo(x, Y(v))); c.stroke();
-        st.forEach(([x, v]) => { c.beginPath(); c.arc(x, Y(v), 4.5, 0, Math.PI * 2); c.fill(); });   // a little constellation under the tendril
+        [[400, 46, 11, 9], [460, 60, 14, 11], [525, 70, 16, 12], [590, 66, 15, 12], [650, 56, 13, 10], [700, 44, 10, 8]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));   // big swirls down the body
+        [[760, 30, 7, 6], [830, 26, 6, 5], [900, 22, 5, 4]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));                                   // little ones up the neck
       });
-      for (let x = 700; x < 960; x += 4) { c.lineWidth = 3.5 * (1 - (x - 700) / 300); c.beginPath(); c.moveTo(x, H * 0.25); c.lineTo(x + 4, H * 0.25); c.stroke(); }
-      [1, -1].forEach(sd => [[790, 30, 9], [880, 26, 7]].forEach(([x, v, r0]) => { c.lineWidth = 3; c.beginPath(); for (let a2 = 0; a2 < 9; a2 += 0.25) { const r = r0 * (1 - a2 / 10); c.lineTo(x + Math.cos(a2) * r, H * 0.25 + sd * v + Math.sin(a2) * r * sd); } c.stroke(); }));   // little spirit spirals on the neck
-      [760, 830, 900].forEach(x => { c.beginPath(); c.moveTo(x, H * 0.25 - 6); c.lineTo(x + 4, H * 0.25); c.lineTo(x, H * 0.25 + 6); c.lineTo(x - 4, H * 0.25); c.closePath(); c.fill(); });   // rune diamonds up the neck
-      c.fillStyle = c.shadowColor = col2;
-      [[480, 0.1], [600, 0.42], [650, 0.08], [470, 0.4], [690, 0.4], [540, 0.06]].forEach(([x, v]) => { c.beginPath(); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = k % 2 ? 1.2 : 4; c.lineTo(x + Math.cos(a) * rr, v * H + Math.sin(a) * rr); } c.fill(); });
       c.restore();
     });
   } else if (pat === "eclipse") {   // thin lines of sunlight along the spine and flanks, like light leaking round the moon
@@ -1428,9 +1416,9 @@ const SPECIES = [
     sp: { horns: "antler", antlerScale: 1.5, antlerGlow: true, wings: "bat", wingScale: 1.15, back: "fur", tail: "tuft", frill: "fur", pattern: "streaks", glow: 1.4, eyes: 1.2, leaves: true },
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
-    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c4622c", foxMarks2: "#e07a20", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
+    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c4622c", foxMarks2: "#e07a20", foxGlow: "#b8381a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
     sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Magical foxfire markings: a spirit swirl with rising flames on each side, a crescent moon on each shoulder, tiny star constellations, runes up the neck and a foxfire gem on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing fox-red swirls flow down its sides and up its neck, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
