@@ -10603,11 +10603,24 @@ function pauseOpen() {
   openMenu("Paused", `<p>${PAUSED ? "The game is paused." : "You're playing with friends, so the world keeps going while this is open."}</p>
     <div class="sec"><div><b>Keep playing</b><br><small>or press Esc</small></div><button data-act="resume">Resume</button></div>
     <div class="sec"><div><b>How to play</b><br><small>All the keys</small></div><button data-act="how">Show</button></div>
+    <div class="sec"><div><b>Settings</b><br><small>Music, sounds, mouse speed, shadows</small></div><button data-act="set">Open</button></div>
     ${mpOn() ? "" : `<div class="sec"><div><b>Multiplayer</b><br><small>Host or join a friend's game</small></div><button data-act="mp">Open</button></div>`}
     <div class="sec"><div><b>Save and quit</b><br><small>Back to the home screen (your game is saved)</small></div><button data-act="quit">Quit</button></div>`, () => { PAUSED = false; lockMouse(); });
   menuAct = a => {
     if (a === "resume") return closeMenu();
     if (a === "how") { showPane("how"); const h = $("paneBody").innerHTML.replace(/<h3>How to play<\/h3>/, ""); openMenu("How to play", h, () => { PAUSED = false; lockMouse(); }); menuAct = () => {}; return; }
+    if (a === "set") {   // the same settings as the home screen (Petra 2026-11-10)
+      showPane("set"); const h = $("paneBody").innerHTML.replace(/<h3>Settings<\/h3>/, "").replace(/class="setRow"/g, `class="setRow" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:10px 0"`); $("paneBody").innerHTML = "";
+      openMenu("Settings", h + `<div class="choices"><button data-act="back">Back</button></div>`, () => { PAUSED = false; lockMouse(); });
+      const on = (id, ev, f) => { const el = $(id); if (el) el[ev] = f; };
+      on("sMusic", "oninput", e => { SET.music = +e.target.value; applySettings(); });
+      on("sSfx", "oninput", e => { SET.sfx = +e.target.value; applySettings(); });
+      on("sMouse", "oninput", e => { SET.mouse = +e.target.value; applySettings(); });
+      on("sInv", "onchange", e => { SET.invert = e.target.checked; applySettings(); });
+      on("sShadow", "onchange", e => { SET.shadows = e.target.checked; applySettings(); });
+      on("sKeys", "onchange", e => { SET.keys = e.target.checked; applySettings(); });
+      menuAct = b => { if (b === "back") { menuEl._onClose = null; menuEl.hidden = true; uiOpen = false; pauseOpen(); } }; return;
+    }
     if (a === "mp") { menuEl._onClose = null; closeMenu(); PAUSED = false; return mpPanel(true); }
     if (a === "quit") { PAUSED = false; writeSave(); setTimeout(() => location.reload(), 150); }
   };
