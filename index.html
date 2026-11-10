@@ -352,8 +352,9 @@ function paint(p) {
     for (let i = 0; i < 160; i++) { g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H * 0.5, 6 + Math.random() * 16, 4 + Math.random() * 9, Math.random() * 3, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
   }
-  if (p.foxMarks) { // Vulpyre: a soft fox-red blush along the spine that fades into the white, like a fox's back
-    for (let y = 0; y < H * 0.5; y++) { const k = Math.max(0, 1 - Math.abs(y - H * 0.25) / (H * 0.2)); if (!k) continue; g.globalAlpha = Math.min(1, k * 1.6) * 0.75; g.fillStyle = p.foxMarks; g.fillRect(60, y, 880, 1); }
+  if (p.foxMarks) { // Vulpyre: a soft fox-red saddle on the back only (not the rump or neck), fading into the white
+    const hg = g.createLinearGradient(380, 0, 700, 0); hg.addColorStop(0, "rgba(0,0,0,0)"); hg.addColorStop(0.25, p.foxMarks); hg.addColorStop(0.75, p.foxMarks); hg.addColorStop(1, "rgba(0,0,0,0)");
+    for (let y = 0; y < H * 0.5; y++) { const k = Math.max(0, 1 - Math.abs(y - H * 0.25) / (H * 0.11)); if (!k) continue; g.globalAlpha = k * k * 0.55; g.fillStyle = hg; g.fillRect(380, y, 320, 1); }
     g.globalAlpha = 1;
   }
   // glow markings
@@ -367,21 +368,16 @@ function paint(p) {
       [0.17, 0.33].forEach(v => { const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2; e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill(); });
     }
     e.fillRect(0, H * 0.245, 150, 3);
-  } else if (pat === "foxfire") {   // Vulpyre: curling spirit-flame swirls down the flanks, a line on the spine, and tiny star sparks; painted fox-red on the skin AND glowing
-    const sw = [];
-    for (let x = 150; x < 820; x += 78) [1, -1].forEach(s => sw.push([x, s]));
-    const stars = Array.from({ length: 40 }, () => [80 + Math.random() * 800, (0.06 + Math.random() * 0.38) * H, 1 + Math.random() * 2]);
+  } else if (pat === "foxfire") {   // Vulpyre (Petra: fit the body better): three sleek flame marks on each flank leaning toward the head, a fine line up the back of the neck, a few sparks; nothing on the rump
     [[g, p.glow, p.glow2 || p.glow, 0], [e, p.glow, p.glow2 || p.glow, 12]].forEach(([c, col, col2, blur]) => {
-      c.save(); c.globalAlpha = 1; c.strokeStyle = c.fillStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineWidth = 6; c.lineCap = c.lineJoin = "round";
-      c.beginPath(); for (let x = 60; x < 900; x += 8) c.lineTo(x, H * 0.25 + Math.sin(x * 0.03) * 3); c.stroke();
-      sw.forEach(([x, s]) => {
-        const y0 = H * 0.25 + s * 6; c.beginPath(); c.moveTo(x, y0);
-        c.bezierCurveTo(x + 18, y0 + s * 16, x - 14, y0 + s * 30, x + 6, y0 + s * 40);
-        for (let a = 0; a < 5.5; a += 0.3) { const r = 9 * (1 - a / 6); c.lineTo(x + 15 + Math.cos(a * s + 3.14) * r, y0 + s * 40 + Math.sin(a * s + 3.14) * r); }
-        c.stroke(); c.beginPath(); c.arc(x + 40, y0 + s * 22, 3, 0, Math.PI * 2); c.fill();
-      });
+      c.save(); c.globalAlpha = 1; c.fillStyle = c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = "round";
+      [1, -1].forEach(sd => [[450, 44, 9], [530, 54, 11], [610, 42, 9]].forEach(([x, len, w]) => {
+        const yb = H * 0.25 + sd * 60, yt = yb - sd * len, tx = x + len * 0.55, ym = (yb + yt) / 2;
+        c.beginPath(); c.moveTo(x - w, yb); c.quadraticCurveTo(x - w * 0.4, ym, tx, yt); c.quadraticCurveTo(x + w * 0.9, ym + sd * 6, x + w, yb); c.closePath(); c.fill();
+      }));
+      c.beginPath(); c.lineWidth = 4; c.moveTo(700, H * 0.25); for (let x = 700; x < 970; x += 6) { c.lineWidth = 4 * (1 - (x - 700) / 330); c.lineTo(x, H * 0.25); } c.stroke();
       c.fillStyle = c.shadowColor = col2;
-      stars.forEach(([x, y, r]) => { c.beginPath(); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = k % 2 ? r * 0.4 : r * 1.6; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.fill(); });
+      [[495, 0.08], [575, 0.42], [655, 0.1], [470, 0.4], [690, 0.36]].forEach(([x, v]) => { c.beginPath(); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = k % 2 ? 1.2 : 4; c.lineTo(x + Math.cos(a) * rr, v * H + Math.sin(a) * rr); } c.fill(); });
       c.restore();
     });
   } else if (pat === "eclipse") {   // thin lines of sunlight along the spine and flanks, like light leaking round the moon
@@ -498,7 +494,7 @@ function spinePts(t, bend = 0) {
     const v = new V(x, y, z);
     if (hoverK > 0.01 && k < 3 && !o.foxTails) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
-    if (o.foxTails && k < 3) { v.x = BASE[3][0] - [0.3, 0.2, 0.1][k]; v.y = BASE[3][1] - [0.12, 0.06, 0.02][k]; v.z = 0; }   // no dragon tail at all: the spine just rounds off at the rump
+    if (o.foxTails && k < 3) { v.x = BASE[3][0] - [0.12, 0.08, 0.04][k]; v.y = BASE[3][1] - 0.02; v.z = 0; }   // no dragon tail at all: the spine just rounds off at the rump
     if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
     if (k < 4 && hoverK < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
@@ -1171,7 +1167,7 @@ function updateFoxTails(t) {
     const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
     if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
     f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
-    fillTube(f.mesh.geometry, f.pts, u => u < 0.6 ? 0.07 + 0.15 * Math.sin(u / 0.6 * Math.PI / 2) ** 1.4 : 0.22 * Math.sqrt(Math.max(0, 1 - ((u - 0.6) / 0.4) ** 2)) , 1, 1, true);   // slim root, full plume, softly rounded tip
+    fillTube(f.mesh.geometry, f.pts, u => u < 0.6 ? 0.15 + 0.07 * Math.sin(u / 0.6 * Math.PI / 2) ** 1.4 : 0.22 * Math.sqrt(Math.max(0, 1 - ((u - 0.6) / 0.4) ** 2)) , 1, 1, true);   // slim root, full plume, softly rounded tip
   });
 }
 // ---------- walking on air (wingless dragons that fly anyway): glowing puffs under each paw ----------
@@ -1422,7 +1418,7 @@ const SPECIES = [
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
     pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#b8360c", foxMarks2: "#e07a20", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
     sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing foxfire swirls run down its sides, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Three glowing foxfire flame marks on each side, a soft fox-red saddle on its back, and a foxfire gem on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
