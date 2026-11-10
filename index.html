@@ -496,11 +496,12 @@ function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
+    if (hoverK > 0.01 && k < 3) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down in a soft curve (Petra)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
     if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
-    if (k < 4) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
-    if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.35 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w + look.yaw * 0.45 * w * idleK; }
+    if (k < 4 && hoverK < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
+    if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.12 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w + look.yaw * 0.15 * w * idleK; }   // the neck only leans a little; the HEAD does the turning
     v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
   });
@@ -1056,7 +1057,7 @@ function update(t, walk, flap, dt, bend = 0) {
   const fwd = new V(end.T.x, end.T.y * 0.25, end.T.z).normalize();
   const side = new V().crossVectors(fwd, UP).normalize(), up = new V().crossVectors(side, fwd);
   hb.makeBasis(fwd, up, side); hq.setFromRotationMatrix(hb).multiply(tilt);
-  head.quaternion.copy(hq).multiply(headTurn.setFromEuler(_eul.set(0, -bendNow * 0.35 + look.yaw * 0.6 * idleK, look.pitch * 0.45 * idleK, 'YXZ')));
+  head.quaternion.copy(hq).multiply(headTurn.setFromEuler(_eul.set(0, -bendNow * 0.35 + look.yaw * 1.35 * idleK, look.pitch * 0.8 * idleK, 'YXZ')));
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
   updateHeads(t, end, fwd, side, up);
   if (o.ghost) { const k = 0.5 + 0.5 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1); fadeAll(0.38 + 0.5 * k); M.wing.opacity = 0.3 + 0.45 * k; }   // the WHOLE dragon fades in and out like fog (legs and head too)
@@ -1123,12 +1124,12 @@ function updateHeads(t, end, fwd, side, up) {
   extraHeads.forEach(e => {
     lookStep(e.L, _dt, 0.9); const lk = 0.45 + 0.55 * idleK, ly = e.L.yaw * lk, lp = e.L.pitch * lk;
     const az = Math.abs(e.z), bob = Math.sin(t * 1.6 + e.ph) * 0.08;
-    _c.copy(head.position).addScaledVector(side, e.z * 2.1 + ly * 0.45).addScaledVector(up, -az * 0.35 + bob + lp * 0.3).addScaledVector(fwd, -az * 0.4 + Math.sin(t * 1.1 + e.ph) * 0.05);   // head
+    _c.copy(head.position).addScaledVector(side, e.z * 2.1 + ly * 0.12).addScaledVector(up, -az * 0.35 + bob + lp * 0.1).addScaledVector(fwd, -az * 0.4 + Math.sin(t * 1.1 + e.ph) * 0.05);   // head
     _a.copy(base.p).addScaledVector(side, e.z * 0.12);   // each extra neck BRANCHES out of the main neck, so the belly flows smoothly from one into the other                                                                                                                       // neck root on the shoulders
     _b.copy(_a).addScaledVector(tan, _a.distanceTo(_c) * 0.45).addScaledVector(side, e.z * 0.9);   // leaves along the main neck first, then curves out                                                                                // bend
     e.pts.forEach((q, i) => { const u = i / 30, w = 1 - u; q.set(w * w * _a.x + 2 * w * u * _b.x + u * u * _c.x, w * w * _a.y + 2 * w * u * _b.y + u * u * _c.y, w * w * _a.z + 2 * w * u * _b.z + u * u * _c.z); });
     fillTube(e.tube.geometry, e.pts, u => (r0 + (r1 - r0) * u) * (u > 0.94 ? 0.92 : 1), 0.9, 1.05, false, _e.copy(fwd).addScaledVector(up, -0.15));   // a smooth tapered neck, like the main one
-    e.h.position.copy(_c); e.h.quaternion.copy(hq).multiply(_q.setFromEuler(_eul.set(0, -e.z * 0.35 + Math.sin(t * 0.8 + e.ph) * 0.15 + ly * 0.9, lp * 0.6, 'YXZ')));   // each head turns to look on its own
+    e.h.position.copy(_c); e.h.quaternion.copy(hq).multiply(_q.setFromEuler(_eul.set(0, -e.z * 0.35 + Math.sin(t * 0.8 + e.ph) * 0.15 + ly * 1.5, lp * 0.9, 'YXZ')));   // each head turns to look on its own
   });
 }
 // ---------- walking on air (wingless dragons that fly anyway): glowing puffs under each paw ----------
