@@ -363,20 +363,19 @@ function paint(p) {
       [0.17, 0.33].forEach(v => { const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2; e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill(); });
     }
     e.fillRect(0, H * 0.245, 150, 3);
-  } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, fresh): glowing FOX-RED swirls flowing from the spine down both sides, smaller ones up the neck
-    const red = p.foxMarks || p.glow, hot = p.foxGlow || red;   // the glow is fox red too, not flame orange
-    const swirl = (c, x, sd, len, r0, lw) => {   // a stroke from the spine curving down the side, ending in a spiral curl
-      const Y = v => H * 0.25 + sd * v, pts = [];
-      for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([x - t * len * 0.35 + Math.sin(t * Math.PI) * len * 0.25, 4 + t * len]); }
-      const [ex, ev] = pts[pts.length - 1]; for (let a = 0; a < 8; a += 0.22) { const r = r0 * (1 - a / 9); pts.push([ex + r0 - Math.cos(a) * r, ev - r0 * 0.15 + Math.sin(a) * r * 0.9 - (a > 0 ? 0 : 0)]); }
-      for (let i = 1; i < pts.length; i++) { const t = i / pts.length; c.lineWidth = 1.5 * Math.max(lw * 0.3, lw * (0.45 + 0.55 * Math.sin(Math.min(1, t * 1.6) * Math.PI / 2)) * (1 - t * 0.55)); c.beginPath(); c.moveTo(pts[i - 1][0], Y(pts[i - 1][1])); c.lineTo(pts[i][0], Y(pts[i][1])); c.stroke(); }
-    };
-    [[g, red, 0], [e, hot, 10]].forEach(([c, col, blur]) => {
-      c.save(); c.globalAlpha = 1; c.strokeStyle = c.fillStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = c.lineJoin = "round";
-      c.lineWidth = 6; c.beginPath(); c.moveTo(340, H * 0.25); c.lineTo(980, H * 0.25); c.stroke();   // a fine line down the spine joins them
+  } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, our own kitsune style): bold fox-red brush strokes sweeping down from the spine, a teardrop swirl on each hip and shoulder, sharp chevrons on the neck; painted red with a soft foxfire glow
+    const red = p.foxMarks || p.glow;
+    const stroke = (c, x, sd, len, w, lean) => { const Y = v => H * 0.25 + sd * v; c.beginPath(); c.moveTo(x - w, Y(0)); c.quadraticCurveTo(x - w * 0.6 - lean * 0.3, Y(len * 0.55), x - lean, Y(len)); c.quadraticCurveTo(x + w * 0.5 - lean * 0.2, Y(len * 0.5), x + w, Y(0)); c.closePath(); c.fill(); };
+    const tear = (c, x, sd, v, r0) => { const Y = vv => H * 0.25 + sd * vv; c.beginPath(); c.arc(x, Y(v), r0, 0, Math.PI * 2); c.fill();   // a round head with a tail that curls back and up toward the spine
+      c.beginPath(); c.moveTo(x - r0 * 0.2, Y(v - r0)); c.quadraticCurveTo(x - r0 * 2.2, Y(v - r0 * 0.6), x - r0 * 2.6, Y(v - r0 * 2.6)); c.quadraticCurveTo(x - r0 * 1.4, Y(v - r0 * 0.2), x + r0 * 0.4, Y(v + r0 * 0.9)); c.closePath(); c.fill();
+      c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = c === g ? 0 : 1; c.restore(); };
+    [[g, red, 0, 1], [e, red, 6, 0.3]].forEach(([c, col, blur, al]) => {
+      c.save(); c.globalAlpha = al; c.fillStyle = c.shadowColor = col; c.shadowBlur = blur;
       [1, -1].forEach(sd => {
-        [[400, 46, 11, 9], [460, 60, 14, 11], [525, 70, 16, 12], [590, 66, 15, 12], [650, 56, 13, 10], [700, 44, 10, 8]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));   // big swirls down the body
-        [[760, 30, 7, 6], [830, 26, 6, 5], [900, 22, 5, 4]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));                                   // little ones up the neck
+        stroke(c, 470, sd, 96, 15, 34); stroke(c, 530, sd, 80, 12, 28); stroke(c, 588, sd, 92, 14, 32);   // brush strokes over the back, sweeping down and back
+        stroke(c, 440, sd, 46, 8, 14); stroke(c, 620, sd, 44, 8, 12);
+        tear(c, 395, sd, 62, 15); tear(c, 668, sd, 66, 13);                                                  // teardrop swirls on hip and shoulder
+        [[760, 40, 10], [815, 34, 8], [870, 28, 7], [925, 20, 5]].forEach(([x, len, w]) => stroke(c, x, sd, len, w, 16));   // chevrons up the neck
       });
       c.restore();
     });
@@ -591,27 +590,34 @@ function leg(s, zOff, pts, radii, toeLen) {
   const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
   const foot = new THREE.Group(); foot.position.copy(last).negate(); ankP.add(foot);
   const endR = radii[radii.length - 1][1] * o.legThick * lowK;
-  const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), M.top);
+  const PM = p.socks ? (M.sock = M.sock || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.socks).convertSRGBToLinear(), roughness: 0.55 })) : M.top;   // coloured paws (Vulpyre)
+  const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), PM);
   ank.position.copy(last); foot.add(ank);
   if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
-    const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), M.top);
+    const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), PM);
     hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); foot.add(hl);
   }
-  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), M.top);
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), PM);
   pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); foot.add(pad);
   const sgn = zOff > 0 ? 1 : -1, toes = [];
   const spr = o.webbed ? 0.85 : 0.5;   // webbed feet spread their toes wide so the webbing shows
-  [[-spr, 1, 0], [0, 1.1, 0], [spr, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lft]) => {
+  [[-spr, 1, 0], [0, 1.1, 0], [spr, 1, 0]].forEach(   // Petra 2026-11-10: no back claw on any dragon
+    ([a, len, lft]) => {
     const dir = new V(Math.cos(a), 0, Math.sin(a) * sgn);
     const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08 * o.feet);
     const t2 = t1.clone().addScaledVector(dir, toeLen * len * o.feet).add(new V(0, -0.03 + lft, 0));
     if (a !== Math.PI) toes.push([t1, t2]);
-    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet * (o.webbed ? 0.8 : 1)], [1, 0.042 * o.feet * (o.webbed ? 0.8 : 1)]], M.top, 10, 10));
+    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet * (o.webbed ? 0.8 : 1)], [1, 0.042 * o.feet * (o.webbed ? 0.8 : 1)]], PM, 10, 10));
     const c = new THREE.Mesh(new THREE.ConeGeometry(0.04 * o.feet, 0.17 * o.feet * (o.digClaws ? 1.6 : 1) * (o.gentle ? 0.65 : 1), 10), (o.armor && o.armor.claw) || M.horn);
     c.position.copy(t2).addScaledVector(dir, 0.065 * o.feet).add(new V(0, -0.02, 0));
     c.quaternion.setFromUnitVectors(UP, dir.clone().add(new V(0, -0.5, 0)).normalize());
     foot.add(c);
   });
+  if (o.legFins) {   // Petra 2026-11-10: sleek fins sweeping back off each ankle (smooth, no fur strands)
+    const fs = new THREE.Shape(); fs.moveTo(0, 0); fs.quadraticCurveTo(-0.12, 0.02, -0.42, 0.3); fs.quadraticCurveTo(-0.2, 0.2, -0.3, 0.42); fs.quadraticCurveTo(-0.12, 0.26, -0.02, 0.2); fs.quadraticCurveTo(0.03, 0.1, 0, 0);
+    M.legFin = M.legFin || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.legFin || p.side).convertSRGBToLinear(), roughness: 0.5, side: THREE.DoubleSide });
+    const fin = new THREE.Mesh(new THREE.ShapeGeometry(fs, 12), M.legFin); fin.position.copy(last).add(new V(-endR * 0.6, 0.02, 0)); fin.scale.setScalar(o.legFins * o.legThick); foot.add(fin);
+  }
   if (o.webbed) {   // webbed feet (Petra 2026-11-10): a thin skin stretched between the three front toes, out to just short of the claws
     const pos = [];
     for (let k = 0; k < 2; k++) {
@@ -710,6 +716,13 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       const outer = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 18), p.earColor ? new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earColor).convertSRGBToLinear(), roughness: 0.8 }) : M.top); outer.scale.set(1, 1, 0.6); outer.position.y = 0.15; outer.castShadow = true; ear.add(outer);
       const inner = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.2, 14), p.earInner ? new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earInner).convertSRGBToLinear(), roughness: 0.9 }) : M.fur); inner.scale.set(1, 1, 0.3); inner.position.set(0.042, 0.115, 0); ear.add(inner);   // inside of the ear faces forward
       if (p.earTip) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.11, 12), new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earTip).convertSRGBToLinear(), roughness: 0.8 })); t.scale.set(1, 1, 0.48); t.position.y = 0.29; ear.add(t); }
+    }
+    if (o.headMarks) {   // Vulpyre (Petra loves face markings): fox-red streaks lying on the skull: one sweeping back from each eye, one on each cheek, a flame on the forehead
+      M.mark = M.mark || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), roughness: 0.5, emissive: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), emissiveIntensity: 0.35 });
+      const onSkull = (x, y, k = 1.0) => new V(x, y, z * 0.285 * k * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2 - (y / 0.27) ** 2)));
+      head.add(staticTube([onSkull(0.2, 0.06), onSkull(0.06, 0.12), onSkull(-0.1, 0.15), onSkull(-0.26, 0.17)], [[0, 0.02], [0.35, 0.03], [1, 0.003]], M.mark, 16, 8, 1, 0.5));   // eye streak, sweeping back
+      head.add(staticTube([onSkull(0.16, -0.06), onSkull(0.02, -0.06), onSkull(-0.14, -0.03)], [[0, 0.018], [0.4, 0.024], [1, 0.003]], M.mark, 12, 8, 1, 0.5));   // cheek stripe
+      if (z > 0) { const top = x => new V(x, 0.27 * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2)), 0); head.add(staticTube([top(0.24), top(0.12), top(-0.02), top(-0.16)], [[0, 0.004], [0.3, 0.035], [0.65, 0.03], [1, 0.004]], M.mark, 16, 8, 1, 0.45)); }   // forehead flame
     }
     if (o.foxGem && z > 0) { const gm = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow2 || p.glow).convertSRGBToLinear() })); gm.scale.set(0.6, 1.3, 0.6); gm.position.set(sn(0.12), 0.21, 0); head.add(gm); }   // a glowing foxfire mark on the forehead
     if (o.frill === "fur") { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 1), M.fur); f.position.set(-0.1, 0.0, 0.25 * z); head.add(f); }
@@ -1142,8 +1155,8 @@ function updateHeads(t, end, fwd, side, up) {
 // ---------- long fox tails (Vulpyre, Petra 2026-11-10): three sleek, smooth tails as long as a dragon's tail, white fading to a glowing foxfire tip ----------
 const foxTails = [];
 if (o.foxTails) {
-  const n = o.foxTails, L = 2.9 * (o.len || 1), FS = 40, white = new THREE.Color(p.side).convertSRGBToLinear(), tipC = new THREE.Color(p.foxMarks2 || p.foxMarks || p.glow).convertSRGBToLinear(), glowC = new THREE.Color(p.glow).convertSRGBToLinear();
-  const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05, emissive: glowC, emissiveIntensity: 0 });
+  const n = o.foxTails, L = 2.9 * (o.len || 1), FS = 40, white = new THREE.Color(p.side).convertSRGBToLinear(), tipC = new THREE.Color(p.foxTip || p.foxMarks2 || p.foxMarks || p.glow).convertSRGBToLinear(), glowC = new THREE.Color(p.glow).convertSRGBToLinear();
+  const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05, emissive: p.foxTip ? tipC : glowC, emissiveIntensity: 0 });
   fm.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= smoothstep(0.04, 0.35, length(vColor - vec3(" + [white.r, white.g, white.b].map(x => x.toFixed(4)).join(",") + ")));"); };
   for (let k = 0; k < n; k++) {
     const geo = makeTube(FS, 20), col = new Float32Array((FS + 1) * 21 * 3);
@@ -1416,9 +1429,9 @@ const SPECIES = [
     sp: { horns: "antler", antlerScale: 1.5, antlerGlow: true, wings: "bat", wingScale: 1.15, back: "fur", tail: "tuft", frill: "fur", pattern: "streaks", glow: 1.4, eyes: 1.2, leaves: true },
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
-    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c4622c", foxMarks2: "#e07a20", foxGlow: "#b8381a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
-    sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing fox-red swirls flow down its sides and up its neck, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c41e1a", foxMarks2: "#e07a20", foxTip: "#c41e1a", socks: "#c41e1a", earTip: "#c41e1a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
+    sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], legFins: 1, headMarks: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Bold fox-red markings sweep down its back, with swirls on its hips and shoulders, red markings on its face, red paws, red ear tips, and a foxfire gem on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
