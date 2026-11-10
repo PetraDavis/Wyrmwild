@@ -269,7 +269,14 @@ function fillTube(geo, pts, rad, sx = 1, sy = 1, transport = false, bellyDir = n
       side.addScaledVector(T, -side.dot(T)).normalize();
     } else {
       const s2 = new V().crossVectors(T, i === 0 && Math.abs(T.y) > 0.9 ? new V(1, 0, 0) : UP);
-      if (s2.lengthSq() > 1e-6) side = s2.normalize();
+      if (s2.lengthSq() > 1e-6) {
+        s2.normalize();
+        if (i > 0) {   // Petra: the hanging tail twisted. Keep the side continuous: never let it flip over, and near-vertical stretches just carry the last side along
+          if (s2.dot(side) < 0) s2.negate();
+          const tr = side.clone().addScaledVector(T, -side.dot(T)).normalize(), k = Math.min(1, Math.max(0, (Math.abs(T.y) - 0.6) / 0.3));
+          side = s2.lerp(tr, k).normalize();
+        } else side = s2;
+      }
     }
     const nrm = new V().crossVectors(side, T).normalize();
     const r = rad(i / segs);
@@ -364,18 +371,22 @@ function paint(p) {
     }
     e.fillRect(0, H * 0.245, 150, 3);
   } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, our own kitsune style): bold fox-red brush strokes sweeping down from the spine, a teardrop swirl on each hip and shoulder, sharp chevrons on the neck; painted red with a soft foxfire glow
-    const red = p.foxMarks || p.glow;
-    const stroke = (c, x, sd, len, w, lean) => { const Y = v => H * 0.25 + sd * v; c.beginPath(); c.moveTo(x - w, Y(0)); c.quadraticCurveTo(x - w * 0.6 - lean * 0.3, Y(len * 0.55), x - lean, Y(len)); c.quadraticCurveTo(x + w * 0.5 - lean * 0.2, Y(len * 0.5), x + w, Y(0)); c.closePath(); c.fill(); };
+    const red = p.foxBody || p.foxMarks || p.glow;
+    const stroke = (c, x, sd, len, w, lean) => { const Y = v => H * 0.25 + sd * v, N = 16, L = [], R = [];   // a stripe that bends in a smooth curve as it runs down the side (Petra)
+      for (let i = 0; i <= N; i++) { const t = i / N, cxp = x - lean * t * t * 1.4 + Math.sin(t * Math.PI) * w * 1.2, hw = w * (1 - t) ** 0.8 + 0.6; L.push([cxp - hw, Y(t * len)]); R.push([cxp + hw, Y(t * len)]); }
+      c.beginPath(); c.moveTo(...L[0]); L.forEach(q => c.lineTo(...q)); R.reverse().forEach(q => c.lineTo(...q)); c.closePath(); c.fill(); };
     const tear = (c, x, sd, v, r0) => { const Y = vv => H * 0.25 + sd * vv; c.beginPath(); c.arc(x, Y(v), r0, 0, Math.PI * 2); c.fill();   // a round head with a tail that curls back and up toward the spine
       c.beginPath(); c.moveTo(x - r0 * 0.2, Y(v - r0)); c.quadraticCurveTo(x - r0 * 2.2, Y(v - r0 * 0.6), x - r0 * 2.6, Y(v - r0 * 2.6)); c.quadraticCurveTo(x - r0 * 1.4, Y(v - r0 * 0.2), x + r0 * 0.4, Y(v + r0 * 0.9)); c.closePath(); c.fill();
       c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = c === g ? 0 : 1; c.restore(); };
-    [[g, red, 0, 1], [e, red, 6, 0.3]].forEach(([c, col, blur, al]) => {
-      c.save(); c.globalAlpha = al; c.fillStyle = c.shadowColor = col; c.shadowBlur = blur;
-      [1, -1].forEach(sd => {
+    [[g, red, 0, 1], [e, red, 10, 0.5]].forEach(([c, col, blur, al]) => {
+      c.save(); c.globalAlpha = al; c.fillStyle = c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur;
+      [[1, 0], [-1, 0], [-1, H]].forEach(([sd, oy]) => {   // the -1 side runs up past the top of the texture: draw it again one wrap lower so it isn't cut off (Petra: both sides must match)
+        c.save(); c.translate(0, oy);
         stroke(c, 470, sd, 96, 15, 34); stroke(c, 530, sd, 80, 12, 28); stroke(c, 588, sd, 92, 14, 32);   // brush strokes over the back, sweeping down and back
         stroke(c, 440, sd, 46, 8, 14); stroke(c, 620, sd, 44, 8, 12);
         tear(c, 395, sd, 62, 15); tear(c, 668, sd, 66, 13);                                                  // teardrop swirls on hip and shoulder
         [[760, 40, 10], [815, 34, 8], [870, 28, 7], [925, 20, 5]].forEach(([x, len, w]) => stroke(c, x, sd, len, w, 16));   // chevrons up the neck
+        c.restore();
       });
       c.restore();
     });
@@ -577,11 +588,19 @@ function leg(s, zOff, pts, radii, toeLen) {
   const KI = 2, kf = KI / (vs.length - 1);
   const rAt = f => { for (let i = 1; i < rr.length; i++) if (f <= rr[i][0]) { const [a0, r0] = rr[i - 1], [a1, r1] = rr[i]; return r0 + (r1 - r0) * (f - a0) / (a1 - a0); } return rr[rr.length - 1][1]; };
   const kR = rAt(kf), kp = vs[KI].clone();
-  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.top, 20, 16, 0.85, 1));
+  if (o.legMarks && !M.thigh) {   // Vulpyre (Petra): markings on the legs too: a glowing foxfire swoosh on each thigh, red flame-pointed socks rising up each shin
+    const mk = (draw) => { const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const cx = cv.getContext("2d"); draw(cx); const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t; };
+    const swoosh = (cx, col, blur) => { cx.strokeStyle = cx.fillStyle = cx.shadowColor = col; cx.shadowBlur = blur; cx.lineCap = "round"; [0, 64, 128].forEach(y0 => { for (let i = 0; i < 30; i++) { const t = i / 30, t2 = (i + 1) / 30, P = t => [30 + t * 170, y0 - 8 + Math.sin(t * Math.PI) * 16]; cx.lineWidth = 4 + 14 * Math.sin(t * Math.PI) ** 0.7; cx.beginPath(); cx.moveTo(...P(t)); cx.lineTo(...P(t2)); cx.stroke(); } cx.lineWidth = 5; cx.beginPath(); cx.arc(212, y0, 9, -Math.PI * 0.9, Math.PI * 0.9); cx.stroke(); }); };
+    const sock = (cx, col) => { cx.fillStyle = col; cx.beginPath(); cx.moveTo(256, 0); for (let y = 0; y <= 128; y += 2) cx.lineTo(160 - 70 * Math.abs(Math.sin(y / 128 * Math.PI * 3)) ** 1.5, y); cx.lineTo(256, 128); cx.closePath(); cx.fill(); };
+    const base = "#" + new THREE.Color(p.top).getHexString(), glowC2 = p.foxBody || p.glow;
+    M.thigh = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 0); }), emissiveMap: mk(cx => { cx.fillStyle = "#000"; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 8); }), emissive: "#ffffff", emissiveIntensity: 0.45, roughness: M.top.roughness });
+    M.shin = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); sock(cx, p.socks || p.foxMarks); }), roughness: M.top.roughness });
+  }
+  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.thigh || M.top, 20, 16, 0.85, 1));
   const knee = new THREE.Group(); knee.position.copy(kp); g.add(knee); g.userData.knee = knee;
   const kc = new THREE.Mesh(new THREE.SphereGeometry(kR * 1.02, 18, 12), M.top); kc.scale.set(1, 1, 0.85); knee.add(kc);
   const low = new THREE.Group(); low.position.copy(kp).negate(); knee.add(low);   // shin parts keep leg-space coordinates
-  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.top, 20, 16, 0.85, 1));
+  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.shin || M.top, 20, 16, 0.85, 1));
   // round hip cap so the open top of the leg tube never shows from above
   const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
@@ -720,8 +739,6 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
     if (o.headMarks) {   // Vulpyre (Petra loves face markings): fox-red streaks lying on the skull: one sweeping back from each eye, one on each cheek, a flame on the forehead
       M.mark = M.mark || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), roughness: 0.5, emissive: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), emissiveIntensity: 0.35 });
       const onSkull = (x, y, k = 1.0) => new V(x, y, z * 0.285 * k * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2 - (y / 0.27) ** 2)));
-      head.add(staticTube([onSkull(0.2, 0.06), onSkull(0.06, 0.12), onSkull(-0.1, 0.15), onSkull(-0.26, 0.17)], [[0, 0.02], [0.35, 0.03], [1, 0.003]], M.mark, 16, 8, 1, 0.5));   // eye streak, sweeping back
-      head.add(staticTube([onSkull(0.16, -0.06), onSkull(0.02, -0.06), onSkull(-0.14, -0.03)], [[0, 0.018], [0.4, 0.024], [1, 0.003]], M.mark, 12, 8, 1, 0.5));   // cheek stripe
       if (z > 0) { const top = x => new V(x, 0.27 * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2)), 0); head.add(staticTube([top(0.24), top(0.12), top(-0.02), top(-0.16)], [[0, 0.004], [0.3, 0.035], [0.65, 0.03], [1, 0.004]], M.mark, 16, 8, 1, 0.45)); }   // forehead flame
     }
     if (o.foxGem && z > 0) { const gm = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow2 || p.glow).convertSRGBToLinear() })); gm.scale.set(0.6, 1.3, 0.6); gm.position.set(sn(0.12), 0.21, 0); head.add(gm); }   // a glowing foxfire mark on the forehead
@@ -1071,6 +1088,7 @@ function update(t, walk, flap, dt, bend = 0) {
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
   updateHeads(t, end, fwd, side, up);
   updateFoxTails(t);
+  updateMagic(t);
   updatePuffs(t);
   if (o.ghost) { const k = 0.5 + 0.5 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1); fadeAll(0.38 + 0.5 * k); M.wing.opacity = 0.3 + 0.45 * k; }   // the WHOLE dragon fades in and out like fog (legs and head too)
   if (o.zap && Math.random() < 0.08) M.body.emissiveIntensity *= 3.5;   // a crackle of lightning runs over its markings
@@ -1163,7 +1181,7 @@ if (o.foxTails) {
     for (let i = 0; i <= FS; i++) { const u = i / FS, m = Math.max(0, (u - 0.7) / 0.3) ** 1.3, c = white.clone().lerp(tipC, m); for (let j = 0; j <= 20; j++) col.set([c.r, c.g, c.b], (i * 21 + j) * 3); }
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     const mesh = new THREE.Mesh(geo, fm); mesh.castShadow = true; mesh.frustumCulled = false; dragon.add(mesh);
-    foxTails.push({ mesh, z: (k - (n - 1) / 2) * 0.55, hi: k === (n - 1) / 2 ? 0.3 : 0, ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
+    const c0 = (n - 1) / 2, d0 = c0 ? (k - c0) / c0 : 0; foxTails.push({ mesh, z: d0 * (n > 3 ? 1.0 : 0.55), hi: (n > 3 ? 0.55 : 0.3) * (1 - d0 * d0) + (n > 3 ? 0.25 * (k % 2) : 0), ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
   }
   fm.emissiveIntensity = 0.5 * (o.glow || 1);
   var foxTailL = L;
@@ -1172,6 +1190,7 @@ const _ft = [new V(), new V(), new V(), new V()], _ftB = new V();
 function updateFoxTails(t) {
   if (!foxTails.length) return;
   const base = _ftB.copy(frames[0].p).add(_ft[3].set(0.1, 0.18, 0)), dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
+  if (foxTails[0]) foxTails[0].mesh.material.emissiveIntensity = (0.7 + 0.45 * Math.sin(t * 2.2)) * (o.glow || 1);   // the tips breathe with light
   foxTails.forEach((f, k) => {
     const sway = Math.sin(t * 1.1 + f.ph) * (0.35 + 0.3 * idleK), lift = Math.sin(t * 0.8 + f.ph * 1.3) * 0.15;
     // a graceful S: out along the tail, rising, then the tip curls up; hovering lets them hang in a curve
@@ -1180,8 +1199,41 @@ function updateFoxTails(t) {
     const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
     if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
     f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
-    fillTube(f.mesh.geometry, f.pts, u => u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2)), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
+    const tk = foxTails.length > 3 ? 0.72 : 1; fillTube(f.mesh.geometry, f.pts, u => tk * (u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2))), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
   });
+}
+// ---------- foxfire magic (Vulpyre, Petra: "more magical, it looks bland"): spirit flames circling it, sparks rising off every tail tip, a slow glow pulse ----------
+const fxMagic = { orbs: [], sparks: null, sp: [], mat: null };
+if (o.foxfire) {
+  const flameTex = (() => { const cv = document.createElement("canvas"); cv.width = 64; cv.height = 96; const c = cv.getContext("2d");
+    const gr = c.createRadialGradient(32, 64, 2, 32, 60, 30); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.8)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = gr; c.beginPath(); c.moveTo(32, 4); c.bezierCurveTo(40, 30, 62, 46, 58, 66); c.bezierCurveTo(54, 88, 10, 88, 6, 66); c.bezierCurveTo(2, 46, 24, 30, 32, 4); c.fill(); return new THREE.CanvasTexture(cv); })();   // a teardrop flame
+  const dotTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 32; const c = cv.getContext("2d"), gr = c.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.4, "rgba(255,255,255,0.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = gr; c.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(cv); })();
+  const fc = new THREE.Color(p.foxFire || p.glow).convertSRGBToLinear();
+  for (let k = 0; k < 3; k++) {   // three spirit flames: an outer glow and a white-hot core
+    const g = new THREE.Group(), outer = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: fc, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    outer.scale.set(0.8, 1.2, 1); const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: 0xfff4d0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.85 }));
+    core.scale.set(0.34, 0.5, 1); core.position.y = -0.08; g.add(outer, core); dragon.add(g); fxMagic.orbs.push({ g, outer, ph: k * 2.094 });
+  }
+  const N = 70, pos = new Float32Array(N * 3), geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  fxMagic.mat = new THREE.PointsMaterial({ map: dotTex, color: fc, size: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  fxMagic.sparks = new THREE.Points(geo, fxMagic.mat); fxMagic.sparks.frustumCulled = false; dragon.add(fxMagic.sparks);
+  for (let i = 0; i < N; i++) fxMagic.sp.push({ p: new V(0, -99, 0), v: new V(), life: Math.random() * 1.6 });
+}
+let _mgT = 0;
+function updateMagic(t) {
+  if (!o.foxfire) return;
+  const dt = Math.min(0.05, Math.max(0, t - _mgT)); _mgT = t;
+  const mid = at(0.5).p;
+  fxMagic.orbs.forEach((b, k) => { const a = t * 0.7 + b.ph; b.g.position.set(mid.x + Math.cos(a) * 2.2, mid.y + 1.2 + Math.sin(t * 1.6 + b.ph) * 0.3, mid.z + Math.sin(a) * 2.2); const fl = 1 + Math.sin(t * 13 + k * 3) * 0.08; b.outer.scale.set(0.8 * fl, 1.2 / fl, 1); });
+  const pos = fxMagic.sparks.geometry.attributes.position.array;
+  fxMagic.sp.forEach((q, i) => {
+    q.life -= dt;
+    if (q.life <= 0 && foxTails.length) { const f = foxTails[i % foxTails.length], tip = f.pts[f.pts.length - 2]; q.p.copy(tip).add(_ft[3].set((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3)); q.v.set((Math.random() - 0.5) * 0.3, 0.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3); q.life = 1 + Math.random() * 0.8; }
+    q.p.addScaledVector(q.v, dt); pos[i * 3] = q.p.x; pos[i * 3 + 1] = q.p.y; pos[i * 3 + 2] = q.p.z;
+  });
+  fxMagic.sparks.geometry.attributes.position.needsUpdate = true;
+  fxMagic.mat.opacity = 0.75 + Math.sin(t * 3) * 0.2;
 }
 // ---------- walking on air (wingless dragons that fly anyway): glowing puffs under each paw ----------
 const airPuffs = [];
@@ -1190,7 +1242,7 @@ if (o.wings === "none" && o.skyRun) {   // see-through glowing "stepping stones"
   gr.addColorStop(0, "rgba(255,255,255,0.35)"); gr.addColorStop(0.55, "rgba(255,255,255,0.12)"); gr.addColorStop(0.82, "rgba(255,255,255,0.55)"); gr.addColorStop(0.9, "rgba(255,255,255,0.2)"); gr.addColorStop(1, "rgba(255,255,255,0)");
   cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128); const tex = new THREE.CanvasTexture(cv);
   const pc = o.puff || [p.glow, p.glow2 || "#ffffff", p.glow2 || "#ffffff"], gc = new THREE.Color(pc[0]).convertSRGBToLinear(), gc2 = new THREE.Color(pc[1]).convertSRGBToLinear(), gc3 = new THREE.Color(pc[2] || pc[1]).convertSRGBToLinear();   // o.puff: each kind its own step colours [halo, rim, sparks]
-  const mk = (c, map) => new THREE.MeshBasicMaterial({ color: c, map, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const mk = (c, map) => new THREE.MeshBasicMaterial({ color: c, ...(map ? { map } : {}), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const discG = new THREE.CircleGeometry(0.26, 32).rotateX(-Math.PI / 2), ringG = new THREE.TorusGeometry(0.2, 0.008, 6, 40).rotateX(Math.PI / 2), moteG = new THREE.SphereGeometry(0.018, 6, 4);
   legs.forEach(g => {
     const holder = g.userData.ankle || g, puff = new THREE.Group(); puff.position.y = -0.13;
@@ -1429,9 +1481,9 @@ const SPECIES = [
     sp: { horns: "antler", antlerScale: 1.5, antlerGlow: true, wings: "bat", wingScale: 1.15, back: "fur", tail: "tuft", frill: "fur", pattern: "streaks", glow: 1.4, eyes: 1.2, leaves: true },
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
-    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c41e1a", foxMarks2: "#e07a20", foxTip: "#c41e1a", socks: "#c41e1a", earTip: "#c41e1a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
-    sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], legFins: 1, headMarks: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Bold fox-red markings sweep down its back, with swirls on its hips and shoulders, red markings on its face, red paws, red ear tips, and a foxfire gem on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#e8481a", foxMarks2: "#e07a20", foxTip: "#e8481a", foxBody: "#e8481a", foxFire: "#ff7a2a", socks: "#e8481a", earTip: "#e8481a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
+    sp: { foxEars: true, gentle: true, foxTails: 9, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], headMarks: true, legMarks: true, foxfire: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Three foxfire spirit flames follow it everywhere, and sparks of foxfire drift up from the tips of its nine tails", "Curved fox-orange stripes sweep down both sides, with swirls on its hips and thighs, a mark on its forehead, orange paws and ear tips, and a foxfire gem", "Tall white fox ears hear a mouse under the leaves", "NINE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
@@ -3972,7 +4024,8 @@ function tamerShiny(t, sec) {
 function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
   return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null, shell: sh.side, crystalTip: sh.glow, hornTip: sh.glow, spikeTip: sh.glow, flame: sh.glow, smoke: sh.wing, glow2: sh.horn, glow3: sh.eye,
-    foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.top, earInner: s.pal.earInner && sh.belly });   // shiny Vulpyre: markings, ears and tail change too
+    foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.glow, earInner: s.pal.earInner && sh.belly,
+    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
 }
 const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
 const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
@@ -10725,10 +10778,20 @@ addEventListener("keydown", e => {
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement === cv) return;
   if (performance.now() - freeMouseAt < 600) return;   // M frees the mouse on purpose: no pause
+  if (performance.now() - menuClosedAt < 900) return;   // just closed a menu: the mouse lock is still settling, that's not a reason to pause
   setTimeout(() => { if (!uiOpen) pauseOpen(); }, 30);
 });
 // the pause menu shouldn't stay open behind other things that take over
 addEventListener("blur", () => { if (started && !uiOpen && state !== "arena") pauseOpen(); });
+// Petra 2026-11-10: "closing the quest board sometimes freezes the game". If another menu ever replaces the pause menu
+// (or it closes some other way), time stayed stopped forever. Now the game un-pauses itself whenever the pause menu isn't showing.
+(function pauseHeal() {
+  if (PAUSED && (menuEl.hidden || !["Paused", "How to play", "Settings"].includes($("menuTitle").textContent))) PAUSED = false;
+  requestAnimationFrame(pauseHeal);
+})();
+// remember when a menu closed (see above)
+var menuClosedAt = -1e9;
+{ const _close = closeMenu; closeMenu = function () { menuClosedAt = performance.now(); return _close(); }; }
 
 // ================= Wren's potion shop (Petra 2026-11-10): potions you carry and drink when you need them =================
 // H opens your potion bag. Healing works right away; brews last a minute; Second Chance saves your dragon from fainting once.
