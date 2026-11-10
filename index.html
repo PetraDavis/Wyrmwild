@@ -2934,12 +2934,24 @@ $("nameOk").onclick = finishName;
 nameInput.addEventListener("keydown", e => { if (e.key === "Enter") finishName(); });
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
+  // a little secret for this update (Petra 2026-11-10): name it "epic" and it turns into an Epic dragon, then you name it again
+  if (n.toLowerCase() === "epic" && TIER[SP(pet.kind).rarity] < TIER.Epic) { epicPick(); return; }
   pet.name = n.charAt(0).toUpperCase() + n.slice(1);
   nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse(); egg.userData.fromBag = false; setTimeout(writeSave, 0);
   petLabel(pet.small ? "small" : "baby");
   goal(pet.small ? `${pet.name} is a small dragon and will always be little. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`);
   toast(`Hello, ${pet.name}!`, "Babies follow you everywhere");
   nameInput.blur();
+}
+
+// the "epic" secret: pick which Epic dragon your baby turns into (never an event dragon), then name it again
+function epicPick() {
+  const pool = SPECIES.filter(s => s.rarity === "Epic" && !EVENT_KIND(s));
+  nameBox.hidden = true;
+  openMenu("EPIC!", `<p>Your baby can turn into any Epic dragon. Which one?</p>` + pool.map((s, i) => `<div class="sec"><div><b>${s.name}</b><br><small>${s.home || s.land || ""}</small></div><button data-act="pick" data-i="${i}">This one</button></div>`).join(""),
+    () => { nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 0); });
+  menuAct = (a, i) => { if (a !== "pick" || !pool[i]) return; const k = pool[i].name, sc = pet.scale; setKind(k, pet.shiny); pet.scale = sc;
+    burstAt(pet.x, pet.y + 1, pet.z, SP(k).pal.glow); burstAt(pet.x, pet.y + 1.5, pet.z, "#ffffff"); closeMenu(); toast("EPIC!", `Your baby turned into ${/^[AEIOU]/.test(k) ? "an" : "a"} ${k}! Now give it a real name`); };
 }
 
 // ================= actions =================
@@ -3008,7 +3020,7 @@ const clock = new THREE.Clock();
 let T = 0;
 const tmp = new V();
 function frame() {
-  const dt = Math.min(0.05, clock.getDelta()); T += dt;
+  const dt = PAUSED ? (clock.getDelta(), 0) : Math.min(0.05, clock.getDelta()); T += dt;
   const fwd = new V(Math.cos(camYaw), 0, Math.sin(camYaw)), right = new V(-Math.sin(camYaw), 0, Math.cos(camYaw));
   let ix = 0, iz = 0;
   if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1;
@@ -3568,13 +3580,13 @@ function arenaCamera(dt) {
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><button data-act="hatch" data-i="${i}">Hatch</button></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
     <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
   const penStat = d => { const s = statsAt(d.kind, d.level || 1), c = gearAdd(d.gear, "claw"); return `HP ${s.hp + gearAdd(d.gear, "plate")} · Claw ${s.claw[0] + c}-${s.claw[1] + c} · Breath ${s.breath[0]}-${s.breath[1]}`; };
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><button data-act="swap" data-i="${i}">Take out</button></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><span><button data-act="swap" data-i="${i}">Take out</button> <button data-act="free" data-i="${i}" title="Let it go free">Let go</button></span></div>`).join("") || "<p><small>The pen is empty.</small></p>";
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" && !pet.small ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
     <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
@@ -3582,15 +3594,38 @@ function nestMenu() {
     ${FISH.basket.length ? `<h4>Fish basket (${FISH.basket.length}/10)</h4>` + FISH.basket.map((n, i) => { const f = fishInfo(n); return `<div class="sec"><div><b>${n}</b><br><small>+${f[2]} HP · +${f[3]} XP</small></div><button data-act="fish" data-i="${i}">Feed</button></div>`; }).join("") : ""}
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${penUsed()}/${PEN_MAX})</h4>${pens}`);
   const ok = state === "grown" || (state === "baby" && pet.small), full = penUsed() + (pet.small ? 0.25 : 1) > PEN_MAX;
-  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (b.dataset.act !== "book" && b.dataset.act !== "fish" && (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown"))) b.disabled = true; });
+  [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (b.dataset.act !== "book" && b.dataset.act !== "fish" && b.dataset.act !== "drop" && b.dataset.act !== "free" && (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown"))) b.disabled = true; });
   menuAct = (a, i) => {
     if (a === "book") return dragonBook(true);
     if (a === "fish") { fishFeed(i); return nestMenu(); }
+    if (a === "free") return freeMenu(i);
+    if (a === "drop") return dropEggMenu(i);
     if (!ok) return;
     if (a === "glim") return glimMenu();
     if (a === "dress") return wardrobeMenu();
     if (a === "hatch") { const kind = bag.splice(i, 1)[0]; toPen(); closeMenu(); hatchEgg(kind); }
     if (a === "swap") { const d = pen.splice(i, 1)[0]; toPen(); takeOut(d); closeMenu(); }
+    if (a === "free") freeMenu(i);
+    if (a === "drop") dropEggMenu(i);
+  };
+}
+// getting rid of an egg (Petra 2026-11-10): leave it in a safe spot in the wild for some other dragon to hatch
+function dropEggMenu(i) {
+  const k = bag[i]; if (k === undefined) return nestMenu();
+  const what = k.endsWith("*") ? "small egg" : TIER[SP(k).rarity] >= 6 ? "strange ??? egg" : SP(k).rarity + " egg";
+  openMenu("Leave this egg?", `<p>Leave the <b>${what}</b> behind? It will be gone for good.</p>
+    <div class="sec"><div><b>Yes, leave it</b></div><button data-act="yes">Leave it</button></div><div class="sec"><div><b>No, keep it</b></div><button data-act="no">Keep</button></div>`, () => nestMenu());
+  menuAct = a => { if (a === "yes") { bag.splice(i, 1); toast("You left the egg in a safe, warm spot", "Maybe a wild dragon will look after it"); showCoins(); writeSave(); } closeMenu(); };
+}
+// letting a dragon go free (Petra 2026-11-10): it flies off into the wild for good
+function freeMenu(i) {
+  const d = pen[i]; if (!d) return nestMenu();
+  openMenu("Let it go free?", `<p>Let <b>${d.name}</b> the ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${d.kind} (Lv ${d.level || 1}) go free?</p>
+    <p><small>It will fly off to live in the wild. You can't get it back${d.acc && Object.keys(d.acc).length ? ", and its accessories go back in your wardrobe" : ""}.</small></p>
+    <div class="sec"><div><b>Yes, let it go</b></div><button data-act="yes">Let go</button></div><div class="sec"><div><b>No, keep it</b></div><button data-act="no">Keep</button></div>`, () => nestMenu());
+  menuAct = a => {
+    if (a === "yes") { const g = pen.splice(i, 1)[0]; burstAt(pet.x, pet.y + 2, pet.z, SP(g.kind).pal.glow); toast(`${g.name} flies away`, "Goodbye! It will be happy in the wild"); writeSave(); }
+    closeMenu();
   };
 }
 function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small }); }
@@ -8576,6 +8611,41 @@ function updateMP(dt) {
   mpMirrorsUpdate(dt);
 }
 addEventListener("beforeunload", () => { try { if (MP.role === "host") for (const c of MP.clients.values()) c.link.send({ t: "bye", from: 0 }); } catch (e) {} });
+
+// ================= Esc pauses the game (Petra 2026-11-10) =================
+// Esc (or losing the mouse some other way, like switching windows) opens the pause menu and stops time.
+// In multiplayer the menu still opens, but the world keeps going (your friends are still playing).
+var PAUSED = false;
+let escWasUi = false, pauseAt = -1e9, freeMouseAt = -1e9;
+addEventListener("keydown", e => { if (e.code === "Escape") escWasUi = uiOpen; if (e.code === "KeyM") freeMouseAt = performance.now(); }, true);
+function pauseOpen() {
+  if (!started || uiOpen || state === "arena" || state === "name" || !battleEl.hidden) return;
+  pauseAt = performance.now(); PAUSED = !mpOn(); for (const k in keys) keys[k] = false;
+  openMenu("Paused", `<p>${PAUSED ? "The game is paused." : "You're playing with friends, so the world keeps going while this is open."}</p>
+    <div class="sec"><div><b>Keep playing</b><br><small>or press Esc</small></div><button data-act="resume">Resume</button></div>
+    <div class="sec"><div><b>How to play</b><br><small>All the keys</small></div><button data-act="how">Show</button></div>
+    ${mpOn() ? "" : `<div class="sec"><div><b>Multiplayer</b><br><small>Host or join a friend's game</small></div><button data-act="mp">Open</button></div>`}
+    <div class="sec"><div><b>Save and quit</b><br><small>Back to the home screen (your game is saved)</small></div><button data-act="quit">Quit</button></div>`, () => { PAUSED = false; lockMouse(); });
+  menuAct = a => {
+    if (a === "resume") return closeMenu();
+    if (a === "how") { showPane("how"); const h = $("paneBody").innerHTML.replace(/<h3>How to play<\/h3>/, ""); openMenu("How to play", h, () => { PAUSED = false; lockMouse(); }); menuAct = () => {}; return; }
+    if (a === "mp") { menuEl._onClose = null; closeMenu(); PAUSED = false; return mpPanel(true); }
+    if (a === "quit") { PAUSED = false; writeSave(); setTimeout(() => location.reload(), 150); }
+  };
+}
+addEventListener("keydown", e => {
+  if (e.code !== "Escape" || e.repeat) return;
+  const ae = document.activeElement; if (ae && /INPUT|TEXTAREA/.test(ae.tagName)) return;
+  if (!escWasUi && performance.now() - pauseAt > 400) pauseOpen();
+});
+// the browser takes the mouse back on Esc (sometimes without telling the page about the key): pause then too
+document.addEventListener("pointerlockchange", () => {
+  if (document.pointerLockElement === cv) return;
+  if (performance.now() - freeMouseAt < 600) return;   // M frees the mouse on purpose: no pause
+  setTimeout(() => { if (!uiOpen) pauseOpen(); }, 30);
+});
+// the pause menu shouldn't stay open behind other things that take over
+addEventListener("blur", () => { if (started && !uiOpen && state !== "arena") pauseOpen(); });
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
