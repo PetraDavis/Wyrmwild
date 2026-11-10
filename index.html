@@ -2770,6 +2770,8 @@ function showPane(which, msg) {
       <dt><kbd>R</kbd></dt><dd>Ride your grown-up dragon, or get off</dd>
       <dt><kbd>C</kbd></dt><dd>Tell your dragon to sit</dd>
       <dt><kbd>B</kbd></dt><dd>Open your Dragon Book</dd>
+      <dt><kbd>P</kbd></dt><dd>Multiplayer: host or join a friend's game (duel, trade, fight monsters together)</dd>
+      <dt><kbd>T</kbd></dt><dd>Chat in multiplayer</dd>
       <dt><kbd>F</kbd></dt><dd>Use your dragon's world skill (Burn, Smash, Freeze, Gust, Wash or Grow) to open secret spots</dd>
       <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
       <dt>Left click</dt><dd>Claw attack (while riding)</dd>
@@ -3188,6 +3190,7 @@ function frame() {
   updateSpecials(dt);
   updateRequests(dt);
   updateBreath(dt);
+  updateMP(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -7957,6 +7960,622 @@ function updateRequests(dt) {
 (function () { const k = killMon; killMon = function (m) { REQ.list.forEach(q => { if (q.type === "hunt" && q.told && m.kind === q.kind && q.n < q.need) { q.n++; if (q.n >= q.need) toast("Favour done!", `Go and tell ${q.who}`); } }); return k.apply(this, arguments); }; })();
 const reqSave = () => ({ list: REQ.list, done: REQ.done, t: Math.round(REQ.t) });
 function reqLoad(d) { REQ.list = (d.list || []).filter(q => q && q.who && q.type); REQ.done = d.done || 0; if (typeof d.t === "number") REQ.t = d.t; }
+
+// ================= MULTIPLAYER (Petra 2026-11-09) =================
+// Done the same way as Petra's game Pinned: peer to peer over WebRTC, no game server of our own.
+//  - The HOST's browser is the hub: every other player links only to the host, and the host passes messages on.
+//  - Room codes use the free PeerJS cloud broker only to introduce the browsers. If that's down, there's a copy-paste invite.
+//  - Everybody plays in their OWN world with their OWN save: dragons, coins, eggs, quests. What you earn in multiplayer
+//    is simply saved into your own save, like playing solo. Nothing of yours lives in anyone else's game.
+//  - Shared: where everyone is (you see each other's tamer and dragon), chat, the monsters near each player
+//    (anyone can hit them; everyone who helped beat one gets the XP and coins), duels and trades.
+// Keys: P = multiplayer panel, T = chat.
+const MP_PREFIX = "wyrmwild-sky-", MP_ALPHA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", MP_MAX = 4, MP_ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+const MP_COLORS = ["#2f6f8f", "#c8502a", "#5a9a3a", "#8a4ab0"];
+const mpStore = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+const MP = { role: null, myId: 0, name: mpStore.get("wyrmwild-mpname") || "Tamer " + Math.floor(100 + Math.random() * 900), code: null,
+  clients: new Map(), host: null, peer: null, nextId: 1, players: new Map(), sT: 0, mT: 0, nid: 0, mirrors: new Map(),
+  duel: null, trade: null, ask: null, note: "", manual: null, chat: [], autoJoin: null };
+const mpEsc = s => String(s == null ? "" : s).replace(/[<>&"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c]);
+const mpCode = () => Array.from({ length: 5 }, () => MP_ALPHA[Math.floor(Math.random() * MP_ALPHA.length)]).join("");
+const mpClean = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+try { const j = new URLSearchParams(location.search).get("join"); if (j) MP.autoJoin = mpClean(j); } catch (e) {}
+
+// ---------- links (a link is { send(obj), onmessage, onclose, close(), open }) ----------
+function mpLink(sendRaw, closeRaw) {
+  const L = { open: true, onmessage: null, onclose: null,
+    send(o) { if (!L.open) return; try { sendRaw(o); } catch (e) {} },
+    close() { if (!L.open) return; L.open = false; try { closeRaw(); } catch (e) {} if (L.onclose) L.onclose(); },
+    _recv(o) { if (o && typeof o === "object" && L.onmessage) L.onmessage(o); },
+    _closed() { if (!L.open) return; L.open = false; if (L.onclose) L.onclose(); } };
+  return L;
+}
+let mpPeerLoad = null;
+function mpLoadPeer() {   // PeerJS is only loaded when you actually host or join
+  if (window.Peer) return Promise.resolve(window.Peer);
+  if (mpPeerLoad) return mpPeerLoad;
+  const src = ["https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js", "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js", "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"];
+  return (mpPeerLoad = new Promise((res, rej) => { let i = 0; const next = () => { if (i >= src.length) { mpPeerLoad = null; return rej(new Error("Couldn't load the multiplayer helper. Check your internet.")); }
+    const s = document.createElement("script"); s.src = src[i++]; s.onload = () => window.Peer ? res(window.Peer) : next(); s.onerror = () => { s.remove(); next(); }; document.head.appendChild(s); }; next(); }));
+}
+function mpWrapDc(dc) {
+  const L = mpLink(o => dc.send(o), () => dc.close());
+  dc.on("data", d => { try { L._recv(typeof d === "string" ? JSON.parse(d) : d); } catch (e) {} });
+  dc.on("close", () => L._closed()); dc.on("error", () => L._closed());
+  return L;
+}
+async function mpHostPeer(onLink) {
+  const Peer = await mpLoadPeer();
+  for (let k = 0; k < 4; k++) {
+    const code = mpCode();
+    try {
+      const peer = await new Promise((res, rej) => {
+        const p = new Peer(MP_PREFIX + code, { debug: 0, config: { iceServers: MP_ICE } });
+        const t = setTimeout(() => { p.destroy(); rej(new Error("The room-code server didn't answer.")); }, 12000);
+        p.once("open", () => { clearTimeout(t); res(p); }); p.once("error", e => { clearTimeout(t); p.destroy(); rej(e); });
+      });
+      peer.on("connection", dc => { let done = false; dc.on("open", () => { if (!done) { done = true; onLink(mpWrapDc(dc)); } }); });
+      peer.on("disconnected", () => setTimeout(() => { if (!peer.destroyed) try { peer.reconnect(); } catch (e) {} }, 2000));
+      return { code, close: () => peer.destroy() };
+    } catch (e) { if (e && e.type === "unavailable-id") continue; throw e; }
+  }
+  throw new Error("Couldn't get a room code.");
+}
+async function mpJoinPeer(code) {
+  const Peer = await mpLoadPeer();
+  return new Promise((res, rej) => {
+    const p = new Peer({ debug: 0, config: { iceServers: MP_ICE } });
+    const fail = e => { clearTimeout(t); p.destroy(); rej(e && e.type === "peer-unavailable" ? new Error("No game with that code.") : e); };
+    const t = setTimeout(() => fail(new Error("Couldn't reach the host.")), 20000);
+    p.once("error", fail);
+    p.once("open", () => { const dc = p.connect(MP_PREFIX + code, { reliable: true, serialization: "json" });
+      dc.on("open", () => { clearTimeout(t); p.off("error", fail); const L = mpWrapDc(dc), c0 = L.close; L.close = () => { c0(); p.destroy(); }; res(L); }); });
+  });
+}
+// copy-paste invites (no room-code server needed)
+const mpPack = d => btoa(unescape(encodeURIComponent(JSON.stringify({ type: d.type, sdp: d.sdp }))));
+const mpUnpack = s => JSON.parse(decodeURIComponent(escape(atob(String(s).trim().replace(/\s+/g, "")))));
+function mpWaitIce(pc) { if (pc.iceGatheringState === "complete") return Promise.resolve(); return new Promise(res => { const t = setTimeout(res, 3000); pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete") { clearTimeout(t); res(); } }); }); }
+function mpManualPc() {
+  const pc = new RTCPeerConnection({ iceServers: MP_ICE }), dc = pc.createDataChannel("game", { negotiated: true, id: 0, ordered: true });
+  const L = mpLink(o => dc.send(JSON.stringify(o)), () => { dc.close(); pc.close(); });
+  dc.onmessage = e => { try { L._recv(JSON.parse(e.data)); } catch (er) {} }; dc.onclose = () => L._closed();
+  pc.addEventListener("connectionstatechange", () => { if (["failed", "closed"].includes(pc.connectionState)) L._closed(); });
+  const opened = new Promise(res => { if (dc.readyState === "open") res(); else dc.addEventListener("open", res, { once: true }); });
+  return { pc, L, opened };
+}
+async function mpManualOffer() { const { pc, L, opened } = mpManualPc(); await pc.setLocalDescription(await pc.createOffer()); await mpWaitIce(pc);
+  return { code: mpPack(pc.localDescription), async accept(a) { await pc.setRemoteDescription(mpUnpack(a)); await opened; return L; } }; }
+async function mpManualAnswer(offer) { const { pc, L, opened } = mpManualPc(); await pc.setRemoteDescription(mpUnpack(offer)); await pc.setLocalDescription(await pc.createAnswer()); await mpWaitIce(pc);
+  return { code: mpPack(pc.localDescription), link: opened.then(() => L) }; }
+
+// ---------- session: who's here, sending and passing on messages ----------
+const mpOn = () => !!MP.role;
+const mpName = id => id === MP.myId ? MP.name : (MP.players.get(id) || {}).name || "someone";
+function mpSend(o, to) {   // to = a player id, or nothing for everyone
+  o.from = MP.myId; if (to !== undefined) o.to = to;
+  if (MP.role === "host") { for (const c of MP.clients.values()) if (to === undefined || c.id === to) c.link.send(o); }
+  else if (MP.host) MP.host.send(o);
+}
+function mpHostLink(L) {   // host: a new player linked in
+  if (MP.clients.size >= MP_MAX - 1) { L.send({ t: "full" }); setTimeout(() => L.close(), 300); return; }
+  const c = { id: MP.nextId++, link: L, name: "?" }; MP.clients.set(c.id, c);
+  L.onmessage = o => {
+    o.from = c.id;
+    if (o.t === "hello") { c.name = String(o.name || "Tamer").slice(0, 18);
+      L.send({ t: "welcome", id: c.id, players: [{ id: 0, name: MP.name }, ...[...MP.clients.values()].filter(q => q !== c && q.name !== "?").map(q => ({ id: q.id, name: q.name }))] });
+      for (const q of MP.clients.values()) if (q !== c) q.link.send({ t: "join", id: c.id, name: c.name, from: 0 });
+      mpJoined(c.id, c.name); return; }
+    if (o.to === undefined) { for (const q of MP.clients.values()) if (q !== c) q.link.send(o); mpMsg(o); }
+    else if (o.to === 0) mpMsg(o);
+    else { const q = MP.clients.get(o.to); if (q) q.link.send(o); }
+  };
+  L.onclose = () => { MP.clients.delete(c.id); for (const q of MP.clients.values()) q.link.send({ t: "leave", id: c.id, from: 0 }); mpLeft(c.id); };
+}
+function mpGuestLink(L) {
+  MP.host = L; MP.role = "guest";
+  L.onmessage = o => mpMsg(o);
+  L.onclose = () => { const was = MP.role; mpTeardown(); if (was) { mpSay(null, "You were disconnected from the host."); toast("Multiplayer ended", "The host's game closed or the connection dropped"); } };
+  L.send({ t: "hello", name: MP.name });
+}
+async function mpHost() {
+  if (mpOn()) return; MP.note = "Getting a room code..."; mpPanel();
+  try { MP.role = "host"; MP.myId = 0; const h = await mpHostPeer(mpHostLink); MP.peer = h; MP.code = h.code; MP.note = "";
+    mpSay(null, `You're hosting. Room code ${h.code}`); toast("You're hosting!", `Room code: ${h.code}. Friends press P and type it in`); }
+  catch (e) { MP.role = null; MP.note = (e && e.message) || "Couldn't host."; }
+  mpPanel();
+}
+async function mpJoin(code) {
+  code = mpClean(code); if (mpOn() || code.length !== 5) { MP.note = "Room codes have 5 letters."; mpPanel(); return; }
+  MP.note = "Joining " + code + "..."; mpPanel();
+  try { const L = await mpJoinPeer(code); MP.code = code; MP.note = ""; mpGuestLink(L); }
+  catch (e) { MP.note = (e && e.message) || "Couldn't join."; }
+  mpPanel();
+}
+function mpLeave() {
+  if (MP.duel) mpDuelEnd(null, "You left.");
+  if (MP.role === "host") { for (const c of MP.clients.values()) { c.link.send({ t: "bye", from: 0 }); c.link.close(); } }
+  else if (MP.host) MP.host.close();
+  mpTeardown(); mpPanel();
+}
+function mpTeardown() {
+  if (MP.peer) try { MP.peer.close(); } catch (e) {}
+  MP.peer = null; MP.host = null; MP.clients.clear(); MP.role = null; MP.code = null; MP.trade = null; MP.ask = null;
+  if (MP.duel) mpDuelEnd(null, "The connection dropped.");
+  for (const id of [...MP.players.keys()]) mpLeft(id, true);
+  for (const m of [...MP.mirrors.values()]) mpDropMirror(m);
+  mpPanel();
+}
+function mpJoined(id, name) {
+  MP.players.set(id, { id, name, st: null, av: null });
+  mpSay(null, `${mpEsc(name)} joined.`); toast(`${name} joined`, "Press P to see everyone"); mpPanel();
+}
+function mpLeft(id, quiet) {
+  const p = MP.players.get(id); if (!p) return;
+  if (p.av) mpAvDrop(p.av); MP.players.delete(id);
+  for (const [k, m] of [...MP.mirrors]) if (m.remote.owner === id) mpDropMirror(m);
+  if (MP.duel && MP.duel.peer === id) mpDuelEnd(null, `${p.name} left the game.`);
+  if (MP.trade && MP.trade.peer === id) { MP.trade = null; }
+  if (!quiet) { mpSay(null, `${mpEsc(p.name)} left.`); mpPanel(); }
+}
+
+// ---------- incoming messages ----------
+function mpMsg(o) {
+  const from = o.from;
+  switch (o.t) {
+    case "welcome": MP.myId = o.id; o.players.forEach(p => MP.players.set(p.id, { id: p.id, name: p.name, st: null, av: null }));
+      mpSay(null, `You joined ${mpEsc(mpName(0))}'s game.`); toast("You joined!", `You're in ${mpName(0)}'s game. Your progress still saves to your own save`); mpPanel(); break;
+    case "join": mpJoined(o.id, o.name); break;
+    case "leave": mpLeft(o.id); break;
+    case "full": MP.note = "That game is full (4 players)."; mpPanel(); break;
+    case "bye": break;
+    case "s": { const p = MP.players.get(from); if (p) { p.st = o.s; p.seen = T; } break; }
+    case "chat": mpSay(mpName(from), mpEsc(String(o.text).slice(0, 200))); break;
+    case "mon": mpMirrorList(from, o.l); break;
+    case "hit": mpGotHit(from, o); break;
+    case "kill": mpGotKill(from, o); break;
+    case "ask": mpGotAsk(from, o); break;
+    case "askno": if (MP.ask && MP.ask.peer === from) MP.ask = null; toast(`${mpName(from)} said no`, o.why || ""); mpPanel(); break;
+    case "dinfo": mpDuelInfo(from, o); break;
+    case "dmove": mpDuelMove(from, o); break;
+    case "dres": mpDuelPlay(o); break;
+    case "dquit": if (MP.duel && MP.duel.peer === from) mpDuelEnd(MP.duel.me, `${mpName(from)} gave up. You win!`); break;
+    case "toff": mpTradeOffer(from, o); break;
+    case "tready": mpTradeReady(from, o); break;
+    case "tclose": if (MP.trade && MP.trade.peer === from) { MP.trade = null; toast("Trade closed", `${mpName(from)} closed the trade`); mpPanel(); } break;
+  }
+}
+
+// ---------- other players in your world ----------
+function mpMyState() {
+  const r = state === "ride";
+  return { x: +me.x.toFixed(2), y: +me.y.toFixed(2), z: +me.z.toFixed(2), f: +me.face.toFixed(2), r: r ? 1 : 0,
+    dx: +pet.x.toFixed(2), dy: +pet.y.toFixed(2), dz: +pet.z.toFixed(2), df: +pet.face.toFixed(2), fl: pet.fly ? 1 : 0, b: +(pet.bank || 0).toFixed(2), p: +(pet.pitch || 0).toFixed(2),
+    k: hasDragon() && state !== "name" ? pet.kind : null, sh: pet.shiny || null, sc: +(pet.scale || 1).toFixed(2), n: pet.name || "", lv: pet.level || 1, land: landNow, ar: state === "arena" ? 1 : 0, sit: pet.sitK > 0.5 ? 1 : 0 };
+}
+function mpLabel(text, col) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 72; const x = c.getContext("2d");
+  x.fillStyle = "rgba(10,12,20,0.66)"; x.beginPath(); x.roundRect ? x.roundRect(4, 4, 504, 64, 18) : x.rect(4, 4, 504, 64); x.fill();
+  x.fillStyle = col; x.fillRect(16, 26, 20, 20); x.fillStyle = "#f3ece2"; x.font = "bold 34px sans-serif"; x.textBaseline = "middle"; x.fillText(text, 48, 38);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })); s.scale.set(5.6, 0.8, 1); s.renderOrder = 9; scene.add(s); return s;
+}
+function mpAvMake(p) {
+  const col = MP_COLORS[(p.id % MP_COLORS.length + MP_COLORS.length) % MP_COLORS.length];
+  const t = makeTamer(); t.g.traverse(o => { if (o.isMesh && o.material && o.material.color && o.material.color.getHexString() === "2f6f8f") { o.material = o.material.clone(); o.material.color.set(col); } });
+  scene.add(t.g);
+  return { t, col, d: null, dk: "", label: mpLabel(p.name, col), lk: "", x: 0, y: 0, z: 0, f: 0, dx: 0, dy: 0, dz: 0, df: 0, init: false, walk: 0 };
+}
+function mpAvDrop(a) { scene.remove(a.t.g); if (a.d) scene.remove(a.d.root); scene.remove(a.label); a.label.material.map.dispose(); }
+const mpLerpA = (a, b, k) => a + ((((b - a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * k;
+function mpAvUpdate(p, dt) {
+  const s = p.st; if (!s) return;
+  const a = p.av || (p.av = mpAvMake(p));
+  const vis = Math.hypot(s.x - me.x, s.z - me.z) < 420 && !s.ar;
+  a.t.g.visible = vis; a.label.visible = vis; if (a.d) a.d.root.visible = vis && !!s.k;
+  if (!vis) return;
+  if (!a.init) { Object.assign(a, { x: s.x, y: s.y, z: s.z, f: s.f, dx: s.dx, dy: s.dy, dz: s.dz, df: s.df }); a.init = true; }
+  const k = Math.min(1, dt * 10), ox = a.x, oz = a.z;
+  a.x += (s.x - a.x) * k; a.y += (s.y - a.y) * k; a.z += (s.z - a.z) * k; a.f = mpLerpA(a.f, s.f, k);
+  a.dx += (s.dx - a.dx) * k; a.dy += (s.dy - a.dy) * k; a.dz += (s.dz - a.dz) * k; a.df = mpLerpA(a.df, s.df, k);
+  // their dragon: rebuilt when they swap kinds
+  const dk = s.k ? s.k + "|" + (s.sh || "") : "";
+  if (dk !== a.dk) { if (a.d) scene.remove(a.d.root); a.d = s.k ? buildDragon(s.k, s.sh) : null; if (a.d) scene.add(a.d.root); a.dk = dk; }
+  const lk = `${p.name}${s.k ? ` · ${s.n} (Lv ${s.lv} ${s.k})` : ""}`; if (lk !== a.lk) { scene.remove(a.label); a.label.material.map.dispose(); a.label = mpLabel(lk, a.col); a.lk = lk; }
+  if (a.d) {
+    const sz = (SP(s.k).size || 1) * (s.sc || 1), moving = Math.hypot(s.dx - a.dx, s.dz - a.dz) > 0.05;
+    a.d.root.position.set(a.dx, a.dy, a.dz); a.d.root.rotation.set(s.r ? s.b : 0, -a.df, s.r ? s.p : (s.sit ? 0.38 : 0), "YXZ"); a.d.root.scale.setScalar(sz); a.d.sit = s.sit ? 1 : 0;
+    a.d.update(T, s.fl ? 0 : moving ? 0.8 : 0, s.fl ? 0.7 : 0, dt, 0);
+  }
+  if (s.r && a.d) {   // riding: sitting on the dragon's back
+    a.d.root.updateMatrixWorld(); const v = a.d.seat.clone(); a.d.root.localToWorld(v);
+    a.t.g.position.copy(v); a.t.g.position.y -= 0.55; a.t.g.rotation.set(s.b, -a.df, s.p, "YXZ");
+    a.t.legs[0].rotation.set(-0.9, 0, 1.2); a.t.legs[1].rotation.set(0.9, 0, 1.2); a.t.arms[0].rotation.z = 0.9; a.t.arms[1].rotation.z = 0.9;
+  } else {
+    const sp = Math.hypot(a.x - ox, a.z - oz) / Math.max(dt, 1e-3); a.walk += dt * Math.min(12, sp * 2.2);
+    const sw = sp > 0.5 ? Math.sin(a.walk) * 0.6 : 0;
+    a.t.g.position.set(a.x, a.y, a.z); a.t.g.rotation.set(0, -a.f, 0);
+    a.t.legs[0].rotation.set(0, 0, sw); a.t.legs[1].rotation.set(0, 0, -sw); a.t.arms[0].rotation.set(0, 0, -sw * 0.8); a.t.arms[1].rotation.set(0, 0, sw * 0.8);
+  }
+  a.label.position.set(s.r && a.d ? a.dx : a.x, (s.r && a.d ? a.dy + 4.6 * (SP(s.k).size || 1) : a.y + 3.0), s.r && a.d ? a.dz : a.z);
+}
+
+// ---------- shared monsters ----------
+// Each player owns the monsters that spawned around them and runs their brains. Everyone else sees a copy (a "mirror").
+// Hitting a mirror sends the hit to its owner. When the owner's monster dies, everybody who hit it gets the reward.
+const _spawnMon = spawnMonster;
+spawnMonster = function (kind, p, lv) { const m = _spawnMon.apply(this, arguments); if (!MP.mirroring) m.nid = ++MP.nid; return m; };
+function mpMonList() {
+  const out = [];
+  for (const m of mons) { if (m.remote || m.dead || m.d.boss || m.d.titan || !m.nid) continue; if (Math.hypot(m.x - me.x, m.z - me.z) > 200) continue;
+    out.push([m.nid, m.kind, m.lv, +m.x.toFixed(1), +m.y.toFixed(1), +m.z.toFixed(1), +m.face.toFixed(2), Math.max(0, Math.round(m.hp)), m.max, m.warn > 0 ? 1 : 0, m.aggro ? 1 : 0]);
+    if (out.length >= 30) break; }
+  return out;
+}
+function mpMirrorList(owner, list) {
+  const seen = new Set();
+  for (const e of list || []) {
+    const [nid, kind, lv, x, y, z, f, hp, max, warn] = e, key = owner + ":" + nid; seen.add(key);
+    let m = MP.mirrors.get(key);
+    if (!m) { if (!MONSTER[kind] || !MON_DEF[kind] || Math.hypot(x - me.x, z - me.z) > 230) continue;
+      MP.mirroring = true; try { m = spawnMonster(kind, new V(x, y, z), lv); } finally { MP.mirroring = false; }
+      // a mirror sits exactly where the owner's monster is (spawnMonster may shift ceiling/under monsters, so undo that)
+      m.y = y; m.remote = { owner, nid }; m.face = f; MP.mirrors.set(key, m); }
+    m.tx = x; m.ty = y; m.tz = z; m.tf = f; m.rwarn = warn;
+    if (m.hp !== hp || m.max !== max) { m.hp = hp; m.max = max; monBar(m); }
+  }
+  for (const [key, m] of [...MP.mirrors]) if (m.remote.owner === owner && !seen.has(key)) { burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080"); mpDropMirror(m); }
+}
+function mpDropMirror(m) { MP.mirrors.delete(m.remote.owner + ":" + m.remote.nid); m.dead = 1; removeMonster(m); }
+function mpMirrorsUpdate(dt) {
+  for (const m of MP.mirrors.values()) {
+    if (m.tx === undefined) continue;
+    const k = Math.min(1, dt * 8), ox = m.x, oz = m.z;
+    m.x += (m.tx - m.x) * k; m.y += (m.ty - m.y) * k; m.z += (m.tz - m.z) * k; m.face = mpLerpA(m.face, m.tf, k);
+    m.inst.update(T + m.t0, dt);
+    if (m.inst.walk !== undefined) m.inst.walk = Math.min(1, Math.hypot(m.x - ox, m.z - oz) / Math.max(dt, 1e-3) / 6);
+    if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); }
+    else if (m.rwarn) tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5); else tint(m, null, 0);
+    m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+    m.bar.visible = m.hp < m.max && Math.hypot(m.x - me.x, m.z - me.z) < 60;
+    if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
+  }
+}
+// mirrors don't run monster brains here: take them out while the monster update runs
+const _updMons = updateMonsters;
+updateMonsters = function (dt) {
+  if (!MP.mirrors.size) return _updMons.call(this, dt);
+  const keep = []; for (let i = mons.length - 1; i >= 0; i--) if (mons[i].remote) keep.push(mons.splice(i, 1)[0]);
+  try { return _updMons.call(this, dt); } finally { mons.push(...keep); }
+};
+// hitting a mirror: show it here, send it to the owner
+const _dmgMon = damageMon;
+damageMon = function (m, dmg, crit, how, fx) {
+  if (m.remote) {
+    m.hitT = 0.15; m.hp = Math.max(0, m.hp - dmg); monBar(m); m.bar.visible = true;
+    burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
+    toast(`${how === "breath" ? breathOf(pet.kind).n : "Claw"}! ${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${mpName(m.remote.owner)}'s monster · ${Math.max(0, m.hp)} / ${m.max} HP`);
+    mpSend({ t: "hit", id: m.remote.nid, dmg, crit: !!crit, how, fx: fx || null }, m.remote.owner); return;
+  }
+  return _dmgMon.apply(this, arguments);
+};
+let mpQuiet = false;
+const _toast = toast; toast = function () { if (mpQuiet) return; return _toast.apply(this, arguments); };
+function mpGotHit(from, o) {   // someone hit one of MY monsters
+  const m = mons.find(q => q.nid === o.id && !q.remote && !q.dead); if (!m) return;
+  (m.helpers || (m.helpers = new Set())).add(from);
+  mpQuiet = true; try { _dmgMon(m, Math.max(1, Math.min(9999, o.dmg | 0)), o.crit, o.how === "breath" ? "breath" : "claw"); } finally { mpQuiet = false; }
+  const f = o.fx; if (f && !m.dead) { if (f.burn) m.brBurn = { t: 3 * f.burn, tick: 0.8, dmg: Math.max(1, Math.round(o.dmg * 0.15)) }; if (f.slow) m.brSlow = Math.max(m.brSlow || 0, f.slow); if (f.blind) { m.stun = Math.max(m.stun || 0, f.blind); m.warn = 0; } }
+}
+const _killMon = killMon;
+killMon = function (m) {
+  if (m.remote) return;   // a mirror: its owner decides when it's beaten
+  const r = _killMon.apply(this, arguments);
+  if (mpOn() && m.helpers && m.helpers.size) { for (const id of m.helpers) mpSend({ t: "kill", kind: m.kind, lv: m.lv, land: m.land }, id); toast(`You and ${[...m.helpers].map(mpName).join(" and ")} beat the ${m.kind}!`, "Teamwork!"); }
+  return r;
+};
+function mpGotKill(from, o) {   // a monster I helped with was beaten: I get the XP and coins too
+  if (!MONSTER[o.kind] || !hasDragon()) return;
+  const lv = Math.max(1, Math.min(80, o.lv | 0)), xp = 3 + 2 * lv, c = lv >= 5 ? lv : 0;
+  if (c) { coins += c; showCoins(); }
+  const fake = { kind: o.kind, lv, land: o.land, d: MONSTER[o.kind] };
+  try { questKill(fake); } catch (e) {}
+  try { REQ.list.forEach(q => { if (q.type === "hunt" && q.told && q.kind === o.kind && q.n < q.need) { q.n++; if (q.n >= q.need) toast("Favour done!", `Go and tell ${q.who}`); } }); } catch (e) {}
+  const up = addXp(xp); if (up) pet.hp = petMaxHp();
+  toast(`You and ${mpName(from)} beat the ${o.kind}!`, `+${xp} XP${c ? ` · +${c} coins` : ""}`);
+  writeSave();
+}
+// breath effects on a mirror go to its owner too
+(function () { const bh = breathHit; breathHit = function (m, b, st, mult, from) {
+  if (!m.remote) return bh.apply(this, arguments);
+  const [d, crit] = breathDmg(st, (b.mult || 1) * (mult || 1));
+  damageMon(m, d, crit, "breath", { burn: b.burn || 0, slow: b.slow || 0, blind: b.blind || 0 });
+}; })();
+
+// ---------- chat ----------
+const mpCss = document.createElement("style");
+mpCss.textContent = `#mpChat { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: min(380px, calc(100vw - 24px)); z-index: 30; pointer-events: none; font-family: var(--body); }
+#mpChat .ln { background: rgba(10,12,20,0.62); color: #f3ece2; padding: 4px 9px; border-radius: 8px; margin-top: 4px; font-size: 0.9rem; width: fit-content; max-width: 100%; transition: opacity 0.6s; }
+#mpChat .ln b { color: #ffc86a; } #mpChat .ln.sys { color: #b8d8ff; font-style: italic; }
+#mpChat input { pointer-events: auto; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(10,12,20,0.85); color: #fff; font: inherit; }
+#mpBadge { position: fixed; right: 12px; top: 12px; z-index: 25; padding: 6px 12px; font-weight: 800; font-size: 0.85rem; pointer-events: none; }
+#menu .mpRow { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+#menu .mpRow input, #menu textarea.mp { flex: 1; min-width: 120px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.3); color: inherit; font: inherit; }
+#menu textarea.mp { width: 100%; box-sizing: border-box; height: 64px; font-size: 0.75rem; }
+#menu .mpCode { font-size: 1.8rem; letter-spacing: 0.25em; font-weight: 800; color: #ffd060; }
+#menu .mpDot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+#menu .mpPick { display: block; width: 100%; text-align: left; margin: 3px 0; } #menu .mpPick.on { outline: 2px solid #ffd060; }`;
+document.head.appendChild(mpCss);
+const mpChatEl = document.createElement("div"); mpChatEl.id = "mpChat"; document.body.appendChild(mpChatEl);
+const mpBadge = document.createElement("div"); mpBadge.id = "mpBadge"; mpBadge.className = "plate"; mpBadge.hidden = true; document.body.appendChild(mpBadge);
+function mpSay(who, html) {
+  const d = document.createElement("div"); d.className = "ln" + (who ? "" : " sys"); d.innerHTML = who ? `<b>${mpEsc(who)}:</b> ${html}` : html;
+  mpChatEl.insertBefore(d, mpChatEl.querySelector("input")); setTimeout(() => { d.style.opacity = 0; setTimeout(() => d.remove(), 700); }, 12000);
+  while (mpChatEl.querySelectorAll(".ln").length > 7) mpChatEl.querySelector(".ln").remove();
+}
+function mpChatOpen() {
+  if (!mpOn() || mpChatEl.querySelector("input")) return;
+  const i = document.createElement("input"); i.maxLength = 200; i.placeholder = "Say something (Enter to send, Esc to close)"; mpChatEl.appendChild(i);
+  uiOpen = true; if (document.exitPointerLock) document.exitPointerLock(); for (const k in keys) keys[k] = false;
+  const close = () => { i.remove(); uiOpen = !menuEl.hidden || state === "arena"; if (!uiOpen) lockMouse(); };
+  i.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") { const t = i.value.trim(); if (t) { mpSend({ t: "chat", text: t }); mpSay(MP.name, mpEsc(t)); } close(); } else if (e.key === "Escape") close(); });
+  i.addEventListener("keyup", e => e.stopPropagation());
+  setTimeout(() => i.focus(), 0);
+}
+
+// ---------- asking: duel or trade ----------
+function mpAsk(id, what) {
+  if (!hasDragon() || state === "arena") { toast("Not now", "You need your dragon with you (and not be in the arena)"); return; }
+  if (what === "duel" && (pet.small || state === "baby")) { toast("Not now", "Your dragon has to be grown up to duel"); return; }
+  MP.ask = { peer: id, what }; mpSend({ t: "ask", what }, id);
+  toast(`Asked ${mpName(id)} to ${what === "duel" ? "duel" : "trade"}`, "Waiting for an answer..."); mpPanel();
+}
+function mpGotAsk(from, o) {
+  // they said yes to MY question: start it
+  if (o.yes) { if (!MP.ask || MP.ask.peer !== from || MP.ask.what !== o.what) return; MP.ask = null; if (o.what === "duel") mpDuelStart(from, "a"); else mpTradeStart(from); return; }
+  const busy = MP.duel || MP.trade || state === "arena" || !hasDragon();
+  if (busy) { mpSend({ t: "askno", why: "They're busy right now" }, from); return; }
+  MP.incoming = { peer: from, what: o.what };
+  toast(`${mpName(from)} wants to ${o.what === "duel" ? "DUEL" : "TRADE"}!`, "Press P to answer");
+  mpPanel(true);
+}
+function mpAnswer(yes) {
+  const q = MP.incoming; MP.incoming = null; if (!q) return;
+  if (!yes) { mpSend({ t: "askno", why: "Maybe later" }, q.peer); mpPanel(); return; }
+  if (q.what === "duel" && (pet.small || !hasDragon() || state === "baby")) { mpSend({ t: "askno", why: "Their dragon can't duel right now" }, q.peer); toast("Can't duel", "Your dragon has to be grown up"); mpPanel(); return; }
+  mpSend({ t: "ask", what: q.what, yes: true }, q.peer);
+  if (q.what === "duel") mpDuelStart(q.peer, "b"); else mpTradeStart(q.peer);
+}
+
+// ---------- duels: the arena's turn-based fight, against a friend's dragon ----------
+// The one who asked ("a") works out each turn (who goes first, misses, damage) and sends the result, so both screens match.
+function mpDuelStart(peer, role) {
+  if (!menuEl.hidden) closeMenu();
+  const st = petStats();
+  MP.duel = { peer, me: role, foe: role === "a" ? "b" : "a", info: null, moves: {}, guard: {}, over: false, tired: { a: false, b: false } };
+  mpSend({ t: "dinfo", kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, name: pet.name, hp: st.hp, claw: st.claw, breath: st.breath, speed: speedOf() }, peer);
+  if (MP.pendingInfo) { const o = MP.pendingInfo; MP.pendingInfo = null; mpDuelInfo(peer, o); }
+}
+function mpDuelInfo(from, o) {
+  if (!MP.duel) { MP.pendingInfo = Object.assign({}, o, { from }); return; }
+  if (MP.duel.peer !== from || MP.duel.info) return;
+  if (!SPECIES.some(s => s.name === o.kind)) return;
+  MP.duel.info = o; const D = MP.duel;
+  run = { sec: -1, i: 0, earned: 0, xp: 0, duel: true };
+  foe = { n: mpName(from), k: o.kind, l: Math.max(1, o.level | 0), i: [], r: ["", "", ""] };
+  state = "arena"; uiOpen = true; camDist = 9; $("rideKeys").hidden = true; talking = null; $("talk").hidden = true;
+  if (document.exitPointerLock) document.exitPointerLock();
+  battleEl.hidden = false; arrowEl.hidden = true; $("keys").hidden = true;
+  clearFoe(); buildFoe(o.shiny && PAL[o.shiny] ? o.shiny : null);
+  foePerson = makePerson({ shirt: MP_COLORS[(from % 4 + 4) % 4], pants: "#3a3a4a", hair: "#2a1a10", hairStyle: "short", hat: null }); scene.add(foePerson.g);
+  placeFighters(); fx.me.ko = fx.foe.ko = 0;
+  const st = petStats(), arr = v => Array.isArray(v) && v.length === 2 ? v.map(n => Math.max(1, Math.min(999, n | 0))) : [5, 8];
+  run.me = { hp: st.hp, max: st.hp, claw: st.claw, breath: st.breath, speed: speedOf(), tired: false, guard: false };
+  run.foe = { hp: Math.max(1, Math.min(9999, o.hp | 0)), max: Math.max(1, Math.min(9999, o.hp | 0)), claw: arr(o.claw), breath: arr(o.breath), speed: Math.max(1, Math.min(5, o.speed | 0)), tired: false, guard: false, shiny: o.shiny || null };
+  bars(); mpDuelBars();
+  toast(`Duel with ${foe.n}!`, "It's just for fun: nobody loses anything");
+  mpDuelMenu(`${foe.n} sends out ${o.name} the ${o.kind}! What will ${pet.name} do?`);
+}
+MP.pendingInfo = null;
+function mpDuelBars() { if (run && run.duel) $("bRound").textContent = `Duel with ${foe.n} · just for fun`; }
+function mpDuelMenu(msg) {
+  const D = MP.duel; if (!D || D.over) return;
+  say(msg); const m = run.me;
+  const pick = mv => { if (D.moves[D.me]) return; if (mv === "breath" && m.tired) return; buttons([]); say(`Waiting for ${foe.n}...`); D.moves[D.me] = mv;
+    if (D.me === "a") mpDuelResolve(); else mpSend({ t: "dmove", move: mv }, D.peer); };
+  buttons([["Claw", "1", () => pick("claw")], [m.tired ? "Breath (tired)" : "Breath", "2", () => pick("breath")], ["Guard", "3", () => pick("guard")], ["Give up", "4", () => { mpSend({ t: "dquit" }, D.peer); mpDuelEnd(D.foe, "You gave up."); }]]);
+  [...btnEl.children][1].disabled = m.tired;
+}
+function mpDuelMove(from, o) { const D = MP.duel; if (!D || D.peer !== from || D.me !== "a" || D.over) return; if (!["claw", "breath", "guard"].includes(o.move)) return; D.moves.b = o.move; mpDuelResolve(); }
+function mpDuelResolve() {   // only "a" runs this
+  const D = MP.duel; if (!D.moves.a || !D.moves.b) return;
+  const S = { a: run.me, b: run.foe }, mv = { a: D.moves.a, b: D.moves.b }; D.moves = {};
+  const order = (mv.a === "guard") !== (mv.b === "guard") ? (mv.a === "guard" ? ["a", "b"] : ["b", "a"]) : (S.b.speed > S.a.speed ? ["b", "a"] : ["a", "b"]);
+  const hp = { a: S.a.hp, b: S.b.hp }, guard = { a: false, b: false }, ev = [];
+  for (const w of order) {
+    const o = w === "a" ? "b" : "a", A = S[w], Df = S[o], m = mv[w];
+    if (m === "guard") { guard[w] = true; ev.push({ w, m }); continue; }
+    const breath = m === "breath", miss = Math.random() < Math.max(0.03, Math.min(0.4, 0.07 + (Df.speed - A.speed) * (breath ? 0.05 : 0.08)));
+    if (miss) { ev.push({ w, m, miss: 1 }); continue; }
+    let dmg = rnd(breath ? A.breath : A.claw); const crit = Math.random() < 0.1; if (crit) dmg = Math.round(dmg * 1.5); if (guard[o]) dmg = Math.ceil(dmg / 2);
+    hp[o] -= dmg; ev.push({ w, m, dmg, crit: crit ? 1 : 0, g: guard[o] ? 1 : 0 });
+    if (hp[o] <= 0) break;
+  }
+  mpSend({ t: "dres", ev }, D.peer); mpDuelPlay({ ev });
+}
+async function mpDuelPlay(o) {
+  const D = MP.duel; if (!D || D.over || !Array.isArray(o.ev)) return;
+  D.moves = {};
+  const side = w => w === D.me ? "me" : "foe";
+  for (const e of o.ev) {
+    const who = side(e.w), other = who === "me" ? "foe" : "me", A = run[who], Df = run[other];
+    const aName = who === "me" ? pet.name : `${foe.n}'s ${foe.k}`, dName = who === "me" ? `${foe.n}'s ${foe.k}` : pet.name;
+    if (e.m === "guard") { A.tired = false; say(`${aName} braces itself and catches its breath.`); await sleep(700); continue; }
+    A.tired = e.m === "breath"; fx[who].lunge = 1; await sleep(320);
+    if (e.miss) { say(`${aName} ${e.m === "breath" ? "breathes" : "swipes"}... and misses!`); await sleep(800); continue; }
+    const dmg = Math.max(0, e.dmg | 0); Df.hp -= dmg; fx[other].hit = 1; crowd.hype = 1;
+    const at = who === "me" ? spotFoe() : spotMe(), col = who === "me" ? SP(pet.kind).pal.glow : (run.foe.shiny ? PAL[run.foe.shiny].glow : SP(foe.k).pal.glow);
+    burst(at.clone().add(new V(0, 1.6, 0)), e.m === "breath" ? col : "#ffffff");
+    say(`${aName} uses ${e.m === "breath" ? (who === "me" ? breathOf(pet.kind).n : breathOf(foe.k).n) : "Claw"}! ${e.crit ? "<b>Critical hit!</b> " : ""}${e.g ? "(guarded) " : ""}${dName} takes <b>${dmg}</b>.`);
+    bars(); mpDuelBars(); await sleep(900);
+    if (Df.hp <= 0) break;
+  }
+  if (!MP.duel || MP.duel.over) return;
+  if (run.foe.hp <= 0) return mpDuelEnd(D.me, `<b>You won the duel!</b> ${pet.name} beat ${foe.n}'s ${foe.k}.`);
+  if (run.me.hp <= 0) return mpDuelEnd(D.foe, `<b>${foe.n} won the duel.</b> Good fight! (Duels don't hurt your dragon.)`);
+  mpDuelMenu(`What will ${pet.name} do?`);
+}
+function mpDuelEnd(winner, msg) {
+  const D = MP.duel; if (!D || D.over) return; D.over = true;
+  if (!run || !run.duel) { MP.duel = null; return; }
+  crowd.hype = winner === D.me ? 2 : 0.6; say(msg);
+  buttons([["Leave", "Enter", () => { MP.duel = null; endRun(); }]]);
+}
+// arena code shouldn't treat a duel like an arena run
+(function () { const tm = turnMenu; turnMenu = function () { if (run && run.duel) return; return tm.apply(this, arguments); }; })();
+
+// ---------- trading dragons and eggs ----------
+// Both pick what to give (a dragon from the pen, an egg from the backpack, or nothing), both press Ready, and they swap.
+function mpTradeStart(peer) { MP.trade = { peer, mine: null, theirs: null, myReady: false, theirReady: false }; mpPanel(true); }
+const mpItemName = it => !it ? "nothing" : it.egg ? `${it.egg.endsWith("*") ? "a small" : "an"} ${TIER[SP(it.egg.replace("*", "")).rarity] >= 6 ? "??? egg" : SP(it.egg.replace("*", "")).rarity + " egg"}`
+  : `${mpEsc(it.d.name)} (${it.d.shiny ? it.d.shiny + " " : ""}${it.d.small ? "small " : ""}${it.d.kind}, Lv ${it.d.level || 1})`;
+function mpTradePick(kind, i) {
+  const T_ = MP.trade; if (!T_) return;
+  let it = null;
+  if (kind === "pen" && pen[i]) it = { d: Object.assign({}, pen[i]), i, from: "pen" };
+  if (kind === "bag" && bag[i] !== undefined) it = { egg: bag[i], i, from: "bag" };
+  T_.mine = it; T_.myReady = false; T_.theirReady = false;
+  mpSend({ t: "toff", item: it ? (it.egg ? { egg: it.egg } : { d: it.d }) : null }, T_.peer); mpPanel(true);
+}
+function mpTradeOffer(from, o) {
+  const T_ = MP.trade; if (!T_ || T_.peer !== from) return;
+  let it = null;
+  if (o.item && typeof o.item.egg === "string" && SPECIES.some(s => s.name === o.item.egg.replace("*", ""))) it = { egg: o.item.egg };
+  else if (o.item && o.item.d && SPECIES.some(s => s.name === o.item.d.kind)) { const d = o.item.d;
+    it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small } }; }
+  T_.theirs = it; T_.myReady = T_.theirReady = false; mpPanel(true);
+}
+function mpTradeRoom() {   // can I take what they offer?
+  const t = MP.trade.theirs, g = MP.trade.mine; if (!t) return "";
+  if (t.egg && bag.length - (g && g.egg ? 1 : 0) >= BAG_MAX) return "Your backpack is full";
+  if (t.d && penUsed() - (g && g.d ? (g.d.small ? 0.25 : 1) : 0) + (t.d.small ? 0.25 : 1) > PEN_MAX) return "Your pen is full";
+  return "";
+}
+function mpTradeReady(from, o) {
+  const T_ = MP.trade; if (!T_ || T_.peer !== from) return;
+  T_.theirReady = !!o.ready; if (T_.myReady && T_.theirReady) mpTradeDo(); else mpPanel(true);
+}
+function mpTradeSetReady() {
+  const T_ = MP.trade; if (!T_) return; const why = mpTradeRoom(); if (why) { toast("Can't trade", why); return; }
+  if (!T_.mine && !T_.theirs) { toast("Nothing to trade", "Pick something first"); return; }
+  T_.myReady = !T_.myReady; mpSend({ t: "tready", ready: T_.myReady }, T_.peer);
+  if (T_.myReady && T_.theirReady) mpTradeDo(); else mpPanel(true);
+}
+function mpTradeDo() {
+  const T_ = MP.trade; MP.trade = null;
+  const g = T_.mine, t = T_.theirs;
+  // take away what I give (find it again in case the list changed)
+  if (g && g.egg) { const i = bag.indexOf(g.egg); if (i >= 0) bag.splice(i, 1); }
+  if (g && g.d) { const i = pen.findIndex(p => p.name === g.d.name && p.kind === g.d.kind && (p.level || 1) === (g.d.level || 1)); if (i >= 0) pen.splice(i, 1); }
+  if (t && t.egg) bag.push(t.egg);
+  if (t && t.d) { pen.push(t.d); if (!DEX.includes(t.d.kind)) DEX.push(t.d.kind); }
+  toast("Trade done!", `You gave ${g ? mpItemName(g).replace(/<[^>]+>/g, "") : "nothing"} and got ${t ? mpItemName(t).replace(/<[^>]+>/g, "") : "nothing"}${t && t.d ? ". It's in your pen at the nest" : t ? ". It's in your backpack" : ""}`);
+  mpSay(null, `Trade with ${mpEsc(mpName(T_.peer))} done.`);
+  showCoins(); writeSave(); mpPanel(true);
+}
+
+// ---------- the multiplayer panel (P) ----------
+function mpPanel(force) {
+  if (!force && (menuEl.hidden || $("menuTitle").textContent !== "Multiplayer")) return;
+  const pl = [...MP.players.values()];
+  let h = "";
+  if (MP.incoming) h += `<div class="say"><b>${mpEsc(mpName(MP.incoming.peer))}</b> wants to ${MP.incoming.what === "duel" ? "<b>duel</b> (turn-based, just for fun)" : "<b>trade</b>"}!</div>
+    <div class="mpRow"><button type="button" data-act="mpYes">Yes!</button><button type="button" data-act="mpNo">No thanks</button></div>`;
+  if (MP.trade) {
+    const T_ = MP.trade, why = mpTradeRoom();
+    h += `<h4>Trading with ${mpEsc(mpName(T_.peer))}</h4>
+      <p>You give: <b>${mpItemName(T_.mine)}</b>${T_.myReady ? " ✓ ready" : ""}<br>You get: <b>${mpItemName(T_.theirs)}</b>${T_.theirReady ? " ✓ ready" : ""}</p>
+      ${why ? `<p class="bad">${why}</p>` : ""}
+      <div class="mpRow"><button type="button" data-act="mpReady">${T_.myReady ? "Not ready" : "Ready to swap"}</button><button type="button" data-act="mpTclose">Close trade</button></div>
+      <p><small>Pick what to give (your partner dragon stays with you):</small></p>
+      <button type="button" class="mpPick${!T_.mine ? " on" : ""}" data-act="mpGive" data-i="-1">Nothing (a gift for them)</button>
+      ${pen.map((d, i) => `<button type="button" class="mpPick${T_.mine && T_.mine.from === "pen" && T_.mine.i === i ? " on" : ""}" data-act="mpGivePen" data-i="${i}">Dragon: ${mpItemName({ d })}</button>`).join("")}
+      ${bag.map((e, i) => `<button type="button" class="mpPick${T_.mine && T_.mine.from === "bag" && T_.mine.i === i ? " on" : ""}" data-act="mpGiveBag" data-i="${i}">Egg: ${mpItemName({ egg: e })}</button>`).join("")}
+      ${!pen.length && !bag.length ? "<p><small>Your pen and backpack are empty.</small></p>" : ""}<hr>`;
+  }
+  if (!mpOn()) {
+    h += `<p>Play with up to 3 friends. Everybody keeps their own dragons and save: whatever you earn together is saved to your own game.</p>
+      <div class="mpRow"><label>Your name <input id="mpName" maxlength="18" value="${mpEsc(MP.name)}"></label></div>
+      <h4>Host</h4><div class="mpRow"><button type="button" data-act="mpHost">Host a game</button></div>
+      <h4>Join</h4><div class="mpRow"><input id="mpCode" maxlength="5" placeholder="CODE" value="${mpEsc(MP.autoJoin || "")}" style="text-transform:uppercase;letter-spacing:0.2em"><button type="button" data-act="mpJoin">Join</button></div>
+      <details><summary>No code? Connect by copy-paste</summary>
+        <p><small>If room codes don't work: the host makes an invite and sends it to you (any chat app). You paste it, make a reply and send that back.</small></p>
+        <div class="mpRow"><button type="button" data-act="mpManHost">I'm the host: make an invite</button></div>
+        ${MP.manual && MP.manual.offer ? `<textarea class="mp" readonly>${MP.manual.offer}</textarea><textarea class="mp" id="mpManReply" placeholder="Paste your friend's reply here"></textarea><div class="mpRow"><button type="button" data-act="mpManConnect">Connect</button></div>` : ""}
+        <textarea class="mp" id="mpManIn" placeholder="Joining? Paste the host's invite here"></textarea><div class="mpRow"><button type="button" data-act="mpManJoin">Make my reply</button></div>
+        ${MP.manual && MP.manual.answer ? `<textarea class="mp" readonly>${MP.manual.answer}</textarea><p><small>Send this reply to the host.</small></p>` : ""}
+      </details>`;
+  } else {
+    h += MP.role === "host" ? (MP.code ? `<p>Room code: <span class="mpCode">${MP.code}</span></p><div class="mpRow"><button type="button" data-act="mpLink">Copy invite link</button><button type="button" data-act="mpManHost">Invite by copy-paste</button></div>` : `<p>Hosting with copy-paste invites.</p><div class="mpRow"><button type="button" data-act="mpManHost">Make an invite</button></div>`)
+      + (MP.manual && MP.manual.offer ? `<textarea class="mp" readonly>${MP.manual.offer}</textarea><textarea class="mp" id="mpManReply" placeholder="Paste your friend's reply here"></textarea><div class="mpRow"><button type="button" data-act="mpManConnect">Connect</button></div>` : "")
+      : `<p>You're in <b>${mpEsc(mpName(0))}</b>'s game (code ${mpEsc(MP.code || "copy-paste")}).</p>`;
+    h += `<h4>Players (${pl.length + 1} of ${MP_MAX})</h4>
+      <div class="mpRow"><span class="mpDot" style="background:${MP_COLORS[MP.myId % 4]}"></span><b>${mpEsc(MP.name)}</b> (you)</div>
+      ${pl.map(p => { const s = p.st, far = s ? Math.round(Math.hypot(s.x - me.x, s.z - me.z)) : null;
+        return `<div class="mpRow"><span class="mpDot" style="background:${MP_COLORS[(p.id % 4 + 4) % 4]}"></span><b>${mpEsc(p.name)}</b>${p.id === 0 ? " (host)" : ""}
+          <small>${s ? `${s.k ? mpEsc(s.n) + " the " + s.k + " · " : ""}${mpEsc(s.land || "")} · ${far} m away` : "..."}</small>
+          <button type="button" data-act="mpGo" data-i="${p.id}">Go to</button><button type="button" data-act="mpDuel" data-i="${p.id}"${MP.ask ? " disabled" : ""}>Duel</button><button type="button" data-act="mpTrade" data-i="${p.id}"${MP.ask || MP.trade ? " disabled" : ""}>Trade</button></div>`; }).join("") || "<p><small>Nobody else yet. Send them the code!</small></p>"}
+      <p><small>Press <kbd>T</kbd> to chat. Monsters near anyone can be fought together, and everybody who helps gets the XP.</small></p>
+      <div class="mpRow"><button type="button" data-act="mpLeave">${MP.role === "host" ? "Stop hosting" : "Leave the game"}</button></div>`;
+  }
+  if (MP.note) h += `<p class="bad">${mpEsc(MP.note)}</p>`;
+  const wasOpen = !menuEl.hidden && $("menuTitle").textContent === "Multiplayer";
+  if (wasOpen) $("menuBody").innerHTML = h; else openMenu("Multiplayer", h);
+  menuAct = mpAct;
+  $("menuBody").querySelectorAll("input, textarea").forEach(i => { i.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter" && i.id === "mpCode") mpJoin(i.value); }); i.addEventListener("keyup", e => e.stopPropagation()); });
+  const ni = $("mpName"); if (ni) ni.addEventListener("input", () => { MP.name = ni.value.trim().slice(0, 18) || MP.name; mpStore.set("wyrmwild-mpname", MP.name); });
+}
+async function mpAct(a, i) {
+  MP.note = "";
+  if (a === "mpHost") return mpHost();
+  if (a === "mpJoin") return mpJoin(($("mpCode") || {}).value);
+  if (a === "mpLeave") return mpLeave();
+  if (a === "mpYes") return mpAnswer(true);
+  if (a === "mpNo") return mpAnswer(false);
+  if (a === "mpDuel") return mpAsk(i, "duel");
+  if (a === "mpTrade") return mpAsk(i, "trade");
+  if (a === "mpGive") return mpTradePick(null, -1);
+  if (a === "mpGivePen") return mpTradePick("pen", i);
+  if (a === "mpGiveBag") return mpTradePick("bag", i);
+  if (a === "mpReady") return mpTradeSetReady();
+  if (a === "mpTclose") { if (MP.trade) mpSend({ t: "tclose" }, MP.trade.peer); MP.trade = null; return mpPanel(true); }
+  if (a === "mpLink") { const t = location.origin + location.pathname + "?join=" + MP.code; try { await navigator.clipboard.writeText(t); toast("Invite link copied!", t); } catch (e) { window.prompt("Copy this link:", t); } return; }
+  if (a === "mpGo") { const p = MP.players.get(i), s = p && p.st; if (!s) return; if (state !== "grown" && state !== "ride") { toast("Not now", "You need your grown-up dragon with you"); return; }
+    const x = s.x + 6, z = s.z + 4, y = Math.max(groundAt(x, z, s.y + 4), s.y); me.x = x; me.z = z; me.y = y; pet.x = x + 3; pet.z = z; pet.y = y; if (state === "ride") { pet.fly = s.r && s.fl; }
+    closeMenu(); toast(`You flew over to ${p.name}`, ""); return; }
+  if (a === "mpManHost") { try { if (!MP.role) { MP.role = "host"; MP.myId = 0; } const off = await mpManualOffer(); MP.manual = { offer: off.code, pending: off }; } catch (e) { MP.note = "Couldn't make an invite."; } return mpPanel(true); }
+  if (a === "mpManConnect") { const r = ($("mpManReply") || {}).value; const m = MP.manual; if (!m || !m.pending || !r) return; try { const L = await m.pending.accept(r); MP.manual = null; mpHostLink(L); } catch (e) { MP.note = "That reply didn't work. Make a new invite and try again."; } return mpPanel(true); }
+  if (a === "mpManJoin") { const v = ($("mpManIn") || {}).value; if (!v) return; try { const ans = await mpManualAnswer(v); MP.manual = { answer: ans.code }; mpPanel(true); const L = await ans.link; MP.manual = null; MP.code = null; mpGuestLink(L); } catch (e) { MP.note = "That invite didn't work."; } return mpPanel(true); }
+}
+addEventListener("keydown", e => {
+  if (e.repeat || !started) return;
+  if (e.code === "KeyP" && (!uiOpen || $("menuTitle").textContent === "Multiplayer") && state !== "arena") { if (!menuEl.hidden) closeMenu(); else mpPanel(true); }
+  if (e.code === "KeyT" && !uiOpen && mpOn()) { e.preventDefault(); mpChatOpen(); }
+});
+
+// ---------- every frame ----------
+let mpAutoT = 0;
+function updateMP(dt) {
+  if (MP.autoJoin && started && hasDragon() && (mpAutoT += dt) > 1.5 && !mpOn()) { mpAutoT = -1e9; mpPanel(true); toast("Joining your friend's game", "Press Join"); }
+  mpBadge.hidden = !mpOn();
+  if (!mpOn()) return;
+  mpBadge.textContent = `${MP.role === "host" ? "Hosting" : "Online"}${MP.code ? " · " + MP.code : ""} · ${MP.players.size + 1} player${MP.players.size ? "s" : ""}`;
+  if ((MP.sT -= dt) <= 0) { MP.sT = 0.1; mpSend({ t: "s", s: mpMyState() }); }
+  if ((MP.mT -= dt) <= 0) { MP.mT = 0.25; mpSend({ t: "mon", l: mpMonList() }); }
+  for (const p of MP.players.values()) mpAvUpdate(p, dt);
+  if ((MP.pT = (MP.pT || 0) - dt) <= 0) { MP.pT = 2; const ae = document.activeElement; if (!menuEl.hidden && $("menuTitle").textContent === "Multiplayer" && !(ae && /INPUT|TEXTAREA/.test(ae.tagName))) mpPanel(); }
+  mpMirrorsUpdate(dt);
+}
+addEventListener("beforeunload", () => { try { if (MP.role === "host") for (const c of MP.clients.values()) c.link.send({ t: "bye", from: 0 }); } catch (e) {} });
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
