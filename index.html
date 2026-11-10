@@ -496,7 +496,7 @@ function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
-    if (hoverK > 0.01 && k < 3) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
+    if (hoverK > 0.01 && k < 3 && !o.foxTails) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
     if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
@@ -1060,6 +1060,8 @@ function update(t, walk, flap, dt, bend = 0) {
   head.quaternion.copy(hq).multiply(headTurn.setFromEuler(_eul.set(0, -bendNow * 0.35 + look.yaw * 1.35 * idleK, look.pitch * 0.8 * idleK, 'YXZ')));
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
   updateHeads(t, end, fwd, side, up);
+  updateFoxTails(t);
+  updatePuffs(t);
   if (o.ghost) { const k = 0.5 + 0.5 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1); fadeAll(0.38 + 0.5 * k); M.wing.opacity = 0.3 + 0.45 * k; }   // the WHOLE dragon fades in and out like fog (legs and head too)
   if (o.zap && Math.random() < 0.08) M.body.emissiveIntensity *= 3.5;   // a crackle of lightning runs over its markings
   if (o.shimmer) { const k = Math.sin(t * 2.3) * Math.sin(t * 3.7); fadeAll(0.62 + 0.3 * Math.abs(k)); M.wing.transparent = true; M.wing.opacity = 0.55 + 0.35 * Math.abs(Math.sin(t * 2.9)); }   // wavers like a heat mirage
@@ -1085,7 +1087,7 @@ function update(t, walk, flap, dt, bend = 0) {
       g.rotation.z += (Math.cos(c) * 0.22 - g.rotation.z) * k;
       const kn = g.userData.knee; if (kn) kn.rotation.z += ((front ? 0.9 : -0.7) * lift - kn.rotation.z) * k;
       const an = g.userData.ankle; if (an) an.rotation.z += (-(g.rotation.z + (kn ? kn.rotation.z : 0)) - an.rotation.z) * k;   // paw stays flat, like standing on a floor
-      const pf = airPuffs[i]; if (pf) { const down = 1 - lift; pf.material.opacity += (0.1 + 0.55 * down * down - pf.material.opacity) * Math.min(1, dt * 10); pf.scale.set(1.2 + down * 0.5, 0.4, 1.2 + down * 0.5); }
+      const pf = airPuffs[i]; if (pf) { const down = 1 - lift; pf.material.opacity += (0.1 + 0.55 * down * down - pf.material.opacity) * Math.min(1, dt * 10); pf.scale.set(1.2 + down * 0.5, 1, 1.2 + down * 0.5); }
       return;
     }
     if (airRun) {   // BOUNDING through the air (Petra): legs stretch out together (front reach forward, back kick back), then gather under the body and push off a glowing puff
@@ -1094,8 +1096,8 @@ function update(t, walk, flap, dt, bend = 0) {
       g.rotation.z += (hip - g.rotation.z) * k;
       const tuck = Math.max(0, -str);                                   // knees fold while gathered
       const kn = g.userData.knee; if (kn) kn.rotation.z += ((front ? 1.1 : -0.5) * tuck + (front ? 0.15 : 0) - kn.rotation.z) * k;
-      const an = g.userData.ankle; if (an) an.rotation.z += ((front ? (-0.5 * tuck) : -(g.rotation.z + (kn ? kn.rotation.z : 0) + (api && api.airPitch || 0))) - an.rotation.z) * k;   // hind paws stay flat on the 'floor' of air (Petra)
-      const pf = airPuffs[i]; if (pf) { const push = Math.max(0, -Math.sin(c + (front ? 0.5 : -0.3))) ** 2; pf.material.opacity += (0.08 + 0.7 * push - pf.material.opacity) * Math.min(1, dt * 10); const sc = 1.1 + push * 1.1; pf.scale.set(sc, 0.4, sc); }
+      const an = g.userData.ankle; if (an) an.rotation.z += (-(g.rotation.z + (kn ? kn.rotation.z : 0) + (api && api.airPitch || 0)) - an.rotation.z) * k;   // all four paws flex at the ankle and stay flat on the 'floor' of air (Petra)
+      const pf = airPuffs[i]; if (pf) { const push = Math.max(0, -Math.sin(c + (front ? 0.5 : -0.3))) ** 2; pf.material.opacity += (0.08 + 0.7 * push - pf.material.opacity) * Math.min(1, dt * 10); const sc = 1.1 + push * 1.1; pf.scale.set(sc, 1, sc); }
       return;
     }
     if (airPuffs[i]) airPuffs[i].material.opacity = 0;
@@ -1140,16 +1142,65 @@ function updateHeads(t, end, fwd, side, up) {
     e.h.position.copy(_c); e.h.quaternion.copy(hq).multiply(_q.setFromEuler(_eul.set(0, -e.z * 0.35 + Math.sin(t * 0.8 + e.ph) * 0.15 + ly * 1.5, lp * 0.9, 'YXZ')));   // each head turns to look on its own
   });
 }
+// ---------- long fox tails (Vulpyre, Petra 2026-11-10): three sleek, smooth tails as long as a dragon's tail, white fading to a glowing foxfire tip ----------
+const foxTails = [];
+if (o.foxTails) {
+  const n = o.foxTails, L = 2.9 * (o.len || 1), FS = 40, white = new THREE.Color(p.side).convertSRGBToLinear(), tipC = new THREE.Color(p.foxMarks2 || p.foxMarks || p.glow).convertSRGBToLinear(), glowC = new THREE.Color(p.glow).convertSRGBToLinear();
+  const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05, emissive: glowC, emissiveIntensity: 0 });
+  fm.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= smoothstep(0.04, 0.35, length(vColor - vec3(" + [white.r, white.g, white.b].map(x => x.toFixed(4)).join(",") + ")));"); };
+  for (let k = 0; k < n; k++) {
+    const geo = makeTube(FS, 20), col = new Float32Array((FS + 1) * 21 * 3);
+    for (let i = 0; i <= FS; i++) { const u = i / FS, m = Math.max(0, (u - 0.7) / 0.3) ** 1.3, c = white.clone().lerp(tipC, m); for (let j = 0; j <= 20; j++) col.set([c.r, c.g, c.b], (i * 21 + j) * 3); }
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const mesh = new THREE.Mesh(geo, fm); mesh.castShadow = true; mesh.frustumCulled = false; dragon.add(mesh);
+    foxTails.push({ mesh, z: (k - (n - 1) / 2) * 0.55, hi: k === (n - 1) / 2 ? 0.3 : 0, ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
+  }
+  fm.emissiveIntensity = 0.5 * (o.glow || 1);
+  var foxTailL = L;
+}
+const _ft = [new V(), new V(), new V(), new V()];
+function updateFoxTails(t) {
+  if (!foxTails.length) return;
+  const base = frames[0].p, dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
+  foxTails.forEach((f, k) => {
+    const sway = Math.sin(t * 1.1 + f.ph) * (0.35 + 0.3 * idleK), lift = Math.sin(t * 0.8 + f.ph * 1.3) * 0.15;
+    // a graceful S: out along the tail, rising, then the tip curls up; hovering lets them hang in a curve
+    const c1 = _ft[1].copy(base).addScaledVector(dir, L * 0.42).add(_ft[3].set(0, 0.1 + lift * 0.4, f.z * 0.6 + sway * 0.3));
+    const c2 = _ft[2].copy(base).addScaledVector(dir, L * 0.85).add(_ft[3].set(0, 0.85 + f.hi + lift, f.z * 1.5 + sway * 0.8));
+    const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 0.7 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
+    if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
+    f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
+    fillTube(f.mesh.geometry, f.pts, u => u < 0.6 ? 0.07 + 0.15 * Math.sin(u / 0.6 * Math.PI / 2) ** 1.4 : 0.22 * Math.sqrt(Math.max(0, 1 - ((u - 0.6) / 0.4) ** 2)) , 1, 1, true);   // slim root, full plume, softly rounded tip
+  });
+}
 // ---------- walking on air (wingless dragons that fly anyway): glowing puffs under each paw ----------
 const airPuffs = [];
-if (o.wings === "none" && o.skyRun) legs.forEach(g => {
-  const holder = g.userData.ankle || g, pm = new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow).convertSRGBToLinear(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-  const puff = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), pm); puff.scale.set(1.4, 0.45, 1.4); puff.position.y = -0.12; holder.add(puff); airPuffs.push(puff);
-});
+if (o.wings === "none" && o.skyRun) {   // see-through glowing "stepping stones" of light: a soft halo, a thin bright rim and a few twinkling motes
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128; const cx = cv.getContext("2d"), gr = cx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, "rgba(255,255,255,0.35)"); gr.addColorStop(0.55, "rgba(255,255,255,0.12)"); gr.addColorStop(0.82, "rgba(255,255,255,0.55)"); gr.addColorStop(0.9, "rgba(255,255,255,0.2)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+  cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128); const tex = new THREE.CanvasTexture(cv);
+  const gc = new THREE.Color(p.glow).convertSRGBToLinear(), gc2 = new THREE.Color(p.glow2 || "#ffffff").convertSRGBToLinear();
+  const mk = (c, map) => new THREE.MeshBasicMaterial({ color: c, map, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const discG = new THREE.CircleGeometry(0.26, 32).rotateX(-Math.PI / 2), ringG = new THREE.TorusGeometry(0.2, 0.008, 6, 40).rotateX(Math.PI / 2), moteG = new THREE.SphereGeometry(0.018, 6, 4);
+  legs.forEach(g => {
+    const holder = g.userData.ankle || g, puff = new THREE.Group(); puff.position.y = -0.13;
+    const disc = new THREE.Mesh(discG, mk(gc, tex)), ring = new THREE.Mesh(ringG, mk(gc2)), motes = [0, 1, 2, 3].map(() => new THREE.Mesh(moteG, mk(gc2)));
+    puff.add(disc, ring, ...motes); puff.userData = { disc, ring, motes, ph: Math.random() * 6 }; puff.material = { opacity: 0 };   // the leg code just sets material.opacity and scale
+    holder.add(puff); airPuffs.push(puff);
+  });
+}
+function updatePuffs(t) {
+  airPuffs.forEach(pf => { const a = pf.material.opacity, u = pf.userData;
+    pf.visible = a > 0.005; if (!pf.visible) return;
+    u.disc.material.opacity = a * 0.55; u.ring.material.opacity = Math.min(1, a * 1.3); u.ring.rotation.y = t * 0.6 + u.ph;
+    u.motes.forEach((m, j) => { const an = t * 1.4 + u.ph + j * 1.57, rr = 0.17 + 0.05 * Math.sin(t * 2 + j); m.position.set(Math.cos(an) * rr, 0.02 + 0.12 * ((t * 0.5 + j * 0.25 + u.ph) % 1), Math.sin(an) * rr); m.material.opacity = a * (0.6 + 0.4 * Math.sin(t * 5 + j * 2)); });
+  });
+}
 paint(p);
 if (o.corona) { M.bone.color.set("#2a2010").convertSRGBToLinear(); M.bone.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); M.bone.emissiveIntensity = 1.1; }   // Eclipsar: glowing gold wing bones
 if (_ember) { const ck = _ember.userData.cracks; _ember.copy(M.wing); _ember.emissiveMap = ck; _ember.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); if (o.emberWings === "strong") { _ember.emissiveIntensity = 1.6; _ember.map = null; _ember.color.set(mix(p.wing, "#000000", 0.35)).convertSRGBToLinear(); } else _ember.emissiveIntensity = 0.7; }   // dark sooty skin so the glowing veins show
 dragon.traverse(m => { if (m.isMesh) m.castShadow = true; });
+airPuffs.forEach(pf => pf.traverse(m => { m.castShadow = false; }));
 update(0, 0, 0, 0.016);
 sockets.head = head;
 api = { root: dragon, update, seat, sockets, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
@@ -1369,8 +1420,8 @@ const SPECIES = [
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
     pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#b8360c", foxMarks2: "#e07a20", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
-    sp: { foxEars: true, gentle: true, tails: 3, glowTips: true, foxGem: true, tail: "brush", brushScale: 1.5, thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing foxfire swirls run down its sides, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE bushy fox-red tails with glowing white tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.4, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing foxfire swirls run down its sides, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
