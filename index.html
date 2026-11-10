@@ -352,9 +352,13 @@ function paint(p) {
     for (let i = 0; i < 160; i++) { g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H * 0.5, 6 + Math.random() * 16, 4 + Math.random() * 9, Math.random() * 3, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
   }
-  if (p.foxMarks) { // Vulpyre: a soft fox-red saddle on the back only (not the rump or neck), fading into the white
-    const hg = g.createLinearGradient(380, 0, 700, 0); hg.addColorStop(0, "rgba(0,0,0,0)"); hg.addColorStop(0.25, p.foxMarks); hg.addColorStop(0.75, p.foxMarks); hg.addColorStop(1, "rgba(0,0,0,0)");
-    for (let y = 0; y < H * 0.5; y++) { const k = Math.max(0, 1 - Math.abs(y - H * 0.25) / (H * 0.11)); if (!k) continue; g.globalAlpha = k * k * 0.55; g.fillStyle = hg; g.fillRect(380, y, 320, 1); }
+  if (p.foxMarks) { // Vulpyre (Petra: MORE red): a rich fox-red saddle, red flame tongues licking down both flanks, a red stripe up the neck, red bands near the rump
+    const hg = g.createLinearGradient(330, 0, 740, 0); hg.addColorStop(0, "rgba(0,0,0,0)"); hg.addColorStop(0.15, p.foxMarks); hg.addColorStop(0.88, p.foxMarks); hg.addColorStop(1, "rgba(0,0,0,0)");
+    for (let y = 0; y < H * 0.5; y++) { const k = Math.max(0, 1 - Math.abs(y - H * 0.25) / (H * 0.15)); if (!k) continue; g.globalAlpha = Math.min(1, k * 1.8) * 0.9; g.fillStyle = hg; g.fillRect(330, y, 410, 1); }
+    g.globalAlpha = 0.92; g.fillStyle = p.foxMarks;
+    [1, -1].forEach(sd => { for (let x = 380, i = 0; x < 720; x += 34, i++) { const len = [46, 32, 54, 38][i % 4], w = 11, yb = H * 0.25 + sd * 26, yt = yb + sd * len; g.beginPath(); g.moveTo(x - w, yb); g.quadraticCurveTo(x - w * 0.3, (yb + yt) / 2, x - 10, yt); g.quadraticCurveTo(x + w * 0.8, (yb + yt) / 2, x + w, yb); g.closePath(); g.fill(); } });   // flame tongues licking down from the saddle, leaning back like it runs
+    for (let x = 720; x < 1000; x += 2) { const w = 15 * (1 - (x - 720) / 330); g.fillRect(x, H * 0.25 - w, 2, w * 2); }   // red stripe up the back of the neck to the head
+    [[300, 9], [262, 7], [228, 5]].forEach(([x, w]) => { for (let y = 0; y < H; y++) { const up = Math.sin(y / H * Math.PI * 2); if (up > -0.2) { g.globalAlpha = 0.85 * Math.min(1, (up + 0.2) * 3); g.fillRect(x - w, y, w * 2, 1); } } });   // red rings round the base of the tails
     g.globalAlpha = 1;
   }
   // glow markings
@@ -382,6 +386,7 @@ function paint(p) {
         st.forEach(([x, v]) => { c.beginPath(); c.arc(x, Y(v), 4.5, 0, Math.PI * 2); c.fill(); });   // a little constellation under the tendril
       });
       for (let x = 700; x < 960; x += 4) { c.lineWidth = 3.5 * (1 - (x - 700) / 300); c.beginPath(); c.moveTo(x, H * 0.25); c.lineTo(x + 4, H * 0.25); c.stroke(); }
+      [1, -1].forEach(sd => [[790, 30, 9], [880, 26, 7]].forEach(([x, v, r0]) => { c.lineWidth = 3; c.beginPath(); for (let a2 = 0; a2 < 9; a2 += 0.25) { const r = r0 * (1 - a2 / 10); c.lineTo(x + Math.cos(a2) * r, H * 0.25 + sd * v + Math.sin(a2) * r * sd); } c.stroke(); }));   // little spirit spirals on the neck
       [760, 830, 900].forEach(x => { c.beginPath(); c.moveTo(x, H * 0.25 - 6); c.lineTo(x + 4, H * 0.25); c.lineTo(x, H * 0.25 + 6); c.lineTo(x - 4, H * 0.25); c.closePath(); c.fill(); });   // rune diamonds up the neck
       c.fillStyle = c.shadowColor = col2;
       [[480, 0.1], [600, 0.42], [650, 0.08], [470, 0.4], [690, 0.4], [540, 0.06]].forEach(([x, v]) => { c.beginPath(); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = k % 2 ? 1.2 : 4; c.lineTo(x + Math.cos(a) * rr, v * H + Math.sin(a) * rr); } c.fill(); });
@@ -1423,7 +1428,7 @@ const SPECIES = [
     sp: { horns: "antler", antlerScale: 1.5, antlerGlow: true, wings: "bat", wingScale: 1.15, back: "fur", tail: "tuft", frill: "fur", pattern: "streaks", glow: 1.4, eyes: 1.2, leaves: true },
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
-    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#b8360c", foxMarks2: "#e07a20", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
+    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c4622c", foxMarks2: "#e07a20", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
     sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
     ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Magical foxfire markings: a spirit swirl with rising flames on each side, a crescent moon on each shoulder, tiny star constellations, runes up the neck and a foxfire gem on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
