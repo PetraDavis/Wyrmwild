@@ -492,11 +492,17 @@ const R0 = s => Math.max(R0b(s) * gBump(s) * (o.thin || 1) * tailK(s), TS === "t
 let breath = 1;
 const rad = s => R0(s) * (s > 0.33 && s < 0.68 ? breath : 1);
 const BEND = [1.1, 0.7, 0.32, 0.06, 0, 0.06, 0.28, 0.6, 0.95];
+// the hanging tail for hovering: each tail joint bends a little more than the one before, so it makes one smooth arc
+const CURL = (() => { const out = BASE.map(b => b.slice()), step = [0.12, 0.26, 0.34, 0.38];   // bend added at joints 4,3,2,1 (hip to tip)
+  let ang = 0; for (let k = 3; k >= 0; k--) { ang += step[3 - k]; const a = BASE[k + 1], b = BASE[k], dx = b[0] - a[0], dy = b[1] - a[1], c = Math.cos(ang), sn = Math.sin(ang), prev = out[k + 1];
+    out[k] = [prev[0] + dx * c - dy * sn, prev[1] + dx * sn + dy * c, b[2]]; }
+  return out; })();
+const _cv = new V();
 function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
-    if (hoverK > 0.01 && k < 3) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down in a soft curve (Petra)
+    if (hoverK > 0.01 && k < 4) v.lerp(_cv.set(...CURL[k]), hoverK);   // hovering: the tail hangs down in a soft curve (Petra)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
     if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
@@ -1120,12 +1126,12 @@ if (NH > 1) {
 const _a = new V(), _b = new V(), _c = new V(), _d = new V(), _e = new V(), _q = new THREE.Quaternion();
 function updateHeads(t, end, fwd, side, up) {
   if (!extraHeads.length) return;
-  const base = at(0.8), tan = _d.copy(at(0.84).p).sub(at(0.76).p).normalize(), r0 = Math.max(0.1, base.r * 0.92), r1 = Math.max(0.07, end.r * 0.9);
+  const base = at(0.66), tan = _d.copy(at(0.7).p).sub(at(0.62).p).normalize(), r0 = Math.max(0.1, base.r * 0.8), r1 = Math.max(0.07, end.r * 0.9);
   extraHeads.forEach(e => {
     lookStep(e.L, _dt, 0.9); const lk = 0.45 + 0.55 * idleK, ly = e.L.yaw * lk, lp = e.L.pitch * lk;
     const az = Math.abs(e.z), bob = Math.sin(t * 1.6 + e.ph) * 0.08;
     _c.copy(head.position).addScaledVector(side, e.z * 2.1 + ly * 0.12).addScaledVector(up, -az * 0.35 + bob + lp * 0.1).addScaledVector(fwd, -az * 0.4 + Math.sin(t * 1.1 + e.ph) * 0.05);   // head
-    _a.copy(base.p).addScaledVector(side, e.z * 0.12);   // each extra neck BRANCHES out of the main neck, so the belly flows smoothly from one into the other                                                                                                                       // neck root on the shoulders
+    _a.copy(base.p).addScaledVector(side, e.z * 0.3);   // each extra neck grows from the BASE of the neck (the shoulders), belly facing forward so it flows on from the chest                                                                                                                       // neck root on the shoulders
     _b.copy(_a).addScaledVector(tan, _a.distanceTo(_c) * 0.45).addScaledVector(side, e.z * 0.9);   // leaves along the main neck first, then curves out                                                                                // bend
     e.pts.forEach((q, i) => { const u = i / 30, w = 1 - u; q.set(w * w * _a.x + 2 * w * u * _b.x + u * u * _c.x, w * w * _a.y + 2 * w * u * _b.y + u * u * _c.y, w * w * _a.z + 2 * w * u * _b.z + u * u * _c.z); });
     fillTube(e.tube.geometry, e.pts, u => (r0 + (r1 - r0) * u) * (u > 0.94 ? 0.92 : 1), 0.9, 1.05, false, _e.copy(fwd).addScaledVector(up, -0.15));   // a smooth tapered neck, like the main one
