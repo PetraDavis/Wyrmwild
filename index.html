@@ -1162,13 +1162,13 @@ if (o.foxTails) {
 const _ft = [new V(), new V(), new V(), new V()], _ftB = new V();
 function updateFoxTails(t) {
   if (!foxTails.length) return;
-  const base = _ftB.copy(frames[0].p).add(_ft[3].set(0.1, 0.05, 0)), dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
+  const base = _ftB.copy(frames[0].p).add(_ft[3].set(0.1, 0.18, 0)), dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
   foxTails.forEach((f, k) => {
     const sway = Math.sin(t * 1.1 + f.ph) * (0.35 + 0.3 * idleK), lift = Math.sin(t * 0.8 + f.ph * 1.3) * 0.15;
     // a graceful S: out along the tail, rising, then the tip curls up; hovering lets them hang in a curve
-    const c1 = _ft[1].copy(base).addScaledVector(dir, L * 0.42).add(_ft[3].set(0, 0.1 + lift * 0.4, f.z * 0.6 + sway * 0.3));
-    const c2 = _ft[2].copy(base).addScaledVector(dir, L * 0.85).add(_ft[3].set(0, 0.85 + f.hi + lift, f.z * 1.5 + sway * 0.8));
-    const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 0.7 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
+    const c1 = _ft[1].copy(base).addScaledVector(dir, L * 0.42).add(_ft[3].set(0, 0.35 + lift * 0.4, f.z * 0.6 + sway * 0.3));
+    const c2 = _ft[2].copy(base).addScaledVector(dir, L * 0.85).add(_ft[3].set(0, 1.25 + f.hi + lift, f.z * 1.5 + sway * 0.8));
+    const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
     if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
     f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
     fillTube(f.mesh.geometry, f.pts, u => u < 0.6 ? 0.07 + 0.15 * Math.sin(u / 0.6 * Math.PI / 2) ** 1.4 : 0.22 * Math.sqrt(Math.max(0, 1 - ((u - 0.6) / 0.4) ** 2)) , 1, 1, true);   // slim root, full plume, softly rounded tip
@@ -1260,7 +1260,7 @@ const SPECIES = [
   { name: "Jadewyrm", rarity: "Rare", home: "Misty bamboo forests", speed: 3, pal: P("#1a5a3a", "#2f9a6a", "#e8f0c8", "#8affc8", "#f0e0a0", "#2a7a5a", "#ffd04a", { fin: "#e8c05a" }),
     sp: { wings: "broad", gentle: true, len: 1.5, wingScale: 0.85, whiskers: true, frill: "crest", back: "frill", tail: "tuft", horns: "antler", pattern: "streaks", legLen: 0.9 },
     ad: ["A very long body winds between bamboo stalks", "Whiskers feel the air for danger in thick mist", "Small wings: it slithers more than it flies"] },
-  { name: "Petalwyrm", rarity: "Rare", home: "Flower fields", speed: 3, pal: P("#c84a8a", "#f08ab8", "#fff0f4", "#ffd0f0", "#fff8d8", "#f0a0c8", "#7a3aaa", { fin: "#ff9ad0" }),
+  { name: "Petalwyrm", rarity: "Uncommon", home: "Flower fields", speed: 3, pal: P("#c84a8a", "#f08ab8", "#fff0f4", "#ffd0f0", "#fff8d8", "#f0a0c8", "#7a3aaa", { fin: "#ff9ad0" }),
     sp: { gentle: true, wings: "leaf", tail: "flower", back: "leaves", frill: "petals", pattern: "spots", spots: "#ffe0f0", girth: 0.9 },
     ad: ["Petal frills and a flower tail hide it in flower fields", "Sweet smell attracts bugs to eat", "Light and graceful, it hovers like a bee"] },
   { name: "Blazequill", rarity: "Epic", home: "The volcano's crater", speed: 4, pal: P("#a82a0a", "#ff6a1a", "#ffd88a", "#ffe04a", "#fff0a0", "#c83a10", "#ffffff", { flame: "#ffb02a" }),
@@ -1269,7 +1269,7 @@ const SPECIES = [
   { name: "Abyssar", size: 0.88, rarity: "Epic", home: "The deepest ocean trench", speed: 5, pal: P("#060a1e", "#0e1840", "#1e3060", "#3affff", "#8affff", "#0a1430", "#3affff", { fin: "#12305a" }),
     sp: { webbed: true, wings: "fin", wingScale: 1.1, flapSpeed: 3.5, tail: "fluke", back: "frill", frill: "ears", eyes: 1.7, len: 1.4, girth: 0.9, pattern: "spots", glow: 1.8, horns: "none", legLen: 0.8 },
     ad: ["Swimming against the water made it small but very strong and fast", "Its wings were once normal wings but slowly turned into wide fins. They still work as wings, so it can swim AND fly", "Huge round eyes see in total darkness", "Glowing spots light up the deep and lure fish", "A long body and big fluke for swimming"] },
-  { name: "Rootwyrm", rarity: "Epic", home: "Under the oldest forest", speed: 1, pal: P("#3a2a1a", "#6a4a2a", "#a8885a", "#9aff6a", "#c8b080", "#4a3a20", "#d0ff6a", { fur: "#4a8a2a", fin: "#5a7a2a" }),
+  { name: "Rootwyrm", rarity: "Rare", home: "Under the oldest forest", speed: 1, pal: P("#3a2a1a", "#6a4a2a", "#a8885a", "#9aff6a", "#c8b080", "#4a3a20", "#d0ff6a", { fur: "#4a8a2a", fin: "#5a7a2a" }),
     sp: { gentle: true, girth: 1.25, horns: "antler", back: "fur", tail: "club", legThick: 1.3, wings: "leaf", wingScale: 0.8, pattern: "cracks", spots: "#3a2a14", digClaws: true },
     ad: ["Bark-like skin with moss growing on top", "Big antlers like tree roots", "Huge claws dig tunnels between the roots", "Glowing cracks, like sap moving under the bark"] },
   { name: "Lumora", rarity: "Legendary", home: "Night skies", speed: 4, pal: P("#0a0a14", "#14142a", "#2a2a44", "#ffe04a", "#ffe8a0", "#0e0e1e", "#ffe04a", { crystal: "#fff2b8", crystalTip: "#ffe04a", wingTip: "#ffe04a", metal: 0.35 }),
@@ -1295,7 +1295,7 @@ const SPECIES = [
   { name: "Auroran", rarity: "Rare", home: "Night sky over the Frost Peaks", speed: 4, pal: P("#0a3a30", "#13604a", "#7ab89a", "#5aff9a", "#ffd0ec", "#0e4a3a", "#ff9ad8", { glow2: "#b06aff", glow3: "#ff6ac8", wingTip: "#9a4aff" }),
     sp: { gentle: true, legThick: 1.15, feet: 1.35, pattern: "aurora", glow: 1.6, wingScale: 1.2, wingStars: false, frill: "crest", tail: "ribbon", eyes: 1.2 },
     ad: ["Glowing aurora stripes, green, purple and pink", "Dark green body vanishes in the polar night", "Big wings with purple tips for long flights between the peaks", "Wide feet for landing on deep snow"] },
-  { name: "Bergdrake", rarity: "Rare", home: "Icy seas by the ocean", speed: 2, pal: P("#3a4a5a", "#6a8094", "#c8d8e0", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
+  { name: "Bergdrake", rarity: "Uncommon", home: "Icy seas by the ocean", speed: 2, pal: P("#3a4a5a", "#6a8094", "#c8d8e0", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
     sp: { webbed: true, gentle: true, legThick: 1.3, feet: 1.4, girth: 1.5, wings: "flipper", tail: "fluke", tusks: true, horns: "none", back: "none", legLen: 0.8, pattern: "none", spots: "#8aa0b4", neck: 0.8 },
     ad: ["Thick blubber keeps it warm in freezing water", "Flippers instead of big wings: a great swimmer", "Tusks haul it up onto ice", "Big webbed feet paddle in the sea and grip on ice", "Slow on land, graceful in the sea"] },
   // ----- weather dragons: their eggs only come with the weather (Petra 2026-11-09) -----
@@ -1381,7 +1381,7 @@ const SPECIES = [
     pal: P("#1e2a22", "#2e4a36", "#8ab880", "#a8ff6a", "#3a4a2e", "#22362a", "#d8ff6a", { fin: "#3a6a46" }),
     sp: { webbed: true, orbGlow: true, tail: "orb", wings: "bat", back: "frill", frill: "frill", horns: "none", pattern: "spots", glow: 1.5, eyes: 1.3, whiskers: true, fangs: 1.5, head: [1.05, 1, 1.1] },
     ad: ["A glowing lantern on its tail lures bugs (and monsters) in the dark", "Glowing green spots look like fireflies over the water", "Big eyes see well in the dark swamp", "Long whiskers feel for food in muddy water"] },
-  { name: "Venomire", rarity: "Epic", home: "Misty Swamp (poison bogs)", speed: 3, br: "Venom Spray: a wide cone of poison that keeps hurting (burn)",
+  { name: "Venomire", rarity: "Rare", home: "Misty Swamp (poison bogs)", speed: 3, br: "Venom Spray: a wide cone of poison that keeps hurting (burn)",
     pal: P("#2a1a3a", "#4a2a5e", "#b8e05a", "#c8ff3a", "#e8ff8a", "#3a2050", "#c8ff3a", { spikeTip: "#c8ff3a" }),
     sp: { webbed: true, back: "spikes", backScale: 1.2, tail: "spike", wings: "bat", wingScale: 1.1, horns: "long", frill: "frill", pattern: "stripes", fangs: 2.2, glow: 1.4, thin: 0.95 },
     ad: ["Bright purple and lime warn everything that it is poisonous", "Venom spikes along its back hurt anything that bites it", "Long fangs drip poison", "Lives in bogs where nothing else wants to go"] },
@@ -1411,7 +1411,7 @@ const SPECIES = [
     pal: P("#4a3a24", "#7a5a34", "#e8d4a8", "#e8b04a", "#c8a870", "#5a4228", "#ffd04a", { spikeTip: "#f0e0b8" }),
     sp: { gentle: true, girth: 1.12, legLen: 0.85, wingScale: 0.8, back: "spikes", backScale: 1.5, tail: "club", horns: "none", frill: "ears", pattern: "none", eyes: 1.15, head: [0.9, 1, 1.05] },
     ad: ["A back full of stiff, dry pine-needle spines", "Curls up into a spiky ball when it's scared", "Brown and tan like a pile of pine needles on the forest floor", "A spiky ball of a tail swings at anything that sneaks up behind it"] },
-  { name: "Maplewing", rarity: "Rare", home: "Autumn Woods (treetops)", speed: 4, br: "Maple Spin: whirling seed shots that curve onto monsters",
+  { name: "Maplewing", rarity: "Uncommon", home: "Autumn Woods (treetops)", speed: 4, br: "Maple Spin: whirling seed shots that curve onto monsters",
     pal: P("#8a1a1a", "#d83a2a", "#ffe0b0", "#ff7a3a", "#4a2a1a", "#e8401a", "#ffd04a", { fin: "#ff8a2a", wingTip: "#ffd04a" }),
     sp: { wings: "leaf", wingScale: 1.3, tail: "fan", back: "leaves", leaves: true, horns: "antler", frill: "crest", pattern: "streaks", glow: 1.2 },
     ad: ["Big maple-leaf wings fade from red to gold", "It glides down spinning like a maple seed", "Light body for living high in the treetops", "Falling leaves follow it wherever it flies"] },
