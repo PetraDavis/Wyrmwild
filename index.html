@@ -2751,7 +2751,7 @@ function makePerson(o) {
   H.c2 = house({ ...at(30, 140), w: 5.5, d: 5, h: 3.4, roof: "#7a4a2a" });
   H.farm = house({ ...at(30, 176), w: 8, d: 6, h: 3.8, roof: "#c8a040", wall: "#e8d4a8" });
   H.bakery = house({ ...at(30, 214), w: 6.5, d: 6, h: 3.8, roof: "#d9782a", sign: "BAKERY", chimney: true });
-  H.c3 = house({ ...at(30, 248), w: 5.5, d: 5, h: 3.4, roof: "#5a6ab0" });
+  H.c3 = house({ ...at(30, 248), w: 6, d: 5.5, h: 3.6, roof: "#7a3aa8", wall: "#e8dcf0", sign: "POTIONS", signBg: "#ead8f8", chimney: true });   // Wren's potion shop (Petra 2026-11-10)
   H.nettle = house({ ...at(44, 120), w: 4, d: 4, h: 2.6, roof: "#6a3a9a", wall: "#8a7a6a", rh: 2.6, twist: 0.25 });
   H.c4 = house({ ...at(42, 70), w: 5, d: 4.5, h: 3.2, roof: "#9a3a3a" });
   H.lore = house({ ...at(45, -62), w: 8, d: 6.5, h: 4.4, roof: "#2f7a5a", wall: "#efe6d0", sign: "DRAGONOLOGY", signBg: "#e8f0d8", chimney: true });
@@ -2908,6 +2908,10 @@ function makePerson(o) {
       look: { shirt: "#c8322a", pants: "#2a2a3a", hair: "#e8e0d0", hairStyle: "bun", hat: "crown", wide: 1.1, scale: 1.05 }, lines: ["Welcome to the arena!"] },
     { name: "Juno", title: "Weaver", home: P(H.c1), wander: 5, look: { shirt: "#c86aa8", pants: "#5a3a5a", hair: "#2a1a10", hairStyle: "long", dress: true }, lines: [
       "I'm knitting a scarf for a dragon. It's taking a while.", "Dragon scales make lovely buttons. Shed ones! Only shed ones.", "Have you met Old Nettle? She's... colorful.", "I'm weaving a blanket with every colour I can find. I'm on colour 84.", "Baker Rose thinks Nettle stole her rolling pin. Nettle says it 'walked off'.", "Wool from Frost Peaks yaks is the warmest. Very itchy though.", "A scarf for a dragon needs about forty balls of yarn. And patience.", "I made Pip a tiny cape. He hasn't taken it off in a week.", "Knit one, purl two, drop three. Oops."] },
+    { name: "Wren", title: "Potion Maker", topics: [{ label: "Let me see your potions", fn: "potions" }, { label: "How do potions work?", say: ["Buy them here, keep them in your bag, and press H when you need one. Easy!", "Healing ones work right away. The brews last about a minute, so drink them right before a big fight.", "Second Chance is my best potion. If your dragon faints, it pops right back up. You don't even have to drink it. Don't ask me how. I don't know either."] }],
+      home: P(H.c3), wander: 4, look: { shirt: "#7a3aa8", pants: "#3a2a4a", hair: "#3a8a5a", hairStyle: "bun", apron: "#d8c8e8" }, lines: [
+      "Bubble, bubble! Oh, hello. Mind the cauldron.", "That green smoke is normal. Probably.", "I once made a potion that turned my hair green. I kept it.", "Healing Tonics are my bestseller. Monsters bite, you know.",
+      "Strength Brew tastes like spicy pineapple. Dragons love it.", "Don't tell Old Nettle where I keep the frog jars.", "Every potion is brewed fresh! Well. Fresh-ish."] },
   ];
   people.forEach((p, i) => {
     const m = makePerson(p.look); scene.add(m.g);
@@ -3306,6 +3310,7 @@ function showPane(which, msg) {
       <dt><kbd>R</kbd></dt><dd>Ride your grown-up dragon, or get off</dd>
       <dt><kbd>C</kbd></dt><dd>Tell your dragon to sit</dd>
       <dt><kbd>B</kbd></dt><dd>Open your Dragon Book</dd>
+      <dt><kbd>H</kbd></dt><dd>Open your potion bag (buy potions at Wren's shop in the village)</dd>
       <dt><kbd>P</kbd></dt><dd>Multiplayer: host or join a friend's game (duel, trade, fight monsters together)</dd>
       <dt><kbd>T</kbd></dt><dd>Chat in multiplayer</dd>
       <dt><kbd>F</kbd></dt><dd>Use your dragon's world skill (Burn, Smash, Freeze, Gust, Wash or Grow) to open secret spots</dd>
@@ -3405,6 +3410,7 @@ function npcDialog(n, say) {
       if (t.fn === "quests") return questBoard();
       if (t.fn === "forge") return forgeMenu(n);
       if (t.fn === "shop") return shopMenu(n);
+      if (t.fn === "potions") return potionMenu(n);
       if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
       const pool = t.say || t.lines.map(k => n.lines[k]);
       npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
@@ -3655,7 +3661,7 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() : walkMul());   // Shift in the air = fly sprint
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() * potSwift() : walkMul());   // Shift in the air = fly sprint; Swiftwing Elixir = faster
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
@@ -9059,8 +9065,8 @@ function underwaterFx(dt) {
     if (!pet.wasUnder) { pet.wasUnder = true; toast("Splash! Under the water", "The Bubble Charm lets your dragon breathe. Space to swim up"); }
   } else pet.wasUnder = false;
 }
-const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble, bagLv: WARD.bagLv, penLv: WARD.penLv });
-function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble;
+const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble, bagLv: WARD.bagLv, penLv: WARD.penLv, pot: WARD.pot || {} });
+function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; WARD.pot = {}; for (const k in (d.pot || {})) if ((d.pot[k] | 0) > 0) WARD.pot[k] = Math.min(9, d.pot[k] | 0);
   WARD.bagLv = Math.max(0, Math.min(BAG_UP.length - 1, d.bagLv | 0)); WARD.penLv = Math.max(0, Math.min(PEN_UP.length - 1, d.penLv | 0)); applyStorage(); }
 function petWater() { return WARD.bubble ? -Infinity : waterTop(pet.x, pet.z); }   // with the Bubble Charm, water is like air for your dragon
 
@@ -10638,6 +10644,78 @@ document.addEventListener("pointerlockchange", () => {
 });
 // the pause menu shouldn't stay open behind other things that take over
 addEventListener("blur", () => { if (started && !uiOpen && state !== "arena") pauseOpen(); });
+
+// ================= Wren's potion shop (Petra 2026-11-10): potions you carry and drink when you need them =================
+// H opens your potion bag. Healing works right away; brews last a minute; Second Chance saves your dragon from fainting once.
+const POTIONS = [
+  { id: "small", name: "Small Healing Potion", c: 10, col: "#ff7a8a", desc: "Heals 30 HP" },
+  { id: "tonic", name: "Healing Tonic", c: 25, col: "#ff3a5a", desc: "Heals your dragon all the way" },
+  { id: "str", name: "Strength Brew", c: 45, col: "#ff9a2a", t: 60, desc: "Claws and breath hit 50% harder for 1 minute" },
+  { id: "iron", name: "Ironscale Potion", c: 45, col: "#9aa8b8", t: 60, desc: "Your dragon takes half damage for 1 minute" },
+  { id: "swift", name: "Swiftwing Elixir", c: 40, col: "#5ad8ff", t: 60, desc: "Your dragon flies 40% faster for 1 minute" },
+  { id: "fire", name: "Dragonfire Draught", c: 35, col: "#ffd23a", t: 60, desc: "Breath recharges twice as fast for 1 minute" },
+  { id: "chance", name: "Second Chance", c: 120, col: "#c89aff", desc: "If your dragon faints, it gets back up with half its HP instead. Works once, all by itself" },
+];
+const POT_MAX = 9;
+const POT = { fx: {} };
+function potSwift() { return POT.fx.swift > 0 ? 1.4 : 1; }   // used by the flying code
+const potOf = id => POTIONS.find(p => p.id === id);
+const potBag = () => WARD.pot || (WARD.pot = {});
+const potHave = id => potBag()[id] | 0;
+// a little plate that shows the brews you're under
+const potEl = document.createElement("div"); potEl.className = "plate"; potEl.hidden = true;
+potEl.style.cssText = "position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 120px);padding:6px 12px;font-size:.8rem;pointer-events:none;z-index:4";
+document.body.appendChild(potEl);
+function potDrink(id) {
+  const p = potOf(id); if (!p || !potHave(id)) return "";
+  if (!hasDragon()) return "You need a dragon to drink that.";
+  if (id === "chance") return "Second Chance works by itself when your dragon faints. Just keep it in your bag.";
+  if ((id === "small" || id === "tonic") && petHp() >= petMaxHp()) return `${pet.name} is already at full HP.`;
+  potBag()[id]--; if (!potBag()[id]) delete potBag()[id];
+  if (id === "small") pet.hp = Math.min(petMaxHp(), petHp() + 30);
+  if (id === "tonic") pet.hp = petMaxHp();
+  if (p.t) POT.fx[id] = p.t;
+  burstAt(pet.x, pet.y + 1.5, pet.z, p.col); writeSave();
+  return p.t ? `${pet.name} drinks the ${p.name}. ${p.desc.replace(" for 1 minute", "")}!` : `${pet.name} drinks the ${p.name}. HP ${petHp()} / ${petMaxHp()}`;
+}
+function potionBag(msg) {
+  const rows = POTIONS.filter(p => potHave(p.id)).map(p => `<div class="sec"><div><b style="color:${p.col}">${p.name}</b> · you have ${potHave(p.id)}<br><small>${p.desc}${POT.fx[p.id] > 0 ? ` (working: ${Math.ceil(POT.fx[p.id])} s left)` : ""}</small></div>${p.id === "chance" ? "<button disabled>Ready</button>" : `<button data-act="drink" data-i="${POTIONS.indexOf(p)}">Drink</button>`}</div>`).join("");
+  openMenu("Potion bag", `${msg ? `<p class="say">${msg}</p>` : ""}${rows || "<p>No potions yet. Wren's potion shop in the village sells them.</p>"}`, () => lockMouse());
+  menuAct = (a, i) => { if (a === "drink") potionBag(potDrink(POTIONS[i].id)); };
+}
+function potionMenu(n, msg) {
+  const rows = POTIONS.map((p, i) => { const full = potHave(p.id) >= POT_MAX;
+    return `<div class="sec"><div><b style="color:${p.col}">${p.name}</b> · ${p.c} coins${potHave(p.id) ? ` · you have ${potHave(p.id)}` : ""}<br><small>${p.desc}</small></div><button data-act="buy" data-i="${i}" ${coins < p.c || full ? "disabled" : ""}>${full ? "Bag full" : "Buy"}</button></div>`; }).join("");
+  openMenu("Wren's Potions", `<p class="who">Potion Maker</p><p class="say">${msg || "Bubble, bubble! Everything is brewed fresh. Mostly."}</p><p>You have <b>${coins}</b> coins. Press <kbd>H</kbd> any time to drink a potion from your bag (up to ${POT_MAX} of each).</p>${rows}`, () => lockMouse());
+  menuAct = (a, i) => {
+    const p = POTIONS[i]; if (a !== "buy" || !p || coins < p.c || potHave(p.id) >= POT_MAX) return;
+    coins -= p.c; potBag()[p.id] = potHave(p.id) + 1; showCoins(); writeSave();
+    potionMenu(n, pickOf([`One ${p.name}, fresh from the pot!`, `${p.name}! Shake it before drinking. Or don't. It might explode.`, `Here you go. Don't drink it all at once. Actually, do. That's how it works.`]));
+  };
+}
+addEventListener("keydown", e => {
+  if (e.code !== "KeyH" || e.repeat || !started || uiOpen || state === "arena" || !nameBox.hidden) return;
+  if (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  e.preventDefault(); potionBag();
+});
+// ---- how the brews work ----
+{ const dm = damageMon; damageMon = function (m, dmg, crit, how) { if (POT.fx.str > 0 && (how === "claw" || how === "breath")) dmg = Math.round(dmg * 1.5); return dm(m, dmg, crit, how); }; }
+{ const hp = hurtPet; hurtPet = function (dmg, m) { if (POT.fx.iron > 0) dmg = Math.max(1, Math.round(dmg / 2)); return hp(dmg, m); }; }
+{ const fa = faint; faint = function (m) {
+  if (potHave("chance") && hasDragon()) { potBag().chance--; if (!potBag().chance) delete potBag().chance; pet.hp = Math.max(1, Math.round(petMaxHp() / 2)); burstAt(pet.x, pet.y + 1.5, pet.z, "#c89aff");
+    toast("Second Chance!", `${pet.name} was about to faint, but the potion got it back up with ${pet.hp} HP.`); writeSave(); return; }
+  return fa(m); }; }
+let potLast = performance.now();
+(function potTick() {
+  requestAnimationFrame(potTick);
+  const now = performance.now(), dt = PAUSED ? 0 : Math.min(0.1, (now - potLast) / 1000); potLast = now;
+  const on = [];
+  for (const id in POT.fx) { if (POT.fx[id] <= 0) continue; POT.fx[id] -= dt; const p = potOf(id);
+    if (POT.fx[id] <= 0) { toast(`The ${p.name} wore off`, ""); continue; }
+    on.push(`<span style="color:${p.col}">${p.name}</span> ${Math.ceil(POT.fx[id])} s`); }
+  if (POT.fx.fire > 0) breathCd = Math.max(0, breathCd - dt);   // twice as fast
+  potEl.hidden = !on.length; if (on.length) potEl.innerHTML = on.join("<br>");
+})();
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
