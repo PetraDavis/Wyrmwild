@@ -12785,7 +12785,7 @@ window.__shrine = { SHRINE, X: SHRINE_X, Y: SHRINE_Y, Z: SHRINE_Z, act: (a, i) =
 // Glowing, see-through and ghostly parts are left alone.
 const MONTEX = (() => {
   const LOOK = {
-    fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Shade Hound", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
+    fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
     feather: ["Storm Harpy", "Hootclaw", "Moonraven Flock"],
     skin: ["Goblin", "Lava Imp", "Dune Shark", "Mirage Stalker", "Barracuda Pack", "Pumpkin Imp", "Nightstilt", "Strawstalker"],
     warty: ["Bog Toad", "Dart Frog", "Mirelight Croaker"],
@@ -12852,7 +12852,7 @@ const MONTEX = (() => {
   // ---------- real fluffy fur for the furriest monsters (Petra 2026-11-11: yes, give the Yeti and the wolves fur) ----------
   // a light coat of 'shells': copies of each furry part pushed out a little, each one drawn as a field of hair tips.
   // All the shells of a part are ONE mesh (one draw call), and they ride along with the part's own animation.
-  const FURRY = { "Snow Yeti": { len: 0.035, dens: 34, n: 9 }, "Frost Wolf": { len: 0.022, dens: 52, n: 8 }, "Moon Wolf": { len: 0.022, dens: 52, n: 8 }, "Foxfire Kits": { len: 0.03, dens: 46, n: 8 }, "Shade Lynx": { len: 0.026, dens: 50, n: 8, ghost: true }, "Shade Hound": { len: 0.03, dens: 40, n: 8, ghost: true } };
+  const FURRY = { "Snow Yeti": { len: 0.035, dens: 34, n: 9 }, "Frost Wolf": { len: 0.022, dens: 52, n: 8 }, "Moon Wolf": { len: 0.022, dens: 52, n: 8 }, "Foxfire Kits": { len: 0.03, dens: 46, n: 8 }, "Shade Lynx": { len: 0.026, dens: 50, n: 8, ghost: true }, };
   function shellGeo(src, n) {
     const P = src.attributes.position, N = src.attributes.normal, U = src.attributes.uv, cnt = P.count, idx = src.index;
     const pos = new Float32Array(cnt * n * 3), nor = new Float32Array(cnt * n * 3), uv = new Float32Array(cnt * n * 2), lay = new Float32Array(cnt * n);
