@@ -275,7 +275,7 @@ function fillTube(geo, pts, rad, sx = 1, sy = 1, transport = false, bellyDir = n
           if (s2.dot(side) < 0) s2.negate();
           const tr = side.clone().addScaledVector(T, -side.dot(T)).normalize(), k = Math.min(1, Math.max(0, (Math.abs(T.y) - 0.6) / 0.3));
           side = s2.lerp(tr, k).normalize();
-        } else side = s2;
+        } else { if (s2.z < 0) s2.negate(); side = s2; }   // Petra 2026-11-11: when hovering the tail hangs straight down, and the first side came out mirrored, which flipped the whole body belly-up. Always start with the side facing +z
       }
     }
     const nrm = new V().crossVectors(side, T).normalize();
@@ -592,7 +592,7 @@ function placeBack() {
     const f = at(m.userData.s), h = (0.1 + R0(m.userData.s) * 0.62) * sc;
     basis.makeBasis(f.T, f.n, f.side);
     m.quaternion.setFromRotationMatrix(basis);
-    m.position.copy(f.p).addScaledVector(f.n, f.r * (st === "fur" ? 0.75 : st === "tombs" ? 0.8 : 1.0));
+    m.position.copy(f.p).addScaledVector(f.n, f.r * (st === "fur" ? 0.75 : st === "tombs" ? 0.8 : st === "leaves" || st === "frill" || st === "fins" || st === "fin" ? 0.86 : 1.0));   // flat fins and leaves sink a little into the back so they look attached (Petra)
     if (st === "fur") m.scale.set(h * 1.3, h * 0.9, h * 1.4);
     else if (st === "crystal") m.scale.set(h * 0.8, h * (1.6 + (m.userData.k % 3) * 0.5), h * 0.8);
     else if (st === "spikes") m.scale.set(h * 0.9, h * (1.2 + (m.userData.k % 2) * 0.4), h * 0.9);
@@ -696,6 +696,13 @@ function leg(s, zOff, pts, radii, toeLen) {
     M.legFin = M.legFin || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.legFin || p.side).convertSRGBToLinear(), roughness: 0.5, side: THREE.DoubleSide });
     const fin = new THREE.Mesh(new THREE.ShapeGeometry(fs, 12), M.legFin); fin.position.copy(last).add(new V(-endR * 0.6, 0.02, 0)); fin.scale.setScalar(o.legFins * o.legThick); foot.add(fin);
   }
+  if (o.calfFins) {   // Petra 2026-11-11: water dragons have a fin running down the BACK of each lower leg, like a fish's fin, rays and all
+    const sh = last.clone().sub(kp), L = sh.length(), dir = sh.clone().normalize(), w = o.calfFins * 0.5 * o.legThick;
+    const fs = new THREE.Shape(); fs.moveTo(0, -0.26 * L); fs.quadraticCurveTo(-w * 0.55, -0.27 * L, -w * 1.2, -0.46 * L);   // sweeps back from just under the knee...
+    fs.quadraticCurveTo(-w * 0.8, -0.5 * L, -w * 1.0, -0.68 * L); fs.quadraticCurveTo(-w * 0.45, -0.74 * L, -w * 0.55, -0.9 * L); fs.quadraticCurveTo(-w * 0.15, -0.88 * L, 0, -0.86 * L); fs.lineTo(0, -0.26 * L);   // Petra: starts well below the knee, so it never pokes out the front when the knee folds   // ...with a scalloped trailing edge, down to the ankle
+    M.calfFin = M.calfFin || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.legFin || p.fin || p.wing).convertSRGBToLinear(), emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.12, roughness: 0.45, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
+    const cf = new THREE.Mesh(new THREE.ShapeGeometry(fs, 12), M.calfFin); cf.rotation.z = Math.atan2(dir.x, -dir.y); cf.userData.calfFin = true; knee.add(cf);
+  }
   if (o.webbed) {   // webbed feet (Petra 2026-11-10): a thin skin stretched between the three front toes, out to just short of the claws
     const pos = [];
     for (let k = 0; k < 2; k++) {
@@ -790,9 +797,9 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       head.add(staticTube([new V(-0.02, 0.18, 0.12 * z), new V(-0.6, 0.3, 0.16 * z), new V(-1.15, 0.38, 0.18 * z)], [[0, 0.06], [1, 0.004]], M.horn, 20, 10));
     }
     if (o.tusks) head.add(staticTube([new V(sn(0.55), -0.2, 0.08 * z), new V(sn(0.68), -0.4, 0.1 * z), new V(sn(0.6), -0.62, 0.08 * z)], [[0, 0.045], [1, 0.006]], M.horn, 14, 10));
-    if (o.whiskers) head.add(staticTube([new V(sn(0.8), -0.06, 0.08 * z), new V(sn(0.8) + 0.1, -0.15, 0.4 * z), new V(sn(0.8) - 0.05, -0.3, 0.7 * z), new V(sn(0.8) - 0.25, -0.45, 0.8 * z)], [[0, 0.006], [1, 0.0018]], M.fin, 16, 6));   // whiskers: much thinner (Petra)
+    if (o.whiskers) head.add(staticTube([new V(sn(0.8), -0.06, 0.08 * z), new V(sn(0.8) + 0.1, -0.15, 0.4 * z), new V(sn(0.8) - 0.05, -0.3, 0.7 * z), new V(sn(0.8) - 0.25, -0.45, 0.8 * z)], [[0, 0.0032], [1, 0.0008]], M.fin, 16, 6));   // whiskers: much thinner (Petra), and thinner again 2026-11-11
     if (o.frill === "ears") {   // big fin ears
-      const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.1, 0.12, 0.24 * z); f.rotation.set(z * 1.1, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);
+      const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.14, 0.1, 0.17 * z); f.rotation.set(z * 1.25, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);   // Petra 2026-11-11: base tucked into the side of the head so the fin grows out of it
     }
     if (o.foxEars) {   // NEW: tall pointy fox ears, white fur inside, dark tips
       const ear = new THREE.Group(); ear.position.set(-0.12, 0.13, 0.13 * z); ear.rotation.set(0.2 * z, -0.25 * z, 0.18); { const es = o.earScale || 1.4; ear.scale.set(es, es * 1.25, es); } head.add(ear);   // taller so the tip stays as high as before; root sunk into the skull so it grows out of the head (Petra: ears looked stuck on)
@@ -1456,6 +1463,7 @@ function addFur(api, opts) {
   O.partLen = Object.assign({}, FUR_DEFAULTS.partLen, opts && opts.partLen);
   if (O.skin) furSkin(api, O.skin, O);
   if (O.coral) addCoral(api, O.coral);
+  if (!O.skin) accentSkin(api, true);   // furry dragons: own textures for horns, crystals and leathery wing fingers
   if (O.noFur) { api.fur = { enabled: false, opts: O, parts: [], setEnabled() {}, dispose() { delete api.fur; } }; return api.fur; }   // skin-only looks (rock, pearl): no shell fur
   const root = api.root, made = [], hidden = [], baseMats = new Map();
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -1697,11 +1705,12 @@ function furSkin(api, kind, O = {}) {
   root.traverse(m => {
     if (!m.isMesh || m.isInstancedMesh || !m.material || !m.material.isMeshStandardMaterial) return;
     const q = m.material;
-    if (q.transparent || q.side === THREE.DoubleSide || q.blending !== THREE.NormalBlending || (q.emissive ? (q.emissive.r + q.emissive.g + q.emissive.b) * q.emissiveIntensity : 0) > 0.9) return;   // skip parts that really glow
+    const isBone = api.mats && q === api.mats.bone && !q.transparent;
+    if (!isBone && (q.transparent || q.side === THREE.DoubleSide || q.blending !== THREE.NormalBlending || (q.emissive ? (q.emissive.r + q.emissive.g + q.emissive.b) * q.emissiveIntensity : 0) > 0.9)) return;   // skip parts that really glow
     if (m.children.some(c => c.isMesh && c.geometry.type === "SphereGeometry" && c.geometry.parameters.phiLength === Math.PI * 2 && c.geometry.parameters.thetaLength < Math.PI)) return;   // the eyeball (it carries the lids)
     let inWing = false; for (let p = m.parent; p; p = p.parent) if (api.wings && api.wings.includes && api.wings.includes(p)) inWing = true;
-    if (inWing && !wingBones) return;
-    if (api.mats && (q === api.mats.horn)) return;   // horns and claws keep their own look (Petra)
+    if (inWing && !wingBones && !isBone) return;
+    if (api.mats && (q === api.mats.horn || q === api.mats.crystal)) return;   // horns, claws, spikes and crystals get their OWN texture below   // horns and claws keep their own look (Petra)
     mats.add(q);
   });
   const W = 1024, H = 256, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d");
@@ -1740,22 +1749,16 @@ function furSkin(api, kind, O = {}) {
       const gr = c.createLinearGradient(x, y, x - fl, y); gr.addColorStop(0, "#5a5a5a"); gr.addColorStop(0.35, "#a8a8a8"); gr.addColorStop(1, "#c4c4c4");
       c.fillStyle = gr; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x - fl * 0.5, y - fw, x - fl, y); c.quadraticCurveTo(x - fl * 0.5, y + fw, x, y); c.fill();
       c.strokeStyle = "rgba(70,70,70,0.6)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y); c.lineTo(x - fl * 0.9, y); c.stroke(); }
-  } else if (kind === "bark") {   // tree bark (redone for Petra): thick rough ridges split by deep cracks that join and branch, like an old oak
-    for (let i = 0; i < 1800; i++) { const x = rnd() * W, y = rnd() * H, w = (30 + rnd() * 70) / SZ, h = (5 + rnd() * 8) / SZ, g = 120 + rnd() * 70 | 0;   // raised bark ridges
-      c.fillStyle = `rgba(${g},${g},${g},0.55)`; c.beginPath(); c.ellipse(x, y, w, h, (rnd() - 0.5) * 0.25, 0, 7); c.fill(); }
-    c.strokeStyle = "rgba(20,20,20,0.9)"; c.lineCap = c.lineJoin = "round";
-    for (let i = 0; i < 70; i++) { let x = rnd() * W, y = rnd() * H; c.lineWidth = (2.5 + rnd() * 2.5) / SZ; c.beginPath(); c.moveTo(x, y);   // deep cracks running along the body, wandering a little and splitting
-      for (let k = 0; k < 9; k++) { x += (14 + rnd() * 22) / SZ; y += (rnd() - 0.5) * 9 / SZ; c.lineTo(x, y); if (rnd() < 0.25) { const bx = x, by = y; c.lineTo(bx + 18 / SZ, by + (rnd() < 0.5 ? -1 : 1) * 10 / SZ); c.moveTo(bx, by); } } c.stroke(); }
-    for (let i = 0; i < 1200; i++) { const g = rnd() < 0.5 ? 60 : 190; c.fillStyle = `rgba(${g},${g},${g},0.35)`; c.fillRect(rnd() * W, rnd() * H, 2, 1); }   // rough grit
+  } else if (kind === "bark") {   // wood (redone again for Petra): just a soft, fine wood grain running along the body, no cracks or knots
+    for (let y = 0; y < H; y += 2) { const g = 118 + rnd() * 20 | 0; c.strokeStyle = `rgba(${g},${g},${g},0.8)`; c.lineWidth = 1 + rnd() * 2; c.beginPath(); const ph = rnd() * 6;
+      for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.008 + ph) * 3); c.stroke(); }
     if (O.thorns) for (let i = 0; i < 140; i++) { const x = rnd() * W, y = rnd() * H, r = 3 + rnd() * 3, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "#ffffff"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
-  } else if (kind === "leaf") {   // leaf skin (redone for Petra): overlapping little leaves, each with a midrib and side veins, pointing back along the body
-    const LV = [];
-    for (let i = 0; i < 420; i++) LV.push([rnd() * W, rnd() * H, (18 + rnd() * 14) / SZ, (rnd() - 0.5) * 0.7]);
-    LV.forEach(([x, y, L, a]) => { c.save(); c.translate(x, y); c.rotate(Math.PI + a); const g = 115 + rnd() * 30 | 0;
-      c.fillStyle = `rgb(${g},${g},${g})`; c.strokeStyle = "rgba(70,70,70,0.7)"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(L * 0.5, -L * 0.42, L, 0); c.quadraticCurveTo(L * 0.5, L * 0.42, 0, 0); c.fill(); c.stroke();
-      c.strokeStyle = "rgba(175,175,175,0.9)"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(0, 0); c.lineTo(L * 0.95, 0); c.stroke(); c.lineWidth = 0.8;
-      for (let k = 1; k <= 4; k++) { const t = k / 5 * L; [-1, 1].forEach(d => { c.beginPath(); c.moveTo(t, 0); c.lineTo(t + L * 0.14, d * L * 0.2 * Math.sin(Math.PI * k / 5)); c.stroke(); }); } c.restore(); });
-    O._leaves = LV;
+  } else if (kind === "leaf") {   // leaf (redone again for Petra): smooth waxy skin; the look comes from the fine glowing vein network below
+    const VN = []; const branch = (x, y, a, len, w, d) => { if (d > 4 || len < 4) return; const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len * 0.5; VN.push([x, y, x2, y2, w]);
+      branch(x2, y2, a + (rnd() - 0.5) * 0.5, len * 0.8, w * 0.8, d + 1); if (rnd() < 0.8) branch(x2, y2, a + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5), len * 0.6, w * 0.6, d + 1); };
+    for (let i = 0; i < 70; i++) branch(rnd() * W, rnd() * H, (rnd() - 0.5) * 0.8 + (rnd() < 0.5 ? 0 : Math.PI), (30 + rnd() * 30) / SZ, 1.8, 0);
+    VN.forEach(([x1, y1, x2, y2, w]) => { c.strokeStyle = "rgba(150,150,150,0.5)"; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); });
+    O._veins = VN;
   } else if (kind === "sand") {   // fine grains, little drifts
     for (let i = 0; i < 90; i++) { const y = rnd() * H; c.strokeStyle = "rgba(160,160,160,0.25)"; c.lineWidth = 4; c.beginPath(); for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.04 + i) * 4); c.stroke(); }
     for (let i = 0; i < 26000; i++) { const g = 80 + rnd() * 110 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(rnd() * W, rnd() * H, 1 + (rnd() < 0.2), 1); }
@@ -1814,8 +1817,7 @@ function furSkin(api, kind, O = {}) {
         for (let k = 0; k < n; k++) { px += (rnd() - 0.5) * R * 1.6; py += (rnd() - 0.5) * R; x.beginPath(); x.ellipse(px, py, R * (0.7 + rnd() * 0.6), R * (0.5 + rnd() * 0.4), rnd() * 3, 0, 7); x.fill(); } }
       for (let i = 0; i < 140; i++) { x.fillStyle = "rgba(255,255,255,0.8)"; x.beginPath(); x.arc(rnd() * W, rnd() * H, 1 + rnd() * 1.4, 0, 7); x.fill(); }
       x.filter = "blur(1.5px)"; x.drawImage(gv, 0, 0); x.filter = "none"; }
-    else if (kind === "leaf") { x.strokeStyle = "#ffffff"; (O._leaves || []).forEach(([px, py, L, a]) => { x.save(); x.translate(px, py); x.rotate(Math.PI + a); x.lineWidth = 1.3; x.beginPath(); x.moveTo(0, 0); x.lineTo(L * 0.95, 0); x.stroke(); x.lineWidth = 0.7;
-      for (let k = 1; k <= 4; k++) { const t = k / 5 * L; [-1, 1].forEach(d => { x.beginPath(); x.moveTo(t, 0); x.lineTo(t + L * 0.14, d * L * 0.2 * Math.sin(Math.PI * k / 5)); x.stroke(); }); } x.restore(); }); }
+    else if (kind === "leaf") { x.strokeStyle = "#ffffff"; x.lineCap = "round"; (O._veins || []).forEach(([x1, y1, x2, y2, w]) => { x.lineWidth = w * 0.7; x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); }); }
     else if (kind === "sand") { for (let i = 0; i < 900; i++) { x.fillStyle = "#ffffff"; x.fillRect(rnd() * W, rnd() * H, 1, 1); } }   // sun sparkle on the grains
     else { for (let i = 0; i < 260; i++) { const px = rnd() * W, py = rnd() * H, r = 1 + rnd() * 2; x.fillStyle = "#ffffff"; x.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? r * 0.35 : r * 2.2, b = k / 8 * 6.28; x.lineTo(px + Math.cos(b) * rr, py + Math.sin(b) * rr); } x.fill(); } }   // little star glints
     glowTex = new THREE.CanvasTexture(gv); glowTex.wrapS = glowTex.wrapT = THREE.RepeatWrapping; glowTex.encoding = THREE.sRGBEncoding;
@@ -1839,8 +1841,8 @@ function furSkin(api, kind, O = {}) {
     if (kind === "ash") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
     if (kind === "scales") { m.bumpScale = 0.012; m.roughness = 0.38; m.metalness = Math.max(m.metalness, 0.12); }
     if (kind === "feathers") { m.bumpScale = 0.03; m.roughness = 0.75; m.metalness = 0; }
-    if (kind === "bark") { m.bumpScale = 0.07; m.roughness = 1; m.metalness = 0; }
-    if (kind === "leaf") { m.bumpScale = 0.035; m.roughness = 0.55; m.metalness = 0; }
+    if (kind === "bark") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
+    if (kind === "leaf") { m.bumpScale = 0.006; m.roughness = 0.4; m.metalness = 0; }
     if (kind === "sand") { m.bumpScale = 0.02; m.roughness = 1; m.metalness = 0; }
     if (kind === "metal") { m.bumpScale = 0.004; m.roughness = 0.2; m.metalness = 0.85; }
     if (kind === "velvet") { m.bumpScale = 0.022; m.roughness = 0.85; m.metalness = 0; }
@@ -1851,7 +1853,7 @@ function furSkin(api, kind, O = {}) {
     if (O.skinRough != null) m.roughness = O.skinRough; if (O.skinMetal != null) m.metalness = O.skinMetal;
     if (glowTex) {   // add the glow texture on top of the part's own glow; it reads the same uv as the bump (so legs and head get small pieces, like the rock)
       const big = spine && m === spine.material, prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
-      const K = kind === "scales" || kind === "metal" && O.runes === "lightning" ? "1.6 * pow(max(0.0, sin(skT * 2.3 + p.x * 0.7) * sin(skT * 5.1 + p.z * 0.9)), 6.0)" : kind === "metal" ? "0.9 * (0.6 + 0.4 * sin(skT * 1.6))" : kind === "wet" ? (O.spots ? "0.7 * (0.6 + 0.4 * sin(skT * 1.4 + vUv.x * 5.0))" : "0.22 * (0.5 + 0.5 * sin(skT * 1.8 + vUv.x * 6.0 + vUv.y * 3.0))") : kind === "stars" ? "1.0 * (0.55 + 0.45 * sin(skT * 2.5 + vUv.x * 37.0 + vUv.y * 23.0))" : kind === "toxic" ? "0.6 * (0.7 + 0.3 * sin(skT * 1.3 + vUv.x * 4.0))" : kind === "leaf" ? "0.35" : kind === "sand" ? "0.5 * max(0.0, sin(skT * 2.0 + vUv.x * 61.0 + vUv.y * 47.0))" : kind === "lava" ? "1.2 * (0.75 + 0.25 * sin(skT * 2.0 + vUv.x * 9.0))" : kind === "ash" ? "1.3 * (0.4 + 0.6 * max(0.0, sin(skT * 3.0 + vUv.x * 40.0 + vUv.y * 17.0)))" : kind === "coral" ? "0.55 * (0.6 + 0.4 * sin(skT * 1.2 + vUv.x * 7.0 + vUv.y * 5.0))" : "0.8 * (0.5 + 0.5 * sin(skT * 1.5 + vUv.x * 30.0 - vUv.y * 11.0))";
+      const K = kind === "scales" || kind === "metal" && O.runes === "lightning" ? "1.6 * pow(max(0.0, sin(skT * 2.3 + p.x * 0.7) * sin(skT * 5.1 + p.z * 0.9)), 6.0)" : kind === "metal" ? "0.9 * (0.6 + 0.4 * sin(skT * 1.6))" : kind === "wet" ? (O.spots ? "0.7 * (0.6 + 0.4 * sin(skT * 1.4 + vUv.x * 5.0))" : "0.22 * (0.5 + 0.5 * sin(skT * 1.8 + vUv.x * 6.0 + vUv.y * 3.0))") : kind === "stars" ? "1.0 * (0.55 + 0.45 * sin(skT * 2.5 + vUv.x * 37.0 + vUv.y * 23.0))" : kind === "toxic" ? "0.6 * (0.7 + 0.3 * sin(skT * 1.3 + vUv.x * 4.0))" : kind === "leaf" ? "0.6" : kind === "sand" ? "0.5 * max(0.0, sin(skT * 2.0 + vUv.x * 61.0 + vUv.y * 47.0))" : kind === "lava" ? "1.2 * (0.75 + 0.25 * sin(skT * 2.0 + vUv.x * 9.0))" : kind === "ash" ? "1.3 * (0.4 + 0.6 * max(0.0, sin(skT * 3.0 + vUv.x * 40.0 + vUv.y * 17.0)))" : kind === "coral" ? "0.55 * (0.6 + 0.4 * sin(skT * 1.2 + vUv.x * 7.0 + vUv.y * 5.0))" : "0.8 * (0.5 + 0.5 * sin(skT * 1.5 + vUv.x * 30.0 - vUv.y * 11.0))";
       m.onBeforeCompile = sh => { if (prev) prev(sh); sh.uniforms.skG = { value: glowTex }; sh.uniforms.skT = SK.t; sh.uniforms.skC = { value: new THREE.Color(O.skinGlow || "#ffffff").convertSRGBToLinear() }; sh.uniforms.skR = { value: big ? new THREE.Vector2(1, 1) : new THREE.Vector2(0.5, 0.6) };
         // sampled from the WORLD position on three planes (triplanar), so cracks/embers/glints are the same size on body, head, legs and paws, with no stretching
         sh.vertexShader = "attribute vec3 skRest; attribute vec3 skRestN; varying vec3 skW; varying vec3 skN;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n skW = skRest; skN = normalize(skRestN);");
@@ -1884,7 +1886,43 @@ function furSkin(api, kind, O = {}) {
     m.needsUpdate = true;
   });
   if (glowTex) { const up = api.update; api.update = (t, ...a) => { SK.t.value = t; return up(t, ...a); }; }
+  accentSkin(api);
   if (kind === "frost") { const tw = [...mats].filter(m => m.emissiveMap === spark), up = api.update; api.update = (t, ...a) => { const r = up(t, ...a); tw.forEach(m => { m.emissiveIntensity = 0.35 + 0.35 * Math.sin(t * 3.1) * Math.sin(t * 1.7 + 1); }); return r; }; }
+}
+
+// ---------- THE TEXTURES UPDATE (Petra 2026-11-11): horns, claws, spikes, mace-tail spikes and crystal tails get their OWN texture ----------
+// horn: fine growth ridges and grain, like real horn; crystal: rough-cut facets with a few sharp glints (stays see-through)
+let _accentTex = null;
+function accentSkin(api, furry) {
+  if (!api.mats) return;
+  if (!_accentTex) {
+    let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647, mk = (w, h, draw) => { const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const c = cv.getContext("2d"); c.fillStyle = "#808080"; c.fillRect(0, 0, w, h); draw(c, w, h); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+    _accentTex = {
+      horn: mk(256, 256, (c, w, h) => {
+        for (let y = 0; y < h; y += 5 + rnd() * 6) { const g = rnd() < 0.5 ? 150 : 100; c.strokeStyle = `rgba(${g},${g},${g},0.6)`; c.lineWidth = 1.5 + rnd() * 2; c.beginPath(); for (let x = 0; x <= w; x += 8) c.lineTo(x, y + Math.sin(x * 0.05 + y) * 1.5); c.stroke(); }   // growth ridges
+        for (let x = 0; x < w; x += 3) { const g = 115 + rnd() * 30 | 0; c.strokeStyle = `rgba(${g},${g},${g},0.35)`; c.lineWidth = 1; c.beginPath(); c.moveTo(x, 0); c.lineTo(x + (rnd() - 0.5) * 6, h); c.stroke(); } }),   // long grain
+      leather: mk(256, 256, (c, w, h) => { for (let i = 0; i < 2600; i++) { const x = rnd() * w, y = rnd() * h, r = 1.5 + rnd() * 3, g = 110 + rnd() * 40 | 0; c.fillStyle = `rgba(${g},${g},${g},0.7)`; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }   // pebbly leather
+        for (let i = 0; i < 40; i++) { const y = rnd() * h; c.strokeStyle = "rgba(80,80,80,0.5)"; c.lineWidth = 1; c.beginPath(); for (let x = 0; x <= w; x += 8) c.lineTo(x, y + Math.sin(x * 0.1 + i) * 2); c.stroke(); } }),   // little wrinkles
+      rays: mk(256, 256, (c, w, h) => { for (let x = 0; x < w; x += 12) { c.strokeStyle = "rgba(175,175,175,0.85)"; c.lineWidth = 3; c.beginPath(); for (let y = 0; y <= h; y += 8) c.lineTo(x + Math.sin(y * 0.03) * 3, y); c.stroke(); }   // fin rays, like a fish's fin
+        for (let i = 0; i < 300; i++) { const g = 120 + rnd() * 16 | 0; c.fillStyle = `rgba(${g},${g},${g},0.5)`; c.fillRect(rnd() * w, rnd() * h, 2, 1); } }),
+      veins: mk(256, 256, (c, w, h) => { c.lineCap = "round"; c.strokeStyle = "rgba(165,165,165,0.8)"; c.lineWidth = 4; [0, w].forEach(x => { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); });   // leaf / petal: a midrib (u = 0 is the middle of the leaf) and side veins slanting up
+        c.lineWidth = 1.6; for (let y = -h; y < h * 2; y += 22) [[0, 1], [w, -1]].forEach(([x0, d]) => { c.beginPath(); c.moveTo(x0, y); c.quadraticCurveTo(x0 + d * w * 0.2, y - h * 0.06, x0 + d * w * 0.45, y - h * 0.18); c.stroke(); }); }),
+      rayCol: mk(256, 256, (c, w, h) => { c.fillStyle = "#ffffff"; c.fillRect(0, 0, w, h); c.filter = "blur(1.5px)"; for (let x = 8; x < w; x += 16) { c.strokeStyle = "rgb(150,150,150)"; c.lineWidth = 3; c.beginPath(); for (let y = -8; y <= h + 8; y += 8) c.lineTo(x + Math.sin(y * 0.03) * 3, y); c.stroke(); } c.filter = "none"; }),   // soft darker rays you can SEE, not just feel (Petra: no texture showed on the head and tail fins)
+      veinCol: mk(256, 256, (c, w, h) => { c.fillStyle = "rgb(190,190,190)"; c.fillRect(0, 0, w, h); c.filter = "blur(1px)"; c.lineCap = "round"; c.strokeStyle = "#ffffff"; c.lineWidth = 5; [0, w].forEach(x => { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); });
+        c.lineWidth = 2.2; for (let y = -h; y < h * 2; y += 22) [[0, 1], [w, -1]].forEach(([x0, d]) => { c.beginPath(); c.moveTo(x0, y); c.quadraticCurveTo(x0 + d * w * 0.2, y - h * 0.06, x0 + d * w * 0.45, y - h * 0.18); c.stroke(); }); c.filter = "none"; }),   // pale veins on a leaf / petal
+      crystal: mk(256, 256, (c, w, h) => { for (let i = 0; i < 260; i++) { const x0 = rnd() * w, y0 = rnd() * h, r = 8 + rnd() * 18, a = rnd() * 6.28, g = 95 + rnd() * 70 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.beginPath(); for (let k = 0; k < 4; k++) { const b = a + k * (1.6 + rnd() * 0.4); c.lineTo(x0 + Math.cos(b) * r, y0 + Math.sin(b) * r); } c.fill(); } })
+    };
+  }
+  const H = api.mats.horn, C = api.mats.crystal, Bn = api.mats.bone;
+  if (furry && Bn && !Bn.bumpMap) { Bn.bumpMap = _accentTex.leather; Bn.bumpScale = 0.015; Bn.roughness = 0.75; Bn.needsUpdate = true; }   // furry dragons: leathery wing fingers (Petra)
+  if (H && !H.bumpMap) { H.bumpMap = _accentTex.horn; H.bumpScale = 0.02; H.roughness = Math.max(H.roughness, 0.42); H.needsUpdate = true; }
+  // fins, head frills, leaf backs, petals and leaf tails: only SLIGHTLY textured (Petra): fins get soft rays, leaves and petals get veins
+  const F = api.mats.fin, LF = api.mats.legFin;
+  const isLeaf = g => { const sh = g && g.parameters && g.parameters.shapes; const s0 = Array.isArray(sh) ? sh[0] : sh; if (!s0 || !s0.curves || s0.curves.length !== 2) return false; const a = s0.curves[0].v0; return a && Math.abs(a.x) < 1e-6 && Math.abs(a.y + 0.1) < 1e-6; };
+  if (F && !F.bumpMap) { F.bumpMap = _accentTex.rays; F.bumpScale = 0.022; F.map = F.emissiveMap = _accentTex.rayCol; F.needsUpdate = true;
+    let leafM = null; api.root.traverse(m => { if (m.isMesh && m.material === F && isLeaf(m.geometry)) { if (!leafM) { leafM = F.clone(); leafM.bumpMap = _accentTex.veins; leafM.bumpScale = 0.02; leafM.map = leafM.emissiveMap = _accentTex.veinCol; } m.material = leafM; } }); }
+  [LF, api.mats.calfFin].forEach(q => { if (q && !q.bumpMap) { q.bumpMap = _accentTex.rays; q.bumpScale = 0.02; q.map = q.emissiveMap = _accentTex.rayCol; q.needsUpdate = true; } });
+  if (C && !C.bumpMap) { C.bumpMap = _accentTex.crystal; C.bumpScale = 0.03; C.roughness = 0.08; C.metalness = Math.max(C.metalness, 0.35); C.needsUpdate = true; }
 }
 
 // ---------- real coral growing on the dragon (Petra 2026-11-10: Coralwyrm) ----------
@@ -2112,6 +2150,100 @@ function addJelly(api, j, pal) {
   return api;
 }
 
+// THE TEXTURES UPDATE: new fuzz + skins for every dragon (Petra approved and published 2026-11-11)
+Object.assign(FUR_LOOKS, {
+  Driftail:   { length: 0.11, density: 50, tip: "#ffffff", tipK: 0.7, ruff: 1.8, tuft: 1.6, droop: 0.15, sheen: 0.35, parts: { head: true } },   // cloud fluff
+  Rootwyrm:   { length: 0.045, density: 80, shells: 22, legShells: 14, thickness: 1.05, undercoat: 0.45, tint: "#3f7a24", tintK: 0.85, tip: "#b4dc6a", tipK: 0.55, rootDark: 0.5, droop: 0, sheen: 0.12, ruff: 1, tuft: 1, patches: { cover: 0.38, topBias: -0.3, along: 22, around: 8, soft: 0.16 }, skullOnly: true, parts: { head: true, legs: true, paws: true } },   // moss patches: finer, softer edges, more on the sides and legs than on top (Petra)
+  Stonewyrm:  { skin: "rock", noFur: true },
+  Petralith:  { skin: "rock", noFur: true },
+  Pearlhorn:  { skin: "pearl", noFur: true },
+  Volcanox:   { skin: "lava", noFur: true },
+  Coralwyrm:  { skin: "coral", noFur: true, coral: { hideBack: true } },   // Petra picked: real coral growing on it, smooth skin
+  Mirewyrm:   { skin: "slime", noFur: true },
+  Geodrake:   { skin: "crystal", noFur: true },
+  Ashveil:    { skin: "ash", noFur: true },
+});
+FUR_LOOKS.Rimefang = Object.assign({}, FUR_LOOKS.Rimefang, { skin: "frost" });
+// ===== THE TEXTURES UPDATE (Petra 2026-11-11): a texture for every dragon =====
+{ const T = (skin, o = {}) => Object.assign({ skin, noFur: true }, o);
+  const MOSS = (tint, tip, cover = 0.32) => ({ length: 0.04, density: 80, shells: 22, legShells: 14, thickness: 1.05, undercoat: 0.45, tint, tintK: 0.85, tip, tipK: 0.55, rootDark: 0.5, droop: 0, sheen: 0.12, ruff: 1, tuft: 1, patches: { cover, topBias: -0.3, along: 22, around: 8, soft: 0.16 }, skullOnly: true, parts: { head: true, legs: true, paws: true } });
+  Object.assign(FUR_LOOKS, {
+    // Green Valley
+    Pyrrak:      T("scales", { skinGlow: "#ff7a2a", glints: false }),
+    Fernling:    T("leaf", { veinGlow: true, skinGlow: "#b8ff7a" }),
+    Lichenwing:  Object.assign(MOSS("#8a9488", "#c8d0b8", 0.3), { skin: "rock" }),
+    Thornwyrm:   T("bark", { thorns: true }),
+    Petalwyrm:   T("velvet"),
+    Dawnwing:    T("scales", { skinSize: 1.3, skinMetal: 0.35, skinRough: 0.28 }),
+    Jadewyrm:    T("crystal", { skinSize: 0.5, skinRough: 0.18 }),
+    // Fire Mountain
+    Smoldedrake: T("ash"),
+    Blazequill:  T("feathers", { skinGlow: "#ffb04a" }),
+    // Frost Peaks
+    Tempestra:   T("scales", { glints: true, skinGlow: "#c8e8ff" }),
+    Auroran:     T("frost"),
+    // Ocean
+    Aquawyrm:    T("wet", { ripple: true, skinGlow: "#bfe8ff" }),
+    Gillwing:    T("scales", { skinSize: 1.4, skinMetal: 0.4, skinRough: 0.22 }),
+    Abyssar:     T("stars", { skinGlow: "#7ad8ff" }),
+    // Sky Islands
+    Aerolash:    T("feathers"),
+    Skyrune:     T("metal", { runes: true, skinGlow: "#ffd27a", skinMetal: 0.7 }),
+    Lumora:      T("stars", { skinGlow: "#fff4c8" }),
+    // Crystal Caves
+    Prismwing:   T("crystal", { pearlSheen: true }),
+    Echowyrm:    T("velvet"),
+    // Desert
+    Dunerunner:  T("sand"),
+    Sunscale:    T("metal", { skinRough: 0.1 }),
+    Miragewyrm:  T("pearl"),
+    Scarabyx:    T("metal", { irid: true, skinRough: 0.18 }),
+    // Misty Swamp
+    Fogdrake:    T("velvet"),
+    Lanternfen:  T("wet", { spots: true, skinGlow: "#c8ff7a" }),
+    Venomire:    T("toxic", { skinGlow: "#9aff3a" }),
+    // Coral Reef
+    Reefdart:    T("scales", { skinSize: 1.5, skinMetal: 0.35 }),
+    Tidelash:    T("wet", { ripple: true, skinGlow: "#9ae8ff" }),
+    Deepcrown:   T("pearl", { pearlK: 0.3 }),
+    // Autumn Woods
+    Emberleaf:   T("leaf", { veinGlow: true, skinGlow: "#ff9a3a" }),
+    Hedgewyrm:   { length: 0.06, density: 62, shells: 22, legShells: 12, thickness: 1.05, undercoat: 0.4, tip: "#e0c89a", tipK: 0.28, rootDark: 0.7, droop: 0.12, sheen: 0.3, ruff: 1.5, tuft: 1.3, partLen: { legs: 0.6, paws: 0.4, head: 0.45 }, parts: { head: true } },   // hedgehog fur: coarse brown strands with pale tips, a fluffy chest ruff
+    Maplewing:   T("leaf", { veinGlow: true, skinGlow: "#ff5a3a", skinSize: 1.3 }),
+    Gloamhorn:   T("velvet"),
+    // Blightwood
+    Sludgeling:  T("slime"),
+    Toxitail:    T("toxic", { skinGlow: "#c8ff3a" }),
+    Sporecrest:  Object.assign(MOSS("#a08a6a", "#e8d8b0", 0.35), { skin: "toxic", skinGlow: "#e8d8ff" }),
+    Venomaw:     T("toxic", { skinSize: 0.7, skinGlow: "#7aff5a" }),
+    // Hydra Valley
+    Bramblehydra: T("bark", { thorns: true }),
+    Marshhydra:  T("wet", { ripple: true, skinGlow: "#c8ffd8" }),
+    Thunderhydra: T("scales", { glints: true, skinGlow: "#e8f0ff" }),
+    Coilwyrm:    T("scales", { skinSize: 1.3 }),
+    Burrowdrake: T("rock", { skinRough: 1 }),
+    Crestrunner: T("feathers", { skinSize: 1.2 }),
+    Twinhead:    T("scales"),
+    // weather and events
+    Dustmite:    T("ash"),
+    Sirocco:     T("sand"),
+    Voltwing:    T("scales", { glints: true, skinGlow: "#fff27a" }),
+    Wispwyrm:    T("velvet"),
+    Starwyrm:    T("stars"),
+    Scarlune:    T("velvet"),
+    Eclipsar:    T("stars", { skinGlow: "#ffd27a" }),
+    Crestwyrm:   T("metal", { skinMetal: 0.85, skinRough: 0.18 }),
+    Quantum:     T("stars", { skinGlow: "#b48aff" }),
+    // Bone Caves
+    Ribcrawler:  T("bone"),
+    Gravemaw:    T("rock"),
+    Lichcrown:   T("bone"),
+    Veinfang:    T("scales", { skinSize: 1.5 }),
+  });
+}
+
+FUR_LOOKS.Medusel = FUR_LOOKS.Medusel || { noFur: true };
+
 // ================= dragon kinds =================
 // every dragon kind: colors, body plan and the adaptations it has for where it lives
 const P = (top, side, belly, glow, horn, wing, eye, extra = {}) => Object.assign({ top, side, belly, glow, horn, wing, eye, metal: 0.05 }, extra);
@@ -2126,10 +2258,10 @@ const SPECIES = [
     sp: { girth: 1.2, back: "plates", horns: "ram", tail: "smoke", pattern: "cracks", legThick: 1.15, wings: "thermal", wingScale: 0.8, emberWings: true },
     ad: ["Thick armor plates protect it from falling rocks", "Its tail puffs smoke to hide from bigger dragons", "Heavy and slow, but very hard to knock over", "Heat-proof scales armour the front of its wings, so lava spatter can't burn them"] },
   { name: "Aquawyrm", size: 0.82, rarity: "Common", home: "Ocean shallows", speed: 4, pal: P("#0f4a7a", "#2a8ac8", "#bfe8f0", "#6fe8ff", "#d8f4ff", "#1a6aa8", "#7fffe0", { fin: "#3fb8d8" }),
-    sp: { webbed: true, gentle: true, wings: "fin", tail: "fluke", back: "frill", frill: "ears", girth: 0.85, len: 1.15, horns: "short", pattern: "spots" },
+    sp: { calfFins: 1, webbed: true, gentle: true, wings: "fin", tail: "fluke", back: "frill", frill: "ears", girth: 0.85, len: 1.15, horns: "short", pattern: "spots" },
     ad: ["Swimming against the water made it small but very strong and fast", "Fin-shaped wings double as flippers underwater", "A fish-like tail fluke pushes it through the water", "Slim body slips through waves easily", "Ear fins close up when it dives"] },
   { name: "Gillwing", size: 0.78, rarity: "Common", home: "Rivers and the ocean", speed: 5, pal: P("#1a5a4a", "#2fa080", "#d8f0d0", "#9affc8", "#e0fff0", "#1f7a62", "#e8ff7a", { fin: "#4fd0a0" }),
-    sp: { webbed: true, gentle: true, wings: "fin", wingScale: 1.2, tail: "fluke", back: "frill", frill: "ears", girth: 0.8, pattern: "gills", horns: "none" },
+    sp: { calfFins: 1, webbed: true, gentle: true, wings: "fin", wingScale: 1.2, tail: "fluke", back: "frill", frill: "ears", girth: 0.8, pattern: "gills", horns: "none" },
     ad: ["Swimming against the water made it small but very strong and fast", "Gills on its neck let it breathe underwater", "Big fin-wings: it can 'fly' through water as fast as through air", "Very slim and quick"] },
   { name: "Fernling", rarity: "Common", home: "Green Valley forests", speed: 2, pal: P("#2f5a22", "#5a9a3a", "#e0e8a0", "#c8ff6a", "#a07a4a", "#4f8a2e", "#ffe04a", { fin: "#5aaa3a" }),
     sp: { gentle: true, wings: "leaf", tail: "leaf", back: "leaves", horns: "antler", girth: 0.9, legLen: 0.9, pattern: "spots" },
@@ -2159,7 +2291,7 @@ const SPECIES = [
     sp: { gentle: true, legThick: 0.85, thin: 0.88, girth: 0.78, wings: "soar", wingScale: 1.05, tail: "tuft", frill: "crest", pattern: "streaks", glow: 1.2, horns: "swept" },
     ad: ["Sunrise colors make it hard to see against the morning sky", "Slim, light body so it stays up with little effort", "Big long wings for long gliding flights", "Glows warm to soak up the first sunlight"] },
   { name: "Pearlhorn", size: 0.85, rarity: "Rare", home: "Deep reefs in the ocean", speed: 4, pal: P("#c8c0d8", "#ece8f4", "#ffffff", "#ffd8f8", "#fff8ff", "#d8d0e8", "#a8e8ff", { metal: 0.45, fin: "#f0e0f8" }),
-    sp: { webbed: true, gentle: true, wings: "fin", tail: "fluke", horns: "single", back: "frill", frill: "ears", pattern: "spots", spots: "#ffffff" },
+    sp: { calfFins: 1, webbed: true, gentle: true, wings: "fin", tail: "fluke", horns: "single", back: "frill", frill: "ears", pattern: "spots", spots: "#ffffff" },
     ad: ["Swimming against the water made it small but very strong and fast", "Pearly scales shimmer like the inside of a shell", "One long horn pries open giant clams", "Fin-wings and a fluke for swimming deep"] },
   { name: "Jadewyrm", rarity: "Rare", home: "Misty bamboo forests", speed: 3, pal: P("#1a5a3a", "#2f9a6a", "#e8f0c8", "#8affc8", "#f0e0a0", "#2a7a5a", "#ffd04a", { fin: "#e8c05a" }),
     sp: { wings: "broad", gentle: true, len: 1.5, wingScale: 0.85, whiskers: true, frill: "crest", back: "frill", tail: "tuft", horns: "antler", pattern: "streaks", legLen: 0.9 },
@@ -2171,7 +2303,7 @@ const SPECIES = [
     sp: { back: "spikes", backScale: 1.6, tail: "flame", wings: "thermal", wingScale: 1.05, emberWings: true, pattern: "stripes", glow: 1.6, frill: "crest" },
     ad: ["Glowing fire quills can be shaken loose at enemies", "Long, broad wings circle up on the volcano's hot air like a vulture", "So hot inside that rain turns to steam on it", "Armoured wing edges and glowing heat veins"] },
   { name: "Abyssar", size: 0.88, rarity: "Epic", home: "The deepest ocean trench", speed: 5, pal: P("#060a1e", "#0e1840", "#1e3060", "#3affff", "#8affff", "#0a1430", "#3affff", { fin: "#12305a" }),
-    sp: { webbed: true, wings: "fin", wingScale: 1.1, flapSpeed: 3.5, tail: "fluke", back: "frill", frill: "ears", eyes: 1.7, len: 1.4, girth: 0.9, pattern: "spots", glow: 1.8, horns: "none", legLen: 0.8 },
+    sp: { calfFins: 1, webbed: true, wings: "fin", wingScale: 1.1, flapSpeed: 3.5, tail: "fluke", back: "frill", frill: "ears", eyes: 1.7, len: 1.4, girth: 0.9, pattern: "spots", glow: 1.8, horns: "none", legLen: 0.8 },
     ad: ["Swimming against the water made it small but very strong and fast", "Its wings were once normal wings but slowly turned into wide fins. They still work as wings, so it can swim AND fly", "Huge round eyes see in total darkness", "Glowing spots light up the deep and lure fish", "A long body and big fluke for swimming"] },
   { name: "Rootwyrm", rarity: "Rare", home: "Under the oldest forest", speed: 1, pal: P("#3a2a1a", "#6a4a2a", "#a8885a", "#9aff6a", "#c8b080", "#4a3a20", "#d0ff6a", { fur: "#4a8a2a", fin: "#5a7a2a" }),
     sp: { gentle: true, girth: 1.25, horns: "antler", back: "fur", tail: "club", legThick: 1.3, wings: "leaf", wingScale: 0.8, pattern: "cracks", spots: "#3a2a14", digClaws: true },
@@ -2292,19 +2424,19 @@ const SPECIES = [
   // Coral Reef
   { name: "Coralwyrm", size: 0.85, rarity: "Common", home: "Coral Reef (shallow reef)", speed: 3, br: "Bubble Burst: a lob of bubbles that pops in a splash",
     pal: P("#e8604a", "#ff8a6a", "#ffe0c8", "#ffb0a0", "#ffd0b8", "#e86a5a", "#4ae8ff", { fin: "#ff9a7a", crystal: "#ff8a9a" }),
-    sp: { webbed: true, gentle: true, wings: "fin", tail: "fluke", back: "crystal", backScale: 0.7, horns: "antler", frill: "ears", pattern: "spots", girth: 0.9 },
+    sp: { calfFins: 1, webbed: true, gentle: true, wings: "fin", tail: "fluke", back: "crystal", backScale: 0.7, horns: "antler", frill: "ears", pattern: "spots", girth: 0.9 },
     ad: ["Little coral branches grow on its back and horns: it hides in the reef", "Coral-pink scales match the reef", "Fin-wings work as flippers underwater", "Small and quick between the rocks"] },
   { name: "Reefdart", size: 0.75, rarity: "Uncommon", home: "Coral Reef (open water)", speed: 5, br: "Water Dart: a fast, thin jet that hits from far away",
     pal: P("#1a3aa8", "#2a6ae8", "#fff04a", "#4affea", "#e8f4ff", "#1a4ac8", "#fff04a", { fin: "#ffd83a" }),
-    sp: { webbed: true, thin: 0.8, len: 1.2, wings: "fin", wingScale: 1.1, tail: "crescent", back: "fin", frill: "crest", horns: "none", pattern: "stripes", head: [1.15, 0.9, 0.9] },
+    sp: { calfFins: 1, webbed: true, thin: 0.8, len: 1.2, wings: "fin", wingScale: 1.1, tail: "crescent", back: "fin", frill: "crest", horns: "none", pattern: "stripes", head: [1.15, 0.9, 0.9] },
     ad: ["Bright blue and yellow, like a reef fish", "Long, thin body darts through the water like an arrow", "A crescent tail like a tuna makes it one of the fastest swimmers", "Pointy snout pokes into coral for food"] },
   { name: "Tidelash", rarity: "Rare", home: "Coral Reef (the waves)", speed: 4, br: "Tidal Wave: a ring of water that knocks monsters away",
     pal: P("#0a4a5a", "#1a8a9a", "#c8f4f0", "#6affff", "#e0ffff", "#0f6a7a", "#6affff", { fin: "#3ad8e0" }),
-    sp: { webbed: true, wings: "fin", wingScale: 1.2, tail: "ribbon", back: "frill", backScale: 1.2, frill: "frill", horns: "swept", pattern: "streaks", glow: 1.2, len: 1.1 },
+    sp: { calfFins: 1, webbed: true, wings: "fin", wingScale: 1.2, tail: "ribbon", back: "frill", backScale: 1.2, frill: "frill", horns: "swept", pattern: "streaks", glow: 1.2, len: 1.1 },
     ad: ["Its long whip tail lashes like a wave", "A big back frill helps it ride waves to shore", "Teal glowing streaks shine through the water", "Strong enough to swim against storm waves"] },
   { name: "Deepcrown", rarity: "Epic", home: "Coral Reef (the deep drop-off)", speed: 3, br: "Abyss Beam: a long glowing beam from the deep",
     pal: P("#0a0a2a", "#1a1a4e", "#4a5aa8", "#4affd8", "#c8e0ff", "#0f1240", "#4affd8", { fin: "#2a3a8a" }),
-    sp: { webbed: true, crown: true, wings: "fin", wingScale: 1.25, tail: "orb", orbGlow: true, back: "fin", frill: "frill", horns: "none", pattern: "stars", glow: 1.6, eyes: 1.4 },
+    sp: { calfFins: 1, webbed: true, crown: true, wings: "fin", wingScale: 1.25, tail: "orb", orbGlow: true, back: "fin", frill: "frill", horns: "none", pattern: "stars", glow: 1.6, eyes: 1.4 },
     ad: ["A crown of glowing points lights up the dark deep water", "Huge eyes for the deep where sunlight doesn't reach", "Dark blue body is almost invisible in deep water", "A glowing lure on its tail tricks deep-sea fish into swimming close"] },
   // Autumn Woods
   { name: "Emberleaf", rarity: "Common", home: "Autumn Woods (leaf piles)", speed: 3, br: "Leaf Flurry: a cone of hot spinning leaves",
@@ -2351,7 +2483,7 @@ const SPECIES = [
     ad: ["Three heads: one always stays awake to keep watch", "Leafy back and blotchy green skin hide it in the ferns", "If one head gets hurt, the others keep fighting", "Leafy wings fold flat so it can push through thick brambles"] },
   { name: "Marshhydra", rarity: "Uncommon", home: "Hydra Valley (river pools)", speed: 3, br: "Bog Wave: three jets of muddy water that knock monsters back",
     pal: P("#1e3a3a", "#2e5a56", "#9ac8b0", "#6affd8", "#c8d8c0", "#1e3a36", "#aaffe8", { fin: "#3a8a7a" }),
-    sp: { webbed: true, heads: 3, headSpread: 0.46, wings: "fin", wingScale: 1.05, girth: 1.15, neck: 1.45, feet: 1.4, back: "fin", horns: "swept", frill: "frill", tail: "fluke", pattern: "stripes", glow: 1.1 },
+    sp: { calfFins: 1, webbed: true, heads: 3, headSpread: 0.46, wings: "fin", wingScale: 1.05, girth: 1.15, neck: 1.45, feet: 1.4, back: "fin", horns: "swept", frill: "frill", tail: "fluke", pattern: "stripes", glow: 1.1 },
     ad: ["Extra long necks reach fish deep in the river pools", "Webbed feet and a paddle tail make it a great swimmer", "Back fin keeps it steady in fast water", "Three heads can watch the water, the bank and the sky at once"] },
   { name: "Thunderhydra", rarity: "Rare", size: 1.25, home: "Hydra Valley (cliff caves)", speed: 2, br: "Five-Bolt Storm: five lightning bolts, one from each head",
     pal: P("#1a2030", "#2e3a52", "#9aa8c8", "#6ad8ff", "#e8f4ff", "#1e2638", "#9ae8ff", { spikeTip: "#6ad8ff" }),
@@ -7958,16 +8090,7 @@ function veinTex(base, vein) {
 }
 const stoneTex = (base, spots) => blotch(base, spots, 70, 14);
 
-// the cave around every monster: a ring of stalagmites and a few old bones on the floor
-const caveDecor = (() => {
-  const g = new THREE.Group(), rock = std("#4a4038", { roughness: 1, map: stoneTex("#4a4038", ["#3a322c", "#5a5046", "#2e2824"]) }), bm = std("#cfc3a6", { roughness: 0.8 }), R = rnd(7);
-  for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28 + R() * 0.2, r = 7.2 + R() * 1.4, h = 1.2 + R() * 3.2;
-    g.add(mesh(new THREE.ConeGeometry(0.35 + R() * 0.5, h, 7), rock, Math.cos(a) * r, h / 2 - 0.05, Math.sin(a) * r)); }
-  for (let i = 0; i < 9; i++) { const a = R() * 6.28, r = 4.2 + R() * 2.4, x = Math.cos(a) * r, z = Math.sin(a) * r, d = R() * 6.28;
-    g.add(bone(new V(x, 0.05, z), new V(x + Math.cos(d) * 0.5, 0.05, z + Math.sin(d) * 0.5), 0.035, bm)); }
-  g.traverse(m => { if (m.isMesh) m.castShadow = false; });
-  scene.add(g); return g;
-})();
+// (the cave-preview ring of stalagmites was removed from the game: it stood around the nest at the start)
 
 // ===== BONE CAVES =====
 // 1. Bone Crawler: a skeletal lizard that skitters up the cave wall and drops on you
