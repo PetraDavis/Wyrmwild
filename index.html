@@ -8644,6 +8644,9 @@ const MON_LANDS = {};                                   // land -> kinds that li
 for (const k in MONSTER) (MON_LANDS[MONSTER[k].land] = MON_LANDS[MONSTER[k].land] || []).push(k);
 const NEW_WATER = new Set(["Misty Swamp", "Hydra Valley", "Coral Reef"]);
 const MON_DEF = Object.fromEntries(MONLIB.map(m => [m.name, m]));
+// calm: ignores you, only fights back if you hit it.  shy: runs away when you come close, fights back if you hit it
+const TEMPER = {}; ["Bog Toad", "Snapjaw Turtle", "Glowmoth Swarm", "Cloud Jelly", "Puffcap", "Star Jelly", "Glimmer Slug", "Giant Clam", "Moonray", "Magma Glowworm"].forEach(k => TEMPER[k] = "calm");
+["Foxfire Kits", "Gust Sprite", "Prism Wisp", "Ink Squid", "Acorn Chucker"].forEach(k => TEMPER[k] = "shy");
 const MON_UNIT = 2.1 / 1.7;                              // game units per metre (a tamer is 1.7 m)
 const mons = [], monShots = [];
 let monSpawnT = 2, beamFx = [], petHurtT = 0, clawCd = 0, breathCd = 0, dodgeT = 0, dodgeCd = 0, dodgeDir = 0, lastTap = { KeyA: -9, KeyD: -9 }, fightT = 0, monLand = "";
@@ -8970,7 +8973,7 @@ function updateMonsters(dt) {
     if (d.boss) sense = 120;
     if (d.sense) sense = d.sense;                                                           // bosses hunt you down
     // monsters only go after tamers who are riding; on foot you're safe
-    if (riding && pd < sense && (d.fly || d.shot || d.under || d.ceil || dy < 14 + d.range)) { if (!m.aggro && d.disguise && m.hurt <= 0) toast(d.disguise, `It's a ${m.kind}!`); m.aggro = true; }
+    if (riding && pd < sense && !TEMPER[m.kind] && (d.fly || d.shot || d.under || d.ceil || dy < 14 + d.range)) { if (!m.aggro && d.disguise && m.hurt <= 0) toast(d.disguise, `It's a ${m.kind}!`); m.aggro = true; }
     if (!riding || pd > sense + 25 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > (d.boss ? 260 : d.leash || 90)) { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }
     m.hurt = Math.max(0, m.hurt - dt);
     const mvk = MOVES[m.kind];
@@ -9002,7 +9005,8 @@ function updateMonsters(dt) {
       // wander around home
       m.wanderT -= dt;
       if (m.wanderT <= 0) { m.wanderT = 3 + Math.random() * 5; const a = Math.random() * 6.28, r = Math.random() * 14; m.wander = Math.random() < 0.35 ? null : new V(m.home.x + Math.cos(a) * r, 0, m.home.z + Math.sin(a) * r); }
-      if (m.wander) moveMon(m, m.wander.x, null, m.wander.z, d.speed * 0.35, dt); else moveMon(m, m.x, null, m.z, 0, dt);
+      if (TEMPER[m.kind] === "shy" && riding && pd < 22 && !d.boss) { const a = Math.atan2(m.z - mid.z, m.x - mid.x); m.wander = null; m.wanderT = 1.5; moveMon(m, m.x + Math.cos(a) * 6, null, m.z + Math.sin(a) * 6, d.speed * 0.9, dt); }   // shy: scurries away from you
+      else if (m.wander) moveMon(m, m.wander.x, null, m.wander.z, d.speed * 0.35, dt); else moveMon(m, m.x, null, m.z, 0, dt);
       m.bar.visible = m.hp < m.max && pd < 60;
     }
     if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); }
