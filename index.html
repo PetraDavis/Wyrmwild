@@ -4078,7 +4078,7 @@ function makePerson(o) {
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
       "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
-    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the clouds up high", say: ["Above the islands that float, past the clouds that hide, two foxes of stone and two shadows sit side by side. Bring an egg, dearie. Old fires are hungry, and they have favourites. Leaves. Think of leaves.", "Ever watched a dragon with no wings run right up the sky? That isn't magic, dearie. That's family. A little drop of something very old and very dark, in the blood. The same old thing that sits in stone above the clouds.", "Fly higher than you think you can. Then a bit higher. That's where the old shrine is. Don't bring it anything from that rotten Blightwood. It sulks."] }, { label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
+    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the clouds up high", say: ["Clouds taste like soap, dearie. I licked one. Above the floaty islands, past the soapy ones, two stone foxes and two stone shadows sit and sit and SIT. Never stand up. Rude. They want eggs. Not for eating! Probably. Leaves, dearie. Think of leaves. Or turnips.", "My teapot ran up the sky once. No wings! Just ran. Up, up, up. That's how you know something old and dark sloshed into the family. Same thing sits in stone above the clouds, sulking. The teapot came back down. It's cracked now. Aren't we all.", "Fly higher. No, higher. No, HIGHER. Higher than your dragon thinks it can, and then one more higher for luck. There's a bowl with a fire that never goes out. I warmed my socks there. Don't feed it anything from that rotten Blightwood. It sulks. Like Rose's pie."] }, { label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
         "Past the canyons, beyond the first lands, there are MORE lands, dearie. Take a strong dragon. And a snack.",
         "The Misty Swamp! Lovely place. If a little light floats toward you at night, don't follow it. Or do. I did. Lost a boot.",
         "Way out in the sea, past the beach, the water goes shallow and pink. Coral! The reef dragons lay their eggs on the little sandy islands.",
@@ -8684,6 +8684,7 @@ function spawnSpot(kind, land) {
 }
 function spawnMonster(kind, p, lv) {
   const def = MON_DEF[kind], d = MONSTER[kind], inst = def.make();
+  try { texMonster(kind, inst.g || inst); } catch (e) { console.warn("montex", e); }   // slight textures + fur (Petra 2026-11-11)
   inst.g.traverse(o => { if (o.isLight) o.visible = false; });   // no extra lights: changing the light count would make every material rebuild
   const holder = new THREE.Group(); holder.add(inst.g); scene.add(holder);
   inst.update(0, 0.016); holder.updateMatrixWorld(true);
@@ -12777,6 +12778,123 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
   return { update, act, root };
 })();
 window.__shrine = { SHRINE, X: SHRINE_X, Y: SHRINE_Y, Z: SHRINE_Z, act: (a, i) => menuAct(a, i), closeMenu: () => closeMenu(), WARD };   // for testing
+
+// ================= MONSTER TEXTURES (Petra 2026-11-11: texture the monsters; textures stay SLIGHT) =================
+// texMonster(name, group): gives each monster's solid body parts a soft surface texture that suits it
+// (fur, scales, warty skin, slime, rock, shell, bark, bone, feathers, bat leather, mushroom).
+// Glowing, see-through and ghostly parts are left alone.
+const MONTEX = (() => {
+  const LOOK = {
+    fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Shade Hound", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
+    feather: ["Storm Harpy", "Hootclaw", "Moonraven Flock"],
+    skin: ["Goblin", "Lava Imp", "Dune Shark", "Mirage Stalker", "Barracuda Pack", "Pumpkin Imp", "Nightstilt", "Strawstalker"],
+    warty: ["Bog Toad", "Dart Frog", "Mirelight Croaker"],
+    slime: ["Mud Eel", "Mire Blob", "Acid Slug", "Glimmer Slug", "Leech Swarm", "Bog Lurker", "Ink Squid", "Lantern Eel", "Abyss Angler", "Moonray", "Magma Glowworm", "Gas Bloater"],
+    rock: ["Rock Troll", "Geode Crab", "Stalactite Lurker", "Moss Golem", "Grave Golem", "Ash Lurker"],
+    scales: ["Rock Python", "Great Hydra", "Hydra Hatchlings", "Gleamhydra", "Moonbasilisk", "Snapjaw Turtle"],
+    shell: ["Ember Beetle", "Scorpiclaw", "Moonscarab Swarm", "Blightpede", "Moonmantis", "Snapflash Shrimp", "Spike Urchin", "Giant Clam", "Moonmantis"],
+    bark: ["Vine Creeper", "Hollow Stump", "Vine Dangler", "Leaf Pile Lurker"],
+    bone: ["Bone Crawler", "Rattlebones", "Skull Spider", "The Crypt Warden", "Wraith Stag"],
+    leather: ["Cinder Bat", "Echo Bat", "Crypt Bat Swarm", "Blood Bat"],
+    mushroom: ["Puffcap", "Stinkbloom", "Spore Shambler"],
+  };
+  const BY = {}; for (const k in LOOK) LOOK[k].forEach(n => BY[n] = k);
+  // surface feel per look: [roughness, metalness, bump]
+  const FEEL = { fur: [0.95, 0, 0.012], feather: [0.85, 0, 0.01], skin: [0.7, 0, 0.008], warty: [0.55, 0, 0.02], slime: [0.22, 0, 0.006], rock: [0.95, 0, 0.025],
+    scales: [0.45, 0.05, 0.012], shell: [0.32, 0.12, 0.01], bark: [0.95, 0, 0.02], bone: [0.8, 0, 0.012], leather: [0.75, 0, 0.012], mushroom: [0.85, 0, 0.01] };
+  let seed = 7; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // each texture is mostly white (so it barely changes the monster's own colour) with soft darker detail
+  function draw(kind) {
+    const S = 256, cv = document.createElement("canvas"); cv.width = cv.height = S; const g = cv.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, S, S); seed = 7 + kind.length * 31;
+    const dot = (x, y, r, a, c = 0) => { g.fillStyle = `rgba(${c},${c},${c},${a})`; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
+    const wrap = f => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) { g.save(); g.translate(dx, dy); f(); g.restore(); } };   // draw tiling
+    if (kind === "fur") { for (let i = 0; i < 2600; i++) { const x = R() * S, y = R() * S, l = 6 + R() * 10, a = 0.08 + R() * 0.1; g.strokeStyle = `rgba(0,0,0,${a})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 3, y + l); g.stroke(); } }
+    if (kind === "feather") { for (let y = 0; y < S + 16; y += 16) for (let x = (y / 16 % 2) * 12; x < S + 24; x += 24) { g.strokeStyle = "rgba(0,0,0,0.16)"; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 12, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke(); g.strokeStyle = "rgba(0,0,0,0.07)"; g.beginPath(); g.moveTo(x, y + 2); g.lineTo(x, y + 11); g.stroke(); } }
+    if (kind === "skin") { for (let i = 0; i < 40; i++) wrap(() => dot(R() * S, R() * S, 8 + R() * 22, 0.035)); for (let i = 0; i < 1400; i++) dot(R() * S, R() * S, 0.6 + R() * 0.9, 0.12); }
+    if (kind === "warty") { for (let i = 0; i < 160; i++) { const x = R() * S, y = R() * S, r = 2 + R() * 6; wrap(() => { dot(x, y, r, 0.16); dot(x - r * 0.3, y - r * 0.3, r * 0.45, 0.25, 255); }); } }
+    if (kind === "slime") { for (let i = 0; i < 26; i++) wrap(() => dot(R() * S, R() * S, 10 + R() * 30, 0.04)); for (let i = 0; i < 60; i++) wrap(() => dot(R() * S, R() * S, 1 + R() * 3, 0.1)); }
+    if (kind === "rock") { for (let i = 0; i < 2200; i++) dot(R() * S, R() * S, 0.5 + R() * 1.6, 0.05 + R() * 0.12); for (let i = 0; i < 12; i++) { g.strokeStyle = "rgba(0,0,0,0.2)"; g.lineWidth = 1; g.beginPath(); let x = R() * S, y = R() * S; g.moveTo(x, y); for (let k = 0; k < 6; k++) g.lineTo(x += (R() - 0.5) * 36, y += (R() - 0.5) * 36); g.stroke(); } }
+    if (kind === "scales") { const w = 16, h = 12; for (let r = -1; r < S / h + 2; r++) for (let c = -1; c < S / w + 2; c++) { const x = c * w + (r % 2) * w / 2, y = r * h; g.strokeStyle = "rgba(0,0,0,0.17)"; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, w / 2, 0.1 * Math.PI, 0.9 * Math.PI); g.stroke(); } }
+    if (kind === "shell") { for (let y = 0; y < S; y += 32) { g.fillStyle = "rgba(0,0,0,0.1)"; g.fillRect(0, y, S, 1.5); } for (let i = 0; i < 500; i++) dot(R() * S, R() * S, 0.5 + R(), 0.07); }
+    if (kind === "bark") { for (let x = 0; x < S; x += 3) { g.strokeStyle = `rgba(0,0,0,${0.05 + R() * 0.12})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= S; y += 16) g.lineTo(x + Math.sin(y * 0.05 + x) * 1.5, y); g.stroke(); } }
+    if (kind === "bone") { for (let i = 0; i < 900; i++) dot(R() * S, R() * S, 0.5 + R() * 1.2, 0.08); for (let i = 0; i < 8; i++) { g.strokeStyle = "rgba(0,0,0,0.13)"; g.lineWidth = 0.8; g.beginPath(); let x = R() * S, y = R() * S; g.moveTo(x, y); for (let k = 0; k < 4; k++) g.lineTo(x += (R() - 0.5) * 24, y += R() * 20); g.stroke(); } }
+    if (kind === "leather") { for (let i = 0; i < 70; i++) { g.strokeStyle = "rgba(0,0,0,0.1)"; g.lineWidth = 1; g.beginPath(); const x = R() * S, y = R() * S; g.moveTo(x, y); g.quadraticCurveTo(x + 10, y + (R() - 0.5) * 10, x + 22, y + (R() - 0.5) * 8); g.stroke(); } for (let i = 0; i < 600; i++) dot(R() * S, R() * S, 0.6, 0.08); }
+    if (kind === "mushroom") { for (let i = 0; i < 90; i++) wrap(() => dot(R() * S, R() * S, 1 + R() * 4, 0.1)); for (let i = 0; i < 30; i++) wrap(() => dot(R() * S, R() * S, 8 + R() * 18, 0.03)); }
+    return cv;
+  }
+  const cache = {};
+  function tex(kind, rep) {
+    const key = kind + rep; if (cache[key]) return cache[key];
+    if (!cache[kind]) cache[kind] = draw(kind);
+    const t = new THREE.CanvasTexture(cache[kind]); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep * 2, rep); t.anisotropy = 4;
+    return (cache[key] = t);
+  }
+  const _s = new THREE.Vector3();
+  let texMonster = function (name, root) {
+    const kind = BY[name]; if (!kind || !root) return root; const [rough, metal, bump] = FEEL[kind];
+    root.updateMatrixWorld(true);
+    const big = new Map();   // each material once, sized by the biggest part that wears it (changed in place, so the monster's own animations still work)
+    root.traverse(o => {
+      if (!o.isMesh || !o.geometry || o.isInstancedMesh || !o.geometry.attributes.uv) return; const m = o.material; if (!m || Array.isArray(m) || !m.isMeshStandardMaterial) return;
+      if (m.transparent || m.opacity < 1 || m.blending !== THREE.NormalBlending || m.wireframe || m.userData.montex) return;
+      if (m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) * (m.emissiveIntensity || 1) > 0.25) return;   // glowing parts stay smooth
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); o.getWorldScale(_s);
+      const size = o.geometry.boundingSphere.radius * Math.max(_s.x, _s.y, _s.z); big.set(m, Math.max(big.get(m) || 0, size));
+    });
+    big.forEach((size, m) => { const t = tex(kind, size < 0.12 ? 1 : size < 0.35 ? 2 : size < 0.8 ? 3 : 5);
+      if (!m.map) m.map = t;   // the map stays near white (linear), so the monster keeps its own colours
+      if (!m.bumpMap) { m.bumpMap = t; m.bumpScale = bump; }
+      m.roughness = m.roughness * 0.4 + rough * 0.6; m.metalness = Math.max(m.metalness, metal); m.userData.montex = 1; m.needsUpdate = true; });
+    return root;
+  }
+
+  // ---------- real fluffy fur for the furriest monsters (Petra 2026-11-11: yes, give the Yeti and the wolves fur) ----------
+  // a light coat of 'shells': copies of each furry part pushed out a little, each one drawn as a field of hair tips.
+  // All the shells of a part are ONE mesh (one draw call), and they ride along with the part's own animation.
+  const FURRY = { "Snow Yeti": { len: 0.035, dens: 34, n: 9 }, "Frost Wolf": { len: 0.022, dens: 52, n: 8 }, "Moon Wolf": { len: 0.022, dens: 52, n: 8 }, "Foxfire Kits": { len: 0.03, dens: 46, n: 8 }, "Shade Lynx": { len: 0.026, dens: 50, n: 8, ghost: true }, "Shade Hound": { len: 0.03, dens: 40, n: 8, ghost: true } };
+  function shellGeo(src, n) {
+    const P = src.attributes.position, N = src.attributes.normal, U = src.attributes.uv, cnt = P.count, idx = src.index;
+    const pos = new Float32Array(cnt * n * 3), nor = new Float32Array(cnt * n * 3), uv = new Float32Array(cnt * n * 2), lay = new Float32Array(cnt * n);
+    for (let l = 0; l < n; l++) { pos.set(P.array.subarray(0, cnt * 3), l * cnt * 3); nor.set(N.array.subarray(0, cnt * 3), l * cnt * 3); uv.set(U.array.subarray(0, cnt * 2), l * cnt * 2); lay.fill((l + 1) / n, l * cnt, (l + 1) * cnt); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); g.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); g.setAttribute("furLayer", new THREE.BufferAttribute(lay, 1));
+    if (idx) { const ia = new Uint32Array(idx.count * n); for (let l = 0; l < n; l++) for (let i = 0; i < idx.count; i++) ia[l * idx.count + i] = idx.array[i] + l * cnt; g.setIndex(new THREE.BufferAttribute(ia, 1)); }
+    return g;
+  }
+  function furMat(base, len, dens) {
+    const m = base.clone(); m.userData.montex = 1; m.userData.fur = 1;
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uLen = { value: len }; sh.uniforms.uDens = { value: dens };
+      sh.vertexShader = "attribute float furLayer;\nuniform float uLen;\nvarying float vFl;\nvarying vec2 vFu;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vFl = furLayer; vFu = uv; transformed += normal * furLayer * uLen; transformed.y -= furLayer * furLayer * uLen * 0.35;");
+      sh.fragmentShader = "uniform float uDens;\nvarying float vFl;\nvarying vec2 vFu;\n" + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+ { vec2 fc = vFu * vec2(uDens * 2.0, uDens); vec2 ci = floor(fc); vec2 cf = fract(fc) - 0.5;
+   float h = fract(sin(dot(ci, vec2(12.9898, 78.233))) * 43758.5453), hl = 0.5 + 0.5 * h;
+   cf += (vec2(fract(h * 7.13), fract(h * 3.71)) - 0.5) * 0.3;
+   if (vFl > hl || length(cf) > 0.62 * (1.0 - vFl / hl)) discard;
+   diffuseColor.rgb *= mix(0.72, 1.06, vFl); }`);
+    };
+    m.customProgramCacheKey = () => "monfur";
+    return m;
+  }
+  const _w = new THREE.Vector3(), _r = new THREE.Vector3();
+  function furMonster(name, root) {
+    const F = FURRY[name]; if (!F || !root) return; root.updateMatrixWorld(true); root.getWorldScale(_r);
+    const box = new THREE.Box3().setFromObject(root), H = (box.max.y - box.min.y) / _r.y, L = F.len * H, mats = new Map(), parts = [];
+    root.traverse(o => { const mt = o.material; if (!o.isMesh || !mt || !mt.userData || mt.userData.fur || !o.geometry || !o.geometry.attributes.uv || !o.geometry.attributes.normal) return;
+      if (!mt.userData.montex && !(F.ghost && mt.isMeshStandardMaterial && mt.transparent && mt.blending === THREE.NormalBlending)) return;   // the shadow hound's see-through body gets smoky fur
+      o.getWorldScale(_w); const k = Math.max(_w.x, _w.y, _w.z) / _r.y; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if (o.geometry.boundingSphere.radius * k < 0.04 * H) return; parts.push([o, k]); });
+    const area = new Map(); parts.forEach(([o, k]) => { const c = o.material.color.getHexString(), r = o.geometry.boundingSphere.radius * k; area.set(c, (area.get(c) || 0) + r * r); });
+    const coat = [...area.entries()].sort((a, b) => b[1] - a[1])[0];   // only the main coat colour gets fur (not the face, paws or nose)
+    parts.filter(([o]) => coat && o.material.color.getHexString() === coat[0]).forEach(([o, k]) => { const key = o.material.uuid + "|" + k.toFixed(3); let fm = mats.get(key); if (!fm) { fm = furMat(o.material, L / k, F.dens); mats.set(key, fm); }
+      if (F.ghost) fm.depthWrite = false;
+      const s = new THREE.Mesh(shellGeo(o.geometry, F.n), fm); s.castShadow = false; s.receiveShadow = true; s.userData.furShell = 1; o.add(s);
+      if (F.ghost) { const base = o.material; s.onBeforeRender = () => { fm.opacity = base.opacity * 0.85; s.visible = base.visible !== false; }; }
+    });   // (ghost shells fade in and out with the hound)
+  }
+  const tm = texMonster; texMonster = (name, root) => { tm(name, root); furMonster(name, root); return root; };
+  return { texMonster: (n, r) => texMonster(n, r), LOOK, BY, FURRY };
+})();
+const texMonster = MONTEX.texMonster;
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
