@@ -501,7 +501,7 @@ function paint(p) {
 // ---------- body ----------
 const dragon = new THREE.Group();
 const SEGS = 140, RAD = 28;
-let hoverK = 0, wingPh = 0, idleK = 0, _dt = 0.016;
+let hoverK = 0, wingPh = 0, idleK = 0, _dt = 0.016, sitV = 0;
 // IDLE (Petra 2026-11-10): standing still, a dragon swishes its tail and looks around; every extra hydra head looks around on its own
 const look = { yaw: 0, pitch: 0, ty: 0, tp: 0, wait: 1 };
 function lookStep(L, dt, big) {
@@ -533,11 +533,12 @@ function spinePts(t, bend = 0) {
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
     if (hoverK > 0.01 && k < 3 && !o.foxTails && !o.jelly) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
+    if (sitV > 0.01 && k < 4 && !o.foxTails && !o.jelly) { const piv = BASE[4], a = -sitV * 0.62 * [1, 1, 0.95, 0.7][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; v.z += sitV * [0.85, 0.45, 0.15, 0][k]; }   // sitting (Petra 2026-11-11): the tail lies flat along the ground and curls round to one side
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
     if ((o.foxTails || o.jelly) && k < 3) { v.x = BASE[3][0] - [0.12, 0.08, 0.04][k]; v.y = BASE[3][1] - 0.02; v.z = 0; }   // no dragon tail at all: the spine just rounds off at the rump
     if (TS === "curl" && k < 2 && !o.foxTails && !o.jelly) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (TS === "droop" && k < 3 && !o.foxTails && !o.jelly) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
-    if (k < 4 && hoverK < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
+    if (k < 4 && hoverK < 0.5 && sitV < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.45 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w; const a = -look.yaw * 0.75 * idleK * (0.4 + 0.6 * w), px = BASE[5][0], dx = v.x - px, dz = v.z - BASE[5][2], c = Math.cos(a), sn = Math.sin(a); v.x = px + dx * c - dz * sn; v.z = BASE[5][2] + dx * sn + dz * c; }   // Petra: the NECK swings round to look, and the head goes with it
     v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
@@ -1030,7 +1031,7 @@ if (o.armor && o.armor.plate) {   // Hamm's scale plates (Petra 2026-11-09): cur
   plate(r * 1.0, 1.0, 1.25);    // shoulders
   plate(-r * 1.7, 0.95, 1.15);  // hips
 }
-const shells = []; let shellOpen = 0, api = null; const SIT_HIND = 1.0, SIT_FRONT = -0.4, KNEE_HIND = 0.15, KNEE_FRONT = 1.5, HIP_HIND = -1.0, HIP_FRONT = -0.5, ANK_HIND = -0.7, ANK_FRONT = -0.6;   // flying: hind legs trail back, front paws fold up under the chest
+const shells = []; let shellOpen = 0, api = null; const SIT_PITCH = 0.6, SIT_DROP = 0.5, SIT_HIND = 0.4, SIT_FRONT = -0.6, SIT_KNEE_H = -2.45, SIT_ANK_H = 1.45, SIT_ANK_F = 0.6, KNEE_HIND = 0.15, KNEE_FRONT = 1.5, HIP_HIND = -1.0, HIP_FRONT = -0.5, ANK_HIND = -0.7, ANK_FRONT = -0.6;   // flying: hind legs trail back, front paws fold up under the chest
 if (o.elytra) { // beetle wing covers: shiny shells that flip open when it flies
   const shellM = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.shell || p.horn).convertSRGBToLinear(), metalness: 0.85, roughness: 0.15, side: THREE.DoubleSide, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.12 });
   [1, -1].forEach(z => {
@@ -1195,7 +1196,7 @@ function fadeAll(op) {
 }
 function update(t, walk, flap, dt, bend = 0) {
   if (o.coalBelly) M.belly.emissiveIntensity = 0.5 * o.coalBelly * (1 + 0.3 * Math.sin(t * 2.2));   // the coal belly glows brighter and dimmer as it breathes
-  _dt = dt; idleK += ((walk < 0.15 && !flap && !(api && api.sit > 0.5) ? 1 : 0) - idleK) * Math.min(1, dt * 1.5); lookStep(look, dt, 0.7);
+  _dt = dt; sitV = (api && api.sit) || 0; idleK += ((walk < 0.15 && !flap && !(api && api.sit > 0.5) ? 1 : 0) - idleK) * Math.min(1, dt * 1.5); lookStep(look, dt, 0.7);
   updateMotes(t);
   if (TIER >= 3) M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * TIER) * (1 + Math.sin(t * 1.8) * 0.18);
   bendNow += (Math.max(-1, Math.min(1, bend)) - bendNow) * Math.min(1, dt * 5);
@@ -1268,9 +1269,9 @@ function update(t, walk, flap, dt, bend = 0) {
     if (airPuffs[i]) airPuffs[i].material.opacity = 0;
     const S = (api && api.sit) || 0, target = (flap ? (i < 2 ? HIP_HIND : HIP_FRONT) * (1 - 0.7 * hoverK) + Math.sin(t * 2 + i) * 0.08 * hoverK : Math.sin(walkT + ph) * 0.45 * walk) * (1 - S) + S * (i < 2 ? SIT_HIND : SIT_FRONT);   // sitting: hind legs fold, front legs stay straight
     g.rotation.z += (target - g.rotation.z) * Math.min(1, dt * 10);
-    const kn = g.userData.knee, kt = (flap ? (i < 2 ? KNEE_HIND : KNEE_FRONT) * (1 - 0.6 * hoverK) : 0) * (1 - S);   // hovering: legs hang down a bit   // flying: knees fold so the shins tuck along the belly
+    const kn = g.userData.knee, kt = (flap ? (i < 2 ? KNEE_HIND : KNEE_FRONT) * (1 - 0.6 * hoverK) : 0) * (1 - S) + S * (i < 2 ? SIT_KNEE_H : 0);   // sitting (Petra 2026-11-11): hind shins fold back under the thighs like a sitting dog   // hovering: legs hang down a bit   // flying: knees fold so the shins tuck along the belly
     if (kn) kn.rotation.z += (kt - kn.rotation.z) * Math.min(1, dt * 10);
-    const an = g.userData.ankle, at2 = (flap ? (i < 2 ? ANK_HIND : ANK_FRONT) : 0) * (1 - S);   // flying: front paws curl, hind toes point back
+    const an = g.userData.ankle, at2 = (flap ? (i < 2 ? ANK_HIND : ANK_FRONT) : 0) * (1 - S) + S * (i < 2 ? SIT_ANK_H : SIT_ANK_F);   // and all four paws stay flat on the ground   // flying: front paws curl, hind toes point back
     if (an) an.rotation.z += (at2 - an.rotation.z) * Math.min(1, dt * 10);
   });
   const tip = frames[0];
@@ -1426,7 +1427,7 @@ if (o.seeThrough) {   // CAVE: Wraithwing is see-through all over. A depth-only 
 }
 update(0, 0, 0, 0.016);
 sockets.head = head;
-api = { root: dragon, update, seat, sockets, mats: M, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
+api = { root: dragon, update, seat, sockets, mats: M, sitPitch: SIT_PITCH, sitDrop: SIT_DROP, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
 return api;   // spikes: so a saddle or cape can hide the ones it covers
 }
 
@@ -4936,8 +4937,8 @@ function frame() {
     dragon.root.position.set(pet.x, pet.y + (pet.fly && dragon.airBob ? dragon.airBob * (SP(pet.kind).size || 1) : 0), pet.z);
     pet.sitK = (pet.sitK || 0) + (((state === "grown" || state === "baby") && pet.sit ? 1 : 0) - (pet.sitK || 0)) * Math.min(1, dt * 4);   // sitting: tilt up and lower the rump
     dragon.sit = pet.sitK;
-    dragon.root.rotation.set(pet.bank, -pet.face, pet.pitch + pet.sitK * 0.38 + (pet.fly && dragon.airPitch ? dragon.airPitch : 0), "YXZ");
-    dragon.root.position.y -= pet.sitK * 0.35 * pet.scale * (SP(pet.kind).size || 1);
+    dragon.root.rotation.set(pet.bank, -pet.face, pet.pitch + pet.sitK * (dragon.sitPitch || 0.38) + (pet.fly && dragon.airPitch ? dragon.airPitch : 0), "YXZ");
+    dragon.root.position.y -= pet.sitK * (dragon.sitDrop || 0.35) * pet.scale * (SP(pet.kind).size || 1);
     dragon.root.scale.setScalar(pet.scale * (SP(pet.kind).size || 1));
     // how fast it's turning: bends the body, and makes it step in place when turning on the spot
     let df = ((pet.face - pet.lastFace + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
@@ -11946,7 +11947,7 @@ function mpAvUpdate(p, dt) {
   const lk = `${p.name}${s.k ? ` · ${s.n} (Lv ${s.lv} ${s.k})` : ""}`; if (lk !== a.lk) { scene.remove(a.label); a.label.material.map.dispose(); a.label = mpLabel(lk, a.col); a.lk = lk; }
   if (a.d) {
     const sz = (SP(s.k).size || 1) * (s.sc || 1), moving = Math.hypot(s.dx - a.dx, s.dz - a.dz) > 0.05;
-    a.d.root.position.set(a.dx, a.dy, a.dz); a.d.root.rotation.set(s.r ? s.b : 0, -a.df, s.r ? s.p : (s.sit ? 0.38 : 0), "YXZ"); a.d.root.scale.setScalar(sz); a.d.sit = s.sit ? 1 : 0;
+    a.d.root.position.set(a.dx, a.dy, a.dz); a.d.root.rotation.set(s.r ? s.b : 0, -a.df, s.r ? s.p : (s.sit ? (a.d.sitPitch || 0.38) : 0), "YXZ"); a.d.root.scale.setScalar(sz); a.d.sit = s.sit ? 1 : 0;
     a.d.update(T, s.fl ? 0 : moving ? 0.8 : 0, s.fl ? 0.7 : 0, dt, 0);
   }
   if (s.r && a.d) {   // riding: sitting on the dragon's back
