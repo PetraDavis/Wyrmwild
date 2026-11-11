@@ -340,7 +340,11 @@ const M = {
   pupil: new THREE.MeshBasicMaterial({ color: "#120806" }),
   flame: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
   flame2: new THREE.MeshBasicMaterial({ color: "#fff3c4", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
-  smoke: new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.55, depthWrite: false, roughness: 1 })
+  smoke: new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.55, depthWrite: false, roughness: 1 }),
+  // CAVE: bones that show through the skin, gravestone plates, a pale bony skull
+  rib: new THREE.MeshStandardMaterial({ roughness: 0.45 }),
+  stone: new THREE.MeshStandardMaterial({ roughness: 0.92, flatShading: true }),
+  skull: new THREE.MeshStandardMaterial({ roughness: 0.55 })
 };
 if (o.acornShell && !o.armor) o.armor = { plate: new THREE.MeshStandardMaterial({ color: new THREE.Color(p.shell || p.top).convertSRGBToLinear(), roughness: 0.55, metalness: 0.05 }) };   // NEW: Acornback's acorn-cap armour
 const mix = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t);
@@ -408,6 +412,23 @@ function paint(p) {
   } else if (pat === "runes") {
     e.lineWidth = 4;
     for (let x = 160; x < 760; x += 70) { const y = H * 0.25; e.beginPath(); e.arc(x, y, 12, 0, Math.PI * 2); e.moveTo(x - 18, y); e.lineTo(x + 18, y); e.moveTo(x, y - 18); e.lineTo(x, y + 18); e.stroke(); }
+  } else if (pat === "ribs") {   // CAVE: pale rib bands show through the skin of the chest, and glow faintly
+    const bone = "#" + mix(p.side, p.rib || p.horn, 0.45).getHexString();
+    [[g, bone, 0, 9, 0.8], [e, p.glow, 6, 5, 1]].forEach(([c, col, blur, lw, al]) => { c.save(); c.globalAlpha = al; c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineWidth = lw; c.lineCap = "round";
+      for (let x = 455; x < 650; x += 30) [1, -1].forEach(sd => { c.beginPath(); c.moveTo(x, H * 0.25 + sd * 6); c.quadraticCurveTo(x - 4, H * 0.25 + sd * 40, x - 26, H * 0.25 + sd * 62); c.stroke(); });
+      c.lineWidth = lw * 1.3; c.beginPath(); c.moveTo(80, H * 0.25); c.lineTo(900, H * 0.25); c.stroke();   // the spine ridge
+      c.restore(); });
+  } else if (pat === "veins") {   // CAVE: branching blood vessels all over: dark on the skin, glowing on the glow map (they pulse with the heartbeat)
+    const segs = [];
+    const grow = (x, y, a, n, w) => { for (let i = 0; i < n; i++) { const nx = x + Math.cos(a) * 9, ny = y + Math.sin(a) * 9; segs.push([x, y, nx, ny, w]); x = nx; y = ny; a += (Math.random() - 0.5) * 0.7; w = Math.max(0.8, w * 0.95);
+      if (Math.random() < 0.12 && n > 6) grow(x, y, a + (Math.random() < 0.5 ? 0.8 : -0.8), Math.floor((n - i) * 0.6), w * 0.75); } };
+    if (o.veinStyle === "artery") {   // Veinfang: two bright arteries run down its flanks from neck to tail, with sharp branching vessels off them
+      [0.1, 0.4].forEach(v => { let y = H * v; for (let x = 70; x < 950; x += 10) { const ny = H * v + Math.sin(x * 0.02) * 5; segs.push([x, y, x + 10, ny, 5.5]); y = ny; } });
+      for (let x = 90; x < 930; x += 44) [[0.1, -1], [0.1, 1], [0.4, -1], [0.4, 1]].forEach(([v, d]) => grow(x + (d > 0 ? 22 : 0), H * v + Math.sin(x * 0.02) * 5, d * Math.PI / 2 + (d > 0 ? -0.6 : 0.6) * (v < 0.25 ? 1 : -1) * 0 - 0.35 * d, 8, 3));
+    } else for (let x = 60; x < 960; x += 70) { grow(x, H * 0.25, Math.PI / 2 + 0.5, 15, 3.2); grow(x + 35, H * 0.25, -Math.PI / 2 - 0.5, 15, 3.2); }
+    [[g, "#" + mix(p.side, "#000000", 0.55).getHexString(), 0], [e, p.glow, 5]].forEach(([c, col, blur]) => { c.save(); c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = "round";
+      segs.forEach(([x0, y0, x1, y1, w]) => { c.lineWidth = w; c.beginPath(); c.moveTo(x0, ((y0 % H) + H) % H); c.lineTo(x1, ((y1 % H) + H) % H); if (Math.abs(y1 - y0) < H / 2) c.stroke(); });
+      c.restore(); });
   } else if (pat === "gills") {
     e.lineWidth = 4; for (let k = 0; k < 4; k++) [0.12, 0.38].forEach(v => { e.beginPath(); e.arc(735 + k * 14, v * H, 10, -1, 1); e.stroke(); });
     for (let x = 150; x < 700; x += 60) { e.beginPath(); e.arc(x, H * 0.25, 4, 0, Math.PI * 2); e.fill(); }
@@ -423,6 +444,9 @@ function paint(p) {
   M.fur.color.set(p.fur || p.belly).convertSRGBToLinear();
   M.crystal.color.set(p.crystal || p.horn).convertSRGBToLinear(); M.crystal.emissive.set(p.glow); M.crystal.emissiveIntensity = 0.45;
   M.smoke.color.set(p.smoke || "#4a4a4a").convertSRGBToLinear();
+  M.rib.color.set(p.rib || p.horn).convertSRGBToLinear(); M.rib.emissive.set(p.glow).convertSRGBToLinear(); M.rib.emissiveIntensity = o.ribGlow ?? 0.35;
+  M.stone.color.set(p.plate || p.horn).convertSRGBToLinear();
+  M.skull.color.set(p.skull || p.horn).convertSRGBToLinear(); M.skull.emissive.set(p.glow).convertSRGBToLinear(); M.skull.emissiveIntensity = 0.04;
   // ----- rarity flair: every tier up looks a bit fancier -----
   const T = o.tier ?? 1;
   M.body.roughness = M.top.roughness = Math.max(0.2, 0.55 - 0.04 * T);
@@ -432,6 +456,7 @@ function paint(p) {
   if (!p.wingTip && T >= 1) p = Object.assign({}, p, { wingTip: "#" + mix(p.wing, p.glow, Math.min(0.6, 0.12 + 0.07 * T)).getHexString() });
   M.bone.color.copy(M.top.color); M.bone.metalness = M.top.metalness; M.bone.roughness = M.top.roughness;
   M.bone.emissive.set(p.glow); M.bone.emissiveIntensity = T >= 3 ? 0.25 + 0.1 * (T - 3) : 0;
+  if (o.boneWings) { M.bone.color.set(p.rib || p.horn).convertSRGBToLinear(); M.bone.emissive.set(p.glow).convertSRGBToLinear(); M.bone.emissiveIntensity = (o.ribGlow ?? 0.35) * 0.8; M.bone.roughness = 0.45; M.bone.metalness = 0; }   // CAVE: Ribcrawler: pale glowing finger bones like its ribs
   M.trim.color.set(T >= 6 ? (p.glow2 || p.glow) : p.glow).convertSRGBToLinear();
   if (p.wingTip && !(o.pattern === "stars" || o.wingStars)) { // wings fade to a different colour toward the tips
     const wc = document.createElement("canvas"); wc.width = 4; wc.height = 256; const w = wc.getContext("2d");
@@ -445,6 +470,8 @@ function paint(p) {
     for (let i = 0; i < 70; i++) { const x = Math.random() * 256, y = Math.random() * 256, r = 1 + Math.random() * 3; w.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2, rr = k % 2 ? r * 0.4 : r * 1.5; w.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } w.fill(); }
     const t = new THREE.CanvasTexture(wc); t.encoding = THREE.sRGBEncoding; M.wing.map = t; M.wing.color.set("#ffffff"); M.wing.emissiveMap = t; M.wing.emissive.set("#ffffff"); M.wing.emissiveIntensity = 0.5;
   }
+  if (o.boneWings) { M.wing.transparent = true; M.wing.opacity = 0.78; M.wing.depthWrite = false; }   // CAVE: thin, slightly see-through skin between the bones
+  if (o.wraith) { M.wing.transparent = true; M.wing.opacity = 0.45; M.wing.depthWrite = false; M.wing.emissiveIntensity = 0.55; M.bone.transparent = true; }   // CAVE: Wraithwing's ghostly see-through wings
   if (o.glassWings) { M.wing.transparent = true; M.wing.opacity = 0.5; M.wing.depthWrite = false; M.wing.roughness = 0.05; M.wing.metalness = 0.4; M.wing.emissiveIntensity = Math.max(M.wing.emissiveIntensity, 0.35); }   // see-through crystal panels
   const ec = eyeC.getContext("2d"), r = 64;
   ec.setTransform(1, 0, 0, 1, 0, 0); ec.fillStyle = "#" + mix(p.eye, o.blind ? "#d8d4e8" : "#000000", o.blind ? 0.6 : 0.82).getHexString(); ec.fillRect(0, 0, 256, 128);   // dark rim round the iris
@@ -502,11 +529,11 @@ function spinePts(t, bend = 0) {
   const amp = [0.55, 0.32, 0.12, 0.02];
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
-    if (hoverK > 0.01 && k < 3 && !o.foxTails) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
+    if (hoverK > 0.01 && k < 3 && !o.foxTails && !o.jelly) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
     if (k < 4) { v.z += Math.sin(t * 1.25 - k * 0.7) * amp[k] * (1 + 0.5 * idleK) + Math.sin(t * 0.55 - k * 1.1) * amp[k] * 0.6 * idleK; v.y += Math.sin(t * 0.9 - k) * amp[k] * 0.25 + Math.max(0, Math.sin(t * 0.37 - k * 0.6)) * amp[k] * 0.5 * idleK; }   // idle: slow swish plus a lazy flick upward now and then
-    if (o.foxTails && k < 3) { v.x = BASE[3][0] - [0.12, 0.08, 0.04][k]; v.y = BASE[3][1] - 0.02; v.z = 0; }   // no dragon tail at all: the spine just rounds off at the rump
-    if (TS === "curl" && k < 2) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
-    if (TS === "droop" && k < 3) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
+    if ((o.foxTails || o.jelly) && k < 3) { v.x = BASE[3][0] - [0.12, 0.08, 0.04][k]; v.y = BASE[3][1] - 0.02; v.z = 0; }   // no dragon tail at all: the spine just rounds off at the rump
+    if (TS === "curl" && k < 2 && !o.foxTails && !o.jelly) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
+    if (TS === "droop" && k < 3 && !o.foxTails && !o.jelly) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
     if (k < 4 && hoverK < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.45 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w; const a = -look.yaw * 0.75 * idleK * (0.4 + 0.6 * w), px = BASE[5][0], dx = v.x - px, dz = v.z - BASE[5][2], c = Math.cos(a), sn = Math.sin(a); v.x = px + dx * c - dz * sn; v.z = BASE[5][2] + dx * sn + dz * c; }   // Petra: the NECK swings round to look, and the head goes with it
     v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
@@ -529,10 +556,11 @@ const leafShape = new THREE.Shape(); leafShape.moveTo(0, -0.1); leafShape.quadra
 const backParts = [];
 (function () {
   const st = o.back; if (st === "none") return;
-  const step = st === "frill" ? 0.03 : st === "fur" ? 0.035 : st === "crystal" || st === "spikes" ? 0.06 : 0.042;
-  const geo = st === "plates" ? new THREE.ShapeGeometry(plateShape) : st === "frill" ? new THREE.ShapeGeometry(frillShape, 8) : st === "leaves" ? new THREE.ShapeGeometry(leafShape, 8)
+  const step = st === "tombs" ? 0.075 : st === "frill" ? 0.03 : st === "fur" ? 0.035 : st === "crystal" || st === "spikes" ? 0.06 : 0.042;
+  const tombShape = new THREE.Shape(); tombShape.moveTo(-0.4, -0.15); tombShape.lineTo(0.4, -0.15); tombShape.lineTo(0.4, 0.5); tombShape.absarc(0, 0.5, 0.4, 0, Math.PI, false); tombShape.lineTo(-0.4, -0.15);
+  const geo = st === "tombs" ? new THREE.ExtrudeGeometry(tombShape, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 1, curveSegments: 10 }).translate(0, 0, -0.15) : st === "plates" ? new THREE.ShapeGeometry(plateShape) : st === "frill" ? new THREE.ShapeGeometry(frillShape, 8) : st === "leaves" ? new THREE.ShapeGeometry(leafShape, 8)
     : st === "spikes" ? new THREE.ConeGeometry(0.12, 0.6, 8) : st === "fur" ? new THREE.IcosahedronGeometry(0.3, 1) : st === "crystal" ? new THREE.OctahedronGeometry(0.22, 0) : finGeo;
-  let mat = st === "plates" ? M.top : st === "spikes" ? M.horn : st === "fur" ? M.fur : st === "crystal" ? M.crystal : M.fin;
+  let mat = st === "tombs" ? M.stone : st === "plates" ? M.top : st === "spikes" ? M.horn : st === "fur" ? M.fur : st === "crystal" ? M.crystal : M.fin;
   if (st === "spikes" || st === "crystal") geo.translate(0, st === "spikes" ? 0.3 : 0.2, 0);
   if (st === "spikes" && p.spikeTip) { // back spikes fade to a glowing tip (Eclipsar: flares of sunlight)
     const pa = geo.attributes.position, col = [], a = new THREE.Color(p.horn).convertSRGBToLinear(), b = new THREE.Color(p.spikeTip).convertSRGBToLinear();
@@ -546,8 +574,11 @@ const backParts = [];
     geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
     mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.1, emissive: new THREE.Color(p.crystalTip).convertSRGBToLinear(), emissiveIntensity: 0.2 });
   }
+  const crossM = st === "tombs" ? new THREE.MeshStandardMaterial({ color: "#2a2a28", roughness: 1 }) : null;
   for (let s = o.backFrom || 0.07; s < (o.backTo || 0.84); s += step) {
-    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.userData.s = s; m.userData.k = backParts.length; dragon.add(m); backParts.push(m);
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true;
+    if (crossM) [1, -1].forEach(z => { [[0.08, 0.5, 0.42], [0.32, 0.08, 0.55]].forEach(([w, h, y]) => { const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), crossM); c.position.set(0, y, z * 0.19); m.add(c); }); });   // CAVE: a carved cross on both faces
+    m.userData.s = s; m.userData.k = backParts.length; dragon.add(m); backParts.push(m);
   }
 })();
 const basis = new THREE.Matrix4();
@@ -558,16 +589,40 @@ function placeBack() {
     const f = at(m.userData.s), h = (0.1 + R0(m.userData.s) * 0.62) * sc;
     basis.makeBasis(f.T, f.n, f.side);
     m.quaternion.setFromRotationMatrix(basis);
-    m.position.copy(f.p).addScaledVector(f.n, f.r * (st === "fur" ? 0.75 : 1.0));
+    m.position.copy(f.p).addScaledVector(f.n, f.r * (st === "fur" ? 0.75 : st === "tombs" ? 0.8 : 1.0));
     if (st === "fur") m.scale.set(h * 1.3, h * 0.9, h * 1.4);
     else if (st === "crystal") m.scale.set(h * 0.8, h * (1.6 + (m.userData.k % 3) * 0.5), h * 0.8);
     else if (st === "spikes") m.scale.set(h * 0.9, h * (1.2 + (m.userData.k % 2) * 0.4), h * 0.9);
     else if (st === "frill") m.scale.set(h * 0.6, h * 0.9, 1);
+    else if (st === "tombs") { const k = m.userData.k; m.scale.set(h * 0.62, h * (0.85 + (k % 3) * 0.2), h * 0.9); m.rotateX(((k * 5) % 7 - 3) * 0.05); m.rotateZ(((k * 3) % 5 - 2) * 0.06); }   // CAVE: crooked old gravestones
     else m.scale.set(h * 0.85, h, 1);
   });
 }
 // mane of fur around the neck
 if (o.mane) for (let i = 0; i < 16; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), M.fur); m.userData.a = i / 16 * Math.PI * 2; m.castShadow = true; dragon.add(m); backParts.push(m); m.userData.mane = true; }
+// CAVE: ribs that show through the skin as raised bony ridges down both flanks
+const ribs = [];
+if (o.ribs) {
+  const n = o.ribs === true ? 6 : o.ribs, s0 = o.skeleton ? 0.43 : 0.44, s1 = o.skeleton ? 0.63 : 0.585, A0 = o.skeleton ? 0.12 : 0.32, AL = o.skeleton ? 2.55 : 1.75;   // skeleton: a whole rib cage curling round to the belly
+  for (let i = 0; i < n; i++) { const s = s0 + (s1 - s0) * i / (n - 1), r = at(s).r;
+    [1, -1].forEach(z => { const tg = new THREE.TorusGeometry(1, 0.026 / Math.max(0.2, r) * (o.ribThick || 1), 8, 28, AL); tg.rotateZ(z > 0 ? A0 : -A0 - AL);
+      const m = new THREE.Mesh(tg, M.rib); m.userData.s = s; m.castShadow = true; dragon.add(m); ribs.push(m); }); }
+}
+// SKELETON (Petra 2026-11-10): no skin at all, just bones: a chain of vertebrae with spines on top, the rib cage, bare leg bones and hip/shoulder bones
+const verts = [];
+if (o.skeleton) {
+  const NV = 44, vG = new THREE.SphereGeometry(1, 14, 10), pG = new THREE.ConeGeometry(0.35, 1.6, 8);
+  for (let i = 0; i < NV; i++) { const s = 0.015 + 0.955 * i / (NV - 1), v = new THREE.Group(); v.userData.s = s;
+    const c = new THREE.Mesh(vG, M.rib); c.scale.set(0.75, 1, 1); v.add(c);
+    if (s > 0.08 && s < 0.9) { const sp = new THREE.Mesh(pG, M.rib); sp.position.y = 1.2; sp.rotation.z = 0.35; v.add(sp); }   // the bony spine on top of each vertebra
+    dragon.add(v); verts.push(v); }
+}
+function placeVerts() {
+  verts.forEach(v => { const f = at(v.userData.s); basis.makeBasis(f.T, f.n, f.side); v.quaternion.setFromRotationMatrix(basis); v.position.copy(f.p).addScaledVector(f.n, f.r * 0.35); v.scale.setScalar(Math.max(0.035, Math.min(0.11, f.r * 0.3))); });
+}
+function placeRibs() {
+  ribs.forEach(m => { const f = at(m.userData.s); basis.makeBasis(f.n, f.side, f.T); m.quaternion.setFromRotationMatrix(basis); m.position.copy(f.p).addScaledVector(f.T, -0.03); m.scale.set(f.r * 1.05 * 1.01, f.r * 0.9 * 1.01, f.r); });
+}
 function placeMane() {
   if (!o.mane) return; const f = at(0.74);
   backParts.forEach(m => { if (!m.userData.mane) return; const a = m.userData.a; m.position.copy(f.p).addScaledVector(f.n, Math.cos(a) * f.r * 1.05).addScaledVector(f.side, Math.sin(a) * f.r * 1.05); });
@@ -604,6 +659,7 @@ function leg(s, zOff, pts, radii, toeLen) {
   // round hip cap so the open top of the leg tube never shows from above
   const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
+  if (o.skeleton) { const top = new V(vs[0].x, vs[0].y + 0.1, -zOff * 0.95); g.add(staticTube([vs[0], vs[0].clone().lerp(top, 0.5).add(new V(0, 0.06, 0)), top], [[0, rr[0][1] * 0.75], [0.5, 0.045], [1, 0.06]], M.top, 12, 10)); }   // hip / shoulder bone up to the spine
   const last = vs[vs.length - 1];
   // ankle joint: the foot hangs from its own pivot so the paw can curl when flying
   const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
@@ -665,6 +721,7 @@ leg(0.635, -zF, front(-1), frontR, 0.23);
 
 // ---------- head ----------
 const head = new THREE.Group(); dragon.add(head);
+const soulFlames = [];   // CAVE: Lichcrown's eye fires (flicker in update)
 // head size and shape follow the body: chunky dragons get big, broad, blunt heads; slim ones long narrow snouts (sp.head = [snout, height, width] to tweak)
 const BULK = (o.girth || 1) * (o.thin || 1) * Math.sqrt(o.legThick || 1), clampH = (v, a, b) => Math.max(a, Math.min(b, v));
 const HS = clampH(0.82 + 0.18 * BULK, 0.9, 1.12), HD = o.head || [1, 1, 1];
@@ -722,11 +779,15 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       });
     } else if (H === "short") {
       const c = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.18, 10), M.horn); c.position.set(-0.05, 0.27, 0.13 * z); c.rotation.z = 0.5; head.add(c);
+    } else if (H === "blade") {   // CAVE: Veinfang: straight, sharp, angled horns, a long pair raked back and a short pair below
+      head.add(staticTube([new V(0.0, 0.18, 0.12 * z), new V(-0.38, 0.42, 0.2 * z), new V(-0.78, 0.68, 0.26 * z)], [[0, 0.065], [0.5, 0.04], [1, 0.003]], M.horn, 18, 10));
+      head.add(staticTube([new V(-0.08, 0.04, 0.2 * z), new V(-0.34, 0.12, 0.3 * z), new V(-0.56, 0.24, 0.36 * z)], [[0, 0.04], [1, 0.003]], M.horn, 12, 8));
+      head.add(staticTube([new V(0.3, 0.17, 0.1 * z), new V(0.18, 0.25, 0.13 * z), new V(0.04, 0.3, 0.15 * z)], [[0, 0.02], [1, 0.002]], M.horn, 8, 6));   // little brow spikes
     } else if (H === "long") {   // long straight horns swept far back (wind racers)
       head.add(staticTube([new V(-0.02, 0.18, 0.12 * z), new V(-0.6, 0.3, 0.16 * z), new V(-1.15, 0.38, 0.18 * z)], [[0, 0.06], [1, 0.004]], M.horn, 20, 10));
     }
     if (o.tusks) head.add(staticTube([new V(sn(0.55), -0.2, 0.08 * z), new V(sn(0.68), -0.4, 0.1 * z), new V(sn(0.6), -0.62, 0.08 * z)], [[0, 0.045], [1, 0.006]], M.horn, 14, 10));
-    if (o.whiskers) head.add(staticTube([new V(sn(0.8), -0.06, 0.08 * z), new V(sn(0.8) + 0.1, -0.15, 0.4 * z), new V(sn(0.8) - 0.05, -0.3, 0.7 * z), new V(sn(0.8) - 0.25, -0.45, 0.8 * z)], [[0, 0.015], [1, 0.004]], M.fin, 16, 6));
+    if (o.whiskers) head.add(staticTube([new V(sn(0.8), -0.06, 0.08 * z), new V(sn(0.8) + 0.1, -0.15, 0.4 * z), new V(sn(0.8) - 0.05, -0.3, 0.7 * z), new V(sn(0.8) - 0.25, -0.45, 0.8 * z)], [[0, 0.006], [1, 0.0018]], M.fin, 16, 6));   // whiskers: much thinner (Petra)
     if (o.frill === "ears") {   // big fin ears
       const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.1, 0.12, 0.24 * z); f.rotation.set(z * 1.1, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);
     }
@@ -770,6 +831,40 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
   if (o.frill === "frill") [-0.1, -0.25].forEach((x, i) => { const f = new THREE.Mesh(finGeo, M.fin); f.position.set(x, 0.22 - i * 0.04, 0); f.scale.set(0.24 - i * 0.04, 0.26 - i * 0.05, 1); f.rotation.z = 0.25; head.add(f); });
   if (o.frill === "crest") [0, -0.18, -0.36].forEach((x, i) => { const f = new THREE.Mesh(finGeo, M.fin); f.position.set(x, 0.24 - i * 0.03, 0); f.scale.set(0.42 - i * 0.06, 0.6 - i * 0.12, 1); f.rotation.z = 0.1; head.add(f); });
   if (o.frill === "petals") for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 6), M.fin); const a = -1.2 + i / 6 * 2.4; f.position.set(-0.2, 0.05, 0); f.rotation.set(a, 0, 1.2); f.scale.setScalar(0.42); head.add(f); }
+  // ----- CAVE head extras -----
+  if (o.jaw) {   // Gravemaw: a huge heavy lower jaw that juts out past the snout, with tusk teeth pointing up
+    const k = o.jaw, jy = -0.24 - 0.04 * k;
+    head.add(staticTube([new V(-0.04, jy + 0.06, 0), new V(sn(0.42), jy, 0), new V(sn(0.86), jy - 0.01, 0)], [[0, 0.15 * k], [0.6, 0.13 * k], [1, 0.1 * k]], M.top, 20, 18, 1, 0.62));
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.1 * k, 18, 12), M.top); ch.scale.set(1.0, 0.62, 1.05); ch.position.set(sn(0.86), jy - 0.01, 0); head.add(ch);
+    [1, -1].forEach(z => [[0.86, 1.3], [0.66, 1], [0.48, 0.8]].forEach(([x, sz]) => { const t = new THREE.Mesh(new THREE.ConeGeometry(0.03 * sz * k, 0.16 * sz * k, 8), M.horn); t.position.set(sn(x), jy + 0.055 * k + 0.06 * sz * k, 0.075 * k * z * (x > 0.8 ? 0.8 : 1)); t.rotation.x = -0.15 * z; head.add(t); }));
+  }
+  if (o.skull) head.traverse(m => { if (m.isMesh && m.material === M.top) m.material = M.skull; });   // Lichcrown: a pale, bony skull of a head
+  if (o.boneCrown) {   // Lichcrown: a ring of bone horns round the top of its head, glowing tips
+    const cg = new THREE.Group(); cg.position.set(-0.1, 0.2, 0); head.add(cg);
+    const cm = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.horn).convertSRGBToLinear(), roughness: 0.4, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.18 });
+    const tipM = new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.25)).convertSRGBToLinear() });
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.03, 8, 40), cm); band.rotation.x = Math.PI / 2; band.scale.set(1.25, 1, 1); cg.add(band);
+    const N = o.boneCrown === true ? 9 : o.boneCrown;
+    for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, cx = Math.cos(a) * 0.25, cz = Math.sin(a) * 0.2, back = Math.max(0, -Math.cos(a)), L = 0.22 + 0.32 * back + (i % 2 ? 0 : 0.08);
+      const b0 = new V(cx, 0, cz), b1 = new V(cx * 1.3 - 0.05, L * 0.55, cz * 1.35), b2 = new V(cx * 1.5 - 0.18 * back - 0.04, L, cz * 1.6);
+      cg.add(staticTube([b0, b1, b2], [[0, 0.04], [0.6, 0.025], [1, 0.004]], cm, 12, 8));
+      const tp = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), tipM); tp.position.copy(b2); cg.add(tp); }
+    const cl = new THREE.PointLight(new THREE.Color(p.glow).convertSRGBToLinear(), 0.7, 2.2, 2); cl.position.y = 0.35; cg.add(cl);
+  }
+  if (o.soulEyes) {   // Lichcrown: dark sunken eye sockets with green soul-fire burning in them
+    const fm = new THREE.MeshBasicMaterial({ color: new THREE.Color(p.eye).convertSRGBToLinear(), transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const core = new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.eye, "#ffffff", 0.45)).convertSRGBToLinear(), toneMapped: false });
+    const sock = new THREE.MeshStandardMaterial({ color: "#050605", roughness: 1 });
+    const eyes = []; head.traverse(m => { if (m.isMesh && m.material === M.eye) eyes.push(m); });
+    eyes.forEach(m => { const zs = Math.sign(m.position.z), er = m.geometry.parameters.radius; const dir = m.position.clone().sub(new V(0.02, 0.0, 0)).normalize(); m.material = core; m.scale.multiplyScalar(0.75); m.position.addScaledVector(dir, 0.012);
+      const sk = new THREE.Mesh(new THREE.SphereGeometry(er * 1.25, 18, 12), sock); sk.position.copy(m.position).addScaledVector(dir, -0.045); head.add(sk);   // dark hollow round the glowing eye
+      const fg = new THREE.Group(); fg.position.copy(m.position).add(new V(-0.01, 0.02, zs * 0.03)); fg.rotation.set(zs * 0.35, 0, 0.6); head.add(fg);
+      [[0.07, 0.4, fm], [0.036, 0.52, core]].forEach(([r, h, mt]) => { const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 10, 1, true), mt); c.position.y = h / 2 - 0.02; fg.add(c); });
+      const gs = new THREE.Sprite(new THREE.SpriteMaterial({ map: (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.3, "rgba(255,255,255,0.5)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })(),
+        color: new THREE.Color(p.eye).convertSRGBToLinear(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 })); gs.scale.setScalar(0.3); gs.position.copy(m.position).add(new V(0.02, 0, zs * 0.03)); head.add(gs);
+      soulFlames.push(fg); });
+    const sl = new THREE.PointLight(new THREE.Color(p.eye).convertSRGBToLinear(), 0.6, 1.6, 2); sl.position.set(0.3, 0.2, 0); head.add(sl);
+  }
   head.traverse(m => { if (m.isMesh) m.castShadow = true; });
 })();
 // ----- Eclipsar: a glowing corona ring behind its head, crescent-moon horns, a ring of light round its tail orb -----
@@ -855,13 +950,18 @@ function wing(zs) {
     tips = [new V(-0.15, 1.5, 2.85), new V(-0.75, 1.25, 3.1), new V(-1.3, 0.9, 2.85), new V(-1.8, 0.5, 2.2), new V(-2.0, 0.15, 1.35)];
     back = new V(-1.55, -0.05, 0.05); sagT = [0.1, 0.12, 0.12, 0.12, 0.1];
   }
+  else if (type === "blade") {   // CAVE: Veinfang: sharp, pointed bat wings with deep scallops between long fingers
+    E = new V(-0.25, 0.7, 0.55); W = new V(0.1, 1.25, 1.15);
+    tips = [new V(-0.15, 2.0, 2.55), new V(-0.95, 1.4, 3.0), new V(-1.6, 0.75, 2.5), new V(-2.05, 0.2, 1.5)];
+    back = new V(-1.5, -0.05, 0.05); sagT = [0.42, 0.5, 0.5, 0.5];
+  }
   else if (type === "beetle") {   // insect hind wings: long see-through ovals with thin veins, no finger bones (they fold under a shell)
     E = new V(-0.15, 0.25, 0.45); W = new V(-0.25, 0.4, 0.95);
     tips = [new V(-0.55, 0.62, 1.95), new V(-1.05, 0.6, 2.45), new V(-1.55, 0.42, 2.35), new V(-1.85, 0.2, 1.7)];
     back = new V(-1.25, -0.02, 0.25); sagT = [-0.12, -0.12, -0.12, -0.12]; fingers = "veins";
   }
   if (type === "flipper") g.scale.multiplyScalar(0.55);
-  const boneR = fingers === "veins" ? 0.28 : fingers === "rays" ? 0.5 : 1;
+  const boneR = (fingers === "veins" ? 0.28 : fingers === "rays" ? 0.5 : 1) * (o.skeleton ? 0.55 : 1);   // skeleton: thin bare wing bones
   g.add(staticTube([S, E, W], [[0, 0.11 * Math.max(0.4, boneR)], [0.5, 0.075 * Math.max(0.4, boneR)], [1, 0.06 * Math.max(0.4, boneR)]], M.bone, 20, 12));
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.075 * Math.max(0.4, boneR), 14, 10), M.bone); knob.position.copy(W); g.add(knob);
   if (fingers === true) { const claw = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 8), M.horn); claw.position.copy(W).add(new V(0.1, 0.1, 0)); claw.rotation.z = -0.8; g.add(claw); }
@@ -879,6 +979,7 @@ function wing(zs) {
   for (let i = 0; i < outline.length - 1; i++) for (let r = 0; r < RINGS; r++) { const a = i * (RINGS + 1) + r, b = a + RINGS + 1; ix.push(a, a + 1, b, b, a + 1, b + 1); }
   const mg = new THREE.BufferGeometry(); mg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); mg.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); mg.setIndex(ix); mg.computeVertexNormals();
   const mem = new THREE.Mesh(mg, M.wing); mem.castShadow = true; g.add(mem);
+  if (o.wingVeins) mem.material = M.wingV || (M.wingV = M.wing.clone());   // CAVE: blood vessels show through the wing skin (finished after paint)
   if (o.emberWings) {   // volcano adaptation: heat-proof armour scales along the front edge, and glowing heat veins that let extra heat out of the wing
     mem.material = emberMat();
     const arm = new THREE.CatmullRomCurve3([S, E, W, tips[0]]);
@@ -897,6 +998,7 @@ if (o.wings !== "none") { wing(1); wing(-1); }
 
 // ---------- tail tip ----------
 const flame = new THREE.Group(); dragon.add(flame);
+let tailHeart = null, chestLight = null;
 const fl = [];
 const tailTip = new THREE.Group(); dragon.add(tailTip);
 if (corona) { const tr = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.014, 8, 48), corona.userData.m); tr.position.x = 0.12; tr.rotation.y = Math.PI / 2; tailTip.add(tr); tr.add(corona.userData.dia); }   // Eclipsar's ring of light round its tail orb
@@ -957,6 +1059,12 @@ if (o.tail === "flame" || o.tail === "smoke") {
     const end = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.3, 16), tipM); end.rotation.z = -Math.PI / 2; end.position.x = 1.12; bg.add(end);
     for (let i = 0; i < 14; i++) { const x = 0.1 + i / 13 * 0.95, a = i * 2.4, r = 0.2 * Math.sin(Math.PI * (x + 0.05) / 1.15) + 0.03; const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1), x > 0.72 ? tipM : furM); f.position.set(x, Math.cos(a) * r, Math.sin(a) * r); bg.add(f); }
     for (let k = 1; k < (o.tails || 1); k++) { const c = bg.clone(); const s = k % 2 ? 1 : -1, n = Math.ceil(k / 2); c.rotation.set(0, s * 0.55 * n, 0.25 * n); tailTip.add(c); }   // several fanned tails
+  }
+  if (T === "heart") {   // CAVE: blood dragon: a heart-shaped spade at the tail tip that beats with its heart
+    const hs = new THREE.Shape(); hs.moveTo(0, -0.5); hs.bezierCurveTo(0.12, -0.3, 0.5, -0.1, 0.5, 0.15); hs.bezierCurveTo(0.5, 0.45, 0.15, 0.5, 0, 0.27); hs.bezierCurveTo(-0.15, 0.5, -0.5, 0.45, -0.5, 0.15); hs.bezierCurveTo(-0.5, -0.1, -0.12, -0.3, 0, -0.5);
+    const hg = new THREE.ExtrudeGeometry(hs, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2, curveSegments: 12 }); hg.translate(0, 0, -0.025);
+    tailHeart = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: new THREE.Color(p.side).convertSRGBToLinear(), roughness: 0.35, metalness: 0.2, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.3 }));
+    tailHeart.rotation.z = Math.PI / 2; tailHeart.scale.setScalar(0.62); tailHeart.position.x = 0.3; tailTip.add(tailHeart);
   }
   if (T === "orb") { const c = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), o.orbGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.35)).convertSRGBToLinear() }) : M.flame2); c.position.x = 0.12; tailTip.add(c); flameLight.intensity = 1; tailTip.add(flameLight); }
   tailTip.traverse(m => { if (m.isMesh) m.castShadow = true; });
@@ -1081,7 +1189,7 @@ function update(t, walk, flap, dt, bend = 0) {
   bendNow += (Math.max(-1, Math.min(1, bend)) - bendNow) * Math.min(1, dt * 5);
   breath = 1 + Math.sin(t * (flap ? 3 : 1.7)) * 0.025;
   frames = fillTube(spineGeo, spinePts(t, bendNow), rad, 0.9, 1.05);
-  placeBack(); placeMane();
+  placeBack(); placeMane(); placeRibs(); placeVerts();
   const end = frames[SEGS];
   const fwd = new V(end.T.x, end.T.y * 0.25, end.T.z).normalize();
   const side = new V().crossVectors(fwd, UP).normalize(), up = new V().crossVectors(side, fwd);
@@ -1092,6 +1200,20 @@ function update(t, walk, flap, dt, bend = 0) {
   updateFoxTails(t);
   updateMagic(t);
   updatePuffs(t);
+  if (o.heartbeat) {   // CAVE: lub-dub. Veins (body, wings, tail heart) flare on each beat, then fade back to dark red
+    const ph = (t * 1.1) % 1, beat = Math.exp(-(((ph - 0.04) / 0.045) ** 2)) + 0.65 * Math.exp(-(((ph - 0.24) / 0.045) ** 2));
+    M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * TIER) * (0.22 + 1.25 * beat);
+    if (M.wingV) M.wingV.emissiveIntensity = 0.15 + 1.1 * beat;
+    if (tailHeart) { tailHeart.material.emissiveIntensity = 0.3 + 1.4 * beat; tailHeart.scale.setScalar(0.62 * (1 + 0.1 * beat)); }
+    if (chestLight) chestLight.intensity = 0.15 + 1.1 * beat;
+  }
+  if (o.wraith) {   // CAVE: Wraithwing fades in and out (slowly, never quite the same twice)
+    const k = Math.min(1, Math.max(0, 0.5 + 0.55 * Math.sin(t * 0.75) * Math.sin(t * 0.27 + 1.3) + 0.05 * Math.sin(t * 7.3)));
+    M.wing.opacity = 0.08 + 0.55 * k; M.bone.opacity = 0.25 + 0.75 * k; M.trim.opacity = 0.15 + 0.8 * k;
+    M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * TIER) * (0.45 + 0.9 * k);
+    if (seeMats) seeMats.forEach(q => { q.opacity = o.seeThrough * (0.82 + 0.18 * k); });
+  }
+  soulFlames.forEach((fg, i) => { const k = 1 + Math.sin(t * 15 + i * 2) * 0.16 + Math.sin(t * 8.7 + i) * 0.1; fg.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k)); fg.children[1].rotation.y = t * 4; });
   if (o.ghost) { const k = 0.5 + 0.5 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1); fadeAll(0.38 + 0.5 * k); M.wing.opacity = 0.3 + 0.45 * k; }   // the WHOLE dragon fades in and out like fog (legs and head too)
   if (o.zap && Math.random() < 0.08) M.body.emissiveIntensity *= 3.5;   // a crackle of lightning runs over its markings
   if (o.shimmer) { const k = Math.sin(t * 2.3) * Math.sin(t * 3.7); fadeAll(0.62 + 0.3 * Math.abs(k)); M.wing.transparent = true; M.wing.opacity = 0.55 + 0.35 * Math.abs(Math.sin(t * 2.9)); }   // wavers like a heat mirage
@@ -1105,7 +1227,8 @@ function update(t, walk, flap, dt, bend = 0) {
   hoverK += (((api && api.hover) && flap ? 1 : 0) - hoverK) * Math.min(1, dt * 3);   // HOVER (Petra 2026-11-10): flying but standing still
   wingPh += dt * (shells.length ? (o.flapSpeed || 7) * 2.2 : (o.flapSpeed || 7) * (1 - 0.35 * hoverK));
   const flapSpeed = o.flapSpeed || 7; // negative rotation = wings up; the up-stroke stops before the wings cross
-  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
+  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes
+    const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
     if (shells.length) { w.pivot.rotation.y = w.zs * f * -0.52; w.pivot.rotation.z = 0; w.pivot.scale.set(1 - 0.45 * f, 1 - 0.45 * f, 1 - 0.78 * f); w.pivot.position.y = w.y0 - f * 0.22; } });
   const airRun = flap && airPuffs.length;   // skyRun dragons bound through the air instead of tucking their legs
   if (api) { const c = walkT; const tread = airRun && hoverK > 0.5; api.airBob = tread ? 0.05 * Math.sin(c * 2) : airRun ? 0.28 * Math.sin(c - 0.6) : hoverK * 0.16 * Math.sin(wingPh - 1.2); api.airPitch = tread ? 0.04 * Math.sin(c) : airRun ? 0.16 * Math.cos(c) : hoverK * (0.22 + 0.04 * Math.sin(wingPh)); }   // hover: each downstroke lifts the body a little, nose tipped up   // rise during the stretch, dip into the next push; nose up as it pushes off
@@ -1263,9 +1386,32 @@ function updatePuffs(t) {
 }
 paint(p);
 if (o.corona) { M.bone.color.set("#2a2010").convertSRGBToLinear(); M.bone.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); M.bone.emissiveIntensity = 1.1; }   // Eclipsar: glowing gold wing bones
+if (M.wingV) {   // CAVE: veined wings: the wing colours, plus glowing branching vessels from the arm out to the edge
+  const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d");
+  x.fillStyle = "#000"; x.fillRect(0, 0, 256, 256); x.strokeStyle = "#fff"; x.shadowColor = "#fff"; x.shadowBlur = 4; x.lineCap = "round";
+  const vein = (px, py, a, len, w) => { for (let s = 0; s < len; s++) { const nx = px + Math.cos(a) * 6, ny = py + Math.sin(a) * 6; x.lineWidth = w; x.beginPath(); x.moveTo(px, py); x.lineTo(nx, ny); x.stroke(); px = nx; py = ny; a += (Math.random() - 0.5) * 0.22; w = Math.max(0.6, w * 0.95); if (Math.random() < 0.09 && len > 8) vein(px, py, a + (Math.random() < 0.5 ? 0.55 : -0.55), len * 0.4, w * 0.65); } };
+  x.shadowBlur = 2; for (let i = 0; i < 8; i++) vein(16 + i * 32, 252, -Math.PI / 2 + (Math.random() - 0.5) * 0.15, 40, 2.6);
+  const t = new THREE.CanvasTexture(c);
+  M.wingV.copy(M.wing); M.wingV.emissiveMap = t; M.wingV.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); M.wingV.emissiveIntensity = 0.5;
+}
+if (o.heartbeat) { const hf = at(0.66); chestLight = new THREE.PointLight(new THREE.Color(p.glow).convertSRGBToLinear(), 0.3, 3, 2); chestLight.position.copy(hf.p).addScaledVector(hf.n, -hf.r * 1.3); dragon.add(chestLight); }
 if (_ember) { const ck = _ember.userData.cracks; _ember.copy(M.wing); _ember.emissiveMap = ck; _ember.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); if (o.emberWings === "strong") { _ember.emissiveIntensity = 1.6; _ember.map = null; _ember.color.set(mix(p.wing, "#000000", 0.35)).convertSRGBToLinear(); } else _ember.emissiveIntensity = 0.7; }   // dark sooty skin so the glowing veins show
+if (o.skeleton) {
+  spine.visible = false;
+  dragon.traverse(m => { if (m.isMesh && (m.material === M.top || m.material === M.belly || m.material === M.body)) m.material = m.parent === head || head.children.includes(m) ? M.skull : M.rib; });
+  head.traverse(m => { if (m.isMesh && m.material === M.rib) m.material = M.skull; });
+  backParts.forEach(m => { m.visible = false; });
+  M.wing.transparent = true; M.wing.opacity = 0.2; M.wing.depthWrite = false;   // only a ghostly wisp of wing skin is left between the finger bones
+}
 dragon.traverse(m => { if (m.isMesh) m.castShadow = true; });
 airPuffs.forEach(pf => pf.traverse(m => { m.castShadow = false; }));
+let seeMats = null;
+if (o.seeThrough) {   // CAVE: Wraithwing is see-through all over. A depth-only pass first, so only the front surface of the body is drawn: no inside overlaps showing through
+  const depthM = new THREE.MeshBasicMaterial({ colorWrite: false }), s = new Set(), meshes = [];
+  dragon.traverse(m => { if (!m.isMesh || !m.material || m.userData.depthOnly) return; const q = m.material; if (q === M.wing || q === M.bone || q === M.trim || q.isMeshBasicMaterial || q.blending !== THREE.NormalBlending || (q.transparent && q !== M.body && q.opacity < 1)) return; s.add(q); meshes.push(m); });
+  meshes.forEach(m => { const d = new THREE.Mesh(m.geometry, depthM); d.userData.depthOnly = true; d.castShadow = false; d.frustumCulled = false; d.renderOrder = 10; m.add(d); });
+  seeMats = [...s]; seeMats.forEach(q => { q.transparent = true; q.depthWrite = false; q.opacity = o.seeThrough; });
+}
 update(0, 0, 0, 0.016);
 sockets.head = head;
 api = { root: dragon, update, seat, sockets, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
@@ -1303,6 +1449,9 @@ function addFur(api, opts) {
   const O = Object.assign({}, FUR_DEFAULTS, opts || {});
   O.parts = Object.assign({}, FUR_DEFAULTS.parts, opts && opts.parts);
   O.partLen = Object.assign({}, FUR_DEFAULTS.partLen, opts && opts.partLen);
+  if (O.skin) furSkin(api, O.skin);
+  if (O.coral) addCoral(api, O.coral);
+  if (O.noFur) { api.fur = { enabled: false, opts: O, parts: [], setEnabled() {}, dispose() { delete api.fur; } }; return api.fur; }   // skin-only looks (rock, pearl): no shell fur
   const root = api.root, made = [], hidden = [], baseMats = new Map();
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   // ----- shared shader patch -----
@@ -1381,6 +1530,18 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   totalEmissiveRadiance += uSheen * diffuseColor.rgb * pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0) * vFurL;`);
   }
   const col = c => new THREE.Color(c).convertSRGBToLinear();
+  // patches (moss): smooth blotchy noise over the uv; fur only grows where it is high, so there is bare skin in between (Petra)
+  const pH = (x, y) => { const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return v - Math.floor(v); };
+  function pNoise(x, y, wy) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, s = t => t * t * (3 - 2 * t), w = k => ((k % wy) + wy) % wy;
+    const a = pH(xi, w(yi)), b = pH(xi + 1, w(yi)), c = pH(xi, w(yi + 1)), d = pH(xi + 1, w(yi + 1));
+    return a + (b - a) * s(xf) + (c - a) * s(yf) + (a - b - c + d) * s(xf) * s(yf); }
+  function patchK(u, v, tube) {
+    const P = O.patches, fx = tube ? P.along || 16 : 5, fy = tube ? P.around || 6 : 4;
+    let n = 0.65 * pNoise(u * fx, v * fy, fy) + 0.35 * pNoise(u * fx * 2.3 + 5, v * fy * 2, fy * 2);
+    if (tube && P.topBias) n += P.topBias * Math.max(0, Math.cos((v - 0.25) * Math.PI * 2));   // negative = less on the back   // more moss on the back, less on the belly
+    const t = P.cover != null ? 1 - P.cover : 0.55;
+    const e = Math.min(1, Math.max(0, (n - t) / (P.soft || 0.08))); return e * e * (3 - 2 * e);   // soft edges: moss thins out at the rim of each patch
+  }
   // ----- one fur stack for one mesh -----
   function furFor(src, kind, nShells, mulFn) {
     const g0 = src.geometry, tube = !!(g0.userData && g0.userData.radial);
@@ -1389,7 +1550,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
     for (const k in g0.attributes) geo.setAttribute(k, g0.attributes[k]);   // shared by reference: spine/tail updates show up here
     geo.setIndex(g0.index);
     const n = g0.attributes.position.count, uv = g0.attributes.uv, mul = new Float32Array(n);
-    for (let i = 0; i < n; i++) mul[i] = mulFn ? mulFn(uv.getX(i), uv.getY(i), i) : 1;
+    for (let i = 0; i < n; i++) mul[i] = (mulFn ? mulFn(uv.getX(i), uv.getY(i), i) : 1) * (O.patches ? patchK(uv.getX(i), uv.getY(i), tube) : 1);
     geo.setAttribute("furMul", new THREE.BufferAttribute(mul, 1));
     const lay = new Float32Array(nShells); for (let i = 0; i < nShells; i++) lay[i] = (i + 1) / nShells;
     geo.setAttribute("furLayer", new THREE.InstancedBufferAttribute(lay, 1));
@@ -1485,7 +1646,10 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   });
   if (O.parts.head) {   // optional: short fur on the skull only (eyes, snout and ears stay smooth)
     const head = root.children.find(m => m.isGroup && m.children[0] && m.children[0].isMesh && m.children[0].geometry.type === "SphereGeometry" && Math.abs(m.children[0].geometry.parameters.radius - 0.3) < 1e-6);
-    if (head) {   // Petra: the whole head is furry: skull, snout, jaw, chin and throat (eyes, horns, ears, nose and markings stay as they are)
+    if (head && O.skullOnly) {   // moss (Petra): only the top and back of the skull; nothing near the snout or mouth
+      const sk = head.children[0], sp = sk.geometry.attributes.position;
+      furFor(sk, "head", O.legShells, (u, v, i) => { const x = sp.getX(i), y = sp.getY(i); return (1 - sm(-0.12, 0.08, x)) * sm(-0.05, 0.12, y); });
+    } else if (head) {   // Petra: the whole head is furry: skull, snout, jaw, chin and throat (eyes, horns, ears, nose and markings stay as they are)
       const skinMats = new Set(head.children.filter(m => m.isMesh && (m.geometry.type === "SphereGeometry" || isTube(m))).slice(0, 6).map(m => m.material).filter(mt => !mt.map));
       head.children.forEach(m => { if (m.isMesh && skinMats.has(m.material) && m.material.color && (m.geometry.type === "SphereGeometry" || isTube(m)) && !(m.geometry.parameters && m.geometry.parameters.radius < 0.05)) furFor(m, "head", O.legShells); });
     }
@@ -1515,6 +1679,185 @@ const FUR_LOOKS = {
   Rimefang:  { length: 0.06, density: 62, tipK: 0.45, rootDark: 0.85, parts: { head: true } },
   Bergdrake: { length: 0.045, density: 66, tipK: 0.3, rootDark: 0.88, ruff: 1.1, tuft: 1, parts: { head: true } }   // a short, sleek seal-like pelt
 };
+
+// ---------- special skins (Petra 2026-11-10): rock, frost sparkle, pearl shine ----------
+// furSkin(api, kind) changes the dragon's own skin materials (body tube, top/skull, belly) instead of adding fur.
+function furSkin(api, kind) {
+  const root = api.root, mats = new Set();
+  const spine = root.children.find(m => m.isMesh && m.geometry && m.geometry.userData && m.geometry.userData.segs >= 100);
+  if (spine) mats.add(spine.material);
+  // every solid skin part: head, jaw, legs, paws, toes, eyelids, horns, and (rock/pearl/frost) the wing BONES. Not: eyeballs, wing skin, glowing or see-through bits, fur
+  const wingBones = kind !== "none";
+  root.traverse(m => {
+    if (!m.isMesh || m.isInstancedMesh || !m.material || !m.material.isMeshStandardMaterial) return;
+    const q = m.material;
+    if (q.transparent || q.side === THREE.DoubleSide || q.blending !== THREE.NormalBlending || (q.emissive ? (q.emissive.r + q.emissive.g + q.emissive.b) * q.emissiveIntensity : 0) > 0.9) return;   // skip parts that really glow
+    if (m.children.some(c => c.isMesh && c.geometry.type === "SphereGeometry" && c.geometry.parameters.phiLength === Math.PI * 2 && c.geometry.parameters.thetaLength < Math.PI)) return;   // the eyeball (it carries the lids)
+    let inWing = false; for (let p = m.parent; p; p = p.parent) if (api.wings && api.wings.includes && api.wings.includes(p)) inWing = true;
+    if (inWing && !wingBones) return;
+    mats.add(q);
+  });
+  const W = 1024, H = 256, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d");
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  c.fillStyle = "#808080"; c.fillRect(0, 0, W, H);
+  if (kind === "rock") {   // lumpy stone: soft bumps, darker pits and thin cracks
+    for (let i = 0; i < 900; i++) { const x = rnd() * W, y = rnd() * H, r = 4 + rnd() * 16, g = 90 + rnd() * 90 | 0; c.fillStyle = `rgba(${g},${g},${g},0.35)`; c.beginPath(); c.ellipse(x, y, r * 1.4, r, rnd() * 3, 0, 7); c.fill(); }
+    c.strokeStyle = "rgba(20,20,20,0.85)"; c.lineWidth = 1.6;
+    for (let i = 0; i < 40; i++) { let x = rnd() * W, y = rnd() * H; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 50; y += (rnd() - 0.5) * 22; c.lineTo(x, y); } c.stroke(); }
+  } else if (kind === "frost") {   // fine ice crystals
+    for (let i = 0; i < 2500; i++) { const x = rnd() * W, y = rnd() * H, g = 150 + rnd() * 100 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(x, y, 1 + rnd() * 3, 1 + rnd() * 2); }
+  } else if (kind === "lava") {   // cooled black crust in plates, split by deep cracks (the cracks glow, see glowTex below)
+    for (let i = 0; i < 500; i++) { const x = rnd() * W, y = rnd() * H, r = 8 + rnd() * 22, g = 110 + rnd() * 60 | 0; c.fillStyle = `rgba(${g},${g},${g},0.5)`; c.beginPath(); c.ellipse(x, y, r * 1.5, r, rnd() * 3, 0, 7); c.fill(); }
+  } else if (kind === "coral") {   // coral: lumpy knobs with little round pores
+    for (let i = 0; i < 900; i++) { const x = rnd() * W, y = rnd() * H, r = 6 + rnd() * 10, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(190,190,190,0.55)"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+
+  } else if (kind === "slime") {   // wet swamp skin: soft blobby bumps and long drips
+    for (let i = 0; i < 260; i++) { const x = rnd() * W, y = rnd() * H, r = 6 + rnd() * 18, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(180,180,180,0.7)"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+    for (let i = 0; i < 120; i++) { const x = rnd() * W, y = rnd() * H * 0.6, l = 20 + rnd() * 60; c.strokeStyle = "rgba(170,170,170,0.5)"; c.lineWidth = 2 + rnd() * 3; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (rnd() - 0.5) * 4, y + l); c.stroke(); }
+  } else if (kind === "crystal") {   // cut-gem facets: a mosaic of flat triangles at different heights
+    for (let i = 0; i < 1400; i++) {   // irregular overlapping facets, like a rough-cut geode
+      const x0 = rnd() * W, y0 = rnd() * H, r = 10 + rnd() * 26, a = rnd() * 6.28, g = 95 + rnd() * 70 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.beginPath();
+      for (let k = 0; k < 3 + (rnd() * 2 | 0); k++) { const b = a + k * (2.1 + rnd() * 0.5); c.lineTo(x0 + Math.cos(b) * r * 1.4, y0 + Math.sin(b) * r); } c.fill(); }
+  } else if (kind === "ash") {   // dusty charcoal: fine grit, soft smudges and flaky layers
+    for (let i = 0; i < 300; i++) { const x = rnd() * W, y = rnd() * H, r = 10 + rnd() * 30, g = 100 + rnd() * 60 | 0; c.fillStyle = `rgba(${g},${g},${g},0.25)`; c.beginPath(); c.ellipse(x, y, r * 2, r * 0.6, rnd() * 0.4, 0, 7); c.fill(); }
+    for (let i = 0; i < 6000; i++) { const g = 100 + rnd() * 70 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(rnd() * W, rnd() * H, 1, 1); }
+  } else {   // pearl: layers of nacre: fine wavy growth lines and soft overlapping scale-like shells
+    for (let i = 0; i < 260; i++) { const x = rnd() * W, y = rnd() * H, r = 10 + rnd() * 26; for (let k = 0; k < 4; k++) { const g = 118 + k * 8 + rnd() * 10 | 0; c.strokeStyle = `rgba(${g},${g},${g},0.35)`; c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, r * (1 - k * 0.2), Math.PI * 0.1, Math.PI * 0.9); c.stroke(); } }
+    for (let y = 0; y < H; y += 3) { c.strokeStyle = `rgba(150,150,150,${0.08 + rnd() * 0.08})`; c.lineWidth = 1; c.beginPath(); for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.03 + y * 0.2) * 2.5); c.stroke(); }
+  }
+  const bump = new THREE.CanvasTexture(cv); bump.wrapS = bump.wrapT = THREE.RepeatWrapping;
+  let spark = null;
+  if (kind === "frost" || kind === "pearl") {   // little bright specks that twinkle (frost) or a soft rainbow sheen (pearl)
+    const sv = document.createElement("canvas"); sv.width = W; sv.height = H; const x = sv.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, W, H);
+    if (kind === "frost") for (let i = 0; i < 700; i++) { x.fillStyle = rnd() < 0.5 ? "#ffffff" : "#bfe8ff"; const px = rnd() * W, py = rnd() * H; x.fillRect(px, py, 2, 2); }
+    else { const g = x.createLinearGradient(0, 0, W, H); ["#ffd6f0", "#d6e8ff", "#d6fff0", "#fff4d6", "#ffd6f0"].forEach((cc, i) => g.addColorStop(i / 4, cc)); x.fillStyle = g; x.fillRect(0, 0, W, H); }
+    spark = new THREE.CanvasTexture(sv); spark.encoding = THREE.sRGBEncoding;
+  }
+  let glowTex = null;   // lava: glowing cracks; ash: a few hot embers; crystal: sharp glints on facet edges (added in the shader, so the body's own glow pattern stays)
+  if (kind === "lava" || kind === "ash" || kind === "crystal" || kind === "coral") {
+    const gv = document.createElement("canvas"); gv.width = W; gv.height = H; const x = gv.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, W, H); seed = 7;
+    if (kind === "lava") { x.lineCap = x.lineJoin = "round";
+      for (let i = 0; i < 70; i++) { let px = rnd() * W, py = rnd() * H; const pts = [[px, py]]; for (let k = 0; k < 7; k++) { px += (rnd() - 0.5) * 70; py += (rnd() - 0.5) * 30; pts.push([px, py]); }
+        [[5, "rgba(255,80,0,0.3)"], [2.2, "rgba(255,140,30,0.95)"], [0.9, "#fff2a0"]].forEach(([w, col]) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); pts.forEach(([a, b], j) => j ? x.lineTo(a, b) : x.moveTo(a, b)); x.stroke(); }); } }
+    else if (kind === "ash") { for (let i = 0; i < 160; i++) { const px = rnd() * W, py = rnd() * H, r = 1 + rnd() * 2.5, gr = x.createRadialGradient(px, py, 0, px, py, r * 3); gr.addColorStop(0, "#ffb050"); gr.addColorStop(0.4, "rgba(255,80,0,0.6)"); gr.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = gr; x.fillRect(px - r * 3, py - r * 3, r * 6, r * 6); } }
+    else if (kind === "coral") { for (let i = 0; i < 300; i++) { const px = rnd() * W, py = rnd() * H, r = 3 + rnd() * 2;   // tiny open coral polyps: a soft star of 8 little arms round a bright mouth
+        x.fillStyle = "rgba(255,120,170,0.5)"; for (let k = 0; k < 8; k++) { const b = k / 8 * 6.28; x.beginPath(); x.arc(px + Math.cos(b) * r, py + Math.sin(b) * r, r * 0.45, 0, 7); x.fill(); }
+        x.fillStyle = "#ffd0e4"; x.beginPath(); x.arc(px, py, r * 0.4, 0, 7); x.fill(); } }
+    else { for (let i = 0; i < 260; i++) { const px = rnd() * W, py = rnd() * H, r = 1 + rnd() * 2; x.fillStyle = "#ffffff"; x.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? r * 0.35 : r * 2.2, b = k / 8 * 6.28; x.lineTo(px + Math.cos(b) * rr, py + Math.sin(b) * rr); } x.fill(); } }   // little star glints
+    glowTex = new THREE.CanvasTexture(gv); glowTex.wrapS = glowTex.wrapT = THREE.RepeatWrapping; glowTex.encoding = THREE.sRGBEncoding;
+  }
+  const SK = { t: { value: 0 } };
+  const bumpSmall = bump.clone(); bumpSmall.needsUpdate = true; bumpSmall.repeat.set(0.22, 0.3);   // legs, head, horns are short tubes: use a small piece of the stone so the lumps stay the same size
+  mats.forEach(m => {
+    m.bumpMap = spine && m === spine.material ? bump : bumpSmall; m.bumpScale = kind === "rock" ? 0.06 : kind === "frost" ? 0.02 : 0.008;
+    if (kind === "rock") { m.roughness = 0.95; m.metalness = 0; }
+    if (kind === "lava") { m.bumpScale = 0.05; m.roughness = 0.9; m.metalness = 0; }
+    if (kind === "coral") { m.bumpScale = 0.045; m.roughness = 0.6; m.metalness = 0; }
+    if (kind === "slime") { m.bumpScale = 0.05; m.roughness = 0.08; m.metalness = 0.15; }   // wet and shiny
+    if (kind === "crystal") { m.bumpScale = 0.02; m.roughness = 0.1; m.metalness = 0.45; }
+    if (kind === "ash") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
+    if (glowTex) {   // add the glow texture on top of the part's own glow; it reads the same uv as the bump (so legs and head get small pieces, like the rock)
+      const big = spine && m === spine.material, prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
+      const K = kind === "lava" ? "1.2 * (0.75 + 0.25 * sin(skT * 2.0 + vUv.x * 9.0))" : kind === "ash" ? "1.3 * (0.4 + 0.6 * max(0.0, sin(skT * 3.0 + vUv.x * 40.0 + vUv.y * 17.0)))" : kind === "coral" ? "0.55 * (0.6 + 0.4 * sin(skT * 1.2 + vUv.x * 7.0 + vUv.y * 5.0))" : "0.8 * (0.5 + 0.5 * sin(skT * 1.5 + vUv.x * 30.0 - vUv.y * 11.0))";
+      m.onBeforeCompile = sh => { if (prev) prev(sh); sh.uniforms.skG = { value: glowTex }; sh.uniforms.skT = SK.t; sh.uniforms.skR = { value: big ? new THREE.Vector2(1, 1) : new THREE.Vector2(0.5, 0.6) };
+        // sampled from the WORLD position on three planes (triplanar), so cracks/embers/glints are the same size on body, head, legs and paws, with no stretching
+        sh.vertexShader = "varying vec3 skW; varying vec3 skN;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n skW = (modelMatrix * vec4(position, 1.0)).xyz; skN = normalize(mat3(modelMatrix) * objectNormal);");
+        sh.fragmentShader = "uniform sampler2D skG; uniform float skT; uniform vec2 skR; varying vec3 skW; varying vec3 skN;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 bw = pow(abs(normalize(skN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z); vec3 p = skW * ${kind === "lava" ? "0.12" : kind === "coral" ? "0.3" : "0.3"}; vec2 vUv = p.xy;
+    vec3 tg = texture2D(skG, p.zy * vec2(1.0, 4.0)).rgb * bw.x + texture2D(skG, p.xz * vec2(1.0, 4.0)).rgb * bw.y + texture2D(skG, p.xy * vec2(1.0, 4.0)).rgb * bw.z;
+    totalEmissiveRadiance += tg * ${K}; }`); };
+      m.customProgramCacheKey = () => "skin|" + kind + "|" + big + "|" + (prev ? prev.toString().length : 0);
+    }
+    if (kind === "frost" && !m.emissiveMap) { m.roughness = 0.3; m.metalness = 0.1; m.emissiveMap = spark; m.emissive = new THREE.Color(1, 1, 1); m.emissiveIntensity = 0.6; }
+    if (kind === "pearl") {   // mother-of-pearl: a rainbow shimmer that shifts with the viewing angle, on EVERY part (body too, on top of its own glow pattern)
+      m.roughness = 0.14; m.metalness = 0.3;
+      const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
+      m.onBeforeCompile = sh => { if (prev) prev(sh);
+        sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+    float h = fr * 1.6 + nn.y * 0.6 + nn.x * 0.4;
+    vec3 irid = 0.55 + 0.45 * cos(6.2832 * (h + vec3(0.0, 0.33, 0.67)));
+    totalEmissiveRadiance += irid * (0.06 + 0.32 * fr * fr) * vec3(1.0, 0.95, 1.05); }`); };
+      m.customProgramCacheKey = () => "pearl|" + (prev ? prev.toString().length : 0);
+    }
+    m.needsUpdate = true;
+  });
+  if (glowTex) { const up = api.update; api.update = (t, ...a) => { SK.t.value = t; return up(t, ...a); }; }
+  if (kind === "frost") { const tw = [...mats].filter(m => m.emissiveMap === spark), up = api.update; api.update = (t, ...a) => { const r = up(t, ...a); tw.forEach(m => { m.emissiveIntensity = 0.35 + 0.35 * Math.sin(t * 3.1) * Math.sin(t * 1.7 + 1); }); return r; }; }
+}
+
+// ---------- real coral growing on the dragon (Petra 2026-11-10: Coralwyrm) ----------
+// little clusters of 3D branching coral, round brain coral and flat sea fans on the back, neck, tail, head, shoulders, knees and paws
+function addCoral(api, C) {
+  const root = api.root, spine = root.children.find(m => m.isMesh && m.geometry && m.geometry.userData && m.geometry.userData.segs >= 100);
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const cols = (C.colors || ["#ff5a9a", "#ff8a3a", "#b46aff", "#ffcf4a", "#ff6a6a"]).map(c => new THREE.Color(c).convertSRGBToLinear());
+  const mats = cols.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.55, emissive: c, emissiveIntensity: 0.12 }));
+  const tipMats = cols.map(c => new THREE.MeshStandardMaterial({ color: c.clone().lerp(new THREE.Color(1, 1, 1), 0.55), roughness: 0.4, emissive: c, emissiveIntensity: 0.6 }));
+  const cyl = new THREE.CylinderGeometry(0.6, 1, 1, 7, 1); cyl.translate(0, 0.5, 0);   // a branch, base at 0, tip at 1
+  const ball = new THREE.SphereGeometry(1, 10, 8);
+  // brain coral: a lumpy ball with wiggly grooves
+  const brainG = new THREE.SphereGeometry(1, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), bp = brainG.attributes.position;
+  for (let i = 0; i < bp.count; i++) { const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i), g = 1 + 0.07 * Math.sin(Math.atan2(z, x) * 9 + y * 14 + Math.sin(y * 9) * 2); bp.setXYZ(i, x * g, y * g, z * g); }
+  brainG.computeVertexNormals();
+  function staghorn(g, m, tm, len, r, depth) {   // a branch that splits into two or three smaller branches, with a pale glowing tip
+    const b = new THREE.Mesh(cyl, m); b.scale.set(r, len, r); g.add(b);
+    const end = new THREE.Group(); end.position.y = len; g.add(end);
+    if (depth <= 0) { const t = new THREE.Mesh(ball, tm); t.scale.setScalar(r * 0.75); end.add(t); return; }
+    const n = 2 + (rnd() < 0.4 ? 1 : 0);
+    for (let k = 0; k < n; k++) { const c = new THREE.Group(); c.rotation.set((rnd() - 0.5) * 1.2, k / n * 6.28 + rnd(), 0.35 + rnd() * 0.45, "YXZ"); end.add(c); staghorn(c, m, tm, len * (0.62 + rnd() * 0.15), r * 0.68, depth - 1); }
+  }
+  function fan(g, m) {   // a flat sea fan made of thin crossing ribs
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(-0.9, 0.5, -0.8, 1.4, 0, 1.5); sh.bezierCurveTo(0.8, 1.4, 0.9, 0.5, 0, 0);
+    const fm = m.clone(); fm.side = THREE.DoubleSide; fm.transparent = true; fm.opacity = 0.85; fm.emissiveIntensity = 0.3;
+    const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, 64, 64); x.strokeStyle = "#fff"; x.lineWidth = 2;
+    for (let i = 0; i < 9; i++) { x.beginPath(); x.moveTo(32, 64); x.quadraticCurveTo(32 + (i - 4) * 4, 34, 32 + (i - 4) * 9, 0); x.stroke(); }
+    for (let j = 0; j < 7; j++) { x.beginPath(); x.arc(32, 64, 9 + j * 8, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); }
+    const t = new THREE.CanvasTexture(cv); fm.alphaMap = t; fm.alphaTest = 0.4; const sg = new THREE.ShapeGeometry(sh);
+    const pos = sg.attributes.position, uv = sg.attributes.uv; for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 1.8 + 0.5, pos.getY(i) / 1.5);
+    g.add(new THREE.Mesh(sg, fm));
+  }
+  function cluster(size, kinds) {   // a little reef: a mix of branches, a brain coral and sometimes a fan
+    const g = new THREE.Group(), n = kinds || 3;
+    for (let k = 0; k < n; k++) { const ci = (rnd() * cols.length) | 0, sub = new THREE.Group(), a = rnd() * 6.28, d = rnd() * 0.5;
+      sub.position.set(Math.cos(a) * d, 0, Math.sin(a) * d); sub.rotation.set((rnd() - 0.5) * 0.5, rnd() * 6.28, (rnd() - 0.5) * 0.5); g.add(sub);
+      const kind = k === 0 ? "stag" : rnd() < 0.45 ? "brain" : rnd() < 0.6 ? "stag" : "fan";
+      if (kind === "stag") staghorn(sub, mats[ci], tipMats[ci], 0.4 + rnd() * 0.22, 0.12, 2);
+      else if (kind === "brain") { const b = new THREE.Mesh(brainG, mats[ci]); b.scale.set(0.38, 0.3, 0.38); sub.add(b); }
+      else fan(sub, mats[ci]);
+    }
+    g.scale.setScalar(size); g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    return g;
+  }
+  const all = [];
+  // ---- body, neck and tail: clusters ride on the top of the moving body tube ----
+  const body = [];
+  if (spine) {
+    const segs = spine.geometry.userData.segs, rad = spine.geometry.userData.radial, pos = spine.geometry.attributes.position;
+    let topQ = 0, best = -1e9; { const ring = Math.round(segs * 0.5); for (let q = 0; q < rad; q++) { const y = pos.getY(ring * (rad + 1) + q); if (y > best) { best = y; topQ = q; } } }
+    (C.body || [[0.22, 0, 0.55], [0.32, 2, 0.5], [0.4, -2, 0.6], [0.48, 0, 0.75], [0.56, 3, 0.55], [0.62, -1, 0.65], [0.7, 0, 0.5], [0.78, 1, 0.42]]).forEach(([f, dq, sz]) => {
+      const g = cluster(sz * 0.75, 3); root.add(g); body.push({ g, ring: Math.round(segs * f), q: (topQ + dq + rad) % rad }); all.push(g); });
+    const c = new THREE.Vector3(), v = new THREE.Vector3(), n = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), qq = new THREE.Quaternion();
+    const place = () => body.forEach(b => {
+      c.set(0, 0, 0); for (let q = 0; q < rad; q++) { const k = b.ring * (rad + 1) + q; c.x += pos.getX(k); c.y += pos.getY(k); c.z += pos.getZ(k); } c.multiplyScalar(1 / rad);
+      const k = b.ring * (rad + 1) + b.q; v.set(pos.getX(k), pos.getY(k), pos.getZ(k)); n.subVectors(v, c).normalize();
+      b.g.position.copy(v).addScaledVector(n, -0.02); qq.setFromUnitVectors(up, n); b.g.quaternion.copy(qq); });
+    const up0 = api.update; api.update = (...a) => { const r = up0(...a); place(); return r; }; place();
+  }
+  // ---- head: a little crown of coral between the horns, and some on the snout ----
+  const head = api.sockets && api.sockets.head;
+  if (head) [[-0.12, 0.22, 0, 0.36], [0.1, 0.18, 0.1, 0.2], [0.1, 0.18, -0.1, 0.2]].forEach(([x, y, z, sz]) => { const g = cluster(sz, 2); g.position.set(x, y, z); g.rotation.z = -0.2; head.add(g); all.push(g); });
+  // ---- legs: on each shoulder/hip, each knee and the top of each paw ----
+  root.traverse(g => {
+    if (!g.isGroup || !g.userData || !g.userData.knee) return;
+    const side = g.position.z >= 0 ? 1 : -1, knee = g.userData.knee;
+    const hipC = cluster(0.3, 2); hipC.position.set(0, 0.05, side * 0.1); hipC.rotation.x = side * 0.9; g.add(hipC); all.push(hipC);
+    const kc = cluster(0.22, 2); kc.position.set(0.02, 0, side * 0.1); kc.rotation.x = side * 1.3; knee.add(kc); all.push(kc);
+    const ank = g.userData.ankle; if (ank) { const pc = cluster(0.16, 1); pc.position.set(0.05, 0.02, side * 0.06); pc.rotation.x = side * 0.9; ank.add(pc); all.push(pc); }
+  });
+  if (C.hideBack && api.spikes) api.spikes.forEach(m => { m.visible = false; });   // coral instead of the old crystal spikes
+  return all;
+}
 
 // ================= dragon kinds =================
 // every dragon kind: colors, body plan and the adaptations it has for where it lives
@@ -1777,12 +2120,34 @@ const SPECIES = [
     pal: P("#2a1a3a", "#4a2e66", "#d8c8f0", "#ff8a3a", "#ffe8b0", "#30204a", "#ffd04a", { spikeTip: "#8ad8ff" }),
     sp: { heads: 2, headSpread: 0.55, wings: "none", skyRun: true, puff: ["#1a2ab0", "#2f7bff", "#a05aff"], back: "spikes", horns: "long", frill: "frill", tail: "fork", pattern: "stripes", glow: 1.3 },
     ad: ["Two heads that argue all the time but fight as a team", "One head breathes fire, the other breathes frost", "Even its tail splits in two at the end", "A wingless hydra that still flies, leaping through the sky on puffs of fire and frost"] },
+  // ----- BONE CAVES dragons (Petra 2026-11-10: added to the game) -----
+  { name: "Ribcrawler", size: 0.72, rarity: "Common", home: "Bone Caves (walls and ceilings)", speed: 4, br: "Bone Rattle: a spray of tiny bone shards that hits several times",
+    pal: P("#4a463e", "#6e675a", "#a49a84", "#c8f0d0", "#e8e0cc", "#4a463e", "#d8ff9a", { rib: "#d8ccb0" }),
+    sp: { skeleton: true, soulEyes: true, wings: "tattered", wingScale: 0.8, boneWings: true, ribs: 11, ribGlow: 0.45, pattern: "ribs", thin: 0.8, len: 1.15, neck: 0.8, legLen: 0.78, legThick: 0.5, feet: 1.1, digClaws: true, back: "spikes", backScale: 0.5, horns: "short", frill: "none", tail: "spike", eyes: 1.25, glow: 0.9, fangs: 1.3, head: [1.05, 0.9, 0.95] },
+    ad: ["A whole dragon skeleton that walks: no skin at all, just a bony spine, a see-through rib cage, a skull and bare leg bones. Curled up on a pile of bones, it IS part of the pile", "Its bones glow faintly in the dark, so others of its kind can find it", "Long hooked claws on bony toes hold on to walls and ceilings", "Huge pale eyes glow in its empty skull", "Bare wing bones with only a ghostly wisp of skin left between them"] },
+  { name: "Gravemaw", size: 1.12, rarity: "Uncommon", home: "Bone Caves (old crypt floors)", speed: 2, br: "Grave Dust: a choking cloud that makes monsters cough and miss",
+    pal: P("#3a352e", "#5a5246", "#8a7e6a", "#a8d0c8", "#ddd2b6", "#3a342c", "#e8e0a0", { plate: "#7c7f7a" }),
+    sp: { girth: 1.3, legThick: 1.3, jaw: 1.5, back: "tombs", backScale: 1.6, backFrom: 0.3, backTo: 0.74, wings: "bat", wingScale: 0.6, digClaws: true, horns: "short", frill: "none", tail: "club", pattern: "cracks", glow: 0.55, eyes: 0.8, whiskers: true, fangs: 1.4, head: [1, 1.05, 1.1] },
+    ad: ["Crooked gravestone plates on its back: when it pushes up through an old crypt floor, it looks like just another row of graves", "Tiny eyes it hardly needs: long whiskers feel the tunnel walls in total darkness", "A huge, heavy jaw crunches up old bones for the minerals inside, and chews through stone", "Thick digging claws tunnel under the crypts", "Dusty grave-dirt colours: it is invisible lying still on the cave floor"] },
+  { name: "Wraithwing", rarity: "Rare", home: "Bone Caves (the cold, empty halls)", speed: 4, br: "Wail: a ring of sound that scares monsters so they run away for a moment",
+    pal: P("#141a26", "#222c3e", "#5a6a84", "#bfeaff", "#c8d8e8", "#dcefff", "#e8f8ff", { wingTip: "#ffffff", smoke: "#dcefff" }),
+    sp: { wraith: true, wings: "tattered", wingScale: 1.25, thin: 0.85, len: 1.15, neck: 1.15, horns: "long", frill: "ears", back: "none", tail: "ribbon", blind: true, eyes: 1.2, aura: "mist", pattern: "streaks", glow: 1.3, seeThrough: 0.66 },
+    ad: ["See-through all over like a ghost, and its pale wings slowly fade away to almost nothing, then come back: monsters never know where it is", "Its dark body vanishes against the black cave walls, so all you see is ghostly wings", "Cloudy white eyes it does not need: big ear fins hear a bat's wingbeat across the whole cave", "Flies without a single sound, then wails to send its echo bouncing off the walls and find its way"] },
+  { name: "Lichcrown", rarity: "Epic", home: "Bone Caves (the deepest tomb)", speed: 3, br: "Soul Flame: green fire that sticks and keeps burning",
+    pal: P("#cfc6ae", "#34322c", "#24231f", "#5aff7a", "#e8dfc6", "#1c1f1a", "#6aff6a", { skull: "#ddd3b8", rib: "#e4dac0", spikeTip: "#7aff8a", wingTip: "#24402a" }),
+    sp: { skull: true, boneCrown: 9, soulEyes: true, ribs: 6, ribGlow: 0.3, pattern: "ribs", thin: 0.84, legThick: 0.85, wings: "tattered", wingScale: 1.15, back: "spikes", backScale: 0.7, horns: "none", frill: "none", tail: "spike", fangs: 1.6, glow: 1.0, eyes: 1.15 },
+    ad: ["Looks half skeleton: bone-white ribs and spine show through its dark skin, so it hides among the old bones", "A crown of bone horns glows with soul-fire: a lantern that lights the deepest tombs", "Green fire burns in its eye sockets and lets it see in total darkness", "Glowing cave moths flutter to its crown, and it snaps them up", "Torn wings of thin dark skin stretched over bone"] },
+  { name: "Veinfang", size: 0.8, rarity: "Epic", home: "Bone Caves (the beating heart of the mountain)", speed: 4, br: "Life Drain: a red beam that heals your dragon a little on every hit",
+    pal: P("#4a0612", "#7e1020", "#a42a32", "#e8142e", "#ecdcc6", "#4a0812", "#ffd03a", { wingTip: "#6a0c1a", metal: 0.25 }),
+    sp: { heartbeat: true, pattern: "veins", veinStyle: "artery", wingVeins: true, wings: "blade", wingScale: 1.15, back: "spikes", backScale: 1.25, horns: "blade", frill: "none", tail: "heart", fangs: 2.6, glow: 1.0, thin: 0.8, girth: 0.88, legThick: 0.8, len: 1.1, neck: 1.1, eyes: 1.3, head: [1.12, 0.92, 0.9] },
+    ad: ["Two glowing arteries run down its sides, and every vein flares with each heartbeat (ba-dum, ba-dum), lighting its way in the dark caves", "Its warm blood keeps it going in the coldest, deepest tunnels where other dragons get sleepy", "Big golden eyes with wide pupils see in the dimmest light, and it can feel the warmth of a creature hiding in the dark", "Sharp, pointed bat wings so thin you can see the blood vessels in them: it hangs upside down from the cave roof to sleep", "Small, slim and quick: it slips through cracks bigger dragons can't, with bone-white blade horns, long fangs and a heart-shaped tail spade that beats with its heart"] }
 ];
 
 // ----- battle stats at level 1 (+6 HP and +2 damage per level) -----
 // base by rarity, then each species leans its own way: tough, sharp claws, strong breath, or fast but fragile
 const BASE = { Junk: [14, 4, 5, 5, 6], Common: [20, 7, 9, 9, 12], Uncommon: [26, 9, 11, 11, 14], Rare: [32, 11, 13, 13, 16], Epic: [38, 13, 15, 15, 18], Champion: [41, 14, 16, 16, 19], Legendary: [44, 15, 17, 17, 20] };
 const LEAN = { // [HP, claw, breath] changes from the rarity base
+  Ribcrawler: [-2, 1, 0], Gravemaw: [6, 2, -2], Wraithwing: [-3, 0, 2], Lichcrown: [0, 1, 3], Veinfang: [-2, 3, 1],
   Dustmite: [0, 0, 0], Pyrrak: [0, 0, 1], Smoldedrake: [6, -1, 0], Aquawyrm: [-2, 1, 0], Gillwing: [-5, 1, 1], Fernling: [-2, 0, 1], Lichenwing: [4, -1, -1], Stonewyrm: [8, 1, -3], Snowpaw: [4, 2, -3],
   Volcanox: [4, 0, 2], Ashveil: [-2, 0, 2], Glacius: [4, 0, 0], Tempestra: [-4, 1, 2], Thornwyrm: [2, 2, -2], Driftail: [-4, 0, 1], Rimefang: [0, 3, -1],
   Dawnwing: [-3, 0, 3], Pearlhorn: [4, 1, -1], Jadewyrm: [2, 1, 0], Petalwyrm: [-2, -1, 3], Aerolash: [-6, 2, 1], Auroran: [-2, 0, 2], Bergdrake: [10, 1, -3],
@@ -1923,7 +2288,7 @@ function updateDay(dt, focus) {
   sunDisc.position.copy(camera.position).addScaledVector(new V(Math.cos(ang), elev, 0.35).normalize(), 600); sunDisc.visible = elev > -0.15;
   sunDisc.material.color.set("#fff2c8").lerp(C("#ff9a5a"), dusk);
   moonDisc.position.copy(camera.position).addScaledVector(new V(-Math.cos(ang), -elev, -0.35).normalize(), 600); moonDisc.visible = elev < 0.15;
-  renderer.toneMappingExposure = 1.0 - nightAmt * 0.2;
+  renderer.toneMappingExposure = (1.0 - nightAmt * 0.2) * (typeof SET !== "undefined" ? SET.bright || 1 : 1);   // Settings > Brightness
   if (clouds.length) { const cm = clouds[0].children[0].material; cm.emissiveIntensity = 0.35 * (1 - nightAmt * 0.9); }
   const nowNight = nightAmt > 0.6;
   if (nowNight !== isNight) { isNight = nowNight; if (started) toast(isNight ? "Night falls" : "A new day", isNight ? "The stars are out. Glowing dragons shine brightest now" : "The sun is up over the valley"); }
@@ -1969,13 +2334,18 @@ const REEF = { a: 0.62, d: 335, r: 78 }; REEF.x = Math.cos(REEF.a) * REEF.d; REE
 // little sandy islands on the reef, where eggs get laid
 REEF.isles = [[0, 0, 11], [1.1, 0.55, 7], [3.0, 0.62, 8], [4.6, 0.5, 6], [5.6, 0.7, 6]].map(([a, f, r]) => ({ x: REEF.x + Math.cos(a) * REEF.r * f, z: REEF.z + Math.sin(a) * REEF.r * f, r }));
 function reefW(x, z) { return 1 - sstep(REEF.r * 0.75, REEF.r * 1.15, Math.hypot(x - REEF.x, z - REEF.z)); }
-const LANDS = [FIRE, FROST, FOREST, DESERT, CAVES, SWAMP, HYDRA, AUTUMN, BLIGHT];
+// the Bone Caves (Petra 2026-11-10): a dark cave of old bones and crypts in the outer ring, between Frost Peaks and the Desert
+const BONE = { a: 2.42, d: 840, R: 150, FLOOR: 4, RIM: 26, TOP: 56 }; BONE.name = "Bone Caves"; BONE.IN = BONE.R * 0.9;
+const LANDS = [FIRE, FROST, FOREST, DESERT, CAVES, SWAMP, HYDRA, AUTUMN, BLIGHT, BONE];
 LANDS.forEach(b => { b.x = Math.cos(b.a) * b.d; b.z = Math.sin(b.a) * b.d; });
 HYDRA.pools = [[-48, 20, 13], [30, -22, 11], [-95, -14, 10], [70, 18, 9]].map(([u, o, r]) => { const v = 22 * Math.sin(u * 0.028) + 9 * Math.sin(u * 0.071 + 1.3) + o, ux = -Math.cos(HYDRA.a), uz = -Math.sin(HYDRA.a); return { x: HYDRA.x + u * ux - v * uz, z: HYDRA.z + u * uz + v * ux, r }; });
 DESERT.oasis = { x: DESERT.x + 34 * Math.cos(DESERT.a - 1.4), z: DESERT.z + 34 * Math.sin(DESERT.a - 1.4), r: 15, y: 7 };
 // the cave roof: a rocky dome resting inside the mountain walls
 const CAVE_IN = CAVES.R * 0.9;
-function caveRoof(x, z) { const d = Math.hypot(x - CAVES.x, z - CAVES.z); if (d >= CAVE_IN) return -Infinity; return CAVES.RIM + (CAVES.TOP - CAVES.RIM) * Math.sqrt(1 - (d / CAVE_IN) ** 2); }
+function caveRoof(x, z) {
+  let d = Math.hypot(x - CAVES.x, z - CAVES.z); if (d < CAVE_IN) return CAVES.RIM + (CAVES.TOP - CAVES.RIM) * Math.sqrt(1 - (d / CAVE_IN) ** 2);
+  d = Math.hypot(x - BONE.x, z - BONE.z); if (d < BONE.IN) return BONE.RIM + (BONE.TOP - BONE.RIM) * Math.sqrt(1 - (d / BONE.IN) ** 2);   // the Bone Caves have a roof too
+  return -Infinity; }
 FROST.lake = { x: FROST.x + 38 * Math.cos(FROST.a + 1.2), z: FROST.z + 38 * Math.sin(FROST.a + 1.2), r: 30 };
 function basinW(b, x, z) { return 1 - sstep(b.R * 0.72, b.R, Math.hypot(x - b.x, z - b.z)); }
 // a walkable pass through the mountains, along the line from the nest toward a basin
@@ -2066,7 +2436,9 @@ function waterSpotIn(land) {
   }
   return null;
 }
-const LAND_H = new Map([[FIRE, fireH], [FROST, frostH], [FOREST, forestH], [DESERT, desertH], [CAVES, cavesH], [SWAMP, swampH], [HYDRA, hydraH], [AUTUMN, autumnH], [BLIGHT, blightH]]);
+// Bone Caves: a dusty cave floor with low lumpy mounds of old bones
+function boneH(x, z) { return BONE.FLOOR + (fbm(x * 0.035 - 41, z * 0.035 + 17, 3) - 0.5) * 4 + (fbm(x * 0.14, z * 0.14, 2) - 0.5) * 1.0; }
+const LAND_H = new Map([[FIRE, fireH], [FROST, frostH], [FOREST, forestH], [DESERT, desertH], [CAVES, cavesH], [SWAMP, swampH], [HYDRA, hydraH], [AUTUMN, autumnH], [BLIGHT, blightH], [BONE, boneH]]);
 function roadDist(x, z) { const L = Math.hypot(VIL.x, VIL.z), t = Math.max(0, Math.min(1, (x * VIL.x + z * VIL.z) / (L * L))); return Math.hypot(x - VIL.x * t, z - VIL.z * t); }
 function height(x, z) {
   const r = Math.hypot(x, z);
@@ -2168,6 +2540,12 @@ const mountain = (x, z) => sstep(195, 280, Math.hypot(x, z));
       bc.lerp(new THREE.Color("#6a9a2a"), sstep(0.2, -1.8, h) * 0.9);
       bc.lerp(new THREE.Color("#7a6a8a"), sstep(0.6, 0.75, fbm(x * 0.04 + 9, z * 0.04, 3)) * 0.5);
       c.lerp(bc, bw2);
+    }
+    const bnw = lw(BONE);
+    if (bnw > 0) {                                             // Bone Caves: pale dusty bone-coloured ground, darker damp patches
+      let bc = new THREE.Color("#5e5648").lerp(new THREE.Color("#746a5a"), fbm(x * 0.07 + 2, z * 0.07 - 5, 3));
+      bc.lerp(new THREE.Color("#2e2a24"), sstep(0.55, 0.68, fbm(x * 0.04 - 7, z * 0.04 + 3, 3)) * 0.8);
+      c.lerp(bc, bnw);
     }
     const cs = coast(x, z) * sstep(105, 125, Math.hypot(x, z));
     c.lerp(sand, cs * sstep(4.5, 2, h));                       // sandy beach
@@ -2656,6 +3034,85 @@ const biomeAnims = [];
     mS.forEach(([x, z, ph, sp], i) => { mP[i * 3] = x + Math.sin(t * sp + ph) * 2; mP[i * 3 + 1] = CAVES.FLOOR + 2 + ((ph + t * sp) % 20); mP[i * 3 + 2] = z + Math.cos(t * sp * 0.8 + ph) * 2; });
     mG.attributes.position.needsUpdate = true;
   });
+  // ===== BONE CAVES (Petra 2026-11-10): a dark rock dome, giant rib arches, a huge old skull, gravestones, bone piles, skulls and ghostly green lights =====
+  { const g = new THREE.SphereGeometry(1, 56, 18, 0, Math.PI * 2, 0, Math.PI / 2), p = g.attributes.position;
+    const col = [], rockA = new THREE.Color("#6a645a"), rockB = new THREE.Color("#4a443c"), snow = new THREE.Color("#e8ecf0");
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = fbm(x * 3 - 15, z * 3 + y * 2, 4), big = fbm(x * 1.2 + 13, z * 1.2 - 4, 3), k = 1.03 + n * 0.14 + Math.max(0, big - 0.45) * 0.9 * y;
+      p.setXYZ(i, x * k, y * k, z * k);
+      const wy = BONE.RIM + y * k * (BONE.TOP - BONE.RIM), c = rockA.clone().lerp(rockB, fbm(x * 6, z * 6, 2)).lerp(snow, sstep(50, 66, wy + n * 10) * 0.6); c.convertSRGBToLinear(); col.push(c.r, c.g, c.b); }
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    const roof = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.FrontSide, flatShading: true }));
+    roof.scale.set(BONE.IN, BONE.TOP - BONE.RIM, BONE.IN); roof.position.set(BONE.x, BONE.RIM, BONE.z); roof.receiveShadow = true; scene.add(roof);
+    const inside = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: lin("#2a2620"), side: THREE.BackSide, flatShading: true }));
+    inside.scale.copy(roof.scale); inside.position.copy(roof.position); scene.add(inside); }
+  const bBoneM = new THREE.MeshStandardMaterial({ color: lin("#d8ccb0"), roughness: 0.75, emissive: lin("#3a4a30"), emissiveIntensity: 0.25 });
+  const bStoneM = new THREE.MeshLambertMaterial({ color: lin("#7a7a76"), flatShading: true });
+  const bDarkM = new THREE.MeshBasicMaterial({ color: "#050505" });
+  const bRockM = new THREE.MeshLambertMaterial({ color: lin("#4a443c"), flatShading: true });
+  { // stalactites drip from the roof
+    const spikeG = new THREE.ConeGeometry(1, 1, 6); spikeG.translate(0, -0.5, 0);
+    const tites = inst(spikeG, bRockM, 110);
+    for (let i = 0; i < 110; i++) { const s = spotIn(BONE, 4, BONE.IN * 0.95), k = 0.4 + rnd() * 1.3; set(tites, i, s[0], caveRoof(s[0], s[1]) + 0.3, s[1], 0, rnd() * 6, 0, k, k * (3 + rnd() * 5), k); } }
+  // giant rib arches: the ribcage of something enormous that died here long ago. You walk (or fly) right through it
+  const bRibTube = (pts, r) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, r, 8, false);
+  { const ux = Math.cos(BONE.a + 0.6), uz = Math.sin(BONE.a + 0.6), vx = -uz, vz = ux;   // the spine runs across the cave
+    const cx = BONE.x - ux * 30, cz = BONE.z - uz * 30, N = 9, L = 90;
+    for (let i = 0; i < N; i++) { const t = i / (N - 1) - 0.5, bx = cx + ux * t * L, bz = cz + uz * t * L, w = 13 * (1 - Math.abs(t) * 0.7), hgt = 17 * (1 - Math.abs(t) * 0.55), y0 = height(bx, bz);
+      [-1, 1].forEach(sd => { const pts = [];
+        for (let k = 0; k <= 8; k++) { const a = k / 8 * Math.PI / 2, rr = w * (0.25 + 0.75 * Math.sin(a)); pts.push(new V(bx + vx * sd * rr, y0 + hgt * Math.cos(a) * 1.0 + 0.5 - (k === 8 ? 1.5 : 0), bz + vz * sd * rr)); }
+        const m = new THREE.Mesh(bRibTube(pts, 0.55 * (1 - Math.abs(t) * 0.4)), bBoneM); m.castShadow = true; scene.add(m);
+        blockers.push({ x: pts[8].x, z: pts[8].z, r: 1.2 }); });
+      const vb = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 2.4, 10), bBoneM); vb.position.set(bx, y0 + hgt + 0.6, bz); vb.rotation.set(Math.PI / 2, 0, 0); vb.lookAt(bx + ux, y0 + hgt + 0.6, bz + uz); vb.rotateX(Math.PI / 2); scene.add(vb);   // vertebra
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 6), bBoneM); sp.position.set(bx, y0 + hgt + 2.8, bz); scene.add(sp);
+    }
+    // the huge skull at the end of the spine, half sunk into the floor, with a dark open mouth
+    const sx = cx + ux * (L / 2 + 16), sz = cz + uz * (L / 2 + 16), sy = height(sx, sz), sk = new THREE.Group(); sk.position.set(sx, sy - 2, sz); sk.rotation.y = -Math.atan2(uz, ux); scene.add(sk);
+    const cran = new THREE.Mesh(new THREE.SphereGeometry(8, 28, 20), bBoneM); cran.scale.set(1.25, 0.85, 0.95); cran.position.set(-2, 5, 0); sk.add(cran);
+    const snout = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 5.6, 12, 16), bBoneM); snout.rotation.z = Math.PI / 2; snout.position.set(9, 3.5, 0); snout.scale.set(1, 1, 0.8); sk.add(snout);
+    [-1, 1].forEach(sd => { const eye = new THREE.Mesh(new THREE.SphereGeometry(2.2, 16, 12), bDarkM); eye.position.set(3, 7.5, sd * 4.6); eye.scale.set(1, 0.8, 0.6); sk.add(eye);
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(1.4, 11, 10), bBoneM); horn.position.set(-8, 12, sd * 4); horn.rotation.set(sd * -0.5, 0, 0.9); sk.add(horn);
+      for (let k = 0; k < 5; k++) { const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.2, 6), bBoneM); tooth.position.set(5 + k * 2.3, 0.6, sd * 3.6); tooth.rotation.x = Math.PI; sk.add(tooth); } });
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(12, 2.2, 6.4), bDarkM); mouth.position.set(9, 1.2, 0); sk.add(mouth);
+    blockers.push({ x: sx, z: sz, r: 11 });
+    const eyeGlow = new THREE.PointLight(lin("#5aff7a"), 1.4, 40, 1.6); eyeGlow.position.set(sx + ux * 4, sy + 6, sz + uz * 4); scene.add(eyeGlow);
+    biomeAnims.push(t => { eyeGlow.intensity = 1.1 + Math.sin(t * 0.7) * 0.5; });
+  }
+  // gravestones leaning every which way, some with crosses
+  const bStoneG = new THREE.BoxGeometry(1.4, 2.2, 0.35); bStoneG.translate(0, 1.1, 0);
+  const bTopG = new THREE.CylinderGeometry(0.7, 0.7, 0.35, 14, 1, false, 0, Math.PI); bTopG.rotateX(Math.PI / 2); bTopG.rotateZ(Math.PI / 2); bTopG.translate(0, 2.2, 0);
+  const bCrossV = new THREE.BoxGeometry(0.35, 2.8, 0.3); bCrossV.translate(0, 1.4, 0); const bCrossH = new THREE.BoxGeometry(1.5, 0.35, 0.3); bCrossH.translate(0, 2.0, 0);
+  { const n = 70, gs = inst(bStoneG, bStoneM, n), gt = inst(bTopG, bStoneM, n), cv = inst(bCrossV, bStoneM, 16), ch = inst(bCrossH, bStoneM, 16); let ci = 0;
+    for (let i = 0; i < n; i++) { const s = spotIn(BONE, 10, BONE.R * 0.66, awayFromPass(BONE)); if (!s) continue; const y = height(s[0], s[1]) - 0.3, ry = rnd() * 6.28, lx = (rnd() - 0.5) * 0.5, lz = (rnd() - 0.5) * 0.4, k = 0.8 + rnd() * 0.6;
+      if (i % 5 === 0 && ci < 16) { set(cv, ci, s[0], y, s[1], lx, ry, lz, k); set(ch, ci, s[0], y, s[1], lx, ry, lz, k); ci++; set(gs, i, 0, -99, 0, 0, 0, 0, 0.01); set(gt, i, 0, -99, 0, 0, 0, 0, 0.01); }
+      else { set(gs, i, s[0], y, s[1], lx, ry, lz, k); set(gt, i, s[0], y, s[1], lx, ry, lz, k); }
+      blockers.push({ x: s[0], z: s[1], r: 0.9 * k }); }
+    cv.count = ch.count = ci; }
+  // piles of old bones and little skulls on the floor
+  const bLongG = new THREE.CylinderGeometry(0.09, 0.09, 1.3, 6); bLongG.rotateZ(Math.PI / 2);
+  const bKnobG = new THREE.SphereGeometry(0.16, 8, 6);
+  const bSkullG = new THREE.SphereGeometry(0.42, 14, 10); bSkullG.scale(1.15, 0.9, 0.95);
+  const bEyeG = new THREE.SphereGeometry(0.12, 8, 6);
+  { const piles = 60, per = 8, lb = inst(bLongG, bBoneM, piles * per, false), kb = inst(bKnobG, bBoneM, piles * per * 2, false), sk = inst(bSkullG, bBoneM, piles), se = inst(bEyeG, bDarkM, piles * 2, false);
+    for (let i = 0; i < piles; i++) { const s = spotIn(BONE, 6, BONE.R * 0.68) || [BONE.x, BONE.z], y = height(s[0], s[1]);
+      for (let k = 0; k < per; k++) { const x = s[0] + (rnd() - 0.5) * 2.4, z = s[1] + (rnd() - 0.5) * 2.4, ry = rnd() * 6.28, yy = y + 0.08 + rnd() * 0.35, j = i * per + k;
+        set(lb, j, x, yy, z, (rnd() - 0.5) * 0.4, ry, (rnd() - 0.5) * 0.4, 1);
+        const dx = Math.cos(ry) * 0.65, dz = -Math.sin(ry) * 0.65; set(kb, j * 2, x + dx, yy, z + dz, 0, 0, 0, 1); set(kb, j * 2 + 1, x - dx, yy, z - dz, 0, 0, 0, 1); }
+      const a = rnd() * 6.28, sx = s[0] + Math.cos(a) * 0.8, sz = s[1] + Math.sin(a) * 0.8, sy = y + 0.35;
+      set(sk, i, sx, sy, sz, 0, a, 0, 1);
+      [-1, 1].forEach((sd, e) => set(se, i * 2 + e, sx + Math.cos(a) * 0.36 + Math.sin(a) * sd * 0.16, sy + 0.06, sz - Math.sin(a) * 0.36 * -1 + Math.cos(a) * sd * 0.16 * -1, 0, 0, 0, 1)); } }
+  // ghostly green lights drifting through the dark, and a couple of cold glows to see by
+  const bGl1 = new THREE.PointLight(lin("#8ad89a"), 0.4, 80, 1.4), bGl2 = new THREE.PointLight(lin("#8aa8e8"), 0.35, 75, 1.4);
+  bGl1.position.set(BONE.x + 22, BONE.FLOOR + 12, BONE.z - 18); bGl2.position.set(BONE.x - 25, BONE.FLOOR + 10, BONE.z + 20); scene.add(bGl1); scene.add(bGl2);
+  { const wN = 140, wP = new Float32Array(wN * 3), wS = [];
+    for (let i = 0; i < wN; i++) { const s = spotIn(BONE, 0, BONE.IN * 0.85); wS.push([s[0], s[1], rnd() * 20, 0.2 + rnd() * 0.5]); }
+    const wG = new THREE.BufferGeometry(); wG.setAttribute("position", new THREE.BufferAttribute(wP, 3));
+    const wisps = new THREE.Points(wG, new THREE.PointsMaterial({ color: lin("#8aff9a"), size: 0.45, map: dotTex(), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })); wisps.frustumCulled = false; scene.add(wisps);
+    biomeAnims.push((t, px, py, pz) => {
+      bGl1.intensity = 1.2 + Math.sin(t * 0.8) * 0.4; bGl2.intensity = 0.9 + Math.sin(t * 1.1 + 2) * 0.3;
+      const on = basinW(BONE, px, pz) > 0.1; wisps.visible = on; if (!on) return;
+      wS.forEach(([x, z, ph, sp], i) => { wP[i * 3] = x + Math.sin(t * sp + ph) * 3; wP[i * 3 + 1] = BONE.FLOOR + 1.5 + ((ph + t * sp * 0.6) % 14); wP[i * 3 + 2] = z + Math.cos(t * sp * 0.7 + ph) * 3; });
+      wG.attributes.position.needsUpdate = true;
+    }); }
 })();
 
 // ===== OLD CARVINGS: stone tablets scattered over every land that tell the story of the Sky Titans =====
@@ -3573,7 +4030,7 @@ function applySave(d) {
   }
 }
 // ---- the home screen (Petra): your partner dragon flies behind the title; Continue, New game, Save slots, How to play, Settings; a random tip ----
-const SET = { mouse: 1, invert: false, shadows: true, keys: true, music: 0.5, sfx: 0.7 };
+const SET = { mouse: 1, invert: false, shadows: true, keys: true, music: 0.5, sfx: 0.7, bright: 1 };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("wyrmwild-settings") || "{}")); } catch (e) {}
 function applySettings() {
   sun.castShadow = !!SET.shadows; $("keys").style.display = SET.keys ? "" : "none";
@@ -3708,6 +4165,7 @@ function showPane(which, msg) {
     body.innerHTML = `<h3>Settings</h3>
       <label class="setRow"><span>Music</span><input type="range" id="sMusic" min="0" max="1" step="0.05" value="${SET.music}"></label>
       <label class="setRow"><span>Sounds</span><input type="range" id="sSfx" min="0" max="1" step="0.05" value="${SET.sfx}"></label>
+      <label class="setRow"><span>Brightness</span><input type="range" id="sBright" min="0.6" max="1.8" step="0.05" value="${SET.bright}"></label>
       <label class="setRow"><span>Mouse speed</span><input type="range" id="sMouse" min="0.4" max="2" step="0.1" value="${SET.mouse}"></label>
       <label class="setRow"><span>Flip looking up and down</span><input type="checkbox" id="sInv" ${SET.invert ? "checked" : ""}></label>
       <label class="setRow"><span>Shadows (turn off if the game is slow)</span><input type="checkbox" id="sShadow" ${SET.shadows ? "checked" : ""}></label>
@@ -3715,6 +4173,7 @@ function showPane(which, msg) {
     $("sMusic").oninput = e => { SET.music = +e.target.value; applySettings(); };
     $("sSfx").oninput = e => { SET.sfx = +e.target.value; applySettings(); };
     $("sMouse").oninput = e => { SET.mouse = +e.target.value; applySettings(); };
+    $("sBright").oninput = e => { SET.bright = +e.target.value; applySettings(); };
     $("sInv").onchange = e => { SET.invert = e.target.checked; applySettings(); };
     $("sShadow").onchange = e => { SET.shadows = e.target.checked; applySettings(); };
     $("sKeys").onchange = e => { SET.keys = e.target.checked; applySettings(); };
@@ -3776,7 +4235,7 @@ const HAZEL_BOOKS = [
   { t: "Lands of the World: Autumn Woods", p: ["Lands of the World: Autumn Woods, by Professor Hazel. Red and gold trees, crunchy leaves and pumpkins, in a land where it always seems to be autumn. It is my favourite season, so naturally I stayed for a month.", "Chapter 1: The Woods. Rolling golden hills under trees of orange, red and yellow. Leaves never stop falling. There are big leaf piles, round pumpkins, red-capped mushrooms, and the air smells like cinnamon. I may have imagined the cinnamon.", "Chapter 2: Autumn Bodies. Autumn dragons wear warm leaf colours, so they vanish into the leaf piles and the treetops. Many have warm, cozy scales or fur for the cold autumn nights.", "Chapter 3: Emberleaf. Orange and red leaf frills hide it in the leaf piles, and its leaf-shaped wings rustle like falling leaves. Warm scales keep it cozy. Its favourite thing in the whole world is jumping into leaf piles. Mine too.", "Chapter 4: Hedgewyrm. Its back is full of stiff, dry pine-needle spines, brown and tan like the forest floor. When it is scared it curls up into a spiky ball, and its spiky ball of a tail swings at anything that sneaks up behind it. Do not sneak up behind it.", "Chapter 5: Maplewing. Big maple-leaf wings fade from red to gold. It lives high in the treetops and glides down spinning like a maple seed, with falling leaves following it wherever it flies. The first time I saw it spin, I forgot to write anything down for ten minutes.", "Chapter 6: Gloamhorn. It only comes out when the sun goes down. Huge glowing antlers light up the woods at dusk, dark plum fur keeps it warm, and its sunset-orange eyes see well when the light fades.", "Chapter 7: Autumn Monsters. Leaf Pile Lurkers hide inside leaf piles (watch the piles, some of them watch back), Acorn Chuckers throw acorns, Foxfire Kits dart about in little flames, Hollow Stumps pretend to be stumps, and at night Pumpkin Imps cackle. Moonraven Flocks fill the night sky, and Strawstalkers stand very still in the fields.", "Chapter 8: The Autumn Spirit (a legend). The old tamers tell of a spirit of the autumn woods. A white fox-dragon with fire markings and three glowing tails, with no wings at all, seen running across the sky on some Harvest Moon nights. Only on a Harvest Moon, and only here, and only when it wishes to be seen.", "Chapter 9: Have I Seen It? No. Nobody I know has. Some say it is only a story. But every Harvest Moon I come out to these woods, sit on a hill, and watch the sky. Just in case. If you see it, please, please tell me first."] },
   { t: "Lands of the World: Blightwood", p: ["Lands of the World: Blightwood, by Professor Hazel. Dead twisted trees, giant glowing mushrooms and pools of green poison. I wrote this book wearing a scarf over my nose. Please excuse any smudges.", "Chapter 1: The Forest. Nothing green grows here except the poison. The trees are dead, black and twisted, the ground is purple-grey, and the pools glow bright green and bubble. Giant mushrooms with glowing spots tower over everything, and purple spores drift in the air.", "Chapter 2: Poison Bodies. Blightwood dragons do not just survive poison. They use it. Many have bright warning colours that say: do not bite me, I am poisonous. It works. I did not bite any of them.", "Chapter 3: Sludgeling. Slimy goo skin means poison puddles cannot hurt it and claws slide right off. Lumpy green blotches look like moss, its tail leaks a little cloud of stinky gas, and wide sticky feet walk on mud without sinking. It smells terrible. It is very sweet.", "Chapter 4: Toxitail. Bold black and yellow stripes warn everyone it is poisonous. It has a curled stinger at the end of its tail, like a scorpion, and a spiky back. It is fast and twitchy and darts between the thorn bushes. Do not make sudden movements. Do not make slow movements either, really.", "Chapter 5: Sporecrest. A frilly mushroom-cap crest on its back puffs out sleepy spores, and it is spotted like a toadstool, so it hides among the giant mushrooms. Glowing pink spots show the way at night. It sleeps in rotting logs and eats mushrooms nobody else can. I fell asleep near one. I woke up four hours later, very rested, with a mushroom in my hair.", "Chapter 6: Venomaw. It lives in the poison heart of the forest. Huge glowing green fangs drip with acid, glowing cracks show poison running under its scales, and its ragged wings, eaten by acid, still fly perfectly. It is immune to every poison in Blightwood.", "Chapter 7: Blightwood Monsters. Acid Slugs leave burning trails, Dart Frogs spit poison darts, Spore Shamblers stomp about covered in fungus, Gas Bloaters puff up and explode, and Toxic Wisps float through the dead trees. At night, Blightpedes skitter on a hundred legs and Moonmantises strike from the shadows.", "Chapter 8: Blightwood Advice. Do not drink from the green pools. Do not breathe in the purple spores. Do not lick anything. Bring healing tonics, and leave before your dragon starts to cough."] },
   { t: "Lands of the World: Hydra Valley", p: ["Lands of the World: Hydra Valley, by Professor Hazel. A hidden green valley, sealed in by giant cliffs, reached only through a narrow canyon. It took me three tries to find the way in. It took me one try to run back out.", "Chapter 1: The Valley. A deep green valley between tall grey cliffs. A winding river runs through the middle, with marshy pools beside it. Tall grass, ferns, and enormous ancient trees with roots like walls. A waterfall pours off the far cliff, and dark caves dot the cliff walls. Every morning, a thick fog fills the valley.", "Chapter 2: Hydras. This is where the hydras live: dragons with more than one head. Every head breathes, so hydra breath is very, very strong. Count the heads before you fight. Then count again.", "Chapter 3: Bramblehydra. Three heads, and one always stays awake to keep watch. A leafy back and blotchy green skin hide it in the ferns, and leafy wings fold flat so it can push through thick brambles. If one head gets hurt, the others keep fighting.", "Chapter 4: Marshhydra. Extra long necks reach fish deep in the river pools. Webbed feet and a paddle tail make it a great swimmer, and a back fin keeps it steady in fast water. Its three heads watch the water, the bank and the sky all at once. You cannot sneak up on a Marshhydra. I tried three times.", "Chapter 5: Thunderhydra. FIVE heads, each one crackling with lightning. It is the biggest dragon in the valley, with a thick armoured body. It sleeps in the cliff caves and comes out in thunderstorms. When its cracks start to flash, it is angry. When it is angry, I am elsewhere.", "Chapter 6: The Wingless Ones. The valley also has dragons with no wings at all. Coilwyrm has a long snake-like body with short legs and grass-striped scales; it mostly wiggles, and wraps round tree trunks to rest. Burrowdrake has huge shovel claws, small eyes, back armour that holds up its tunnel roofs, and a flat shovel tail for pushing out the dirt.", "Chapter 7: Crestrunner. The fastest dragon on the ground, with long running legs. A tall bright crest flashes to talk to its herd, and a fan-shaped tail works like a rudder so it can turn sharply while sprinting. Watching a herd race across the meadow is like watching the wind.", "Chapter 8: Twinhead. A two-headed hydra with no wings that still flies, leaping through the sky on puffs of fire and frost. One head breathes fire, the other breathes frost, and even its tail splits in two. The two heads argue all the time but fight as a team. I watched one for an hour. They argued the whole hour. About lunch.", "Chapter 9: Valley Monsters. The Great Hydra sleeps in the cliff caves, and its heads grow back unless you burn them. Hydra Hatchlings swarm in groups, Rock Pythons squeeze, Valley Raptors hunt in the tall grass, and Moss Golems look exactly like mossy boulders until they stand up. At night, Gleamhydras glow, Moonbasilisks stare, and Wraith Stags walk through the fog.", "Chapter 10: Valley Advice. Go in the afternoon, after the fog lifts. Stay away from the caves unless you are very strong. And never, ever wake a sleeping hydra. Any of its heads."] },
-  { t: "Lands of the World: The Bone Caves", p: ["Lands of the World: The Bone Caves, by Professor Hazel. Deep under the old crypts there are caves full of bones, and the dragons that live there are the strangest I have ever met. I went down with three lanterns. I came back up with one. I do not want to talk about the other two.", "Chapter 1: The Caves. Long, dark tunnels with walls made of old bones and crumbling stone. Ribs as big as doorways arch over the paths. Old gravestones lean this way and that, and drips of water echo for a very long time. There is no sunlight at all. Not even a little.", "Chapter 2: Bone Cave Bodies. Living in the dark has changed these dragons. Some have huge eyes that catch the tiniest bit of light. Some barely use their eyes and feel or hear their way instead. Many glow, so they can see, or be seen by friends, or lure in dinner. And almost all of them are the colour of bone, dust or darkness, so they disappear into the caves.", "Chapter 3: Ribcrawler. Small and bony, it skitters along the walls and ceilings on wide, grippy feet with long hooked claws, and flutters from ledge to ledge on bony wings with thin, see-through skin. Its ribs glow faintly through its thin grey skin, so other Ribcrawlers can find it in the dark. Curled up on a pile of bones, it looks like part of the pile. I picked one up once, thinking it was a bone. It rattled at me. I put it down.", "Chapter 4: Gravemaw. A big, heavy digger with crooked gravestone plates along its back. When it pushes up through an old crypt floor, it looks like just another row of graves. Its eyes are tiny, but long whiskers feel the tunnel walls, and its enormous jaw crunches old bones for the minerals inside. It breathes Grave Dust, a choking cloud. Hold your breath. I did not. I coughed for a week.", "Chapter 5: Wraithwing. You can see right through it, like a ghost, and its pale wings slowly fade away to nothing, then come back. Its cloudy eyes are almost blind, but its big ear fins can hear a bat's wingbeat across the whole cave. It flies without a sound, then lets out a Wail that sends its echo bouncing off the walls. Monsters run from it. So did I. Just a little.", "Chapter 6: Lichcrown. It looks half skeleton, with bone-white ribs and a pale bony skull, and it lives in the deepest tomb of all. A crown of bone horns glows with green soul-fire, like a lantern, and the same green fire burns in its eye sockets so it can see in total darkness. Glowing cave moths flutter up to its crown, and it snaps them up. Its Soul Flame breath sticks and keeps burning. Do not stand downwind.", "Chapter 7: Veinfang. Small, slim and quick, with deep crimson scales, long fangs, sharp bone-white horns, and two glowing arteries down its sides. Every vein flares with each heartbeat. Ba-dum. Ba-dum. You hear it before you see it. Its warm blood keeps it going in the coldest tunnels, it sleeps hanging upside down from the cave roof like a bat, and its Life Drain breath heals it a little every time it hits. It is not the red-moon dragon. They look nothing alike up close. I checked. Very carefully.", "Chapter 8: Dinner in the Dark. Nothing grows in the Bone Caves, so what do these dragons eat? Cave beetles, cave moths, blind cave fish from the black pools, and the minerals in old bones. It sounds horrible. The dragons seem very happy with it.", "Chapter 9: Cave Monsters. Bats hang from every ceiling, beetles click in the bone piles, and things rattle in the dark that I never quite got a look at. Some of the bones are not as still as they should be. I counted them twice to be sure.", "Chapter 10: Bone Cave Advice. Bring more lanterns than you think you need. Then bring one more. Keep your dragon close, listen for rattles, and never, ever lean on a gravestone that is breathing."] },
+  { t: "Lands of the World: The Bone Caves", p: ["Lands of the World: The Bone Caves, by Professor Hazel. Deep under the old crypts there are caves full of bones, and the dragons that live there are the strangest I have ever met. I went down with three lanterns. I came back up with one. I do not want to talk about the other two.", "Chapter 1: The Caves. Long, dark tunnels with walls made of old bones and crumbling stone. Ribs as big as doorways arch over the paths. Old gravestones lean this way and that, and drips of water echo for a very long time. There is no sunlight at all. Not even a little.", "Chapter 2: Bone Cave Bodies. Living in the dark has changed these dragons. Some have huge eyes that catch the tiniest bit of light. Some barely use their eyes and feel or hear their way instead. Many glow, so they can see, or be seen by friends, or lure in dinner. And almost all of them are the colour of bone, dust or darkness, so they disappear into the caves.", "Chapter 3: Ribcrawler. A whole dragon skeleton that walks. No skin, no scales, just a bony spine, a rib cage you can see straight through, a skull with two pale glowing eyes, and bare wing bones with a ghostly wisp of skin between them. It skitters along walls and ceilings on long hooked claws, and its bones glow faintly so other Ribcrawlers can find it in the dark. Curled up on a pile of bones, it IS part of the pile. I picked one up once, thinking it was a bone. It rattled at me. I put it down.", "Chapter 4: Gravemaw. A big, heavy digger with crooked gravestone plates along its back. When it pushes up through an old crypt floor, it looks like just another row of graves. Its eyes are tiny, but long whiskers feel the tunnel walls, and its enormous jaw crunches old bones for the minerals inside. It breathes Grave Dust, a choking cloud. Hold your breath. I did not. I coughed for a week.", "Chapter 5: Wraithwing. You can see right through it, like a ghost, and its pale wings slowly fade away to nothing, then come back. Its cloudy eyes are almost blind, but its big ear fins can hear a bat's wingbeat across the whole cave. It flies without a sound, then lets out a Wail that sends its echo bouncing off the walls. Monsters run from it. So did I. Just a little.", "Chapter 6: Lichcrown. It looks half skeleton, with bone-white ribs and a pale bony skull, and it lives in the deepest tomb of all. A crown of bone horns glows with green soul-fire, like a lantern, and the same green fire burns in its eye sockets so it can see in total darkness. Glowing cave moths flutter up to its crown, and it snaps them up. Its Soul Flame breath sticks and keeps burning. Do not stand downwind.", "Chapter 7: Veinfang. Small, slim and quick, with deep crimson scales, long fangs, sharp bone-white horns, and two glowing arteries down its sides. Every vein flares with each heartbeat. Ba-dum. Ba-dum. You hear it before you see it. Its warm blood keeps it going in the coldest tunnels, it sleeps hanging upside down from the cave roof like a bat, and its Life Drain breath heals it a little every time it hits. It is not the red-moon dragon. They look nothing alike up close. I checked. Very carefully.", "Chapter 8: Dinner in the Dark. Nothing grows in the Bone Caves, so what do these dragons eat? Cave beetles, cave moths, blind cave fish from the black pools, and the minerals in old bones. It sounds horrible. The dragons seem very happy with it.", "Chapter 9: Cave Monsters. Bats hang from every ceiling, beetles click in the bone piles, and things rattle in the dark that I never quite got a look at. Some of the bones are not as still as they should be. I counted them twice to be sure.", "Chapter 10: Bone Cave Advice. Bring more lanterns than you think you need. Then bring one more. Keep your dragon close, listen for rattles, and never, ever lean on a gravestone that is breathing."] },
   { t: "A Tamer's First Guide", p: ["A Tamer's First Guide, by Professor Hazel. For every new tamer who has just found an egg, and for every old tamer who has forgotten what that felt like. Read it slowly. Your dragon is not going anywhere. Well. It might fly off for a bit. It will come back.", "Chapter 1: The Egg. A dragon egg is warm, a little heavy, and glows softly so its mother can find it. Carry it gently and take it home to your nest. Eggs hatch best at home, where it is safe and quiet.", "Chapter 2: Hatching Day. When the egg starts to rock and crack, stay close. The very first thing a baby dragon sees is the face it will trust forever. I have been the first face for many dragons. Most of them still try to sit on my lap. Some of them are now bigger than my house.", "Chapter 3: Names. Give your dragon a good name, one you will not mind shouting across a valley. I once named a Pyrrak 'Sir Wigglesworth the Third'. Calling him for dinner took a very long time.", "Chapter 4: Growing Up. Babies grow quickly. Soon your dragon will be big enough to carry you. Climb on, hold tight, and let it walk first. Flying comes after. Not every dragon can fly, and that is fine. Some swim, some dig, some run, and a very few run right up into the sky.", "Chapter 5: Strength. Every kind of dragon is different. Some are tough and can take a lot of hits. Some have strong claws. Some have powerful breath. Some are fast. Dragons grow stronger as they gain experience, and the rarer kinds seem to grow stronger faster. Nobody knows why. I suspect showing off.", "Chapter 6: Hurt Dragons. If your dragon gets hurt, take it home to its nest to rest. Never push a tired dragon into another fight. A dragon will try its very best for you, even when it should not. That is why you have to be the sensible one.", "Chapter 7: The Lands. The world is much bigger than Green Valley. Past the mountains there are lands of fire, ice, sand, crystal, forest and sea, and past those, even stranger lands. Each land has its own dragons and its own monsters. I have written a book about every one of them. They are on this shelf. You are welcome.", "Chapter 8: The Most Important Rule. Be kind to your dragon. Feed it, talk to it, scratch it behind the horns. It remembers everything. A dragon that loves you will follow you anywhere, even into a volcano. Please do not take it into a volcano."] },
 ];
 function npcNext(n) {
@@ -4123,7 +4582,7 @@ function frame() {
   const land = inSky(me.x, me.z, ly) ? "Sky Islands" : (LANDS.find(b => basinW(b, me.x, me.z) > 0.15) || {}).name || (((Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 || nearArena(me.x, me.z, 12)) && ly < 40) ? "Village" : (reefW(me.x, me.z) > 0.4 && ly < 60) ? "Coral Reef" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley");
   if (land !== landNow) {
     const firstTime = !seen[land]; landNow = land; landEl.textContent = land; seen[land] = true;
-    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake", "Deep Forest": "Giant trees and glowing mushrooms", "Desert": "Hot sand, tall mesas and a hidden oasis", "Crystal Caves": "Deep under the mountains, lit by glowing crystals", "Misty Swamp": "Murky pools, twisted trees and thick mist", "Coral Reef": "Shallow warm water full of coral", "Autumn Woods": "Red and gold trees and crunchy leaves", "Blightwood": "Poison pools and twisted dead trees. Careful!", "Hydra Valley": "A hidden green valley between giant cliffs" })[land] || "" : "");
+    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake", "Deep Forest": "Giant trees and glowing mushrooms", "Desert": "Hot sand, tall mesas and a hidden oasis", "Crystal Caves": "Deep under the mountains, lit by glowing crystals", "Bone Caves": "Dark tunnels full of old bones. Listen for rattles...", "Misty Swamp": "Murky pools, twisted trees and thick mist", "Coral Reef": "Shallow warm water full of coral", "Autumn Woods": "Red and gold trees and crunchy leaves", "Blightwood": "Poison pools and twisted dead trees. Careful!", "Hydra Valley": "A hidden green valley between giant cliffs" })[land] || "" : "");
     if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
   updateNpcs(dt);
@@ -4145,13 +4604,14 @@ function frame() {
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
-  const caveDark = (Math.hypot(me.x - CAVES.x, me.z - CAVES.z) < CAVE_IN && ly < caveRoof(me.x, me.z)) ? basinW(CAVES, me.x, me.z) : 0;
+  const caveDark = (Math.hypot(me.x - CAVES.x, me.z - CAVES.z) < CAVE_IN && ly < caveRoof(me.x, me.z)) ? basinW(CAVES, me.x, me.z) : (Math.hypot(me.x - BONE.x, me.z - BONE.z) < BONE.IN && ly < caveRoof(me.x, me.z)) ? Math.min(1, basinW(BONE, me.x, me.z) * 1.1) : 0;
   const fogT = baseFog.clone().lerp(new THREE.Color("#b07a5a"), basinW(FIRE, me.x, me.z) * 0.8).lerp(new THREE.Color("#d8e6f2"), basinW(FROST, me.x, me.z) * 0.5)
     .lerp(new THREE.Color("#3e5a3a"), basinW(FOREST, me.x, me.z) * 0.55 * (1 - nightAmt * 0.6)).lerp(new THREE.Color("#f2dca8"), basinW(DESERT, me.x, me.z) * 0.55 * (1 - nightAmt))
     .lerp(new THREE.Color("#9aa894"), basinW(SWAMP, me.x, me.z) * 0.7 * (1 - nightAmt * 0.7)).lerp(new THREE.Color("#b8ccb8"), basinW(HYDRA, me.x, me.z) * 0.45 * (1 - nightAmt * 0.7))
     .lerp(new THREE.Color("#e8b070"), basinW(AUTUMN, me.x, me.z) * 0.5 * (1 - nightAmt * 0.8)).lerp(new THREE.Color("#7a8a4a"), basinW(BLIGHT, me.x, me.z) * 0.65 * (1 - nightAmt * 0.5))
     .lerp(new THREE.Color("#1a1428"), caveDark * 0.9);
   caveDim += (caveDark - caveDim) * Math.min(1, dt * 2);   // the caves are dark, even at noon
+  boneDim += (((Math.hypot(me.x - BONE.x, me.z - BONE.z) < BONE.IN && ly < caveRoof(me.x, me.z)) ? 1 : 0) - boneDim) * Math.min(1, dt * 2);
 
   scene.fog.color.lerp(evFog(fogT), Math.min(1, dt * 2));
   clouds.forEach((c, i) => { c.position.x += dt * (0.6 + i % 3 * 0.3); if (c.position.x > 220) c.position.x = -220; });
@@ -4173,7 +4633,7 @@ function frame() {
   if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   updateDay(dt, focus);
-  hemi.intensity *= 1 - caveDim * 0.7; sun.intensity *= 1 - caveDim * 0.92;   // the caves are dark, even at noon
+  hemi.intensity *= 1 - caveDim * 0.7 - boneDim * 0.2; sun.intensity *= 1 - caveDim * 0.92 - boneDim * 0.06;   // the caves are dark, even at noon
   updateEvents(dt);
   underwaterFx(dt);
   skyDome.position.copy(camera.position);
@@ -4183,7 +4643,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 let growT = 0;
-let caveDim = 0;
+let caveDim = 0, boneDim = 0;
 let landNow = "Green Valley"; const seen = { "Green Valley": true };
 const landEl = document.querySelector("#where h1");
 // walking things fall off the edge of a sky island
@@ -4588,7 +5048,7 @@ function hatchEgg(kind) {
 // ================= wild eggs: eggs turn up out in the lands once you have a dragon (Petra 2026-11-09) =================
 // each land keeps up to 4 eggs; a land's own dragons are 5x as likely there; water dragons' eggs only turn up by water
 const WILD_PER_LAND = 4, WILD_WAIT = [90, 200];          // seconds before a picked-up egg is replaced
-const WILD_LANDS = ["Green Valley", "Deep Forest", "Crystal Caves", "Desert", "Fire Mountain", "Frost Peaks", "Ocean", "Sky Islands", "Misty Swamp", "Coral Reef", "Autumn Woods", "Blightwood", "Hydra Valley"];
+const WILD_LANDS = ["Green Valley", "Deep Forest", "Crystal Caves", "Desert", "Fire Mountain", "Frost Peaks", "Ocean", "Sky Islands", "Misty Swamp", "Coral Reef", "Autumn Woods", "Blightwood", "Hydra Valley", "Bone Caves"];
 const WATER_KINDS = new Set([...HOME_LAND.Ocean, ...HOME_LAND["Coral Reef"]]);
 const wild = [];                                          // { kind, land, x, y, z, g }
 const wildWait = {};                                      // land -> seconds until the next egg may appear there
@@ -4623,7 +5083,7 @@ function wildSpot(land, water) {
     }
     const b = LANDS.find(q => q.name === land);
     if (water && land === "Desert") { const o = DESERT.oasis, a = rr() * 6.283, d = o.r * (1.25 + rr() * 0.4); x = o.x + Math.cos(a) * d; z = o.z + Math.sin(a) * d; }
-    else { const a = rr() * 6.283, d = Math.sqrt(rr()) * (b === CAVES ? CAVE_IN * 0.8 : b === HYDRA ? b.R * 0.55 : b.R * 0.62); x = b.x + Math.cos(a) * d; z = b.z + Math.sin(a) * d; }
+    else { const a = rr() * 6.283, d = Math.sqrt(rr()) * (b === CAVES ? CAVE_IN * 0.8 : b === BONE ? BONE.IN * 0.75 : b === HYDRA ? b.R * 0.55 : b.R * 0.62); x = b.x + Math.cos(a) * d; z = b.z + Math.sin(a) * d; }
     y = height(x, z);
     if (b.wet && (y < WATER_Y + 0.4 || (b === HYDRA && hydraCliff(x, z) > 0.02))) continue;   // not in the water or up a cliff
     if (b === FIRE && (y < FIRE.LAVA + 1 || Math.hypot(x - FIRE.x, z - FIRE.z) < 22)) continue;   // never in lava or the crater
@@ -7172,6 +7632,503 @@ Object.assign(SIZE_M, { "Bog Lurker": 1.4, "Mire Blob": 1.6, "Leech Swarm": 0.25
   "Acid Slug": 1.1, "Dart Frog": 1.6, "Spore Shambler": 3.0, "Gas Bloater": 3.2, "Toxic Wisp": 0.9,
   "Great Hydra": 6.5, "Hydra Hatchlings": 0.9, "Rock Python": 0.6, "Valley Raptor": 2.0, "Moss Golem": 4.5,
   "Blightpede": 0.6, "Moonmantis": 2.0, "Gleamhydra": 2.4, "Moonbasilisk": 1.0, "Wraith Stag": 2.6 });
+// ===== BONE CAVES monsters (Petra 2026-11-10), same code as the cave monster preview =====
+(() => {
+// ---------- cave monsters (the bone cave) ----------
+function drift(g, col, n, r, h, size, rise = 0.3, op = 0.7) { // drifting specks: dust, smoke, motes. returns update(dt)
+  const pos = new Float32Array(n * 3), d = [];
+  for (let i = 0; i < n; i++) d.push({ a: Math.random() * 6.28, r: Math.random() * r, y: Math.random() * h, s: 0.5 + Math.random() });
+  const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(pg, new THREE.PointsMaterial({ color: C(col), size: size * 1.8, map: haloTex, transparent: true, opacity: op, depthWrite: false })); g.add(pts);
+  const f = dt => { for (let i = 0; i < n; i++) { const o = d[i]; o.y += dt * rise * o.s; o.a += dt * 0.3 * o.s; if (o.y > h) o.y -= h; if (o.y < 0) o.y += h; pos.set([Math.cos(o.a) * o.r, o.y, Math.sin(o.a) * o.r], i * 3); } pg.attributes.position.needsUpdate = true; };
+  f.pts = pts; return f;
+}
+const pulse = (c, a, b) => c > a && c < b ? Math.sin((c - a) / (b - a) * Math.PI) : 0;
+const ramp = (c, a, b) => Math.max(0, Math.min(1, (c - a) / (b - a)));
+const ease = u => u * u * (3 - 2 * u);
+function prop(o) { o.traverse(m => m.userData.prop = true); return o; } // scenery: not counted in the monster's size
+function rnd(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const BONE = "#e8dcc0";
+function bone(a, b, r, mat) { // a cartoon bone: a shaft with two knobs at each end
+  const g = new THREE.Group(); g.add(limb(a, b, r, r * 0.85, mat));
+  const d = new V().subVectors(b, a).normalize(), side = Math.abs(d.z) > 0.9 ? new V(1, 0, 0) : new V(0, 0, 1), n = new V().crossVectors(d, side).normalize();
+  [a, b].forEach(p => [1, -1].forEach(s => g.add(mesh(sph(r * 1.2, 10, 8), mat, p.x + n.x * r * 0.65 * s, p.y + n.y * r * 0.65 * s, p.z + n.z * r * 0.65 * s))));
+  return g;
+}
+function skullHead(s, mat, eyeCol, teethN = 5) { // cartoon skull facing +x, origin at the centre of the cranium
+  const g = new THREE.Group(), dark = std("#1c1412", { roughness: 1 });
+  g.add(mesh(sph(s, 24, 16), mat, 0, 0, 0, 1.05, 0.95, 1));
+  g.add(mesh(sph(s * 0.75, 20, 12), mat, s * 0.35, -s * 0.45, 0, 1, 0.7, 0.95));
+  [1, -1].forEach(k => {
+    g.add(mesh(sph(s * 0.3, 14, 10), dark, s * 0.86, s * 0.05, s * 0.38 * k, 0.6, 1.1, 1));
+    if (eyeCol) g.add(mesh(sph(s * 0.11, 10, 8), glow(eyeCol), s * 1.0, s * 0.05, s * 0.36 * k));
+  });
+  const nose = mesh(new THREE.ConeGeometry(s * 0.11, s * 0.22, 3), dark, s * 1.04, -s * 0.28, 0, 0.6, 1, 1); nose.rotation.z = Math.PI; g.add(nose);
+  const tooth = std("#fff6e0", { roughness: 0.5 });
+  for (let i = 0; i < teethN; i++) { const z = (i / (teethN - 1) - 0.5) * 0.56 * s, x = s * (0.35 + 0.75 * Math.sqrt(Math.max(0, 0.66 - (z / (0.71 * s)) ** 2))); g.add(mesh(new THREE.BoxGeometry(s * 0.1, s * 0.16, s * 0.1), tooth, x, -s * 0.78, z)); }
+  const jaw = new THREE.Group(); jaw.position.set(-s * 0.1, -s * 0.6, 0); g.add(jaw);
+  jaw.add(mesh(sph(s * 0.62, 16, 10), mat, s * 0.45, -s * 0.18, 0, 1, 0.42, 0.85));
+  g.userData.jaw = jaw; return g;
+}
+function membrane(pts, mat, side) { // flat wing skin in the xz plane; pts are [x, out] pairs, out goes along z*side
+  const sh = new THREE.Shape(); pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]));
+  const m = mesh(fitUV(new THREE.ShapeGeometry(sh)), mat); m.rotation.x = side > 0 ? Math.PI / 2 : -Math.PI / 2; return m;
+}
+function batWing(s, side, boneMat, skinMat, r = 0.02) { // pivot at the shoulder; flap with rotation.x = -side * angle
+  const w = new THREE.Group(), P = (x, o) => new V(x * s, 0.01 * s, o * s * side);
+  w.add(membrane([[0.04, 0], [0.08, 0.45], [0.16, 1.0], [-0.04, 0.8], [-0.2, 0.95], [-0.27, 0.68], [-0.46, 0.72], [-0.32, 0.38], [-0.36, 0.04]].map(p => [p[0] * s, p[1] * s]), skinMat, side));
+  const E = P(0.08, 0.45);
+  w.add(limb(P(0.02, 0), E, r * 1.2, r, boneMat)); [P(0.16, 1.0), P(-0.2, 0.95), P(-0.46, 0.72)].forEach(T => w.add(limb(E, T, r, r * 0.5, boneMat)));
+  w.add(mesh(sph(r * 1.6, 8, 6), boneMat, E.x, E.y, E.z));
+  return w;
+}
+function unitLine(mat, r = 0.015) { // a thin cylinder you stretch between two points every frame
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 6), mat);
+  m.set = (a, b) => { const d = new V().subVectors(b, a), l = d.length(); m.visible = l > 0.01; if (!m.visible) return; m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(1, l, 1); m.quaternion.setFromUnitVectors(new V(0, 1, 0), d.normalize()); };
+  return m;
+}
+function veinTex(base, vein) {
+  return canvasTex(256, 256, (x, w, h) => {
+    x.fillStyle = base; x.fillRect(0, 0, w, h); x.strokeStyle = vein; x.lineCap = "round"; x.shadowColor = vein; x.shadowBlur = 6;
+    for (let i = 0; i < 14; i++) { let px = Math.random() * w, py = Math.random() * h; x.lineWidth = 1.5 + Math.random() * 3; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 6; k++) { px += (Math.random() - 0.5) * 40; py += Math.random() * 30; x.lineTo(px, py); } x.stroke(); }
+  });
+}
+const stoneTex = (base, spots) => blotch(base, spots, 70, 14);
+
+// the cave around every monster: a ring of stalagmites and a few old bones on the floor
+const caveDecor = (() => {
+  const g = new THREE.Group(), rock = std("#4a4038", { roughness: 1, map: stoneTex("#4a4038", ["#3a322c", "#5a5046", "#2e2824"]) }), bm = std("#cfc3a6", { roughness: 0.8 }), R = rnd(7);
+  for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28 + R() * 0.2, r = 7.2 + R() * 1.4, h = 1.2 + R() * 3.2;
+    g.add(mesh(new THREE.ConeGeometry(0.35 + R() * 0.5, h, 7), rock, Math.cos(a) * r, h / 2 - 0.05, Math.sin(a) * r)); }
+  for (let i = 0; i < 9; i++) { const a = R() * 6.28, r = 4.2 + R() * 2.4, x = Math.cos(a) * r, z = Math.sin(a) * r, d = R() * 6.28;
+    g.add(bone(new V(x, 0.05, z), new V(x + Math.cos(d) * 0.5, 0.05, z + Math.sin(d) * 0.5), 0.035, bm)); }
+  g.traverse(m => { if (m.isMesh) m.castShadow = false; });
+  scene.add(g); return g;
+})();
+
+// ===== BONE CAVES =====
+// 1. Bone Crawler: a skeletal lizard that skitters up the cave wall and drops on you
+MON.push({ name: "Bone Crawler", group: "Bone Caves", land: "Bone Caves (walls and ceilings)", ground: "#4a4038",
+  sizeText: "About <b>1.6 m</b> long from nose to tail tip. The tamer beside it is 1.7 m.", ad: [
+  "A lizard skeleton held together by cave magic, with nothing inside its ribs", "Hooked bone claws that grip bare rock, even upside down", "Its rattling is the only warning you get", "Green eye-sparks glow in the dark"],
+  hunt: "Climbs out of reach up the walls and ceiling, waits right above you, then DROPS straight down on your dragon's back and claws. Listen for rattling overhead and dodge sideways when it lets go.",
+  make() {
+    const g = new THREE.Group(), bm = std(BONE, { roughness: 0.7 }), rock = std("#8a7a68", { roughness: 1, map: stoneTex("#8a7a68", ["#6e6052", "#9a8a76", "#5e5246"]) });
+    // the cave wall it climbs (scenery)
+    const wall = prop(new THREE.Group()); g.add(wall);
+    wall.add(mesh(new THREE.BoxGeometry(2.8, 3.8, 0.6), rock, 0, 1.9, -0.6));
+    const R = rnd(3);
+    for (let i = 0; i < 9; i++) wall.add(mesh(new THREE.DodecahedronGeometry(0.25 + R() * 0.3), rock, -1.6 + R() * 3.2, 0.15 + R() * 0.2, -0.3 + R() * 0.2));
+    for (let i = 0; i < 6; i++) wall.add(mesh(new THREE.DodecahedronGeometry(0.18 + R() * 0.15), rock, -1.3 + R() * 2.6, 0.6 + R() * 3.0, -0.3));
+    // the lizard, built facing +x with its belly down
+    const liz = new THREE.Group(); liz.scale.set(1.1, 1.6, 1.6); g.add(liz);
+    for (let i = 0; i < 7; i++) liz.add(mesh(sph(0.055, 10, 8), bm, -0.36 + i * 0.12, 0.05, 0));
+    liz.add(limb(new V(-0.42, 0.05, 0), new V(0.42, 0.05, 0), 0.025, 0.025, bm));
+    for (let i = 0; i < 5; i++) { const r = mesh(new THREE.TorusGeometry(0.12 - Math.abs(i - 1.5) * 0.012, 0.016, 6, 14, Math.PI), bm, -0.18 + i * 0.1, 0.05, 0); r.rotation.set(0, Math.PI / 2, Math.PI); liz.add(r); }
+    liz.add(mesh(sph(0.08, 10, 8), bm, -0.36, 0.04, 0, 1, 0.6, 1.6));
+    const head = skullHead(0.11, bm, "#7dff6a", 5); head.position.set(0.56, 0.08, 0); head.scale.set(1.5, 0.8, 0.95); liz.add(head);
+    const jaw = head.userData.jaw;
+    const legs = [];
+    [[0.3, 1], [0.3, -1], [-0.32, 1], [-0.32, -1]].forEach(([x, s], k) => {
+      const lg = new THREE.Group(); lg.position.set(x, 0.03, 0.06 * s); liz.add(lg);
+      lg.add(bone(new V(0, 0, 0), new V(0.04, 0.08, 0.22 * s), 0.02, bm)); lg.add(bone(new V(0.04, 0.08, 0.22 * s), new V(0.1, -0.13, 0.3 * s), 0.017, bm));
+      for (let c = -1; c <= 1; c++) { const cl = mesh(new THREE.ConeGeometry(0.012, 0.06, 5), bm, 0.13, -0.14, (0.3 + c * 0.03) * s); cl.rotation.z = -Math.PI / 2; lg.add(cl); }
+      legs.push({ lg, ph: k % 3 === 0 ? 0 : Math.PI });
+    });
+    const tail = []; let par = liz;
+    for (let i = 0; i < 9; i++) { const sg = new THREE.Group(); sg.position.x = i ? -0.11 : -0.44; par.add(sg); sg.add(mesh(sph(0.045 - i * 0.004, 8, 6), bm, -0.05, 0.05, 0)); if (i < 8) sg.add(limb(new V(0, 0.05, 0), new V(-0.11, 0.05, 0), 0.012, 0.01, bm)); tail.push(sg); par = sg; }
+    const qWall = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI / 2, "ZYX")), qFloor = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0));
+    const wallPos = (y, x) => new V(x, y, -0.08), floorPos = new V(0.2, 0.25, 0.9), tmp = new V();
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7; let moving = 1;
+      if (c < 3.6) { const u = c / 3.6; liz.position.copy(wallPos(1.75 + u * 1.0, Math.sin(c * 2.2) * 0.6)); liz.quaternion.copy(qWall); liz.rotateY(-Math.cos(c * 2.2) * 0.5); }
+      else if (c < 4.2) { const u = (c - 3.6) / 0.6, top = wallPos(2.75, Math.sin(3.6 * 2.2) * 0.6); liz.position.lerpVectors(top, floorPos, u); liz.position.y = top.y + (floorPos.y - top.y) * u * u; liz.quaternion.copy(qWall).slerp(qFloor, ease(u)); moving = 0; }
+      else if (c < 5.8) { liz.position.copy(floorPos); liz.quaternion.copy(qFloor); moving = 0; }
+      else { const u = ease((c - 5.8) / 1.2); liz.position.lerpVectors(floorPos, wallPos(1.75, 0), u); liz.quaternion.copy(qFloor).slerp(qWall, u); }
+      const snap = c > 4.2 && c < 5.8 ? Math.max(0, Math.sin((c - 4.2) * 12)) : 0;
+      jaw.rotation.z = -0.1 - snap * 0.5; head.rotation.y = c > 4.2 && c < 5.8 ? Math.sin(c * 3) * 0.25 : 0;
+      legs.forEach(o => o.lg.rotation.y = moving ? Math.sin(t * 16 + o.ph) * 0.45 : Math.sin(t * 2 + o.ph) * 0.05);
+      tail.forEach((sg, i) => sg.rotation.y = Math.sin(t * (moving ? 10 : 3) - i * 0.5) * (moving ? 0.22 : 0.1));
+    } }; return I;
+  } });
+
+// 2. Crypt Bat Swarm: a cloud of little skull-faced bats that dive together
+MON.push({ name: "Crypt Bat Swarm", group: "Bone Caves", land: "Bone Caves (high caverns)", ground: "#4a4038",
+  sizeText: "Each bat is about <b>0.7 m</b> wingtip to wingtip. The tamer beside them is 1.7 m.", ad: [
+  "Tiny skull faces with glowing purple eyes", "Wings of thin bone fingers and torn grey skin", "They squeak to each other so the whole cloud turns at once", "Sleep hanging in bunches from the cave roof"],
+  hunt: "The whole cloud circles high above, then DIVES at you together in one pecking rush and swirls back up. Hitting one bat barely helps: sweep your breath wide to scatter the cloud before it dives.",
+  make() {
+    const g = new THREE.Group(), bm = std(BONE, { roughness: 0.7 }), fur = std("#4a4048", { roughness: 1 }), skin = std("#7a6e7e", { side: THREE.DoubleSide, roughness: 0.9, transparent: true, opacity: 0.9 });
+    const bats = [], R = rnd(11);
+    for (let i = 0; i < 11; i++) {
+      const b = new THREE.Group(); g.add(b);
+      const body = new THREE.Group(); b.add(body);
+      body.add(mesh(sph(0.06, 12, 8), fur, 0, 0, 0, 1.4, 0.9, 0.9));
+      const h = skullHead(0.065, bm, "#c88aff", 3); h.position.set(0.1, 0.02, 0); body.add(h);
+      [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.025, 0.08, 6), fur, 0.08, 0.09, 0.035 * s); e.rotation.x = -s * 0.3; body.add(e); });
+      const wings = [1, -1].map(s => { const w = batWing(0.3, s, bm, skin, 0.008); w.position.set(0.0, 0.01, 0.04 * s); body.add(w); return { w, s }; });
+      bats.push({ b, body, wings, a: i / 11 * 6.28, r: 0.7 + R() * 0.7, y: 1.6 + R() * 0.8, sp: 0.8 + R() * 0.4, ph: R() * 6 });
+    }
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7, dive = pulse(c, 3.8, 5.6);
+      bats.forEach(o => {
+        const a = o.a + t * o.sp, r = o.r * (1 - dive * 0.55);
+        o.b.position.set(Math.cos(a) * r + dive * 1.2, o.y - dive * (o.y - 0.45) + Math.sin(t * 3 + o.ph) * 0.08, Math.sin(a) * r);
+        o.b.rotation.y = faceTo(a); o.body.rotation.z = c > 3.8 && c < 4.7 ? -0.6 * dive : 0.15 * dive; o.body.rotation.x = 0.3;
+        const f = Math.sin(t * 18 + o.ph); o.wings.forEach(w => w.w.rotation.x = -w.s * f * 0.8);
+        o.body.children[1].userData.jaw.rotation.z = -Math.max(0, Math.sin(t * 20 + o.ph)) * 0.5 * dive;
+      });
+    } }; return I;
+  } });
+
+// 3. Grave Golem: a huge, slow giant built from old tombstones
+function tomb(w, h, d, mat) { // a tombstone with a round top, facing +z, standing on y = 0
+  const g = new THREE.Group(), r = w / 2;
+  g.add(mesh(new THREE.BoxGeometry(w, h - r, d), mat, 0, (h - r) / 2, 0));
+  const top = mesh(new THREE.CylinderGeometry(r, r, d, 18, 1, false, -Math.PI / 2, Math.PI), mat, 0, h - r, 0); top.rotation.x = -Math.PI / 2; g.add(top);
+  return g;
+}
+MON.push({ name: "Grave Golem", group: "Bone Caves", land: "Bone Caves (old graveyard hall)", ground: "#4a4038", ad: [
+  "Built from old mossy gravestones that woke up", "Green light leaks out of the cracks between its stones", "Very slow, but nothing can push it over", "Moss and little mushrooms grow on its shoulders"],
+  hunt: "Plods toward you, then lifts both stone fists and SLAMS the ground, sending a shockwave ring rolling out across the floor. Fly over the ring, then hit the glowing cracks while its fists are stuck in the ground.",
+  make() {
+    const g = new THREE.Group(), st = std("#8a8a84", { roughness: 0.95, map: stoneTex("#8a8a84", ["#6e6e68", "#a2a29a", "#7a7a70"]) }), st2 = std("#76746c", { roughness: 0.95, map: stoneTex("#76746c", ["#5e5c56", "#8a8880"]) }),
+      moss = std("#5e8a34", { roughness: 1 }), crack = glow("#8aff7a"), mush = std("#d8c8a0");
+    const body = new THREE.Group(); g.add(body);
+    [1, -1].forEach(s => { body.add(mesh(new THREE.BoxGeometry(0.5, 0.45, 0.45), st2, 0, 0.23, 0.38 * s)); body.add(mesh(new THREE.BoxGeometry(0.42, 0.5, 0.4), st, 0, 0.68, 0.36 * s)); body.add(mesh(new THREE.BoxGeometry(0.62, 0.14, 0.52), st2, 0.08, 0.07, 0.38 * s)); });
+    const torso = new THREE.Group(); torso.position.y = 0.95; body.add(torso);
+    torso.add(mesh(new THREE.BoxGeometry(0.6, 0.2, 1.1), st2, 0, 0.05, 0));
+    const chest = tomb(1.25, 1.55, 0.5, st); chest.rotation.y = Math.PI / 2; chest.position.y = 0.1; torso.add(chest);
+    [[0.26, 0.9, 0.1, 0.5], [0.26, 0.55, -0.2, 0.35], [0.26, 1.15, -0.25, 0.3], [0.26, 0.35, 0.3, 0.3]].forEach(([x, y, z, l], i) => { const cr = mesh(new THREE.BoxGeometry(0.02, 0.035, l), crack, x, y, z); cr.rotation.x = 0.5 - i * 0.4; torso.add(cr); });
+    torso.add(mesh(new THREE.BoxGeometry(0.03, 0.45, 0.6), std("#5c5a54", { roughness: 1 }), 0.25, 0.9, 0)); // worn plaque
+    const head = tomb(0.55, 0.62, 0.36, st2); head.rotation.y = Math.PI / 2; head.position.set(0.02, 1.62, 0); torso.add(head);
+    [1, -1].forEach(s => { torso.add(mesh(new THREE.BoxGeometry(0.06, 0.07, 0.1), crack, 0.19, 1.98, 0.11 * s)); const hl = halo("#8aff7a", 0.35, 0.6); hl.position.set(0.22, 1.98, 0.11 * s); torso.add(hl); });
+    torso.add(mesh(new THREE.BoxGeometry(0.05, 0.04, 0.22), std("#2a2a26"), 0.19, 1.82, 0));
+    for (let i = 0; i < 9; i++) torso.add(mesh(sph(0.1 + (i % 3) * 0.03, 10, 6), moss, -0.1 + (i % 3) * 0.1, 1.62 - (i % 2) * 0.05, -0.6 + i * 0.15, 1.2, 0.35, 1.2));
+    [[0.0, 1.7, 0.52], [-0.05, 1.68, 0.44]].forEach(([x, y, z]) => { torso.add(mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.08, 6), mush, x, y, z)); torso.add(mesh(new THREE.SphereGeometry(0.05, 10, 6, 0, 6.3, 0, 1.6), std("#c8603a"), x, y + 0.04, z)); });
+    const arms = [1, -1].map(s => {
+      const a = new THREE.Group(); a.position.set(0, 1.45, 0.82 * s); torso.add(a);
+      a.add(mesh(new THREE.DodecahedronGeometry(0.3), st, 0, 0, 0.02 * s));
+      a.add(mesh(new THREE.BoxGeometry(0.34, 0.55, 0.3), st2, 0, -0.42, 0.05 * s));
+      a.add(mesh(new THREE.BoxGeometry(0.3, 0.5, 0.28), st, 0.02, -0.92, 0.05 * s));
+      a.add(mesh(new THREE.BoxGeometry(0.48, 0.42, 0.44), st2, 0.04, -1.36, 0.05 * s));
+      a.add(mesh(sph(0.08, 8, 6), moss, -0.05, -0.15, 0.15 * s, 1.3, 0.4, 1));
+      return a;
+    });
+    const wave = mesh(new THREE.RingGeometry(0.85, 1.0, 48), new THREE.MeshBasicMaterial({ color: C("#cfe8a8"), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }), 0, 0.03, 0);
+    wave.rotation.x = -Math.PI / 2; wave.castShadow = false; g.add(wave);
+    const dust = sandPuffs(g, "#a89a88", 50, 2.4);
+    const I = { g, phase: null, update: (t, dt) => {
+      const c = I.phase ?? t % 6, up = ramp(c, 2.6, 3.8), down = ramp(c, 3.9, 4.1), back = ramp(c, 4.8, 5.8);
+      const lift = up * (1 - down), lean = down * (1 - back);
+      arms.forEach(o => { o.rotation.z = lift * 2.7 + lean * 1.25; o.rotation.x = -Math.sign(o.position.z) * (0.08 + lift * 0.15); });
+      torso.rotation.z = -lean * 0.45 + lift * 0.12 + Math.sin(t * 0.9) * 0.02; torso.position.y = 0.95 - lean * 0.12;
+      body.position.y = Math.sin(t * 0.9) * 0.01;
+      const w = ramp(c, 4.1, 5.6); wave.scale.setScalar(0.6 + w * 3.2); wave.material.opacity = c > 4.1 && c < 5.6 ? (1 - w) * 0.8 : 0; wave.position.x = 1.0;
+      dust(dt || 0.016, 1.6, 0.05, 0, c > 4.1 && c < 4.9);
+    } }; return I;
+  } });
+
+// 4. Wisp Lantern (deep cave / night): a little ghost flame in an old iron lantern cage
+MON.push({ name: "Wisp Lantern", group: "Bone Caves", night: true, land: "Bone Caves (deep tunnels, only in the dark)", ground: "#2a2622",
+  sizeText: "About <b>0.9 m</b> tall, floating at head height. The tamer beside it is 1.7 m.", ad: [
+  "A cold blue ghost flame with a sleepy little face", "Lives inside a rusty lantern cage it found in the crypt", "Leaves a trail of tiny lights that looks like the way out", "Gets brighter when it sips a bit of HP from you"],
+  hunt: "Never attacks head-on. It floats ahead and lays a trail of fake 'follow me' lights that lead into dead ends, and slowly sips HP while you stay inside its glow. Ignore the trail and pop it with one hit.",
+  make() {
+    const g = new THREE.Group(), iron = std("#4a3a30", { roughness: 0.6, metalness: 0.6 });
+    const f = new THREE.Group(); f.position.y = 1.6; f.scale.setScalar(1.25); g.add(f);
+    const flame = new THREE.MeshBasicMaterial({ color: C("#7fe0ff"), transparent: true, opacity: 0.85 }), core = glow("#e8fbff");
+    const blob = mesh(sph(0.22, 22, 16), flame, 0, 0, 0, 1, 1.05, 1); f.add(blob);
+    const tip = mesh(new THREE.ConeGeometry(0.17, 0.4, 18), flame, 0, 0.3, 0); f.add(tip);
+    f.add(mesh(sph(0.1, 12, 8), core, 0, 0.02, 0));
+    [1, -1].forEach(s => f.add(mesh(sph(0.045, 10, 8), glow("#10202a"), 0.19, 0.04, 0.08 * s, 0.6, 1.3, 1)));
+    f.add(mesh(sph(0.03, 8, 6), glow("#10202a"), 0.205, -0.07, 0, 0.6, 0.7, 1.2));
+    const tail = []; for (let i = 0; i < 5; i++) { const m = mesh(sph(0.11 - i * 0.018, 12, 8), flame, -0.02 * i, -0.2 - i * 0.09, 0); f.add(m); tail.push(m); }
+    const hl = halo("#7fe0ff", 2.0, 0.6); f.add(hl);
+    const light = new THREE.PointLight(C("#7fe0ff"), 1.6, 5); f.add(light);
+    // the lantern cage around it
+    const cage = new THREE.Group(); f.add(cage);
+    cage.add(mesh(new THREE.TorusGeometry(0.3, 0.02, 6, 24), iron, 0, -0.38, 0)).children.slice(-1)[0].rotation.x = Math.PI / 2;
+    const ring2 = mesh(new THREE.TorusGeometry(0.24, 0.02, 6, 24), iron, 0, 0.5, 0); ring2.rotation.x = Math.PI / 2; cage.add(ring2);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * 6.28 + 0.4; cage.add(limb(new V(Math.cos(a) * 0.3, -0.38, Math.sin(a) * 0.3), new V(Math.cos(a) * 0.24, 0.5, Math.sin(a) * 0.24), 0.016, 0.016, iron)); }
+    cage.add(mesh(new THREE.ConeGeometry(0.28, 0.18, 12), iron, 0, 0.6, 0));
+    const hook = mesh(new THREE.TorusGeometry(0.07, 0.015, 6, 16), iron, 0, 0.76, 0); cage.add(hook);
+    cage.traverse(m => m.castShadow = false);
+    // the trail of fake lights it leaves
+    const crumbs = []; for (let i = 0; i < 7; i++) { const m = mesh(sph(0.05, 10, 8), glow("#bff4ff"), 0, 0, 0); m.castShadow = false; m.userData.prop = true; const h = halo("#7fe0ff", 0.35, 0.8); m.add(h); g.add(m); crumbs.push(m); }
+    const I = { g, phase: null, update: t => {
+      f.position.y = 1.6 + Math.sin(t * 1.6) * 0.1; f.rotation.y = Math.sin(t * 0.7) * 0.4; f.rotation.z = Math.sin(t * 1.1) * 0.06;
+      const fl = 1 + Math.sin(t * 9) * 0.06 + Math.sin(t * 13) * 0.04; tip.scale.set(1 / fl, fl * 1.1, 1 / fl); tip.rotation.z = Math.sin(t * 5) * 0.15;
+      tail.forEach((m, i) => m.position.z = Math.sin(t * 3 - i * 0.7) * 0.03 * i);
+      const sip = 0.5 + 0.5 * Math.sin(t * 0.8); hl.material.opacity = 0.45 + sip * 0.35; light.intensity = 1.2 + sip;
+      crumbs.forEach((m, i) => { const u = ((t * 0.25 + i / 7) % 1), a = u * 2.6; m.position.set(0.3 + Math.sin(a) * (0.5 + u * 1.6), 1.5 - u * 0.9 + Math.sin(t * 2 + i) * 0.05, -0.2 - (1 - Math.cos(a)) * (0.6 + u)); m.scale.setScalar(Math.sin(u * Math.PI)); });
+    } }; return I;
+  } });
+
+// 5. Skull Spider: a spider whose body is a big skull; it spits web and reels you in
+MON.push({ name: "Skull Spider", group: "Bone Caves", land: "Bone Caves (webbed tunnels)", ground: "#4a4038", ad: [
+  "Its body is a big hollow skull with red eye-lights", "Eight long legs of thin knobbly bone", "Spins sticky silk across tunnel mouths", "The skull clacks its teeth when it is hungry"],
+  hunt: "Stays back and SPITS a sticky web ball. If it sticks, a silk line REELS your dragon in toward its clacking teeth. Pull away hard or burn the line before you get there.",
+  make() {
+    const g = new THREE.Group(), bm = std(BONE, { roughness: 0.65 }), abd = std("#3e3440", { roughness: 0.7 }), web = std("#f2f2ee", { roughness: 0.9 });
+    const body = new THREE.Group(); g.add(body);
+    const sk = skullHead(0.36, bm, "#ff4a3a", 6); sk.position.set(0.25, 0.75, 0); body.add(sk);
+    body.add(mesh(sph(0.45, 22, 16), abd, -0.55, 0.85, 0, 1.15, 0.9, 1));
+    for (let i = 0; i < 3; i++) { const r = mesh(new THREE.TorusGeometry(0.4 - i * 0.07, 0.025, 6, 20), bm, -0.42 - i * 0.18, 0.86, 0); r.rotation.y = Math.PI / 2; r.scale.set(1, 0.85, 1); body.add(r); }
+    const legs = [];
+    for (let i = 0; i < 4; i++) [1, -1].forEach(s => {
+      const lg = new THREE.Group(), x = 0.3 - i * 0.2; lg.position.set(x, 0.72, 0.25 * s); body.add(lg);
+      const dx = (1.5 - i) * 0.35, K = new V(dx * 0.6, 0.4, 0.5 * s), Fp = new V(dx, -0.72, 0.95 * s);
+      lg.add(bone(new V(0, 0, 0), K, 0.03, bm)); lg.add(bone(K, Fp, 0.024, bm)); lg.add(mesh(sph(0.04, 8, 6), bm, K.x, K.y, K.z));
+      legs.push({ lg, ph: (i + (s > 0 ? 0 : 1)) % 2 * Math.PI });
+    });
+    const jaw = sk.userData.jaw;
+    const glob = new THREE.Group(); g.add(glob);
+    for (let i = 0; i < 6; i++) glob.add(mesh(sph(0.09, 10, 8), web, Math.cos(i) * 0.06, Math.sin(i * 2) * 0.06, Math.sin(i) * 0.06));
+    const line = unitLine(web, 0.012); g.add(line);
+    const mouth = new V(0.62, 0.42, 0);
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 5.5;
+      body.position.y = Math.sin(t * 2) * 0.02; body.rotation.z = -pulse(c, 1.6, 2.2) * 0.15;
+      legs.forEach(o => { o.lg.rotation.x = Math.sin(t * 3 + o.ph) * 0.06; o.lg.rotation.y = Math.sin(t * 3 + o.ph) * 0.05; });
+      jaw.rotation.z = -Math.max(0, Math.sin(t * (c > 4 && c < 5 ? 18 : 3))) * (c > 4 && c < 5 ? 0.6 : 0.12);
+      let p = null;
+      if (c > 2 && c < 2.5) { const u = (c - 2) / 0.5; p = new V(0.62 + u * 2.2, 0.42 + Math.sin(u * Math.PI) * 0.5 + u * 0.3, 0); }
+      else if (c >= 2.5 && c < 4.4) { const u = ease((c - 2.5) / 1.9); p = new V(2.82 - u * 2.0, 0.72 - u * 0.2, 0); }
+      glob.visible = !!p; if (p) { glob.position.copy(p); glob.rotation.y = t * 3; }
+      if (p) line.set(new V(0.62, 0.42, 0).add(new V(0, 0, 0)).setY(0.42 + body.position.y), p); else line.visible = false;
+    } }; return I;
+  } });
+
+// 6. Shade Hound: a dog made of shadow that fades in and out as it runs
+MON.push({ name: "Shade Hound", group: "Bone Caves", land: "Bone Caves (dark passages)", ground: "#4a4038", ad: [
+  "A dog-shaped shadow with smoky edges", "Only its white eyes and teeth are always solid", "Runs faster than any dragon can walk", "Smoke drifts off its tail as it runs"],
+  hunt: "Races around you in fast circles, FADING almost invisible, then pops back in right next to you for a quick bite and fades again. Watch for its eyes and strike the moment it fades back in.",
+  make() {
+    const g = new THREE.Group(), sh = new THREE.MeshStandardMaterial({ color: C("#2c2238"), roughness: 0.5, transparent: true, opacity: 1 }), sh2 = new THREE.MeshStandardMaterial({ color: C("#3e3054"), roughness: 0.6, transparent: true, opacity: 1 });
+    const dog = new THREE.Group(); g.add(dog);
+    const body = new THREE.Group(); body.position.y = 0.72; dog.add(body);
+    body.add(mesh(sph(0.3, 20, 14), sh, -0.05, 0, 0, 1.75, 0.85, 0.8));
+    body.add(mesh(sph(0.28, 18, 12), sh2, 0.32, 0.05, 0, 1, 1.05, 0.95));
+    const head = new THREE.Group(); head.position.set(0.55, 0.28, 0); body.add(head);
+    head.add(mesh(sph(0.19, 18, 12), sh, 0, 0, 0, 1.1, 0.95, 0.95));
+    head.add(mesh(sph(0.11, 14, 10), sh2, 0.2, -0.05, 0, 1.6, 0.8, 0.9));
+    head.add(mesh(sph(0.04, 8, 6), glow("#1a1020"), 0.37, -0.02, 0));
+    [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.07, 0.22, 6), sh, -0.05, 0.2, 0.1 * s); e.rotation.x = -s * 0.25; e.rotation.z = 0.25; head.add(e);
+      head.add(mesh(sph(0.04, 10, 8), glow("#f4f0ff"), 0.15, 0.06, 0.1 * s, 0.6, 0.8, 1.1)); const h = halo("#c8b8ff", 0.25, 0.6); h.position.set(0.17, 0.06, 0.1 * s); head.add(h);
+      for (let k = 0; k < 2; k++) { const tt = mesh(new THREE.ConeGeometry(0.014, 0.05, 4), glow("#ffffff"), 0.3 - k * 0.05, -0.13, 0.05 * s); tt.rotation.z = Math.PI; head.add(tt); } });
+    const legs = [];
+    [[0.3, 1], [0.3, -1], [-0.35, 1], [-0.35, -1]].forEach(([x, s], k) => { const lg = new THREE.Group(); lg.position.set(x, -0.1, 0.13 * s); body.add(lg);
+      lg.add(limb(new V(0, 0, 0), new V(0.02, -0.32, 0), 0.07, 0.045, sh)); lg.add(limb(new V(0.02, -0.32, 0), new V(-0.02, -0.58, 0), 0.045, 0.035, sh)); lg.add(mesh(sph(0.05, 8, 6), sh, 0.03, -0.6, 0, 1.4, 0.6, 1)); legs.push({ lg, ph: k < 2 ? 0 : Math.PI * 0.8 }); });
+    const tail = []; let par = body;
+    for (let i = 0; i < 6; i++) { const sg = new THREE.Group(); sg.position.set(i ? -0.1 : -0.5, i ? 0.02 : 0.1, 0); par.add(sg); sg.add(mesh(sph(0.07 - i * 0.008, 10, 8), i % 2 ? sh2 : sh, -0.05, 0, 0)); tail.push(sg); par = sg; }
+    const smoke = drift(g, "#5a4a70", 60, 1.8, 1.2, 0.12, 0.25, 0.4); smoke.pts.position.z = -1.0;
+    const mats = [sh, sh2];
+    const I = { g, phase: null, update: (t, dt) => {
+      smoke(dt || 0.016);
+      const a = t * 1.6, R = 1.3; dog.position.set(Math.cos(a) * R, 0, Math.sin(a) * R - 1.0); dog.rotation.y = faceTo(a);
+      const gal = t * 12; body.position.y = 0.72 + Math.abs(Math.sin(gal)) * 0.06; body.rotation.z = Math.sin(gal) * 0.06;
+      legs.forEach(o => o.lg.rotation.z = Math.sin(gal + o.ph) * 0.7);
+      tail.forEach((sg, i) => { sg.rotation.z = 0.3 + Math.sin(gal * 0.5 - i * 0.6) * 0.15; sg.rotation.y = Math.sin(t * 5 - i) * 0.2; });
+      const vis = I.phase != null ? 1 : 0.08 + 0.92 * ease(Math.min(1, Math.max(0, Math.sin(t * 1.3) * 1.6 + 0.4)));
+      mats.forEach(m => { m.opacity = vis; m.depthWrite = vis > 0.6; }); dog.traverse(m => { if (m.isMesh) m.castShadow = vis > 0.5; });
+      head.rotation.z = Math.sin(t * 1.3) > 0.85 ? -0.2 : 0;
+    } }; return I;
+  } });
+
+// 7. Rattlebones: a pile of bones that stands up as a skeleton and rebuilds itself once
+MON.push({ name: "Rattlebones", group: "Bone Caves", land: "Bone Caves (bone piles)", ground: "#4a4038", ad: [
+  "Looks like a harmless pile of old bones until you get close", "Clatters and rattles as it stands up", "Swings a big bone like a club", "Fire burns its cave magic away for good"],
+  hunt: "Easy to knock over, but the pile SHAKES and snaps back together once, good as new. Knock it down and then use fire breath on the pile, and it burns to ash and stays down. (Press the button to try it.)",
+  action: "Use fire breath on it",
+  make() {
+    const g = new THREE.Group(), bm = std(BONE, { roughness: 0.7 }), ash = C("#3a302a"), boneC = C(BONE), R = rnd(5);
+    const parts = [];
+    const add = (o, pos, rot) => { g.add(o); parts.push({ o, b: { p: pos.clone(), r: rot.clone() }, pile: null }); return o; };
+    const sk = skullHead(0.16, bm, "#7ac8ff", 5); add(sk, new V(0.02, 1.3, 0), new V(0, 0, 0));
+    const rib = new THREE.Group(); rib.add(limb(new V(0, -0.25, 0), new V(0, 0.2, 0), 0.03, 0.03, bm));
+    for (let i = 0; i < 4; i++) { const rr = 0.15 - i * 0.015, r = mesh(new THREE.TorusGeometry(rr, 0.022, 6, 16, Math.PI * 1.5), bm, rr, 0.12 - i * 0.09, 0, 1, 1, 1.25); r.rotation.set(Math.PI / 2, 0, Math.PI * 0.25); rib.add(r); }
+    add(rib, new V(0, 0.92, 0), new V(0, 0, 0));
+    const pel = new THREE.Group(); [1, -1].forEach(s => pel.add(mesh(sph(0.08, 12, 8), bm, 0, 0, 0.07 * s, 0.7, 0.8, 1.1))); add(pel, new V(0, 0.64, 0), new V(0, 0, 0));
+    const L = l => bone(new V(0, -l / 2, 0), new V(0, l / 2, 0), 0.03, bm);
+    [1, -1].forEach(s => { add(L(0.28), new V(0, 0.45, 0.1 * s), new V(0, 0, 0)); add(L(0.28), new V(0, 0.16, 0.1 * s), new V(0, 0, 0)); });
+    const armU = [], armL = [];
+    [1, -1].forEach(s => { armU.push(add(L(0.25), new V(0, 0.95, 0.24 * s), new V(s * 0.2, 0, 0))); armL.push(add(L(0.24), new V(0.08, 0.72, 0.28 * s), new V(0, 0, 0.6))); });
+    const club = add(bone(new V(0, -0.3, 0), new V(0, 0.3, 0), 0.055, bm), new V(0.385, 0.81, -0.3), new V(0, 0, -0.9));
+    parts.forEach((p, i) => { const a = R() * 6.28, r = i === 0 ? 0 : 0.15 + R() * 0.4; p.pile = { p: new V(Math.cos(a) * r, i === 0 ? 0.3 : 0.06 + R() * 0.12, Math.sin(a) * r), r: new V(i === 0 ? 0.3 : Math.PI / 2 + (R() - 0.5), R() * 6.28, i === 0 ? -0.2 : (R() - 0.5) * 0.6) }; });
+    const fireM = addGlow("#ff8a2a", 0.85), fire = new THREE.Group(); g.add(fire);
+    const flames = []; for (let i = 0; i < 9; i++) { const f = mesh(new THREE.ConeGeometry(0.1 + R() * 0.08, 0.5, 8), fireM, (R() - 0.5) * 0.7, 0.25, (R() - 0.5) * 0.7); f.castShadow = false; fire.add(f); flames.push(f); }
+    const fh = halo("#ff8a2a", 2.6, 0.8); fh.position.y = 0.4; fire.add(fh); const fl = new THREE.PointLight(C("#ff9a40"), 0, 5); fl.position.y = 0.6; fire.add(fl);
+    const smoke = drift(g, "#6a625a", 50, 0.5, 2.2, 0.16, 0.6, 0);
+    const note = document.getElementById("actnote");
+    let mode = "loop", t0 = 0, uNow = 0, lastT = 0;
+    const setNote = s => { if (note && note.textContent !== s) note.textContent = s; };
+    const pose = (u, tt, shake) => parts.forEach((p, i) => {
+      const k = ease(Math.min(1, Math.max(0, u * 1.25 - i * 0.02))), hop = Math.sin(k * Math.PI) * 0.25;
+      p.o.position.lerpVectors(p.b.p, p.pile.p, k); p.o.position.y += hop * (shake ? 1 : 0.3);
+      p.o.rotation.set(p.b.r.x + (p.pile.r.x - p.b.r.x) * k, p.b.r.y + (p.pile.r.y - p.b.r.y) * k, p.b.r.z + (p.pile.r.z - p.b.r.z) * k);
+      if (shake) { p.o.position.x += Math.sin(tt * 40 + i) * 0.015 * shake; p.o.rotation.y += Math.sin(tt * 30 + i * 2) * 0.1 * shake; }
+    });
+    const I = { g, phase: null, update: (t, dt) => {
+      lastT = t; let u = 0, shake = 0, burn = 0;
+      if (mode === "loop") {
+        const c = I.phase ?? t % 8;
+        if (c < 2.4) { u = 0; setNote("Standing: 1 rebuild left"); }
+        else if (c < 3.0) { u = (c - 2.4) / 0.6; setNote("Knocked down!"); }
+        else if (c < 5.0) { u = 1; shake = ramp(c, 3.4, 5.0); setNote("Rattling... it's going to rebuild!"); }
+        else if (c < 6.2) { u = 1 - (c - 5.0) / 1.2; setNote("Rebuilt itself!"); }
+        else { u = 0; setNote("Rebuilt itself!"); }
+      } else { const e = t - t0; u = Math.min(1, uNow + e / 0.5); burn = ramp(e, 0.4, 2.4); setNote(e < 3.2 ? "Burning! The fire breaks its magic." : "Burnt to ash. It stays down for good."); }
+      pose(u, t, shake);
+      if (u < 0.05) { sk.position.y += Math.sin(t * 3) * 0.02; sk.userData.jaw.rotation.z = -Math.max(0, Math.sin(t * 14)) * 0.3; parts.forEach((p, i) => { if (i) p.o.position.x += Math.sin(t * 25 + i * 1.3) * 0.006; }); armU[0].rotation.z = Math.sin(t * 2) * 0.25; }
+      uNow = mode === "loop" ? u : uNow;
+      const fireOn = mode === "burn" && t - t0 > 0.3 && t - t0 < 3.4, fade = mode === "burn" ? Math.min(1, ramp(t - t0, 0.3, 0.6)) * (1 - ramp(t - t0, 2.8, 3.4)) : 0;
+      fire.visible = fade > 0.01; fireM.opacity = 0.85 * fade; fh.material.opacity = 0.8 * fade; fl.intensity = 2.5 * fade;
+      flames.forEach((f, i) => { f.scale.set(1, 0.6 + 0.5 * Math.abs(Math.sin(t * 9 + i * 1.7)) , 1); f.position.y = 0.2 + f.scale.y * 0.2; });
+      bm.color.copy(boneC).lerp(ash, burn);
+      smoke.pts.material.opacity = mode === "burn" ? 0.5 * ramp(t - t0, 0.6, 1.5) : 0; smoke(dt || 0.016);
+      fire.traverse(m => m.castShadow = false);
+    } };
+    I.act = btn => { if (mode === "loop") { mode = "burn"; t0 = lastT; btn.textContent = "Reset"; } else { mode = "loop"; uNow = 0; bm.color.copy(boneC); btn.textContent = "Use fire breath on it"; } };
+    return I;
+  } });
+
+// 8. Blood Bat (night): a big red bat that guards the Veinfang eggs and drinks HP
+MON.push({ name: "Blood Bat", group: "Bone Caves", night: true, land: "Bone Caves (the Veinfang nest, at night)", ground: "#2a2622",
+  sizeText: "Wings about <b>2.4 m</b> across. The tamer beside it is 1.7 m.", ad: [
+  "Deep red fur and huge ears that hear a dragon's heartbeat", "Guards the nest where the Veinfang (blood dragon) eggs are kept", "Two long fangs and glowing red eyes", "Glows brighter after it drinks"],
+  hunt: "Hangs over the Veinfang eggs, then swoops to LATCH ON with its fangs and steal HP, healing itself and glowing brighter as it drinks. Lure it away from the nest, where it can't heal back up.",
+  make() {
+    const g = new THREE.Group(), fur = std("#8a1a22", { roughness: 0.9 }), fur2 = std("#5a0e16", { roughness: 0.9 }), arm = std("#3a0a10", { roughness: 0.7 }),
+      skin = std("#c83a48", { side: THREE.DoubleSide, roughness: 0.8, emissive: C("#3a0610"), map: veinTex("#9a2430", "#ff6070") }), fang = std("#fff6ea", { roughness: 0.4 }), rock = std("#4a4038", { roughness: 1, map: stoneTex("#4a4038", ["#3a322c", "#5a5046"]) }), bm = std("#cfc3a6", { roughness: 0.8 });
+    // the nest: a rock with a ring of bones and three Veinfang eggs
+    const nest = new THREE.Group(); g.add(nest);
+    nest.add(mesh(sph(0.75, 16, 10), rock, 0, 0.12, 0, 1, 0.35, 1));
+    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.28, b = a + 0.9; nest.add(bone(new V(Math.cos(a) * 0.6, 0.32, Math.sin(a) * 0.6), new V(Math.cos(b) * 0.6, 0.36, Math.sin(b) * 0.6), 0.03, bm)); }
+    const eggM = std("#6a0e18", { roughness: 0.35, emissive: C("#ff2a3a"), emissiveIntensity: 0.6, emissiveMap: veinTex("#000000", "#ff5a6a"), map: veinTex("#6a0e18", "#a8202e") });
+    [[0.15, 0.1], [-0.2, 0.15], [0, -0.22]].forEach(([x, z], i) => { const e = mesh(sph(0.17, 18, 14), eggM, x, 0.47, z, 0.85, 1.2, 0.85); e.rotation.z = (i - 1) * 0.2; nest.add(e); });
+    const eh = halo("#ff3a4a", 1.2, 0.35); eh.position.y = 0.5; nest.add(eh);
+    // the bat
+    const bat = new THREE.Group(); bat.position.y = 2.0; g.add(bat);
+    bat.add(mesh(sph(0.3, 22, 16), fur, 0, 0, 0, 1.0, 1.2, 0.95));
+    bat.add(mesh(sph(0.22, 16, 12), fur2, 0.12, -0.08, 0, 0.8, 1.1, 0.9));
+    const head = new THREE.Group(); head.position.set(0.22, 0.38, 0); bat.add(head);
+    head.add(mesh(sph(0.22, 20, 14), fur, 0, 0, 0));
+    head.add(mesh(sph(0.09, 14, 10), fur2, 0.17, -0.07, 0, 0.9, 0.7, 1.1));
+    head.add(mesh(new THREE.ConeGeometry(0.035, 0.08, 6), fur2, 0.24, -0.0, 0));
+    [1, -1].forEach(s => {
+      const e = mesh(new THREE.ConeGeometry(0.11, 0.38, 10), fur, -0.02, 0.28, 0.12 * s); e.rotation.x = -s * 0.35; head.add(e);
+      const ei = mesh(new THREE.ConeGeometry(0.07, 0.28, 8), std("#d8606a"), 0.03, 0.26, 0.13 * s); ei.rotation.x = -s * 0.35; head.add(ei);
+      head.add(mesh(sph(0.05, 12, 8), glow("#ff3a2a"), 0.17, 0.07, 0.1 * s)); const h = halo("#ff3a2a", 0.35, 0.7); h.position.set(0.2, 0.07, 0.1 * s); head.add(h);
+      const fg = mesh(new THREE.ConeGeometry(0.022, 0.1, 6), fang, 0.24, -0.15, 0.04 * s); fg.rotation.z = Math.PI; head.add(fg);
+    });
+    const wings = [1, -1].map(s => { const w = batWing(1.15, s, arm, skin, 0.035); w.position.set(0.02, 0.18, 0.2 * s); bat.add(w); return { w, s }; });
+    [1, -1].forEach(s => { bat.add(limb(new V(-0.1, -0.3, 0.1 * s), new V(-0.15, -0.5, 0.12 * s), 0.035, 0.025, arm)); for (let k = -1; k <= 1; k++) { const cl = mesh(new THREE.ConeGeometry(0.012, 0.06, 5), fang, -0.13 + k * 0.03, -0.53, 0.12 * s); cl.rotation.z = Math.PI; bat.add(cl); } });
+    const bh = halo("#ff2a3a", 2.2, 0.2); bat.add(bh);
+    const motes = []; for (let i = 0; i < 14; i++) { const m = mesh(sph(0.03, 6, 4), glow("#ff3a4a"), 0, 0, 0); m.castShadow = false; g.add(m); motes.push(m); }
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 6, sw = pulse(c, 3.0, 5.2);
+      bat.position.set(sw * 1.4, 2.0 + Math.sin(t * 2.4) * 0.08 - sw * 0.9, 0); bat.rotation.z = -sw * 0.5;
+      const f = Math.sin(t * 4.8); wings.forEach(o => { o.w.rotation.x = -o.s * (0.6 + f * 0.55); o.w.rotation.y = o.s * 0.25; }); head.rotation.y = Math.sin(t * 0.8) * 0.25;
+      const drink = c > 3.8 && c < 4.6 ? 1 : 0; bh.material.opacity = 0.2 + drink * 0.45 + sw * 0.1; head.rotation.z = -drink * 0.3;
+      motes.forEach((m, i) => { const u = (t * 0.6 + i / 14) % 1; m.visible = drink > 0 || c > 3.5 && c < 5; m.position.set(bat.position.x + 1.0 - u * 0.8, bat.position.y - 0.4 + u * 0.6 + Math.sin(i * 3) * 0.1, Math.cos(i * 2) * 0.2 * (1 - u)); });
+    } }; return I;
+  } });
+
+// ===== BOSS =====
+// 9. The Crypt Warden: an armoured skeleton dragon-knight on the bone throne
+MON.push({ name: "The Crypt Warden", group: "Boss", land: "Boss of the main cavern (the bone throne)", ground: "#3a3430",
+  sizeText: "Sitting on its throne it is about <b>6 m</b> tall. The tamer beside it is 1.7 m.", ad: [
+  "A dragon skeleton in old knight's armour, with a crown of horns", "Sits on a throne of bones and guards the deepest cavern", "Its huge bone glaive can crack the floor open", "Beat it the first time and it drops a rare cave egg"],
+  hunt: "Fights in three phases. It swings its giant glaive from the throne, and every time its armour cracks it SLAMS the floor and calls more skeletons out of the ground (two, then four, then six). In the last phase it stands up and spreads its bone wings. First win: a rare cave egg!",
+  make() {
+    const g = new THREE.Group(), bm = std("#e4d6b8", { roughness: 0.65 }), bm2 = std("#c8b898", { roughness: 0.75 }), stone = std("#5a524a", { roughness: 1, map: stoneTex("#5a524a", ["#4a423a", "#6a6058"]) }),
+      armor = std("#6a7a8c", { roughness: 0.4, metalness: 0.25 }), trim = std("#c89a3a", { roughness: 0.4, metalness: 0.3 }), cloth = std("#4a1a2a", { roughness: 0.9, side: THREE.DoubleSide }),
+      wingSkin = std("#3a3440", { side: THREE.DoubleSide, roughness: 0.9, transparent: true, opacity: 0.88 }), fire = "#5affd0";
+    // throne
+    const throne = new THREE.Group(); g.add(throne);
+    throne.add(mesh(new THREE.BoxGeometry(2.6, 0.3, 2.8), stone, -0.2, 0.15, 0)); throne.add(mesh(new THREE.BoxGeometry(2.2, 0.3, 2.4), stone, -0.3, 0.45, 0));
+    throne.add(mesh(new THREE.BoxGeometry(1.2, 0.6, 1.5), stone, -0.55, 0.9, 0));
+    throne.add(mesh(new THREE.BoxGeometry(1.2, 0.12, 1.6), cloth, -0.5, 1.24, 0));
+    for (let i = 0; i < 9; i++) { const z = -0.8 + i * 0.2, h = 2.6 + (1 - Math.abs(i - 4) / 4) * 1.1; throne.add(bone(new V(-1.1, 0.6, z), new V(-1.12, h, z), 0.07, i % 2 ? bm2 : bm)); }
+    throne.add(mesh(new THREE.BoxGeometry(0.25, 0.25, 2.3), bm2, -1.1, 2.5, 0));
+    [-0.85, 0, 0.85].forEach((z, i) => { const s = skullHead(i === 1 ? 0.24 : 0.18, bm, i === 1 ? fire : null, 5); s.position.set(-1.05, (i === 1 ? 3.85 : 2.8), i === 1 ? 0 : z * 1.24); throne.add(s); });
+    [1, -1].forEach(s => { throne.add(bone(new V(-1.0, 1.75, 0.82 * s), new V(0.15, 1.75, 0.82 * s), 0.07, bm)); throne.add(limb(new V(0.05, 0.6, 0.82 * s), new V(0.05, 1.7, 0.82 * s), 0.08, 0.08, bm2)); const sk = skullHead(0.14, bm, null, 4); sk.position.set(0.22, 1.85, 0.82 * s); throne.add(sk); });
+    // the warden, sitting, facing +x
+    const W = new THREE.Group(); W.position.set(-0.45, 1.3, 0); g.add(W);
+    [1, -1].forEach(s => { W.add(bone(new V(0, 0.05, 0.3 * s), new V(0.85, 0.08, 0.32 * s), 0.08, bm)); W.add(bone(new V(0.88, 0.05, 0.32 * s), new V(0.95, -0.6, 0.34 * s), 0.07, bm));
+      W.add(mesh(new THREE.BoxGeometry(0.42, 0.18, 0.26), armor, 1.05, -0.62, 0.34 * s)); W.add(mesh(sph(0.15, 14, 10), armor, 0.88, 0.08, 0.32 * s, 1, 1, 1)); W.add(mesh(new THREE.BoxGeometry(0.1, 0.4, 0.22), armor, 1.0, -0.3, 0.34 * s)); });
+    W.add(mesh(new THREE.TorusGeometry(0.28, 0.08, 8, 18), bm2, 0, 0.1, 0)).children.slice(-1)[0].rotation.x = Math.PI / 2;
+    const torso = new THREE.Group(); torso.position.set(0, 0.2, 0); W.add(torso);
+    torso.add(limb(new V(0, 0, 0), new V(0, 1.3, 0), 0.07, 0.07, bm));
+    for (let i = 0; i < 3; i++) { const r = mesh(new THREE.TorusGeometry(0.3 - i * 0.02, 0.035, 6, 18, Math.PI * 1.6), bm, 0.05, 0.25 + i * 0.13, 0); r.rotation.set(Math.PI / 2, 0, -Math.PI * 0.8); torso.add(r); }
+    torso.add(mesh(sph(0.48, 22, 16), armor, 0.04, 0.95, 0, 0.75, 0.85, 1.1));
+    torso.add(mesh(new THREE.TorusGeometry(0.46, 0.03, 6, 26), trim, 0.04, 0.68, 0, 0.75, 1.1, 1)).children.slice(-1)[0].rotation.x = Math.PI / 2;
+    const gem = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.06, 6), trim, 0.4, 1.0, 0); gem.rotation.z = Math.PI / 2; torso.add(gem); torso.add(mesh(sph(0.07, 12, 8), glow(fire), 0.43, 1.0, 0, 0.5, 1, 1));
+    [1, -1].forEach(s => { const p = mesh(new THREE.SphereGeometry(0.3, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), armor, 0, 1.3, 0.55 * s); p.rotation.x = s * 0.35; torso.add(p);
+      for (let k = 0; k < 3; k++) { const sp = mesh(new THREE.ConeGeometry(0.05, 0.25, 6), trim, -0.1 + k * 0.1, 1.55, 0.62 * s); sp.rotation.x = s * 0.4; torso.add(sp); } });
+    // cape behind
+    const cape = mesh(new THREE.PlaneGeometry(1.1, 1.6, 4, 6), cloth, -0.32, 0.6, 0); cape.rotation.y = Math.PI / 2; torso.add(cape);
+    // dragon skull head with a crown of horns
+    const head = new THREE.Group(); head.position.set(0.05, 1.62, 0); head.scale.setScalar(1.35); torso.add(head);
+    head.add(limb(new V(0, -0.2, 0), new V(0.05, 0.1, 0), 0.07, 0.07, bm));
+    const cr = mesh(sph(0.3, 22, 16), bm, 0.08, 0.28, 0, 1.15, 0.85, 0.9); head.add(cr);
+    head.add(mesh(new THREE.BoxGeometry(0.55, 0.18, 0.3), bm, 0.42, 0.18, 0)); head.add(mesh(sph(0.15, 14, 10), bm, 0.68, 0.2, 0, 0.8, 0.65, 1.0));
+    const jaw = new THREE.Group(); jaw.position.set(0.15, 0.06, 0); head.add(jaw); jaw.add(mesh(new THREE.BoxGeometry(0.58, 0.08, 0.24), bm2, 0.26, -0.03, 0));
+    for (let i = 0; i < 5; i++) [1, -1].forEach(s => { const tt = mesh(new THREE.ConeGeometry(0.022, 0.08, 5), std("#fff6e6"), 0.25 + i * 0.1, 0.07, 0.12 * s); tt.rotation.z = Math.PI; head.add(tt); });
+    const dk = std("#120c0a", { roughness: 1 });
+    [1, -1].forEach(s => { head.add(mesh(sph(0.08, 12, 8), dk, 0.3, 0.33, 0.17 * s, 1.0, 0.8, 0.6)); head.add(mesh(sph(0.04, 10, 8), glow(fire), 0.34, 0.33, 0.19 * s)); const h = halo(fire, 0.5, 0.8); h.position.set(0.36, 0.33, 0.2 * s); head.add(h);
+      const horn = new THREE.Group(); horn.position.set(-0.02, 0.45, 0.16 * s); head.add(horn);
+      for (let k = 0; k < 4; k++) horn.add(mesh(new THREE.ConeGeometry(0.07 - k * 0.012, 0.22, 8), bm2, -0.1 * k - 0.02, 0.08 + k * 0.08 - k * k * 0.02, 0.03 * k * s)).children.slice(-1)[0].rotation.z = 0.5 + k * 0.25; });
+    head.add(mesh(new THREE.TorusGeometry(0.24, 0.035, 6, 20), trim, 0.06, 0.5, 0)).children.slice(-1)[0].rotation.x = Math.PI / 2;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; head.add(mesh(new THREE.ConeGeometry(0.035, 0.14, 5), trim, 0.06 + Math.cos(a) * 0.24, 0.58, Math.sin(a) * 0.24)); }
+    // arms: the left rests on the armrest, the right holds the glaive
+    const mkArm = s => { const a = new THREE.Group(); a.position.set(0.0, 1.3, 0.62 * s); torso.add(a);
+      a.add(bone(new V(0, 0, 0), new V(0.25, -0.5, 0.12 * s), 0.055, bm)); a.add(bone(new V(0.25, -0.5, 0.12 * s), new V(0.7, -0.55, 0.12 * s), 0.05, bm));
+      a.add(mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), armor, 0.75, -0.56, 0.12 * s)); a.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.28, 10), armor, 0.48, -0.53, 0.12 * s)).children.slice(-1)[0].rotation.z = Math.PI / 2; return a; };
+    const armL = mkArm(-1), armR = mkArm(1);
+    const glaive = new THREE.Group(); glaive.position.set(0.78, -0.56, 0.12); armR.add(glaive);
+    glaive.add(limb(new V(0, -1.6, 0), new V(0, 1.4, 0), 0.04, 0.04, std("#5a4030", { roughness: 0.8 })));
+    const bladeShape = new THREE.Shape(); bladeShape.moveTo(0, 0); bladeShape.quadraticCurveTo(0.5, 0.2, 0.55, 0.85); bladeShape.quadraticCurveTo(0.25, 0.5, 0, 0.55); bladeShape.lineTo(0, 0);
+    const blade = mesh(new THREE.ExtrudeGeometry(bladeShape, { depth: 0.04, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 1 }), bm, 0.02, 1.1, -0.02); glaive.add(blade);
+    glaive.add(mesh(sph(0.08, 12, 8), glow(fire), 0, 1.15, 0)); const gh = halo(fire, 0.6, 0.7); gh.position.y = 1.15; glaive.add(gh);
+    glaive.add(mesh(new THREE.ConeGeometry(0.05, 0.25, 6), trim, 0, 1.52, 0));
+    // bone wings behind the throne
+    const wings = [1, -1].map(s => { const w = batWing(2.2, s, bm, wingSkin, 0.05); w.position.set(-0.45, 1.25, 0.4 * s); w.rotation.set(-s * 0.35, 0, -Math.PI / 2); torso.add(w); return { w, s }; });
+    // the rare cave egg reward on a little stand
+    const egg = new THREE.Group(); egg.position.set(0.9, 0, -1.7); g.add(egg);
+    egg.add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.5, 10), stone, 0, 0.25, 0));
+    const eg = mesh(sph(0.2, 18, 14), std("#2a3a44", { roughness: 0.3, emissive: C(fire), emissiveIntensity: 0.9, emissiveMap: crackTex("#ffffff", 16) }), 0, 0.72, 0, 0.85, 1.2, 0.85); egg.add(eg);
+    const egh = halo(fire, 1.0, 0.5); egh.position.y = 0.72; egg.add(egh);
+    // summoned skeletons that climb out of the floor
+    const minions = []; const R = rnd(9);
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Group(), a = -1.1 + i * 0.44, r = 2.4 + (i % 2) * 0.5; m.position.set(Math.cos(a) * r + 0.3, 0, Math.sin(a) * r); m.rotation.y = faceTo(a) + Math.PI; g.add(m);
+      const sk2 = skullHead(0.13, bm, fire, 4); sk2.position.y = 1.0; m.add(sk2);
+      m.add(limb(new V(0, 0.45, 0), new V(0, 0.85, 0), 0.025, 0.025, bm)); for (let k = 0; k < 3; k++) { const rr = mesh(new THREE.TorusGeometry(0.11, 0.018, 6, 14, Math.PI * 1.5), bm, 0.1, 0.78 - k * 0.09, 0); rr.rotation.set(Math.PI / 2, 0, Math.PI * 0.25); m.add(rr); }
+      [1, -1].forEach(s => { m.add(bone(new V(0, 0.45, 0.07 * s), new V(0.02, 0.02, 0.09 * s), 0.022, bm)); m.add(bone(new V(0, 0.84, 0.16 * s), new V(0.25, 0.75 + s * 0.15, 0.2 * s), 0.02, bm)); });
+      const hole = mesh(new THREE.CircleGeometry(0.35, 16), new THREE.MeshBasicMaterial({ color: C("#120e0c"), transparent: true, opacity: 0.8, depthWrite: false }), Math.cos(a) * r + 0.3, 0.02, Math.sin(a) * r); hole.rotation.x = -Math.PI / 2; hole.castShadow = false; g.add(hole);
+      minions.push({ m, hole, d: R() * 0.4 });
+    }
+    const ring = mesh(new THREE.RingGeometry(0.85, 1.0, 48), new THREE.MeshBasicMaterial({ color: C(fire), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }), 1.2, 0.04, 0.3);
+    ring.rotation.x = -Math.PI / 2; ring.castShadow = false; g.add(ring);
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 9, up = ramp(c, 3.0, 4.0), down = ramp(c, 4.2, 4.45), back = ramp(c, 6.5, 7.6);
+      torso.rotation.z = Math.sin(t * 1.2) * 0.015 - (up * (1 - down)) * 0.08 + down * (1 - back) * 0.12; torso.scale.y = 1 + Math.sin(t * 1.2) * 0.008;
+      armR.rotation.z = up * (1 - down) * 1.2 - down * (1 - back) * 0.25; armR.rotation.x = up * (1 - down) * -0.3;
+      glaive.rotation.z = up * (1 - down) * 0.6 - down * (1 - back) * 0.8;
+      head.rotation.y = Math.sin(t * 0.5) * 0.25; jaw.rotation.z = -pulse(c, 4.3, 5.4) * 0.5 - Math.max(0, Math.sin(t * 1.1)) * 0.05;
+      wings.forEach(o => { o.w.rotation.x = -o.s * (0.35 - pulse(c, 4.1, 6.5) * 0.3 + Math.sin(t * 0.8) * 0.04); });
+      const rw = ramp(c, 4.45, 6.0); ring.scale.setScalar(0.5 + rw * 3); ring.material.opacity = c > 4.45 && c < 6 ? (1 - rw) * 0.8 : 0;
+      minions.forEach((o, i) => { const rise = ease(ramp(c, 4.6 + o.d, 5.6 + o.d)) * (1 - ease(ramp(c, 7.8, 8.6))); o.m.position.y = -1.2 * (1 - rise); o.m.visible = rise > 0.02; o.hole.visible = rise > 0.02 || (c > 4.5 && c < 8.7); o.m.rotation.z = Math.sin(t * 6 + i) * 0.05 * rise; });
+      eg.rotation.y = t * 0.6; egh.material.opacity = 0.4 + Math.sin(t * 2) * 0.15;
+    } }; return I;
+  } });
+
+Object.assign(SIZE_M, { "Bone Crawler": 1.6, "Crypt Bat Swarm": 1.0, "Grave Golem": 3.4, "Wisp Lantern": 0.9, "Skull Spider": 1.0, "Shade Hound": 1.1,
+  "Rattlebones": 1.3, "Blood Bat": 2.5, "The Crypt Warden": 6 });
+
+})();
 MON.forEach(m => m.sizeM = SIZE_M[m.name] || 1.5);
 return MON;
 })();
@@ -7253,6 +8210,16 @@ const MONSTER = {
   "Toxic Wisp":        { land: "Blightwood", night: true, fly: 1, lv: [16, 20], hp: 0.7, dmg: 1.0, speed: 9, atk: "Poison blast", range: 3, ph: [1, 1, 1, 1, 0.1] },
   "Blightpede":        { land: "Blightwood", night: true, lv: [16, 20], hp: 1.0, dmg: 1.0, speed: 15, atk: "Poison ring", range: 2.5, ph: [1, 1, 1, 1, 0.1] },
   "Moonmantis":        { land: "Blightwood", night: true, lv: [16, 20], hp: 1.2, dmg: 1.4, speed: 9, atk: "Double slash", range: 3.5, ph: [m => m.guard === false ? 4 : 1, 2.5, 2.6, 3.5, 0.9] },
+  // Bone Caves
+  "Bone Crawler":     { land: "Bone Caves", lv: [18, 22], hp: 1.2, dmg: 1.1, speed: 9, atk: "Bone pincer", range: 3 },
+  "Crypt Bat Swarm":  { land: "Bone Caves", fly: 5, lv: [18, 22], hp: 1.4, dmg: 0.8, speed: 12, atk: "Swarm bites", range: 3.5, swarm: true },
+  "Grave Golem":      { land: "Bone Caves", lv: [20, 24], hp: 2.2, dmg: 1.5, speed: 3, atk: "Tombstone slam", range: 8, big: true, disguise: "The gravestones stand up!", warn: 1.2 },
+  "Wisp Lantern":     { land: "Bone Caves", night: true, fly: 2, lv: [19, 23], hp: 0.8, dmg: 1.2, speed: 7, atk: "Ghost flame", range: 16, shot: "#8affb0" },
+  "Skull Spider":     { land: "Bone Caves", lv: [19, 23], hp: 1.0, dmg: 1.3, speed: 10, atk: "Web spit", range: 13, shot: "#e8e8e0" },
+  "Shade Hound":      { land: "Bone Caves", lv: [20, 24], hp: 1.1, dmg: 1.4, speed: 16, atk: "Shadow bite", range: 2.8, pack: 2 },
+  "Rattlebones":      { land: "Bone Caves", lv: [19, 23], hp: 1.0, dmg: 1.2, speed: 8, atk: "Bone toss", range: 14, disguise: "The bone pile gets up!" },
+  "Blood Bat":        { land: "Bone Caves", night: true, fly: 4, lv: [20, 24], hp: 0.9, dmg: 1.3, speed: 13, atk: "Life drain", range: 2.6 },
+  "The Crypt Warden": { land: "Bone Caves", lv: [24, 28], hp: 3.2, dmg: 1.6, speed: 4, atk: "Soul scythe", range: 7, big: true, rare: 0.3, sense: 40, warn: 1.2 },
   // Hydra Valley
   "Great Hydra":       { land: "Hydra Valley", lv: [20, 24], hp: 3.0, dmg: 1.4, speed: 4, atk: "Triple bite", range: 6, big: true, rare: 0.35, sense: 40, warn: 1.0, ph: [m => m.stump > 0 ? 6 : 2.8, 0, 2.5, 2.5, 0.1] },
   "Hydra Hatchlings":  { land: "Hydra Valley", lv: [16, 20], hp: 1.2, dmg: 0.7, speed: 8, atk: "Nip nip nip", range: 2.6, ph: [m => m.squeak > 0 && !m.called ? 3.8 : 1, 1, 1, 1, 0.1] },
@@ -7374,7 +8341,7 @@ function monInFront(maxD, halfAng, all) {
 }
 function damageMon(m, dmg, crit, how) {
   let note = "";
-  if (m.d.swarm) { if (how === "breath") { dmg = Math.round(dmg * 1.5); note = "The breath scatters the swarm! "; } else { dmg = Math.max(1, Math.round(dmg / 3)); note = "Only a few beetles hit. Try breath! "; } }
+  if (m.d.swarm) { if (how === "breath") { dmg = Math.round(dmg * 1.5); note = "The breath scatters the swarm! "; } else { dmg = Math.max(1, Math.round(dmg / 3)); note = "Only a few of them get hit. Try breath! "; } }
   if (how === "breath" && PST().weak > 0) { dmg = Math.max(1, Math.round(dmg * 0.6)); note = "Your breath is weak from the frog poison! "; }
   const mv = MOVES[m.kind]; if (mv && mv.hurt) { const r = mv.hurt(m, dmg, how); dmg = r[0]; if (r[1]) note = r[1]; }
   if (m.d.burrow && m.inst.phase === 1 && how === "claw") { dmg = Math.max(1, Math.round(dmg / 2)); note = "It's under the sand! "; }
@@ -9964,7 +10931,7 @@ function sfx(name) {
 // make withered trees GROW again. Twelve spots around the lands hide a treasure chest behind one of these. Ride up and press F.
 const SKILL = {
   Burn:   { verb: "burn the brambles away", need: "a fire dragon", col: "#ff7a2a", lands: ["Deep Forest", "Green Valley"] },
-  Smash:  { verb: "smash the cracked boulder", need: "a rock or cave dragon", col: "#b0a090", lands: ["Desert", "Crystal Caves"] },
+  Smash:  { verb: "smash the cracked boulder", need: "a rock or cave dragon", col: "#b0a090", lands: ["Desert", "Crystal Caves", "Bone Caves"] },
   Freeze: { verb: "freeze the geyser", need: "an ice dragon", col: "#bfe8ff", lands: ["Frost Peaks", "Ocean"] },
   Gust:   { verb: "blow the storm cloud away", need: "a sky dragon", col: "#e8f4ff", lands: ["Sky Islands", "Sky Islands"] },
   Wash:   { verb: "wash the mud away", need: "a water dragon", col: "#5ab8ff", lands: ["Ocean", "Desert"] },
