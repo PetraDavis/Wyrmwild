@@ -7423,7 +7423,7 @@ MON.push({ name: "Foxfire Kits", group: "Autumn Woods", land: "Autumn Woods", gr
     const I = { g, phase: null, update: t => {
       const c = I.phase ?? t % 5, cp = c > 2 && c < 4.5 ? Math.min(1, (c - 2) * 3) : 0;
       kits.forEach((o, i) => { const base = i < 3 ? i : (i - 3) % 3, off = i < 3 ? 0 : (i < 6 ? 0.7 : -0.7) * cp, a = t * 1.2 + base / 3 * 6.28 + off, r = 1.3 + (i >= 3 ? cp * 0.2 : 0);
-        o.k.visible = i < 3 || cp > 0.05; o.k.position.set(Math.cos(a) * r, Math.abs(Math.sin(t * 8 + i)) * 0.06, Math.sin(a) * r); o.k.rotation.y = faceTo(a) + Math.PI; o.tail.rotation.z = Math.sin(t * 6 + i) * 0.3; });
+        o.k.visible = i < 3 || cp > 0.05; o.k.position.set(Math.cos(a) * r, Math.abs(Math.sin(t * 8 + i)) * 0.06, Math.sin(a) * r); o.k.rotation.y = faceTo(a); o.tail.rotation.z = Math.sin(t * 6 + i) * 0.3; });
     } }; return I;
   } });
 
