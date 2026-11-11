@@ -1105,7 +1105,8 @@ function update(t, walk, flap, dt, bend = 0) {
   hoverK += (((api && api.hover) && flap ? 1 : 0) - hoverK) * Math.min(1, dt * 3);   // HOVER (Petra 2026-11-10): flying but standing still
   wingPh += dt * (shells.length ? (o.flapSpeed || 7) * 2.2 : (o.flapSpeed || 7) * (1 - 0.35 * hoverK));
   const flapSpeed = o.flapSpeed || 7; // negative rotation = wings up; the up-stroke stops before the wings cross
-  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
+  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes
+    const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
     if (shells.length) { w.pivot.rotation.y = w.zs * f * -0.52; w.pivot.rotation.z = 0; w.pivot.scale.set(1 - 0.45 * f, 1 - 0.45 * f, 1 - 0.78 * f); w.pivot.position.y = w.y0 - f * 0.22; } });
   const airRun = flap && airPuffs.length;   // skyRun dragons bound through the air instead of tucking their legs
   if (api) { const c = walkT; const tread = airRun && hoverK > 0.5; api.airBob = tread ? 0.05 * Math.sin(c * 2) : airRun ? 0.28 * Math.sin(c - 0.6) : hoverK * 0.16 * Math.sin(wingPh - 1.2); api.airPitch = tread ? 0.04 * Math.sin(c) : airRun ? 0.16 * Math.cos(c) : hoverK * (0.22 + 0.04 * Math.sin(wingPh)); }   // hover: each downstroke lifts the body a little, nose tipped up   // rise during the stretch, dip into the next push; nose up as it pushes off
