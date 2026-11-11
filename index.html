@@ -269,7 +269,14 @@ function fillTube(geo, pts, rad, sx = 1, sy = 1, transport = false, bellyDir = n
       side.addScaledVector(T, -side.dot(T)).normalize();
     } else {
       const s2 = new V().crossVectors(T, i === 0 && Math.abs(T.y) > 0.9 ? new V(1, 0, 0) : UP);
-      if (s2.lengthSq() > 1e-6) side = s2.normalize();
+      if (s2.lengthSq() > 1e-6) {
+        s2.normalize();
+        if (i > 0) {   // Petra: the hanging tail twisted. Keep the side continuous: never let it flip over, and near-vertical stretches just carry the last side along
+          if (s2.dot(side) < 0) s2.negate();
+          const tr = side.clone().addScaledVector(T, -side.dot(T)).normalize(), k = Math.min(1, Math.max(0, (Math.abs(T.y) - 0.6) / 0.3));
+          side = s2.lerp(tr, k).normalize();
+        } else side = s2;
+      }
     }
     const nrm = new V().crossVectors(side, T).normalize();
     const r = rad(i / segs);
@@ -363,20 +370,23 @@ function paint(p) {
       [0.17, 0.33].forEach(v => { const y = v * H, w = 20 * sz + 6, h = 5 * sz + 2; e.beginPath(); e.ellipse(x, y + (v < 0.25 ? -k % 2 * 2 : k % 2 * 2), w, h, v < 0.25 ? -0.25 : 0.25, 0, Math.PI * 2); e.fill(); });
     }
     e.fillRect(0, H * 0.245, 150, 3);
-  } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, fresh): glowing FOX-RED swirls flowing from the spine down both sides, smaller ones up the neck
-    const red = p.foxMarks || p.glow, hot = p.foxGlow || red;   // the glow is fox red too, not flame orange
-    const swirl = (c, x, sd, len, r0, lw) => {   // a stroke from the spine curving down the side, ending in a spiral curl
-      const Y = v => H * 0.25 + sd * v, pts = [];
-      for (let i = 0; i <= 24; i++) { const t = i / 24; pts.push([x - t * len * 0.35 + Math.sin(t * Math.PI) * len * 0.25, 4 + t * len]); }
-      const [ex, ev] = pts[pts.length - 1]; for (let a = 0; a < 8; a += 0.22) { const r = r0 * (1 - a / 9); pts.push([ex + r0 - Math.cos(a) * r, ev - r0 * 0.15 + Math.sin(a) * r * 0.9 - (a > 0 ? 0 : 0)]); }
-      for (let i = 1; i < pts.length; i++) { const t = i / pts.length; c.lineWidth = 1.5 * Math.max(lw * 0.3, lw * (0.45 + 0.55 * Math.sin(Math.min(1, t * 1.6) * Math.PI / 2)) * (1 - t * 0.55)); c.beginPath(); c.moveTo(pts[i - 1][0], Y(pts[i - 1][1])); c.lineTo(pts[i][0], Y(pts[i][1])); c.stroke(); }
-    };
-    [[g, red, 0], [e, hot, 10]].forEach(([c, col, blur]) => {
-      c.save(); c.globalAlpha = 1; c.strokeStyle = c.fillStyle = c.shadowColor = col; c.shadowBlur = blur; c.lineCap = c.lineJoin = "round";
-      c.lineWidth = 6; c.beginPath(); c.moveTo(340, H * 0.25); c.lineTo(980, H * 0.25); c.stroke();   // a fine line down the spine joins them
-      [1, -1].forEach(sd => {
-        [[400, 46, 11, 9], [460, 60, 14, 11], [525, 70, 16, 12], [590, 66, 15, 12], [650, 56, 13, 10], [700, 44, 10, 8]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));   // big swirls down the body
-        [[760, 30, 7, 6], [830, 26, 6, 5], [900, 22, 5, 4]].forEach(([x, len, r0, lw]) => swirl(c, x, sd, len, r0, lw));                                   // little ones up the neck
+  } else if (pat === "foxfire") {   // Vulpyre (Petra 2026-11-10, our own kitsune style): bold fox-red brush strokes sweeping down from the spine, a teardrop swirl on each hip and shoulder, sharp chevrons on the neck; painted red with a soft foxfire glow
+    const red = p.foxBody || p.foxMarks || p.glow;
+    const stroke = (c, x, sd, len, w, lean) => { const Y = v => H * 0.25 + sd * v, N = 16, L = [], R = [];   // a stripe that bends in a smooth curve as it runs down the side (Petra)
+      for (let i = 0; i <= N; i++) { const t = i / N, cxp = x - lean * t * t * 1.4 + Math.sin(t * Math.PI) * w * 1.2, hw = w * (1 - t) ** 0.8 + 0.6; L.push([cxp - hw, Y(t * len)]); R.push([cxp + hw, Y(t * len)]); }
+      c.beginPath(); c.moveTo(...L[0]); L.forEach(q => c.lineTo(...q)); R.reverse().forEach(q => c.lineTo(...q)); c.closePath(); c.fill(); };
+    const tear = (c, x, sd, v, r0) => { const Y = vv => H * 0.25 + sd * vv; c.beginPath(); c.arc(x, Y(v), r0, 0, Math.PI * 2); c.fill();   // a round head with a tail that curls back and up toward the spine
+      c.beginPath(); c.moveTo(x - r0 * 0.2, Y(v - r0)); c.quadraticCurveTo(x - r0 * 2.2, Y(v - r0 * 0.6), x - r0 * 2.6, Y(v - r0 * 2.6)); c.quadraticCurveTo(x - r0 * 1.4, Y(v - r0 * 0.2), x + r0 * 0.4, Y(v + r0 * 0.9)); c.closePath(); c.fill();
+      c.save(); c.globalCompositeOperation = "destination-out"; c.globalAlpha = c === g ? 0 : 1; c.restore(); };
+    [[g, red, 0, 1], [e, red, 10, 0.5]].forEach(([c, col, blur, al]) => {
+      c.save(); c.globalAlpha = al; c.fillStyle = c.strokeStyle = c.shadowColor = col; c.shadowBlur = blur;
+      [[1, 0], [-1, 0], [-1, H]].forEach(([sd, oy]) => {   // the -1 side runs up past the top of the texture: draw it again one wrap lower so it isn't cut off (Petra: both sides must match)
+        c.save(); c.translate(0, oy);
+        stroke(c, 470, sd, 96, 15, 34); stroke(c, 530, sd, 80, 12, 28); stroke(c, 588, sd, 92, 14, 32);   // brush strokes over the back, sweeping down and back
+        stroke(c, 440, sd, 46, 8, 14); stroke(c, 620, sd, 44, 8, 12);
+        tear(c, 395, sd, 62, 15); tear(c, 668, sd, 66, 13);                                                  // teardrop swirls on hip and shoulder
+        [[760, 40, 10], [815, 34, 8], [870, 28, 7], [925, 20, 5]].forEach(([x, len, w]) => stroke(c, x, sd, len, w, 16));   // chevrons up the neck
+        c.restore();
       });
       c.restore();
     });
@@ -578,11 +588,19 @@ function leg(s, zOff, pts, radii, toeLen) {
   const KI = 2, kf = KI / (vs.length - 1);
   const rAt = f => { for (let i = 1; i < rr.length; i++) if (f <= rr[i][0]) { const [a0, r0] = rr[i - 1], [a1, r1] = rr[i]; return r0 + (r1 - r0) * (f - a0) / (a1 - a0); } return rr[rr.length - 1][1]; };
   const kR = rAt(kf), kp = vs[KI].clone();
-  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.top, 20, 16, 0.85, 1));
+  if (o.legMarks && !M.thigh) {   // Vulpyre (Petra): markings on the legs too: a glowing foxfire swoosh on each thigh, red flame-pointed socks rising up each shin
+    const mk = (draw) => { const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const cx = cv.getContext("2d"); draw(cx); const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t; };
+    const swoosh = (cx, col, blur) => { cx.strokeStyle = cx.fillStyle = cx.shadowColor = col; cx.shadowBlur = blur; cx.lineCap = "round"; [0, 64, 128].forEach(y0 => { for (let i = 0; i < 30; i++) { const t = i / 30, t2 = (i + 1) / 30, P = t => [30 + t * 170, y0 - 8 + Math.sin(t * Math.PI) * 16]; cx.lineWidth = 4 + 14 * Math.sin(t * Math.PI) ** 0.7; cx.beginPath(); cx.moveTo(...P(t)); cx.lineTo(...P(t2)); cx.stroke(); } cx.lineWidth = 5; cx.beginPath(); cx.arc(212, y0, 9, -Math.PI * 0.9, Math.PI * 0.9); cx.stroke(); }); };
+    const sock = (cx, col) => { cx.fillStyle = col; cx.beginPath(); cx.moveTo(256, 0); for (let y = 0; y <= 128; y += 2) cx.lineTo(160 - 70 * Math.abs(Math.sin(y / 128 * Math.PI * 3)) ** 1.5, y); cx.lineTo(256, 128); cx.closePath(); cx.fill(); };
+    const base = "#" + new THREE.Color(p.top).getHexString(), glowC2 = p.foxBody || p.glow;
+    M.thigh = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 0); }), emissiveMap: mk(cx => { cx.fillStyle = "#000"; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 8); }), emissive: "#ffffff", emissiveIntensity: 0.45, roughness: M.top.roughness });
+    M.shin = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); sock(cx, p.socks || p.foxMarks); }), roughness: M.top.roughness });
+  }
+  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.thigh || M.top, 20, 16, 0.85, 1));
   const knee = new THREE.Group(); knee.position.copy(kp); g.add(knee); g.userData.knee = knee;
   const kc = new THREE.Mesh(new THREE.SphereGeometry(kR * 1.02, 18, 12), M.top); kc.scale.set(1, 1, 0.85); knee.add(kc);
   const low = new THREE.Group(); low.position.copy(kp).negate(); knee.add(low);   // shin parts keep leg-space coordinates
-  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.top, 20, 16, 0.85, 1));
+  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.shin || M.top, 20, 16, 0.85, 1));
   // round hip cap so the open top of the leg tube never shows from above
   const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
@@ -591,27 +609,34 @@ function leg(s, zOff, pts, radii, toeLen) {
   const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
   const foot = new THREE.Group(); foot.position.copy(last).negate(); ankP.add(foot);
   const endR = radii[radii.length - 1][1] * o.legThick * lowK;
-  const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), M.top);
+  const PM = p.socks ? (M.sock = M.sock || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.socks).convertSRGBToLinear(), roughness: 0.55 })) : M.top;   // coloured paws (Vulpyre)
+  const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), PM);
   ank.position.copy(last); foot.add(ank);
   if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
-    const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), M.top);
+    const hl = new THREE.Mesh(new THREE.CylinderGeometry(endR * 1.1, 0.1 * o.feet, 0.09 * o.feet, 18), PM);
     hl.position.copy(last).add(new V(0.02, -0.03 * o.feet, 0)); foot.add(hl);
   }
-  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), M.top);
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13 * o.feet, 20, 14), PM);
   pad.scale.set(1.35, 0.5, 1.15); pad.position.copy(last).add(new V(0.03, -0.035, 0)); foot.add(pad);
   const sgn = zOff > 0 ? 1 : -1, toes = [];
   const spr = o.webbed ? 0.85 : 0.5;   // webbed feet spread their toes wide so the webbing shows
-  [[-spr, 1, 0], [0, 1.1, 0], [spr, 1, 0], [Math.PI, 0.75, 0.05]].forEach(([a, len, lft]) => {
+  [[-spr, 1, 0], [0, 1.1, 0], [spr, 1, 0]].forEach(   // Petra 2026-11-10: no back claw on any dragon
+    ([a, len, lft]) => {
     const dir = new V(Math.cos(a), 0, Math.sin(a) * sgn);
     const t1 = last.clone().add(new V(0.03, -0.035, 0)).addScaledVector(dir, 0.08 * o.feet);
     const t2 = t1.clone().addScaledVector(dir, toeLen * len * o.feet).add(new V(0, -0.03 + lft, 0));
     if (a !== Math.PI) toes.push([t1, t2]);
-    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet * (o.webbed ? 0.8 : 1)], [1, 0.042 * o.feet * (o.webbed ? 0.8 : 1)]], M.top, 10, 10));
+    foot.add(staticTube([t1, t1.clone().lerp(t2, 0.5).add(new V(0, 0.025, 0)), t2], [[0, 0.07 * o.feet * (o.webbed ? 0.8 : 1)], [1, 0.042 * o.feet * (o.webbed ? 0.8 : 1)]], PM, 10, 10));
     const c = new THREE.Mesh(new THREE.ConeGeometry(0.04 * o.feet, 0.17 * o.feet * (o.digClaws ? 1.6 : 1) * (o.gentle ? 0.65 : 1), 10), (o.armor && o.armor.claw) || M.horn);
     c.position.copy(t2).addScaledVector(dir, 0.065 * o.feet).add(new V(0, -0.02, 0));
     c.quaternion.setFromUnitVectors(UP, dir.clone().add(new V(0, -0.5, 0)).normalize());
     foot.add(c);
   });
+  if (o.legFins) {   // Petra 2026-11-10: sleek fins sweeping back off each ankle (smooth, no fur strands)
+    const fs = new THREE.Shape(); fs.moveTo(0, 0); fs.quadraticCurveTo(-0.12, 0.02, -0.42, 0.3); fs.quadraticCurveTo(-0.2, 0.2, -0.3, 0.42); fs.quadraticCurveTo(-0.12, 0.26, -0.02, 0.2); fs.quadraticCurveTo(0.03, 0.1, 0, 0);
+    M.legFin = M.legFin || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.legFin || p.side).convertSRGBToLinear(), roughness: 0.5, side: THREE.DoubleSide });
+    const fin = new THREE.Mesh(new THREE.ShapeGeometry(fs, 12), M.legFin); fin.position.copy(last).add(new V(-endR * 0.6, 0.02, 0)); fin.scale.setScalar(o.legFins * o.legThick); foot.add(fin);
+  }
   if (o.webbed) {   // webbed feet (Petra 2026-11-10): a thin skin stretched between the three front toes, out to just short of the claws
     const pos = [];
     for (let k = 0; k < 2; k++) {
@@ -706,10 +731,17 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.1, 0.12, 0.24 * z); f.rotation.set(z * 1.1, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);
     }
     if (o.foxEars) {   // NEW: tall pointy fox ears, white fur inside, dark tips
-      const ear = new THREE.Group(); ear.position.set(-0.12, 0.2, 0.14 * z); ear.rotation.set(0.2 * z, -0.25 * z, 0.18); ear.scale.setScalar(o.earScale || 1.4); head.add(ear);
-      const outer = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 18), p.earColor ? new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earColor).convertSRGBToLinear(), roughness: 0.8 }) : M.top); outer.scale.set(1, 1, 0.6); outer.position.y = 0.15; outer.castShadow = true; ear.add(outer);
+      const ear = new THREE.Group(); ear.position.set(-0.12, 0.13, 0.13 * z); ear.rotation.set(0.2 * z, -0.25 * z, 0.18); { const es = o.earScale || 1.4; ear.scale.set(es, es * 1.25, es); } head.add(ear);   // taller so the tip stays as high as before; root sunk into the skull so it grows out of the head (Petra: ears looked stuck on)
+      const earM = p.earColor ? new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earColor).convertSRGBToLinear(), roughness: 0.8 }) : M.top;
+      const outer = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 18, 1, true), earM); outer.scale.set(1, 1, 0.6); outer.position.y = 0.15; outer.castShadow = true; ear.add(outer);
+      const root = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 12), earM); root.scale.set(1, 0.55, 0.6); root.position.y = 0.02; ear.add(root);   // rounded base that blends the ear into the head
       const inner = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.2, 14), p.earInner ? new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earInner).convertSRGBToLinear(), roughness: 0.9 }) : M.fur); inner.scale.set(1, 1, 0.3); inner.position.set(0.042, 0.115, 0); ear.add(inner);   // inside of the ear faces forward
       if (p.earTip) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.11, 12), new THREE.MeshStandardMaterial({ color: new THREE.Color(p.earTip).convertSRGBToLinear(), roughness: 0.8 })); t.scale.set(1, 1, 0.48); t.position.y = 0.29; ear.add(t); }
+    }
+    if (o.headMarks) {   // Vulpyre (Petra loves face markings): fox-red streaks lying on the skull: one sweeping back from each eye, one on each cheek, a flame on the forehead
+      M.mark = M.mark || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), roughness: 0.5, emissive: new THREE.Color(p.foxMarks || p.glow).convertSRGBToLinear(), emissiveIntensity: 0.35 });
+      const onSkull = (x, y, k = 1.0) => new V(x, y, z * 0.285 * k * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2 - (y / 0.27) ** 2)));
+      if (z > 0) { const top = x => new V(x, 0.27 * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2)), 0); head.add(staticTube([top(0.24), top(0.12), top(-0.02), top(-0.16)], [[0, 0.004], [0.3, 0.035], [0.65, 0.03], [1, 0.004]], M.mark, 16, 8, 1, 0.45)); }   // forehead flame
     }
     if (o.foxGem && z > 0) { const gm = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow2 || p.glow).convertSRGBToLinear() })); gm.scale.set(0.6, 1.3, 0.6); gm.position.set(sn(0.12), 0.21, 0); head.add(gm); }   // a glowing foxfire mark on the forehead
     if (o.frill === "fur") { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 1), M.fur); f.position.set(-0.1, 0.0, 0.25 * z); head.add(f); }
@@ -1058,6 +1090,7 @@ function update(t, walk, flap, dt, bend = 0) {
   head.position.copy(end.p).addScaledVector(fwd, 0.12).addScaledVector(up, 0.04);
   updateHeads(t, end, fwd, side, up);
   updateFoxTails(t);
+  updateMagic(t);
   updatePuffs(t);
   if (o.ghost) { const k = 0.5 + 0.5 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1); fadeAll(0.38 + 0.5 * k); M.wing.opacity = 0.3 + 0.45 * k; }   // the WHOLE dragon fades in and out like fog (legs and head too)
   if (o.zap && Math.random() < 0.08) M.body.emissiveIntensity *= 3.5;   // a crackle of lightning runs over its markings
@@ -1142,15 +1175,15 @@ function updateHeads(t, end, fwd, side, up) {
 // ---------- long fox tails (Vulpyre, Petra 2026-11-10): three sleek, smooth tails as long as a dragon's tail, white fading to a glowing foxfire tip ----------
 const foxTails = [];
 if (o.foxTails) {
-  const n = o.foxTails, L = 2.9 * (o.len || 1), FS = 40, white = new THREE.Color(p.side).convertSRGBToLinear(), tipC = new THREE.Color(p.foxMarks2 || p.foxMarks || p.glow).convertSRGBToLinear(), glowC = new THREE.Color(p.glow).convertSRGBToLinear();
-  const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05, emissive: glowC, emissiveIntensity: 0 });
+  const n = o.foxTails, L = 2.9 * (o.len || 1), FS = 40, white = new THREE.Color(p.side).convertSRGBToLinear(), tipC = new THREE.Color(p.foxTip || p.foxMarks2 || p.foxMarks || p.glow).convertSRGBToLinear(), glowC = new THREE.Color(p.glow).convertSRGBToLinear();
+  const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05, emissive: p.foxTip ? tipC : glowC, emissiveIntensity: 0 });
   fm.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= smoothstep(0.04, 0.35, length(vColor - vec3(" + [white.r, white.g, white.b].map(x => x.toFixed(4)).join(",") + ")));"); };
   for (let k = 0; k < n; k++) {
     const geo = makeTube(FS, 20), col = new Float32Array((FS + 1) * 21 * 3);
     for (let i = 0; i <= FS; i++) { const u = i / FS, m = Math.max(0, (u - 0.7) / 0.3) ** 1.3, c = white.clone().lerp(tipC, m); for (let j = 0; j <= 20; j++) col.set([c.r, c.g, c.b], (i * 21 + j) * 3); }
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     const mesh = new THREE.Mesh(geo, fm); mesh.castShadow = true; mesh.frustumCulled = false; dragon.add(mesh);
-    foxTails.push({ mesh, z: (k - (n - 1) / 2) * 0.55, hi: k === (n - 1) / 2 ? 0.3 : 0, ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
+    const c0 = (n - 1) / 2, d0 = c0 ? (k - c0) / c0 : 0; foxTails.push({ mesh, z: d0 * (n > 3 ? 1.0 : 0.55), hi: (n > 3 ? 0.55 : 0.3) * (1 - d0 * d0) + (n > 3 ? 0.25 * (k % 2) : 0), ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
   }
   fm.emissiveIntensity = 0.5 * (o.glow || 1);
   var foxTailL = L;
@@ -1159,6 +1192,7 @@ const _ft = [new V(), new V(), new V(), new V()], _ftB = new V();
 function updateFoxTails(t) {
   if (!foxTails.length) return;
   const base = _ftB.copy(frames[0].p).add(_ft[3].set(0.1, 0.18, 0)), dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
+  if (foxTails[0]) foxTails[0].mesh.material.emissiveIntensity = (0.7 + 0.45 * Math.sin(t * 2.2)) * (o.glow || 1);   // the tips breathe with light
   foxTails.forEach((f, k) => {
     const sway = Math.sin(t * 1.1 + f.ph) * (0.35 + 0.3 * idleK), lift = Math.sin(t * 0.8 + f.ph * 1.3) * 0.15;
     // a graceful S: out along the tail, rising, then the tip curls up; hovering lets them hang in a curve
@@ -1167,8 +1201,41 @@ function updateFoxTails(t) {
     const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
     if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
     f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
-    fillTube(f.mesh.geometry, f.pts, u => u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2)), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
+    const tk = foxTails.length > 3 ? 0.72 : 1; fillTube(f.mesh.geometry, f.pts, u => tk * (u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2))), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
   });
+}
+// ---------- foxfire magic (Vulpyre, Petra: "more magical, it looks bland"): spirit flames circling it, sparks rising off every tail tip, a slow glow pulse ----------
+const fxMagic = { orbs: [], sparks: null, sp: [], mat: null };
+if (o.foxfire) {
+  const flameTex = (() => { const cv = document.createElement("canvas"); cv.width = 64; cv.height = 96; const c = cv.getContext("2d");
+    const gr = c.createRadialGradient(32, 64, 2, 32, 60, 30); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.8)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = gr; c.beginPath(); c.moveTo(32, 4); c.bezierCurveTo(40, 30, 62, 46, 58, 66); c.bezierCurveTo(54, 88, 10, 88, 6, 66); c.bezierCurveTo(2, 46, 24, 30, 32, 4); c.fill(); return new THREE.CanvasTexture(cv); })();   // a teardrop flame
+  const dotTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 32; const c = cv.getContext("2d"), gr = c.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.4, "rgba(255,255,255,0.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = gr; c.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(cv); })();
+  const fc = new THREE.Color(p.foxFire || p.glow).convertSRGBToLinear();
+  for (let k = 0; k < 3; k++) {   // three spirit flames: an outer glow and a white-hot core
+    const g = new THREE.Group(), outer = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: fc, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    outer.scale.set(0.8, 1.2, 1); const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: 0xfff4d0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.85 }));
+    core.scale.set(0.34, 0.5, 1); core.position.y = -0.08; g.add(outer, core); dragon.add(g); fxMagic.orbs.push({ g, outer, ph: k * 2.094 });
+  }
+  const N = 70, pos = new Float32Array(N * 3), geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  fxMagic.mat = new THREE.PointsMaterial({ map: dotTex, color: fc, size: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  fxMagic.sparks = new THREE.Points(geo, fxMagic.mat); fxMagic.sparks.frustumCulled = false; dragon.add(fxMagic.sparks);
+  for (let i = 0; i < N; i++) fxMagic.sp.push({ p: new V(0, -99, 0), v: new V(), life: Math.random() * 1.6 });
+}
+let _mgT = 0;
+function updateMagic(t) {
+  if (!o.foxfire) return;
+  const dt = Math.min(0.05, Math.max(0, t - _mgT)); _mgT = t;
+  const mid = at(0.5).p;
+  fxMagic.orbs.forEach((b, k) => { const a = t * 0.7 + b.ph; b.g.position.set(mid.x + Math.cos(a) * 2.2, mid.y + 1.2 + Math.sin(t * 1.6 + b.ph) * 0.3, mid.z + Math.sin(a) * 2.2); const fl = 1 + Math.sin(t * 13 + k * 3) * 0.08; b.outer.scale.set(0.8 * fl, 1.2 / fl, 1); });
+  const pos = fxMagic.sparks.geometry.attributes.position.array;
+  fxMagic.sp.forEach((q, i) => {
+    q.life -= dt;
+    if (q.life <= 0 && foxTails.length) { const f = foxTails[i % foxTails.length], tip = f.pts[f.pts.length - 2]; q.p.copy(tip).add(_ft[3].set((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3)); q.v.set((Math.random() - 0.5) * 0.3, 0.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3); q.life = 1 + Math.random() * 0.8; }
+    q.p.addScaledVector(q.v, dt); pos[i * 3] = q.p.x; pos[i * 3 + 1] = q.p.y; pos[i * 3 + 2] = q.p.z;
+  });
+  fxMagic.sparks.geometry.attributes.position.needsUpdate = true;
+  fxMagic.mat.opacity = 0.75 + Math.sin(t * 3) * 0.2;
 }
 // ---------- walking on air (wingless dragons that fly anyway): glowing puffs under each paw ----------
 const airPuffs = [];
@@ -1177,7 +1244,7 @@ if (o.wings === "none" && o.skyRun) {   // see-through glowing "stepping stones"
   gr.addColorStop(0, "rgba(255,255,255,0.35)"); gr.addColorStop(0.55, "rgba(255,255,255,0.12)"); gr.addColorStop(0.82, "rgba(255,255,255,0.55)"); gr.addColorStop(0.9, "rgba(255,255,255,0.2)"); gr.addColorStop(1, "rgba(255,255,255,0)");
   cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128); const tex = new THREE.CanvasTexture(cv);
   const pc = o.puff || [p.glow, p.glow2 || "#ffffff", p.glow2 || "#ffffff"], gc = new THREE.Color(pc[0]).convertSRGBToLinear(), gc2 = new THREE.Color(pc[1]).convertSRGBToLinear(), gc3 = new THREE.Color(pc[2] || pc[1]).convertSRGBToLinear();   // o.puff: each kind its own step colours [halo, rim, sparks]
-  const mk = (c, map) => new THREE.MeshBasicMaterial({ color: c, map, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const mk = (c, map) => new THREE.MeshBasicMaterial({ color: c, ...(map ? { map } : {}), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const discG = new THREE.CircleGeometry(0.26, 32).rotateX(-Math.PI / 2), ringG = new THREE.TorusGeometry(0.2, 0.008, 6, 40).rotateX(Math.PI / 2), moteG = new THREE.SphereGeometry(0.018, 6, 4);
   legs.forEach(g => {
     const holder = g.userData.ankle || g, puff = new THREE.Group(); puff.position.y = -0.13;
@@ -1189,6 +1256,7 @@ if (o.wings === "none" && o.skyRun) {   // see-through glowing "stepping stones"
 function updatePuffs(t) {
   airPuffs.forEach(pf => { const a = pf.material.opacity, u = pf.userData;
     pf.visible = a > 0.005; if (!pf.visible) return;
+    if (o.noMotes) u.motes.forEach(m => { m.visible = false; });   // o.noMotes: rings stay, the little stars circling them go (Vulpyre, Petra)
     u.disc.material.opacity = a * 0.55; u.ring.material.opacity = Math.min(1, a * 1.3); u.ring.rotation.y = t * 0.6 + u.ph;
     u.motes.forEach((m, j) => { const an = t * 1.4 + u.ph + j * 1.57, rr = 0.17 + 0.05 * Math.sin(t * 2 + j); m.position.set(Math.cos(an) * rr, 0.02 + 0.12 * ((t * 0.5 + j * 0.25 + u.ph) % 1), Math.sin(an) * rr); m.material.opacity = a * (0.6 + 0.4 * Math.sin(t * 5 + j * 2)); });
   });
@@ -1203,6 +1271,250 @@ sockets.head = head;
 api = { root: dragon, update, seat, sockets, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
 return api;   // spikes: so a saddle or cape can hide the ones it covers
 }
+
+// ---------- fuzzy fur (Petra 2026-11-10): soft, short, plush shell fur for Vulpyre and the snow dragons ----------
+// addFur(api, opts) is called AFTER makeDragon() returns. It finds the body tube, the legs, the paws and the fox tails
+// under api.root and gives each one a stack of thin "shells" (one InstancedMesh = one draw call per part) that share
+// the part's own geometry, so they follow the animated spine for free. Each shell is pushed out along the normal and
+// cut into fine tapering strands by a hash pattern in the fragment shader; strands thin out towards the tips.
+// Returns api.fur = { setEnabled(on), enabled, opts, parts }.
+const FUR_DEFAULTS = {
+  length: 0.07,        // fur length in body units (the body is ~0.5 thick): short and plush
+  density: 60,         // strands per body unit (higher = finer, silkier)
+  shells: 16,          // shells on the body / fox tails
+  legShells: 10,       // shells on legs and paws
+  undercoat: 0.2,      // the lowest shells are solid (a soft undercoat), so no bare skin shows between strands
+  thickness: 0.95,     // strand thickness at the root (0..1.4 of a cell)
+  tint: null,          // optional colour the fur is mixed towards (e.g. "#ffffff")
+  tintK: 0,            // how much of tint (0..1)
+  tip: null,           // colour of the soft tips (default: the skin colour lifted towards white)
+  tipK: 0.45,          // how much the tips lighten
+  rootDark: 0.8,       // fur is darker near the skin (self-shadow): 1 = no darkening
+  droop: 0.35,         // gravity: tips sag down a little
+  sheen: 0.22,         // soft fuzzy rim light
+  ruff: 1.35,          // longer fur round the chest / base of the neck
+  tuft: 1.3,           // longer fur at the very tip of the tail
+  parts: { body: true, neck: true, tail: true, legs: true, paws: true, foxTails: true, head: false },
+  partLen: { tail: 1, body: 1, neck: 0.9, legs: 0.75, paws: 0.6, foxTails: 1.25, head: 0.35 },
+  hideClumps: true     // hide the old round "fur ball" clumps (back fur, mane, tail tuft) while fur is on
+};
+function addFur(api, opts) {
+  if (api.fur) api.fur.dispose();
+  const O = Object.assign({}, FUR_DEFAULTS, opts || {});
+  O.parts = Object.assign({}, FUR_DEFAULTS.parts, opts && opts.parts);
+  O.partLen = Object.assign({}, FUR_DEFAULTS.partLen, opts && opts.partLen);
+  const root = api.root, made = [], hidden = [], baseMats = new Map();
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // ----- shared shader patch -----
+  const HEAD = `
+uniform float uFurLen, uDroop;
+attribute float furLayer;
+attribute float furMul;
+varying vec2 vFurUv;
+varying float vFurL;
+varying float vFurMul;
+`;
+  const FHEAD = `
+uniform float uTipSet, uUnder, uDens, uThick, uCut, uRootDark, uTipK, uSheen, uTintK, uRu, uRv, uRingN, uCircMax;
+uniform vec3 uTip, uTint;
+uniform sampler2D uCirc;
+varying vec2 vFurUv;
+varying float vFurL;
+varying float vFurMul;
+float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+`;
+  function patch(sh, U, tube) {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = HEAD + sh.vertexShader
+      .replace("#include <begin_vertex>", `#include <begin_vertex>
+  vFurL = furLayer; vFurUv = uv; vFurMul = furMul;
+  transformed += objectNormal * (uFurLen * furLayer * furMul);`)
+      .replace("#include <project_vertex>", `#include <project_vertex>
+  mvPosition.xyz += (viewMatrix * vec4(0.0, -1.0, 0.0, 0.0)).xyz * (uFurLen * uDroop * furLayer * furLayer * furMul);
+  gl_Position = projectionMatrix * mvPosition;`);
+    sh.fragmentShader = FHEAD + sh.fragmentShader
+      .replace("#include <color_fragment>", `#include <color_fragment>
+  float furA = 1.0, furShade = 1.0;
+  {
+    if (vFurMul < 0.02) discard;
+    float L = vFurL;
+    ${tube ? `
+    // rows along the tube; each row gets its own strand count round the tube (from the ring's circumference) so strands stay round, even at the thin tail tip
+    float row = floor(vFurUv.x * uRu);
+    float ring = (row + 0.5) / uRu;
+    vec4 cc = texture2D(uCirc, vec2((floor(ring * (uRingN - 1.0) + 0.5) + 0.5) / uRingN, 0.5));
+    float circ = (cc.r * 255.0 * 256.0 + cc.g * 255.0) / 65535.0 * uCircMax;
+    float rv = max(4.0, floor(circ * uDens + 0.5));
+    vec2 fu = vec2(vFurUv.x * uRu, vFurUv.y * rv);` : `
+    vec2 fu = vFurUv * vec2(uRu, uRv);`}
+    vec2 cell = floor(fu), f = fract(fu) - 0.5;
+    float h1 = furH(cell), h2 = furH(cell + 17.31), h3 = furH(cell + 41.7);
+    vec2 c = (vec2(h2, h3) - 0.5) * 0.45;            // jitter the strand inside its cell
+    float hgt = mix(0.45, 1.0, h1 * h1 * 0.4 + h1 * 0.6);   // strand length: most long, some shorter (density falls off with height)
+    float k = L / hgt;
+    float r = uThick * 0.5 * pow(max(0.0, 1.0 - k), 0.7);    // tapering strand
+    float d = length(f - c);
+    furA = clamp((r - d) * 6.0 + 0.5, 0.0, 1.0);
+    if (k > 1.0) furA = 0.0;
+    #if __VERSION__ >= 300
+    // far away a strand is smaller than a pixel: blend towards its average coverage so the fur reads as a soft velvet, not grain
+    float px = min(fwidth(fu.x), fwidth(fu.y));      // min: edge-on (silhouette) stretching doesn't count as far
+    float far = 0.7 * smoothstep(0.55, 1.3, px);
+    furA = mix(furA, clamp(1.15 * (1.0 - L), 0.0, 1.0) * 0.85, far);
+    h2 = mix(h2, 0.5, far);
+    #endif
+    if (L < uUnder) furA = 1.0;                       // a dense undercoat: no bare skin shows between the strands
+    if (furA < uCut) discard;
+    // soft silhouette: towards the tips, strands seen edge-on fade out instead of bristling
+    float ndv = abs(dot(normalize(vNormal), normalize(vViewPosition)));
+    furA *= mix(1.0, smoothstep(0.02, 0.45, ndv), L * L * 0.7);
+    if (furA < uCut) discard;
+    furShade = mix(uRootDark, 1.0, smoothstep(0.0, 1.0, L)) * (0.96 + 0.08 * h2);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uTint, uTintK);
+    vec3 tipC = uTipSet > 0.5 ? uTip : diffuseColor.rgb + (1.0 - diffuseColor.rgb) * 0.5;   // tips: the fur's own colour, lighter
+    diffuseColor.rgb = mix(diffuseColor.rgb, tipC, uTipK * L * L);
+    diffuseColor.rgb *= furShade;
+    diffuseColor.a = furA;
+  }`)
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  totalEmissiveRadiance *= (1.0 - 0.45 * vFurL);
+  totalEmissiveRadiance += uSheen * diffuseColor.rgb * pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0) * vFurL;`);
+  }
+  const col = c => new THREE.Color(c).convertSRGBToLinear();
+  // ----- one fur stack for one mesh -----
+  function furFor(src, kind, nShells, mulFn) {
+    const g0 = src.geometry, tube = !!(g0.userData && g0.userData.radial);
+    if (!g0.attributes.normal || !g0.attributes.uv) return;
+    const geo = new THREE.BufferGeometry();
+    for (const k in g0.attributes) geo.setAttribute(k, g0.attributes[k]);   // shared by reference: spine/tail updates show up here
+    geo.setIndex(g0.index);
+    const n = g0.attributes.position.count, uv = g0.attributes.uv, mul = new Float32Array(n);
+    for (let i = 0; i < n; i++) mul[i] = mulFn ? mulFn(uv.getX(i), uv.getY(i), i) : 1;
+    geo.setAttribute("furMul", new THREE.BufferAttribute(mul, 1));
+    const lay = new Float32Array(nShells); for (let i = 0; i < nShells; i++) lay[i] = (i + 1) / nShells;
+    geo.setAttribute("furLayer", new THREE.InstancedBufferAttribute(lay, 1));
+    const sMat = Array.isArray(src.material) ? src.material[0] : src.material;
+    const mat = new THREE.MeshStandardMaterial({ color: sMat.color.clone(), emissive: sMat.emissive ? sMat.emissive.clone() : new THREE.Color(0),
+      emissiveIntensity: sMat.emissiveIntensity != null ? sMat.emissiveIntensity : 1, vertexColors: !!sMat.vertexColors, roughness: 0.92, metalness: 0 });
+    if (sMat.map) mat.map = sMat.map; if (sMat.emissiveMap) mat.emissiveMap = sMat.emissiveMap;
+    const prev = sMat.onBeforeCompile && sMat.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? sMat.onBeforeCompile : null;
+    // the tip colour: the skin colour lifted towards white (or opts.tip)
+    const base = O.tip ? col(O.tip) : new THREE.Color(1, 1, 1);
+    const U = {
+      uFurLen: { value: O.length * (O.partLen[kind] || 1) }, uUnder: { value: O.undercoat }, uDroop: { value: O.droop }, uDens: { value: O.density }, uThick: { value: O.thickness }, uCut: { value: 0.5 },
+      uRootDark: { value: O.rootDark }, uTipK: { value: O.tipK }, uSheen: { value: O.sheen }, uTip: { value: base }, uTipSet: { value: O.tip ? 1 : 0 }, uTint: { value: O.tint ? col(O.tint) : new THREE.Color(1, 1, 1) }, uTintK: { value: O.tint ? O.tintK : 0 },
+      uRu: { value: 100 }, uRv: { value: 50 }, uRingN: { value: 2 }, uCircMax: { value: 1 }, uCirc: { value: null }
+    };
+    mat.onBeforeCompile = sh => { if (prev) prev(sh); patch(sh, U, tube); };
+    mat.customProgramCacheKey = () => "fur3|" + tube + "|" + (prev ? prev.toString() : "");
+    mat.userData.furU = U;
+    const fm = new THREE.InstancedMesh(geo, mat, nShells);
+    for (let i = 0; i < nShells; i++) fm.setMatrixAt(i, new THREE.Matrix4());
+    fm.frustumCulled = false; fm.castShadow = false; fm.receiveShadow = O.receiveShadow !== false; fm.name = "fur:" + kind;
+    let sized = false;
+    fm.onBeforeRender = (renderer) => {
+      if (fm.userData.a2c == null) {   // smooth strand edges via alpha-to-coverage when the canvas has MSAA, plain cut-out otherwise
+        const aa = !!(renderer.getContext().getContextAttributes() || {}).antialias;
+        fm.userData.a2c = aa; mat.alphaToCoverage = aa; U.uCut.value = aa ? 0.04 : 0.5; mat.needsUpdate = true;
+      }
+      if (!sized) sized = size(g0, U);
+    };
+    src.add(fm); made.push(fm);
+    if (!baseMats.has(sMat)) baseMats.set(sMat, { r: sMat.roughness, c: sMat.color.clone() });
+  }
+  // strand layout: work out how long the part is and how far round it is, so strands come out round, not stretched
+  function size(g0, U) {
+    const P = g0.attributes.position;
+    if (g0.userData && g0.userData.radial) {
+      const { segs, radial } = g0.userData, W = radial + 1, circ = [], ctr = [];
+      let any = false;
+      for (let i = 0; i <= segs; i++) {
+        let c = 0; const cx = new THREE.Vector3();
+        for (let j = 0; j < radial; j++) { const a = i * W + j, b = a + 1; c += Math.hypot(P.getX(a) - P.getX(b), P.getY(a) - P.getY(b), P.getZ(a) - P.getZ(b)); cx.x += P.getX(a); cx.y += P.getY(a); cx.z += P.getZ(a); }
+        circ.push(c); ctr.push(cx.multiplyScalar(1 / radial)); if (c > 1e-4) any = true;
+      }
+      if (!any) return false;   // not built yet (fox tails fill on the first update)
+      let len = 0; for (let i = 1; i <= segs; i++) len += ctr[i].distanceTo(ctr[i - 1]);
+      const mx = Math.max(...circ) * 1.01, data = new Uint8Array((segs + 1) * 4);
+      circ.forEach((c, i) => { const q = Math.round(c / mx * 65535); data[i * 4] = q >> 8; data[i * 4 + 1] = q & 255; data[i * 4 + 3] = 255; });
+      const t = new THREE.DataTexture(data, segs + 1, 1, THREE.RGBAFormat); t.magFilter = t.minFilter = THREE.NearestFilter; t.needsUpdate = true;
+      U.uCirc.value = t; U.uRingN.value = segs + 1; U.uCircMax.value = mx; U.uRu.value = Math.max(8, Math.round(len * O.density));
+    } else {   // spheres: u runs round the equator, v pole to pole
+      g0.computeBoundingSphere(); const r = g0.boundingSphere.radius;
+      U.uRu.value = Math.max(8, Math.round(2 * Math.PI * r * O.density)); U.uRv.value = Math.max(6, Math.round(Math.PI * r * O.density));
+    }
+    return true;
+  }
+  // ----- find the parts -----
+  const isTube = m => m.isMesh && m.geometry && m.geometry.userData && m.geometry.userData.radial;
+  const spine = root.children.find(m => isTube(m) && m.geometry.userData.segs >= 100);
+  if (spine) {
+    const P = O.parts, L = O.partLen;
+    // u runs tail tip (0) to the base of the head (1): tail < 0.42, body, neck > 0.64
+    const mulFn = u => {
+      const tail = P.tail ? L.tail : 0, body = P.body ? L.body : 0, neck = P.neck ? L.neck : 0;
+      let m = u < 0.42 ? tail + (body - tail) * sm(0.36, 0.46, u) : u < 0.64 ? body + (neck - body) * sm(0.6, 0.7, u) : neck;
+      m *= 1 + (O.ruff - 1) * Math.exp(-(((u - 0.66) / 0.06) ** 2));            // ruff at the chest / base of the neck
+      m *= 1 + (O.tuft - 1) * (1 - sm(0.02, 0.12, u));                          // tuft at the tail tip
+      m *= 1 - 0.55 * sm(0.9, 1.0, u);                                           // shorter towards the head, so it blends into the face
+      return m;
+    };
+    // thin parts (the tail tip) get shorter fur so it never bristles out like a brush
+    const g = spine.geometry, Pp = g.attributes.position, { radial } = g.userData, W = radial + 1;
+    const ringR = i => { const r = Math.floor(i / W) * W; let c = 0; for (let j = 0; j < radial; j++) { const a = r + j, b = a + 1; c += Math.hypot(Pp.getX(a) - Pp.getX(b), Pp.getY(a) - Pp.getY(b), Pp.getZ(a) - Pp.getZ(b)); } return c / (2 * Math.PI); };
+    furFor(spine, "body", O.shells, (u, v, i) => mulFn(u) * Math.min(1, Math.max(0.3, ringR(i) / 0.16)));
+  }
+  if (O.parts.foxTails) root.children.filter(m => isTube(m) && m.geometry.userData.segs === 40 && m.material && m.material.vertexColors)
+    .forEach(m => furFor(m, "foxTails", O.shells, u => (0.75 + 0.5 * sm(0.3, 0.8, u)) * (1 - 0.6 * sm(0.93, 1, u))));   // fluffier towards the brush
+  // legs: groups that carry a knee pivot
+  root.traverse(g => {
+    if (!g.isGroup || !g.userData || !g.userData.knee) return;
+    const foot = g.userData.ankle;
+    g.traverse(m => {
+      if (!m.isMesh || m.isInstancedMesh) return;
+      const inFoot = foot && (() => { for (let q = m; q; q = q.parent) if (q === foot) return true; return false; })();
+      const t = m.geometry.type;
+      if (inFoot) {
+        if (!O.parts.paws) return;
+        if (t === "SphereGeometry" || t === "CylinderGeometry" || isTube(m)) { if (t === "CylinderGeometry") return; furFor(m, "paws", O.legShells); }
+        return;
+      }
+      if (!O.parts.legs) return;
+      if (isTube(m) || t === "SphereGeometry") furFor(m, "legs", O.legShells);
+    });
+  });
+  if (O.parts.head) {   // optional: short fur on the skull only (eyes, snout and ears stay smooth)
+    const head = root.children.find(m => m.isGroup && m.children[0] && m.children[0].isMesh && m.children[0].geometry.type === "SphereGeometry" && Math.abs(m.children[0].geometry.parameters.radius - 0.3) < 1e-6);
+    if (head) {   // Petra: the whole head is furry: skull, snout, jaw, chin and throat (eyes, horns, ears, nose and markings stay as they are)
+      const skinMats = new Set(head.children.filter(m => m.isMesh && (m.geometry.type === "SphereGeometry" || isTube(m))).slice(0, 6).map(m => m.material).filter(mt => !mt.map));
+      head.children.forEach(m => { if (m.isMesh && skinMats.has(m.material) && m.material.color && (m.geometry.type === "SphereGeometry" || isTube(m)) && !(m.geometry.parameters && m.geometry.parameters.radius < 0.05)) furFor(m, "head", O.legShells); });
+    }
+  }
+  // the old ball-shaped fur clumps (back fur, mane, tail tuft): hidden while the fur is on
+  const clumps = []; if (O.hideClumps) root.traverse(m => { if (m.isMesh && m.geometry && m.geometry.type === "IcosahedronGeometry" && m.material && m.material.roughness === 0.95 && !m.material.transparent) clumps.push(m); });
+  clumps.forEach(m => { if (m.geometry.parameters.radius < 0.2) furFor(m, "tail", O.legShells); else hidden.push(m); });   // Petra: small fluffs (tail-tip tuft, cheek/ear fluff) get real fur instead of vanishing; only the big back/mane balls hide
+  root.traverse(m => { if (m.isMesh && m.geometry && m.geometry.type === "ConeGeometry" && Math.abs(m.geometry.parameters.radius - 0.13) < 1e-6 && Math.abs(m.geometry.parameters.height - 0.3) < 1e-6) furFor(m, "head", O.legShells); });   // fox ears get fur too
+  const fur = {
+    opts: O, parts: made, enabled: true,
+    setEnabled(on) {
+      fur.enabled = !!on; made.forEach(m => m.visible = fur.enabled); hidden.forEach(m => m.visible = !fur.enabled);
+      // under the fur the skin goes matte and a touch darker (the fur's roots)
+      baseMats.forEach((v, m) => { m.roughness = fur.enabled ? 0.95 : v.r; m.color.copy(v.c); if (fur.enabled) m.color.multiplyScalar(0.85); });
+    },
+    dispose() { fur.setEnabled(false); made.forEach(m => { m.parent && m.parent.remove(m); m.material.dispose(); }); made.length = 0; delete api.fur; }
+  };
+  api.fur = fur; fur.setEnabled(true);
+  return fur;
+}
+// per-species fur looks (who gets fur, and how)
+const FUR_LOOKS = {
+  Vulpyre:   { length: 0.075, density: 64, tipK: 0.3, ruff: 1.5, parts: { head: true } },
+  Snowpaw:   { length: 0.085, density: 58, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
+  Whiteout:  { length: 0.08, density: 60, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
+  Glacius:   { length: 0.065, density: 60, tipK: 0.5, rootDark: 0.85, parts: { head: true } },
+  Rimefang:  { length: 0.06, density: 62, tipK: 0.45, rootDark: 0.85, parts: { head: true } },
+  Bergdrake: { length: 0.045, density: 66, tipK: 0.3, rootDark: 0.88, ruff: 1.1, tuft: 1, parts: { head: true } }   // a short, sleek seal-like pelt
+};
 
 // ================= dragon kinds =================
 // every dragon kind: colors, body plan and the adaptations it has for where it lives
@@ -1238,8 +1550,8 @@ const SPECIES = [
   { name: "Ashveil", rarity: "Uncommon", home: "Ash clouds around the volcano", speed: 3, pal: P("#3a3a3e", "#6a6a70", "#a8a8ae", "#ff8a4a", "#2a2a2e", "#4a4a50", "#ff8a4a", { smoke: "#7a7a80" }),
     sp: { tail: "smoke", back: "fin", pattern: "spots", eyes: 1.2, frill: "crest", wings: "tattered", emberWings: "strong" },
     ad: ["Ash-gray scales hide it inside smoke clouds", "Ember spots glow like sparks in the ash", "Clear inner eyelids let it see through smoke", "Ragged wings let hot ash blow through instead of tearing them"] },
-  { name: "Glacius", rarity: "Common", home: "Frost Peaks glaciers", speed: 2, pal: P("#5a8ab8", "#a8d0f0", "#f0f8ff", "#a8f0ff", "#e8f8ff", "#7aa8d0", "#c8f8ff", { crystal: "#c8f0ff", metal: 0.25 }),
-    sp: { legThick: 1.25, feet: 1.45, back: "crystal", horns: "crystal", tail: "crystal", girth: 1.1, pattern: "none", spots: "#e8f4ff" },
+  { name: "Glacius", rarity: "Common", home: "Frost Peaks glaciers", speed: 2, pal: P("#f0f8ff", "#a8d0f0", "#5a8ab8", "#a8f0ff", "#e8f8ff", "#7aa8d0", "#c8f8ff", { crystal: "#c8f0ff", metal: 0.25 }),
+    sp: { legThick: 1.25, feet: 1.2, back: "crystal", horns: "crystal", tail: "crystal", girth: 1.1, pattern: "none", spots: "#e8f4ff" },
     ad: ["Ice crystals grow along its back like a glacier", "Pale blue scales blend into ice and snow", "A thick body keeps its warmth in", "Wide feet spread its weight so it doesn't crack the ice", "Crystal horns can break through ice"] },
   { name: "Tempestra", rarity: "Uncommon", home: "Storm clouds above the peaks", speed: 5, pal: P("#1a2244", "#2a3a6a", "#a8b8d8", "#fff04a", "#e8e8ff", "#202a50", "#fff04a"),
     sp: { head: [0.86, 1.02, 1], legThick: 0.8, thin: 0.85, wings: "soar", wingScale: 1.15, girth: 0.7, tail: "ribbon", pattern: "stripes", frill: "crest", glow: 1.3, horns: "long", flapSpeed: 9 },
@@ -1282,24 +1594,24 @@ const SPECIES = [
     sp: { head: [0.86, 1.02, 1], legThick: 0.8, thin: 0.82, wings: "soar", wingScale: 1.15, girth: 1.0, pattern: "runes", glow: 1.4, frill: "crest", tail: "ribbon" },
     ad: ["Big lungs (a wide chest) breathe the thin air up high, but the rest of it is slim and light", "Orange sun-wings soak up sunlight for energy", "Glowing runes shine when it flies above the clouds"] },
   // ----- new ice dragons -----
-  { name: "Snowpaw", rarity: "Common", home: "Frost Peaks snowfields", speed: 2, pal: P("#c8d4e0", "#eef4fa", "#ffffff", "#bfe8ff", "#8aa0b8", "#d8e4f0", "#3a5a8a", { fur: "#ffffff" }),
-    sp: { gentle: true, legThick: 1.35, back: "fur", mane: true, feet: 1.95, legLen: 0.75, girth: 1.15, wingScale: 0.65, tail: "tuft", horns: "short", frill: "fur", digClaws: true, pattern: "none" },
+  { name: "Snowpaw", rarity: "Common", home: "Frost Peaks snowfields", speed: 2, pal: P("#ffffff", "#eef4fa", "#c8d4e0", "#bfe8ff", "#8aa0b8", "#d8e4f0", "#3a5a8a", { fur: "#ffffff" }),
+    sp: { gentle: true, legThick: 1.35, back: "fur", mane: true, feet: 1.5, legLen: 0.75, girth: 1.15, wingScale: 0.65, tail: "tuft", horns: "short", frill: "fur", digClaws: true, pattern: "none" },
     ad: ["Thick white fur keeps it warm and hidden in snow", "Huge paws work like snowshoes and shovels", "Burrows into snow to sleep", "Short legs and a round body hold in heat"] },
-  { name: "Rimefang", rarity: "Uncommon", home: "Icicle caves", speed: 3, pal: P("#3a5a8a", "#7aa8d8", "#dceeff", "#9ae0ff", "#e8f8ff", "#4a6a9a", "#e0ffff", { crystal: "#d8f8ff" }),
-    sp: { legThick: 1.2, feet: 1.4, back: "crystal", horns: "crystal", tail: "crystal", fangs: 2.2, pattern: "spots", spots: "#c8e8ff" },
+  { name: "Rimefang", rarity: "Uncommon", home: "Icicle caves", speed: 3, pal: P("#dceeff", "#7aa8d8", "#3a5a8a", "#9ae0ff", "#e8f8ff", "#4a6a9a", "#e0ffff", { crystal: "#d8f8ff" }),
+    sp: { legThick: 1.2, feet: 1.15, back: "crystal", horns: "crystal", tail: "crystal", fangs: 2.2, pattern: "spots", spots: "#c8e8ff" },
     ad: ["Icicle spikes grow along its back", "Long ice fangs", "Big gripping feet hold on to slippery ice walls", "Blue scales hide it in icy caves"] },
-  { name: "Auroran", rarity: "Rare", home: "Night sky over the Frost Peaks", speed: 4, pal: P("#0a3a30", "#13604a", "#7ab89a", "#5aff9a", "#ffd0ec", "#0e4a3a", "#ff9ad8", { glow2: "#b06aff", glow3: "#ff6ac8", wingTip: "#9a4aff" }),
-    sp: { gentle: true, legThick: 1.15, feet: 1.35, pattern: "aurora", glow: 1.6, wingScale: 1.2, wingStars: false, frill: "crest", tail: "ribbon", eyes: 1.2 },
-    ad: ["Glowing aurora stripes, green, purple and pink", "Dark green body vanishes in the polar night", "Big wings with purple tips for long flights between the peaks", "Wide feet for landing on deep snow"] },
-  { name: "Bergdrake", rarity: "Uncommon", home: "Icy seas by the ocean", speed: 2, pal: P("#3a4a5a", "#6a8094", "#c8d8e0", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
-    sp: { webbed: true, gentle: true, legThick: 1.3, feet: 1.4, girth: 1.5, wings: "flipper", tail: "fluke", tusks: true, horns: "none", back: "none", legLen: 0.8, pattern: "none", spots: "#8aa0b4", neck: 0.8 },
+  { name: "Auroran", hybrid: "Sky + Ice", rarity: "Rare", home: "Night sky over the Frost Peaks", speed: 4, pal: P("#7ab89a", "#13604a", "#0a3a30", "#5aff9a", "#ffd0ec", "#0e4a3a", "#ff9ad8", { glow2: "#b06aff", glow3: "#ff6ac8", wingTip: "#9a4aff" }),
+    sp: { head: [1.05, 1, 1], gentle: true, legThick: 0.9, feet: 1.1, thin: 0.85, girth: 0.78, wings: "soar", wingScale: 1.35, flapSpeed: 5, horns: "crystal", crystalTip: true, pattern: "aurora", glow: 1.6, wingStars: false, frill: "crest", tail: "ribbon", eyes: 1.2 },
+    ad: ["HYBRID (the first one ever found): half sky dragon, half ice dragon. A light body and huge soaring wings from the sky, frost-crystal horns and thick frost-proof paws from the ice", "Glowing aurora stripes, green, purple and pink", "Dark green body vanishes in the polar night", "Big wings with purple tips for long flights between the peaks", "Wide feet for landing on deep snow"] },
+  { name: "Bergdrake", rarity: "Uncommon", home: "Icy seas by the ocean", speed: 2, pal: P("#c8d8e0", "#6a8094", "#3a4a5a", "#a8e8ff", "#fff8e0", "#4a5a6a", "#2a2a3a"),
+    sp: { webbed: true, gentle: true, legThick: 1.3, feet: 1.15, girth: 1.5, wings: "flipper", tail: "fluke", tusks: true, horns: "none", back: "none", legLen: 0.8, pattern: "none", spots: "#8aa0b4", neck: 0.8 },
     ad: ["Thick blubber keeps it warm in freezing water", "Flippers instead of big wings: a great swimmer", "Tusks haul it up onto ice", "Big webbed feet paddle in the sea and grip on ice", "Slow on land, graceful in the sea"] },
   // ----- weather dragons: their eggs only come with the weather (Petra 2026-11-09) -----
   { name: "Sirocco", rarity: "Uncommon", home: "Desert sandstorms (eggs blow in with a sandstorm)", speed: 4, pal: P("#a8744a", "#d4a46e", "#f2dcb0", "#ffb25a", "#6a4a30", "#c08a5a", "#ffd27a", { fin: "#e0a060" }),
     sp: { tier: 2, weather: "sandstorm", aura: "sand", back: "fin", backScale: 1.7, wings: "narrow", wingScale: 1.1, tail: "ribbon", frill: "frill", horns: "short", thin: 0.88, len: 1.15, pattern: "stripes" },
     ad: ["Tall sail fins on its back catch the wind, so it rides sandstorms like a boat", "Sand-coloured, wind-carved body", "Narrow wings cut through blowing sand", "A swirl of sand follows it everywhere"] },
-  { name: "Whiteout", rarity: "Uncommon", home: "Frost Peaks blizzards (eggs turn up in a blizzard)", speed: 3, pal: P("#e8eef6", "#f4f7fb", "#ffffff", "#9ad4ff", "#c8dcee", "#dfe8f2", "#2a7acc", { fur: "#ffffff" }),
-    sp: { tier: 2, weather: "blizzard", aura: "snow", legThick: 1.3, feet: 1.7, back: "fur", mane: true, frill: "fur", tail: "tuft", horns: "short", digClaws: true, wingScale: 0.8, girth: 1.1, pattern: "none" },
+  { name: "Whiteout", rarity: "Uncommon", home: "Frost Peaks blizzards (eggs turn up in a blizzard)", speed: 3, pal: P("#ffffff", "#f4f7fb", "#e8eef6", "#9ad4ff", "#c8dcee", "#dfe8f2", "#2a7acc", { fur: "#ffffff" }),
+    sp: { tier: 2, weather: "blizzard", aura: "snow", legThick: 1.3, feet: 1.35, back: "fur", mane: true, frill: "fur", tail: "tuft", horns: "short", digClaws: true, wingScale: 0.8, girth: 1.1, pattern: "none" },
     ad: ["Pure white fur and scales: in a blizzard it's invisible", "Waits in the snow and pounces (an ambush hunter)", "Huge furry paws for deep snow", "Snowflakes swirl around it, even on a clear day"] },
   { name: "Voltwing", rarity: "Rare", home: "Thunderstorms (eggs fall where lightning strikes)", speed: 5, pal: P("#16245a", "#3456b4", "#d8e4ff", "#7adcff", "#fff6a0", "#1e2e6a", "#fff27a"),
     sp: { tier: 3, weather: "storm", aura: "sparks", zap: true, wings: "soar", wingScale: 1.25, horns: "long", frill: "crest", tail: "spike", back: "spikes", backScale: 0.8, thin: 0.9, pattern: "streaks", glow: 1.5 },
@@ -1416,9 +1728,9 @@ const SPECIES = [
     sp: { horns: "antler", antlerScale: 1.5, antlerGlow: true, wings: "bat", wingScale: 1.15, back: "fur", tail: "tuft", frill: "fur", pattern: "streaks", glow: 1.4, eyes: 1.2, leaves: true },
     ad: ["Huge glowing antlers light the woods at dusk", "Dark plum fur keeps it warm on cold autumn nights", "Sunset-orange eyes see well when the light fades", "Comes out only when the sun goes down"] },
   { name: "Vulpyre", rarity: "Legendary", anomaly: true, home: "Autumn Woods (fox dens)", speed: 5, br: "Foxfire: three little spirit flames that chase monsters",
-    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#c4622c", foxMarks2: "#e07a20", foxGlow: "#b8381a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
-    sp: { foxEars: true, gentle: true, foxTails: 3, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
-    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Glowing fox-red swirls flow down its sides and up its neck, and a foxfire gem glows on its forehead", "Tall white fox ears hear a mouse under the leaves", "THREE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
+    pal: P("#fbf8f4", "#f4eee8", "#ffffff", "#ff6a2a", "#f4ece4", "#c8501a", "#ffb030", { glow2: "#ffd8a0", fur: "#fff4f0", foxMarks: "#e8481a", foxMarks2: "#e07a20", foxTip: "#e8481a", foxBody: "#e8481a", foxFire: "#ff7a2a", socks: "#e8481a", earTip: "#e8481a", earColor: "#ffffff", earInner: "#f8d8d4", tailFur: "#c8501a", tailTip: "#ffffff" }),
+    sp: { foxEars: true, gentle: true, foxTails: 9, tailLen: 0.06, glowTips: true, foxGem: true, tail: "none", thin: 0.9, legLen: 1.15, wings: "none", skyRun: true, puff: ["#ff7a2a", "#ffe0a8", "#fff4d8"], noMotes: true, headMarks: true, legMarks: true, foxfire: true, horns: "none", back: "none", frill: "none", pattern: "foxfire", glow: 1.7, eyes: 1.15, whiskers: true, head: [0.85, 0.95, 0.92] },
+    ad: ["ANOMALY: born without wings, yet it still flies, running across the sky on puffs of foxfire. Nobody knows how", "Three foxfire spirit flames follow it everywhere, and sparks of foxfire drift up from the tips of its nine tails", "Curved fox-orange stripes sweep down both sides, with swirls on its hips and thighs, a mark on its forehead, orange paws and ear tips, and a foxfire gem", "Tall white fox ears hear a mouse under the leaves", "NINE long, sleek white tails, each as long as a dragon's tail, with glowing foxfire tips: the older it gets, the brighter they shine", "Short fox snout sniffs out hidden food", "Runs and pounces faster than most dragons, on the ground or in the air"] },
   // Blightwood (poison forest)
   { name: "Sludgeling", rarity: "Common", home: "Blightwood (toxic puddles)", speed: 2, br: "Goo Glob: a sticky lob of poison goo that keeps hurting",
     pal: P("#3a4a2a", "#5a6e3a", "#a8c070", "#9cff3a", "#4a5a30", "#3e4e2a", "#d8ff5a", { spots: "#7a9a2a", smoke: "#8ad040" }),
@@ -3125,7 +3437,8 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
     ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
-function buildDragon(kind, shiny, gear) { const s = SP(kind); return makeDragon(shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {})); }
+function buildDragon(kind, shiny, gear) { const s = SP(kind); return withFur(s, makeDragon(shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {}))); }
+function withFur(s, api) { try { if (typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]) addFur(api, FUR_LOOKS[s.name]); } catch (e) { console.warn("fur", e); } return api; }
 let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
 function setKind(kind, shiny) {
@@ -3455,13 +3768,15 @@ const HAZEL_BOOKS = [
   { t: "Lands of the World: Desert", p: ["Lands of the World: Desert, by Professor Hazel. Hot sand, red mesas, giant bones and one hidden oasis. Bring water. Bring a hat. Bring more water.", "Chapter 1: The Desert. Rolling golden dunes, flat-topped red mesas, tumbleweeds, cacti and old bones. Somewhere among the mesas there is an oasis with palm trees and cool water. Finding it is the best feeling in the world.", "Chapter 2: Staying Cool. Desert dragons are built to beat the heat. Pale or shiny scales bounce the sun away, extra eyelids keep out the sand, and most of them sleep through the hottest part of the day. Sensible dragons.", "Chapter 3: Dunerunner and Sunscale. Dunerunner has long legs to keep its belly off the hot sand and wide feet so it never sinks. It barely flies but runs like the wind. Sunscale has mirror-like scales, big thin ears to let heat out, and a hump that stores water for weeks.", "Chapter 4: Miragewyrm. Its wavy, shimmery scales bend the light, so it looks just like a heat mirage. Hunters think it is only the air wobbling. I once spent an afternoon sketching a Miragewyrm. It was a rock. The Miragewyrm was behind me, laughing.", "Chapter 5: Scarabyx. Gold beetle shells cover its wings and protect them from sandstorms. The shells flip open when it flies, showing thin see-through wings. It burrows into the sand at midday and has a strong horn for digging.", "Chapter 6: Sandstorms. When a sandstorm blows in, it brings eggs with it. The dragon that hatches has tall sail fins on its back and rides the wind like a boat.", "Chapter 7: Desert Monsters. Dune Sharks swim under the sand, Scorpiclaws snap and sting, Dust Devils spin and toss you about, and Mirage Stalkers hide in the shimmer. At night, Moonscarab Swarms come out to glitter in the moonlight. Pretty. Also bitey."] },
   { t: "Lands of the World: The Ocean", p: ["Lands of the World: The Ocean, by Professor Hazel. Past the beach, the land gives way to big water, big waves and big fish. I get seasick. I wrote this book anyway, very bravely, from the beach.", "Chapter 1: The Sea. Through a gap in the mountains, the valley opens onto a sandy beach, a lighthouse, rocks, palm trees and endless blue water. It gets deep very quickly. Far out, the water turns shallow and pink again, but that is the Coral Reef, and it has its own book.", "Chapter 2: Sea Wings. Sea dragons have fin wings or flippers. Swimming against the water made them small but very strong and fast. Most of them swim better than they fly.", "Chapter 3: Aquawyrm and Gillwing. Aquawyrm has fin-wings that double as flippers, a fish-like tail fluke, and ear fins that close up when it dives. Gillwing has gills on its neck so it can breathe underwater, and big fin-wings that let it 'fly' through water as fast as through air.", "Chapter 4: Pearlhorn. Pearly scales shimmer like the inside of a shell, and one long horn pries open giant clams. Pearlhorns love the deep reefs. They are very polite dragons. They always share the clams.", "Chapter 5: Abyssar. It lives in the deepest ocean trench. Its wings started out as normal wings, but living so deep they slowly turned into wide fins. They still work as wings, so it can swim AND fly! Huge round eyes see in total darkness, and glowing spots light up the deep and lure fish close.", "Chapter 6: Bergdrake. Thick blubber keeps it warm in freezing water, flippers instead of big wings make it a great swimmer, tusks haul it up onto the ice, and big webbed feet paddle and grip. Slow on land, graceful in the sea. Like me, except I am slow in the sea too.", "Chapter 7: Ocean Monsters. In the deep, at night, the Abyss Angler dangles its lure and flashes it to dazzle you. Do not stare at the light. I stared at the light. It took me a week to see properly again."] },
   { t: "Lands of the World: Fire Mountain", p: ["Lands of the World: Fire Mountain, by Professor Hazel. A volcano, rivers of lava, and black ash everywhere. My eyebrows grew back eventually.", "Chapter 1: The Mountain. Black rock, grey ash and glowing orange lava channels, all around a huge smoking volcano with a crater at the top. The air is hot and smells like matches. Never, ever land in the lava. Not even with a fire dragon.", "Chapter 2: Living With Heat. Fire dragons have armour plates against falling rocks and heat-proof scales. Most importantly, they have glowing cracks and veins to let extra heat out, so they never overheat.", "Chapter 3: Smoldedrake. Heavy and slow, with thick armour plates and heat-proof scales on the front of its wings. Its tail puffs smoke to hide from bigger dragons. Very hard to knock over. I tried. With a cart.", "Chapter 4: Volcanox and Ashveil. Volcanox has black cracked skin with lava glowing through, walks on cooling lava, and stores heat inside like a furnace. Ashveil has ash-grey scales that hide it inside smoke clouds, ember spots that glow like sparks, and clear inner eyelids for seeing through smoke.", "Chapter 5: Blazequill. It lives in the volcano's crater itself. Glowing fire quills can be shaken loose at enemies, and its long broad wings circle up on the hot air like a vulture. It is so hot inside that rain turns to steam on it. It is the only dragon I have seen take a bath and come out drier.", "Chapter 6: Fire Monsters. Lava Imps zip about on bat wings, Rock Trolls throw boulders, Ember Beetles glow and burn, and Ash Lurkers hide in the ash. At night, Cinder Bats and Magma Glowworms come out. Bring a water dragon if you have one."] },
-  { t: "Lands of the World: Frost Peaks", p: ["Lands of the World: Frost Peaks, by Professor Hazel. Snow, sharp peaks and a frozen lake. I wore four scarves. It was not enough scarves.", "Chapter 1: The Peaks. White snow, blue-grey rock and jagged icy peaks around a big frozen lake. The ice on the lake is thin in places. Do not walk out on it. Your dragon will not tell you it is thin until it is too late.", "Chapter 2: Staying Warm. Ice dragons are round and furry, with thick legs and wide paws that work like snowshoes. A round body holds in heat, and small wings lose less of it.", "Chapter 3: Glacius and Snowpaw. Glacius grows ice crystals along its back like a glacier, and its crystal horns can break through ice. Snowpaw has thick white fur, huge paws like shovels, and burrows into the snow to sleep. Finding a sleeping Snowpaw is easy. Just step on the snow that grumbles.", "Chapter 4: Rimefang. It lives in icicle caves, with icicle spikes on its back, long ice fangs, and big gripping feet that hold on to slippery ice walls. Its blue scales hide it in the ice.", "Chapter 5: Auroran. Glowing aurora stripes in green, purple and pink, and a dark green body that vanishes in the polar night. Big wings with purple tips carry it between the peaks. When an Auroran flies overhead, it looks like the northern lights came down to say hello.", "Chapter 6: Blizzards. When a blizzard rages, eggs turn up in the snow. The dragon inside is pure white, invisible in a storm, and loves to pounce.", "Chapter 7: Frost Monsters. Frost Wolves hunt in packs, Ice Wraiths float above the snow leaving frost trails, and Snow Yetis charge on huge snowshoe feet. At night, Moon Wolves howl. I howled back once. It did not go well."] },
+  { t: "Lands of the World: Frost Peaks", p: ["Lands of the World: Frost Peaks, by Professor Hazel. Snow, sharp peaks and a frozen lake. I wore four scarves. It was not enough scarves.", "Chapter 1: The Peaks. White snow, blue-grey rock and jagged icy peaks around a big frozen lake. The ice on the lake is thin in places. Do not walk out on it. Your dragon will not tell you it is thin until it is too late.", "Chapter 2: Staying Warm. Ice dragons are round and furry, with thick legs and wide paws that work like snowshoes. A round body holds in heat, and small wings lose less of it.", "Chapter 3: Glacius and Snowpaw. Glacius grows ice crystals along its back like a glacier, and its crystal horns can break through ice. Snowpaw has thick white fur, huge paws like shovels, and burrows into the snow to sleep. Finding a sleeping Snowpaw is easy. Just step on the snow that grumbles.", "Chapter 4: Rimefang. It lives in icicle caves, with icicle spikes on its back, long ice fangs, and big gripping feet that hold on to slippery ice walls. Its blue scales hide it in the ice.", "Chapter 5: Auroran. Not quite an ice dragon at all! It has the light body, long snout and huge wings of a sky dragon, with frost-crystal horns and frost-proof paws from the ice. It is the first hybrid ever found. It gets its own book on my shelf, because one chapter was not nearly enough.", "Chapter 6: Blizzards. When a blizzard rages, eggs turn up in the snow. The dragon inside is pure white, invisible in a storm, and loves to pounce.", "Chapter 7: Frost Monsters. Frost Wolves hunt in packs, Ice Wraiths float above the snow leaving frost trails, and Snow Yetis charge on huge snowshoe feet. At night, Moon Wolves howl. I howled back once. It did not go well."] },
+  { t: "Auroran: The First Hybrid", p: ["Auroran: The First Hybrid, by Professor Hazel. Every dragon I had ever studied was one kind: sky, ice, fire, water. Then one night over the Frost Peaks, the northern lights came down and landed next to my tent. That was the night everything I knew got a little bit wrong.", "Chapter 1: Half and Half. Auroran is half sky dragon and half ice dragon. From the sky it gets a light, slim body, a long snout for cutting through the wind, and huge soaring wings. From the ice it gets frost-crystal horns and thick paws that never freeze. It is the first hybrid anyone has ever found.", "Chapter 2: The Lights. Its stripes glow green, purple and pink, the same colours as the aurora. Its big wings fade from dark green to purple at the tips. When a flock of them crosses the night sky, you cannot tell where the dragons end and the lights begin.", "Chapter 3: Why Up There? Auroras only shine high in the sky over cold, icy lands. So the dragon that lives in them needs sky wings to reach them and ice paws to land on the frozen peaks after. It needed both, so it got both. Nature is clever like that.", "Chapter 4: How Did It Happen? I have a theory. Long ago, a sky dragon and an ice dragon met on the highest peak, and their eggs came out a bit of both. I have no proof. I just like the story.", "Chapter 5: Finding One. Look up on clear, cold nights over the Frost Peaks. If the northern lights seem to be moving against the wind, follow them. Bring a warm coat. Bring two. I brought four scarves and it still was not enough.", "Chapter 6: More Hybrids? If one hybrid exists, there could be others out there that nobody has found yet. Keep your eyes open, tamer. Maybe the next chapter is yours to write."] },
   { t: "Lands of the World: Sky Islands", p: ["Lands of the World: Sky Islands, by Professor Hazel. Floating land high above the valley. You will need a flying dragon. You will also need to not look down. I looked down.", "Chapter 1: The Islands. One big island, Sky Haven, and several small ones, floating in the clouds. Blossom trees, glowing crystals, waterfalls that pour off the edges into nothing, and vines hanging underneath. And on Sky Haven, a mysterious ring of standing stones.", "Chapter 2: Sky Bodies. Sky dragons have the biggest wings and the lightest bodies of all. Up here, a heavy dragon would just fall.", "Chapter 3: Driftail and Aerolash. Driftail has fluffy white fur that makes it look like a cloud. Under the fluff it is thin and light as air, and it can glide for days without flapping. Aerolash has long narrow swept-back wings, a super slim body and a whip tail: the fastest wings of all.", "Chapter 4: Skyrune and Tempestra. Skyrune flies higher than any other dragon. Its wide chest holds big lungs for the thin air, and its orange sun-wings soak up sunlight. Tempestra rides the storm winds. Its crest catches static and tells it when lightning is coming. Mine tells me by making my hair stand up.", "Chapter 5: Sky Monsters. Storm Harpies dive out of the clouds, Cloud Jellies lift you up and drop you, swarms of tiny Gust Sprites push you around, Puffcaps float like balloons and burst into spores, and Vine Danglers hang under the islands to grab passing flyers. At night, Star Jellies glow.", "Chapter 6: The Stone Ring. Who built the stone ring on Sky Haven, and why so high up? I think it was for watching the sky. For what, I am still not sure. See my book Bones in the Sand."] },
   { t: "Lands of the World: Misty Swamp", p: ["Lands of the World: Misty Swamp, by Professor Hazel. Past the Deep Forest, through a long canyon, lies a land of murky pools, twisted trees and mist so thick you can barely see your own dragon. My boots are still drying.", "Chapter 1: The Swamp. Shallow brown-green pools everywhere, lily pads and pink flowers floating on top, reeds and cattails round the edges, and fallen logs half under the water. The trees stand on tall stilt roots, with moss hanging down like old curtains.", "Chapter 2: The Mist. The mist never really lifts. Sounds carry strangely, and shapes appear and disappear. At night, little green lights float over the water. Those are will-o-wisps. Do not follow them. I followed them. I lost a boot.", "Chapter 3: Swamp Bodies. Swamp dragons are wide and flat, with wide feet that spread their weight so they do not sink in the mud. Many have eyes high on their heads, so they can watch while hiding underwater.", "Chapter 4: Mirewyrm. Mud-brown and blotchy, it lies in the mud and looks exactly like a log. Wide webbed feet keep it from sinking, its eyes sit high on its head, and a paddle tail pushes it slowly through the reeds. I sat on one once. I thought it was a log. It was very gracious about it.", "Chapter 5: Fogdrake. Its pale grey scales are the exact colour of swamp fog, and its body seems to fade in and out like mist. Its ragged wings make no sound, and it puffs fog from its tail to hide.", "Chapter 6: Lanternfen. A glowing lantern on its tail lures bugs, and sometimes monsters, close in the dark. Glowing green spots look like fireflies over the water. Big eyes and long whiskers help it find food in muddy water. Some of those 'will-o-wisps' may be Lanternfens. I am not saying which. I do not know.", "Chapter 7: Venomire. The swamp's poison queen. Bright purple and lime warn everything that it is poisonous. Venom spikes cover its back, its long fangs drip poison, and it lives in the bogs where nothing else wants to go. Admire from a distance.", "Chapter 8: Swamp Monsters. Bog Lurkers hide under the mud, Mire Blobs ooze and swallow, Leech Swarms latch on and drain, Stinkblooms spray poison clouds, and Fog Phantoms fade in and out of the mist. At night, Mirelight Croakers glow and croak, and Nightstilts wade on long, long legs.", "Chapter 9: Swamp Advice. Wade through the shallow pools; do not swim in the deep ones. Keep your dragon close in the fog. And if you hear singing out in the mist, it is probably a frog. Probably."] },
   { t: "Lands of the World: Coral Reef", p: ["Lands of the World: Coral Reef, by Professor Hazel. Far out past the beach, the deep blue sea suddenly turns shallow, warm and pink. I rowed out there in a little boat. I was seasick the whole way. It was worth it.", "Chapter 1: The Reef. Under the clear water, the sea floor is covered in coral: pink and orange branches, purple sea fans, yellow tube sponges, and big round brain coral. A few little sandy islands poke up out of the water, each with a palm tree or three.", "Chapter 2: Reef Bodies. Reef dragons are sleek swimmers with bright colours. That sounds like a bad way to hide, but on a reef full of bright coral and bright fish, bright is exactly how you blend in.", "Chapter 3: Coralwyrm. Little coral branches grow on its back and horns, so it can hide right in the reef. Its coral-pink scales match, its fin-wings work as flippers, and it is small and quick between the rocks.", "Chapter 4: Reefdart. Bright blue and yellow, like a reef fish. Its long thin body darts through the water like an arrow, and its crescent tail, like a tuna's, makes it one of the fastest swimmers I have ever timed. Its pointy snout pokes into coral for food.", "Chapter 5: Tidelash. A long whip tail lashes like a wave, and a big back frill helps it ride waves to shore. Teal glowing streaks shine through the water. It is strong enough to swim against storm waves, which I am not.", "Chapter 6: Deepcrown. At the edge of the reef, where the water drops into the deep, lives Deepcrown. A crown of glowing points lights up the dark water, huge eyes see where sunlight cannot reach, and a glowing lure on its tail tricks deep-sea fish into swimming close.", "Chapter 7: Reef Eggs. Reef dragons lay their eggs on the little sandy islands, safe above the waves. If you see a glow on an island at sunset, go and look.", "Chapter 8: Reef Monsters. Spike Urchins poke anyone who steps on them, Jelly Blooms sting, Barracuda Packs dart in together, Giant Clams snap shut on anything that gets too close, Ink Squids squirt ink to blind you, and Lantern Eels glow in the dark. At night, Moonrays glide past and Snapflash Shrimp crack like tiny thunder.", "Chapter 9: Reef Advice. Do not stand on the coral. It is alive, and also the urchins live there. Bring a water dragon, swim slowly, and look at everything. The reef is the most colourful place in the world."] },
   { t: "Lands of the World: Autumn Woods", p: ["Lands of the World: Autumn Woods, by Professor Hazel. Red and gold trees, crunchy leaves and pumpkins, in a land where it always seems to be autumn. It is my favourite season, so naturally I stayed for a month.", "Chapter 1: The Woods. Rolling golden hills under trees of orange, red and yellow. Leaves never stop falling. There are big leaf piles, round pumpkins, red-capped mushrooms, and the air smells like cinnamon. I may have imagined the cinnamon.", "Chapter 2: Autumn Bodies. Autumn dragons wear warm leaf colours, so they vanish into the leaf piles and the treetops. Many have warm, cozy scales or fur for the cold autumn nights.", "Chapter 3: Emberleaf. Orange and red leaf frills hide it in the leaf piles, and its leaf-shaped wings rustle like falling leaves. Warm scales keep it cozy. Its favourite thing in the whole world is jumping into leaf piles. Mine too.", "Chapter 4: Hedgewyrm. Its back is full of stiff, dry pine-needle spines, brown and tan like the forest floor. When it is scared it curls up into a spiky ball, and its spiky ball of a tail swings at anything that sneaks up behind it. Do not sneak up behind it.", "Chapter 5: Maplewing. Big maple-leaf wings fade from red to gold. It lives high in the treetops and glides down spinning like a maple seed, with falling leaves following it wherever it flies. The first time I saw it spin, I forgot to write anything down for ten minutes.", "Chapter 6: Gloamhorn. It only comes out when the sun goes down. Huge glowing antlers light up the woods at dusk, dark plum fur keeps it warm, and its sunset-orange eyes see well when the light fades.", "Chapter 7: Autumn Monsters. Leaf Pile Lurkers hide inside leaf piles (watch the piles, some of them watch back), Acorn Chuckers throw acorns, Foxfire Kits dart about in little flames, Hollow Stumps pretend to be stumps, and at night Pumpkin Imps cackle. Moonraven Flocks fill the night sky, and Strawstalkers stand very still in the fields.", "Chapter 8: The Autumn Spirit (a legend). The old tamers tell of a spirit of the autumn woods. A white fox-dragon with fire markings and three glowing tails, with no wings at all, seen running across the sky on some Harvest Moon nights. Only on a Harvest Moon, and only here, and only when it wishes to be seen.", "Chapter 9: Have I Seen It? No. Nobody I know has. Some say it is only a story. But every Harvest Moon I come out to these woods, sit on a hill, and watch the sky. Just in case. If you see it, please, please tell me first."] },
   { t: "Lands of the World: Blightwood", p: ["Lands of the World: Blightwood, by Professor Hazel. Dead twisted trees, giant glowing mushrooms and pools of green poison. I wrote this book wearing a scarf over my nose. Please excuse any smudges.", "Chapter 1: The Forest. Nothing green grows here except the poison. The trees are dead, black and twisted, the ground is purple-grey, and the pools glow bright green and bubble. Giant mushrooms with glowing spots tower over everything, and purple spores drift in the air.", "Chapter 2: Poison Bodies. Blightwood dragons do not just survive poison. They use it. Many have bright warning colours that say: do not bite me, I am poisonous. It works. I did not bite any of them.", "Chapter 3: Sludgeling. Slimy goo skin means poison puddles cannot hurt it and claws slide right off. Lumpy green blotches look like moss, its tail leaks a little cloud of stinky gas, and wide sticky feet walk on mud without sinking. It smells terrible. It is very sweet.", "Chapter 4: Toxitail. Bold black and yellow stripes warn everyone it is poisonous. It has a curled stinger at the end of its tail, like a scorpion, and a spiky back. It is fast and twitchy and darts between the thorn bushes. Do not make sudden movements. Do not make slow movements either, really.", "Chapter 5: Sporecrest. A frilly mushroom-cap crest on its back puffs out sleepy spores, and it is spotted like a toadstool, so it hides among the giant mushrooms. Glowing pink spots show the way at night. It sleeps in rotting logs and eats mushrooms nobody else can. I fell asleep near one. I woke up four hours later, very rested, with a mushroom in my hair.", "Chapter 6: Venomaw. It lives in the poison heart of the forest. Huge glowing green fangs drip with acid, glowing cracks show poison running under its scales, and its ragged wings, eaten by acid, still fly perfectly. It is immune to every poison in Blightwood.", "Chapter 7: Blightwood Monsters. Acid Slugs leave burning trails, Dart Frogs spit poison darts, Spore Shamblers stomp about covered in fungus, Gas Bloaters puff up and explode, and Toxic Wisps float through the dead trees. At night, Blightpedes skitter on a hundred legs and Moonmantises strike from the shadows.", "Chapter 8: Blightwood Advice. Do not drink from the green pools. Do not breathe in the purple spores. Do not lick anything. Bring healing tonics, and leave before your dragon starts to cough."] },
   { t: "Lands of the World: Hydra Valley", p: ["Lands of the World: Hydra Valley, by Professor Hazel. A hidden green valley, sealed in by giant cliffs, reached only through a narrow canyon. It took me three tries to find the way in. It took me one try to run back out.", "Chapter 1: The Valley. A deep green valley between tall grey cliffs. A winding river runs through the middle, with marshy pools beside it. Tall grass, ferns, and enormous ancient trees with roots like walls. A waterfall pours off the far cliff, and dark caves dot the cliff walls. Every morning, a thick fog fills the valley.", "Chapter 2: Hydras. This is where the hydras live: dragons with more than one head. Every head breathes, so hydra breath is very, very strong. Count the heads before you fight. Then count again.", "Chapter 3: Bramblehydra. Three heads, and one always stays awake to keep watch. A leafy back and blotchy green skin hide it in the ferns, and leafy wings fold flat so it can push through thick brambles. If one head gets hurt, the others keep fighting.", "Chapter 4: Marshhydra. Extra long necks reach fish deep in the river pools. Webbed feet and a paddle tail make it a great swimmer, and a back fin keeps it steady in fast water. Its three heads watch the water, the bank and the sky all at once. You cannot sneak up on a Marshhydra. I tried three times.", "Chapter 5: Thunderhydra. FIVE heads, each one crackling with lightning. It is the biggest dragon in the valley, with a thick armoured body. It sleeps in the cliff caves and comes out in thunderstorms. When its cracks start to flash, it is angry. When it is angry, I am elsewhere.", "Chapter 6: The Wingless Ones. The valley also has dragons with no wings at all. Coilwyrm has a long snake-like body with short legs and grass-striped scales; it mostly wiggles, and wraps round tree trunks to rest. Burrowdrake has huge shovel claws, small eyes, back armour that holds up its tunnel roofs, and a flat shovel tail for pushing out the dirt.", "Chapter 7: Crestrunner. The fastest dragon on the ground, with long running legs. A tall bright crest flashes to talk to its herd, and a fan-shaped tail works like a rudder so it can turn sharply while sprinting. Watching a herd race across the meadow is like watching the wind.", "Chapter 8: Twinhead. A two-headed hydra with no wings that still flies, leaping through the sky on puffs of fire and frost. One head breathes fire, the other breathes frost, and even its tail splits in two. The two heads argue all the time but fight as a team. I watched one for an hour. They argued the whole hour. About lunch.", "Chapter 9: Valley Monsters. The Great Hydra sleeps in the cliff caves, and its heads grow back unless you burn them. Hydra Hatchlings swarm in groups, Rock Pythons squeeze, Valley Raptors hunt in the tall grass, and Moss Golems look exactly like mossy boulders until they stand up. At night, Gleamhydras glow, Moonbasilisks stare, and Wraith Stags walk through the fog.", "Chapter 10: Valley Advice. Go in the afternoon, after the fog lifts. Stay away from the caves unless you are very strong. And never, ever wake a sleeping hydra. Any of its heads."] },
+  { t: "Lands of the World: The Bone Caves", p: ["Lands of the World: The Bone Caves, by Professor Hazel. Deep under the old crypts there are caves full of bones, and the dragons that live there are the strangest I have ever met. I went down with three lanterns. I came back up with one. I do not want to talk about the other two.", "Chapter 1: The Caves. Long, dark tunnels with walls made of old bones and crumbling stone. Ribs as big as doorways arch over the paths. Old gravestones lean this way and that, and drips of water echo for a very long time. There is no sunlight at all. Not even a little.", "Chapter 2: Bone Cave Bodies. Living in the dark has changed these dragons. Some have huge eyes that catch the tiniest bit of light. Some barely use their eyes and feel or hear their way instead. Many glow, so they can see, or be seen by friends, or lure in dinner. And almost all of them are the colour of bone, dust or darkness, so they disappear into the caves.", "Chapter 3: Ribcrawler. Small and bony, it skitters along the walls and ceilings on wide, grippy feet with long hooked claws, and flutters from ledge to ledge on bony wings with thin, see-through skin. Its ribs glow faintly through its thin grey skin, so other Ribcrawlers can find it in the dark. Curled up on a pile of bones, it looks like part of the pile. I picked one up once, thinking it was a bone. It rattled at me. I put it down.", "Chapter 4: Gravemaw. A big, heavy digger with crooked gravestone plates along its back. When it pushes up through an old crypt floor, it looks like just another row of graves. Its eyes are tiny, but long whiskers feel the tunnel walls, and its enormous jaw crunches old bones for the minerals inside. It breathes Grave Dust, a choking cloud. Hold your breath. I did not. I coughed for a week.", "Chapter 5: Wraithwing. You can see right through it, like a ghost, and its pale wings slowly fade away to nothing, then come back. Its cloudy eyes are almost blind, but its big ear fins can hear a bat's wingbeat across the whole cave. It flies without a sound, then lets out a Wail that sends its echo bouncing off the walls. Monsters run from it. So did I. Just a little.", "Chapter 6: Lichcrown. It looks half skeleton, with bone-white ribs and a pale bony skull, and it lives in the deepest tomb of all. A crown of bone horns glows with green soul-fire, like a lantern, and the same green fire burns in its eye sockets so it can see in total darkness. Glowing cave moths flutter up to its crown, and it snaps them up. Its Soul Flame breath sticks and keeps burning. Do not stand downwind.", "Chapter 7: Veinfang. Small, slim and quick, with deep crimson scales, long fangs, sharp bone-white horns, and two glowing arteries down its sides. Every vein flares with each heartbeat. Ba-dum. Ba-dum. You hear it before you see it. Its warm blood keeps it going in the coldest tunnels, it sleeps hanging upside down from the cave roof like a bat, and its Life Drain breath heals it a little every time it hits. It is not the red-moon dragon. They look nothing alike up close. I checked. Very carefully.", "Chapter 8: Dinner in the Dark. Nothing grows in the Bone Caves, so what do these dragons eat? Cave beetles, cave moths, blind cave fish from the black pools, and the minerals in old bones. It sounds horrible. The dragons seem very happy with it.", "Chapter 9: Cave Monsters. Bats hang from every ceiling, beetles click in the bone piles, and things rattle in the dark that I never quite got a look at. Some of the bones are not as still as they should be. I counted them twice to be sure.", "Chapter 10: Bone Cave Advice. Bring more lanterns than you think you need. Then bring one more. Keep your dragon close, listen for rattles, and never, ever lean on a gravestone that is breathing."] },
   { t: "A Tamer's First Guide", p: ["A Tamer's First Guide, by Professor Hazel. For every new tamer who has just found an egg, and for every old tamer who has forgotten what that felt like. Read it slowly. Your dragon is not going anywhere. Well. It might fly off for a bit. It will come back.", "Chapter 1: The Egg. A dragon egg is warm, a little heavy, and glows softly so its mother can find it. Carry it gently and take it home to your nest. Eggs hatch best at home, where it is safe and quiet.", "Chapter 2: Hatching Day. When the egg starts to rock and crack, stay close. The very first thing a baby dragon sees is the face it will trust forever. I have been the first face for many dragons. Most of them still try to sit on my lap. Some of them are now bigger than my house.", "Chapter 3: Names. Give your dragon a good name, one you will not mind shouting across a valley. I once named a Pyrrak 'Sir Wigglesworth the Third'. Calling him for dinner took a very long time.", "Chapter 4: Growing Up. Babies grow quickly. Soon your dragon will be big enough to carry you. Climb on, hold tight, and let it walk first. Flying comes after. Not every dragon can fly, and that is fine. Some swim, some dig, some run, and a very few run right up into the sky.", "Chapter 5: Strength. Every kind of dragon is different. Some are tough and can take a lot of hits. Some have strong claws. Some have powerful breath. Some are fast. Dragons grow stronger as they gain experience, and the rarer kinds seem to grow stronger faster. Nobody knows why. I suspect showing off.", "Chapter 6: Hurt Dragons. If your dragon gets hurt, take it home to its nest to rest. Never push a tired dragon into another fight. A dragon will try its very best for you, even when it should not. That is why you have to be the sensible one.", "Chapter 7: The Lands. The world is much bigger than Green Valley. Past the mountains there are lands of fire, ice, sand, crystal, forest and sea, and past those, even stranger lands. Each land has its own dragons and its own monsters. I have written a book about every one of them. They are on this shelf. You are welcome.", "Chapter 8: The Most Important Rule. Be kind to your dragon. Feed it, talk to it, scratch it behind the horns. It remembers everything. A dragon that loves you will follow you anywhere, even into a volcano. Please do not take it into a volcano."] },
 ];
 function npcNext(n) {
@@ -3959,7 +4274,8 @@ function tamerShiny(t, sec) {
 function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
   return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null, shell: sh.side, crystalTip: sh.glow, hornTip: sh.glow, spikeTip: sh.glow, flame: sh.glow, smoke: sh.wing, glow2: sh.horn, glow3: sh.eye,
-    foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.top, earInner: s.pal.earInner && sh.belly });   // shiny Vulpyre: markings, ears and tail change too
+    foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.glow, earInner: s.pal.earInner && sh.belly,
+    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
 }
 const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
 const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
@@ -4047,7 +4363,7 @@ function clearFoe() {
 function buildFoe(shiny) {
   if (foeDragon) scene.remove(foeDragon.root);
   const s = SP(foe.k), pal = shiny ? shinyPal(foe.k, shiny) : s.pal;
-  foeDragon = makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {})); scene.add(foeDragon.root);
+  foeDragon = withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}))); scene.add(foeDragon.root);
 }
 function practiceFoe() {
   const lv = Math.max(1, (pet.level || 1) + Math.floor(Math.random() * 3) - 1);
@@ -10712,10 +11028,20 @@ addEventListener("keydown", e => {
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement === cv) return;
   if (performance.now() - freeMouseAt < 600) return;   // M frees the mouse on purpose: no pause
+  if (performance.now() - menuClosedAt < 900) return;   // just closed a menu: the mouse lock is still settling, that's not a reason to pause
   setTimeout(() => { if (!uiOpen) pauseOpen(); }, 30);
 });
 // the pause menu shouldn't stay open behind other things that take over
 addEventListener("blur", () => { if (started && !uiOpen && state !== "arena") pauseOpen(); });
+// Petra 2026-11-10: "closing the quest board sometimes freezes the game". If another menu ever replaces the pause menu
+// (or it closes some other way), time stayed stopped forever. Now the game un-pauses itself whenever the pause menu isn't showing.
+(function pauseHeal() {
+  if (PAUSED && (menuEl.hidden || !["Paused", "How to play", "Settings"].includes($("menuTitle").textContent))) PAUSED = false;
+  requestAnimationFrame(pauseHeal);
+})();
+// remember when a menu closed (see above)
+var menuClosedAt = -1e9;
+{ const _close = closeMenu; closeMenu = function () { menuClosedAt = performance.now(); return _close(); }; }
 
 // ================= Wren's potion shop (Petra 2026-11-10): potions you carry and drink when you need them =================
 // H opens your potion bag. Healing works right away; brews last a minute; Second Chance saves your dragon from fainting once.
