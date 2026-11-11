@@ -1208,6 +1208,7 @@ function update(t, walk, flap, dt, bend = 0) {
   placeBack(); placeMane(); placeRibs(); placeVerts();
   const end = frames[SEGS];
   const fwd = new V(end.T.x, end.T.y * 0.25, end.T.z).normalize();
+  if (sitV > 0.01) { const a = -sitPitchV * sitV, c = Math.cos(a), sn = Math.sin(a), x = fwd.x, y = fwd.y; fwd.x = x * c - y * sn; fwd.y = x * sn + y * c; fwd.normalize(); }   // sitting (Petra): the whole body leans back, so tip the head forward again to keep it level with the ground
   const side = new V().crossVectors(fwd, UP).normalize(), up = new V().crossVectors(side, fwd);
   hb.makeBasis(fwd, up, side); hq.setFromRotationMatrix(hb).multiply(tilt);
   head.quaternion.copy(hq).multiply(headTurn.setFromEuler(_eul.set(0, -bendNow * 0.35 + look.yaw * 0.35 * idleK, look.pitch * 0.4 * idleK, 'YXZ')));
