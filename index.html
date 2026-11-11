@@ -405,7 +405,9 @@ function paint(p) {
     for (let i = 0; i < 90; i++) { const x = Math.random() * 900, y = Math.random() * H * 0.5, r = 1.5 + Math.random() * 3.5; e.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2, rr = k % 2 ? r * 0.4 : r * 1.4; e.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } e.fill(); }
   } else if (pat === "aurora") {
     const bands = [p.glow, p.glow2 || p.glow].concat(p.glow3 ? [p.glow3] : []), gap = bands.length > 2 ? 0.11 : 0.16;
-    bands.forEach((c, i) => { e.strokeStyle = c; e.shadowColor = c; e.lineWidth = 9; e.beginPath(); for (let x = 60; x < 860; x += 10) e.lineTo(x, H * (0.12 + i * gap) + Math.sin(x * 0.02 + i * 2) * 14); e.stroke(); });
+    const thick = x => 9 * Math.min(1, (x - 40) / 200) * Math.max(0.22, Math.min(1, (880 - x) / 260));   // the stripes get thinner up the neck and down the tail (Petra)
+    bands.forEach((c, i) => { e.strokeStyle = c; e.shadowColor = c; e.lineCap = "round"; const y = x => H * (0.12 + i * gap) + Math.sin(x * 0.02 + i * 2) * 14 * Math.max(0.3, Math.min(1, (880 - x) / 260));
+      for (let x = 60; x < 860; x += 10) { e.lineWidth = thick(x + 5); e.beginPath(); e.moveTo(x, y(x)); e.lineTo(x + 10, y(x + 10)); e.stroke(); } });
   } else if (pat === "cracks") {
     e.lineWidth = 3; e.lineCap = "round";
     for (let i = 0; i < 26; i++) { let x = 60 + Math.random() * 760, y = Math.random() * H * 0.5; e.beginPath(); e.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.5) * 30; e.lineTo(x, y); } e.stroke(); }
@@ -438,6 +440,7 @@ function paint(p) {
   M.top.color.set(p.side).lerp(new THREE.Color(p.top), 0.35).convertSRGBToLinear(); M.top.metalness = p.metal;
   M.web.color.copy(M.top.color).lerp(new THREE.Color(p.belly).convertSRGBToLinear(), 0.35); M.web.metalness = p.metal;
   M.belly.color.set(p.belly).convertSRGBToLinear();
+  if (o.coalBelly) { M.belly.emissive.set(p.glow).convertSRGBToLinear(); M.belly.emissiveIntensity = 0.5 * o.coalBelly; }   // Cinderpup: a belly that glows like a hot coal
   M.horn.color.set(p.horn).convertSRGBToLinear(); M.horn.metalness = p.metal * 0.6;
   M.wing.color.set(p.wing).convertSRGBToLinear(); M.wing.emissive.set(p.glow); M.wing.emissiveIntensity = 0.06 * o.glow; M.wing.metalness = p.metal * 0.5;
   M.fin.color.set(p.fin || p.top).convertSRGBToLinear(); M.fin.emissive.set(p.glow); M.fin.emissiveIntensity = 0.22 * o.glow;
@@ -1075,8 +1078,9 @@ let walkT = 0, bendNow = 0;
 const headTurn = new THREE.Quaternion(), tb = new THREE.Matrix4(), _eul = new THREE.Euler();
 // ----- Epic and up: glowing motes drift around the dragon -----
 const TIER = o.tier ?? 1; let motes = null;
-if (TIER >= 4) {
-  const n = 14 * (TIER - 3), pos = new Float32Array(n * 3), cols = [], seed = [];
+if (TIER >= 4 || o.sparks) {
+  const n = TIER >= 4 ? 14 * (TIER - 3) : o.sparks,   // o.sparks: a few hot sparks drift around even a Common (Cinderpup)
+ pos = new Float32Array(n * 3), cols = [], seed = [];
   const pc = [p.glow, p.glow2 || p.glow, p.crystalTip || p.glow, p.hornTip || p.eye || p.glow];
   for (let i = 0; i < n; i++) {
     seed.push([Math.random() * 6.28, 0.55 + Math.random() * 0.8, Math.random() * 6.28, (Math.random() - 0.5) * 2.4, 0.4 + Math.random() * 0.8]);
@@ -1183,6 +1187,7 @@ function fadeAll(op) {
   solidMats.forEach(q => { q.opacity = op; });
 }
 function update(t, walk, flap, dt, bend = 0) {
+  if (o.coalBelly) M.belly.emissiveIntensity = 0.5 * o.coalBelly * (1 + 0.3 * Math.sin(t * 2.2));   // the coal belly glows brighter and dimmer as it breathes
   _dt = dt; idleK += ((walk < 0.15 && !flap && !(api && api.sit > 0.5) ? 1 : 0) - idleK) * Math.min(1, dt * 1.5); lookStep(look, dt, 0.7);
   updateMotes(t);
   if (TIER >= 3) M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * TIER) * (1 + Math.sin(t * 1.8) * 0.18);
@@ -1414,7 +1419,7 @@ if (o.seeThrough) {   // CAVE: Wraithwing is see-through all over. A depth-only 
 }
 update(0, 0, 0, 0.016);
 sockets.head = head;
-api = { root: dragon, update, seat, sockets, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
+api = { root: dragon, update, seat, sockets, mats: M, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
 return api;   // spikes: so a saddle or cape can hide the ones it covers
 }
 
@@ -1449,7 +1454,7 @@ function addFur(api, opts) {
   const O = Object.assign({}, FUR_DEFAULTS, opts || {});
   O.parts = Object.assign({}, FUR_DEFAULTS.parts, opts && opts.parts);
   O.partLen = Object.assign({}, FUR_DEFAULTS.partLen, opts && opts.partLen);
-  if (O.skin) furSkin(api, O.skin);
+  if (O.skin) furSkin(api, O.skin, O);
   if (O.coral) addCoral(api, O.coral);
   if (O.noFur) { api.fur = { enabled: false, opts: O, parts: [], setEnabled() {}, dispose() { delete api.fur; } }; return api.fur; }   // skin-only looks (rock, pearl): no shell fur
   const root = api.root, made = [], hidden = [], baseMats = new Map();
@@ -1682,7 +1687,8 @@ const FUR_LOOKS = {
 
 // ---------- special skins (Petra 2026-11-10): rock, frost sparkle, pearl shine ----------
 // furSkin(api, kind) changes the dragon's own skin materials (body tube, top/skull, belly) instead of adding fur.
-function furSkin(api, kind) {
+function furSkin(api, kind, O = {}) {
+  const SZ = O.skinSize || 1;   // bigger or smaller pattern (1 = normal)
   const root = api.root, mats = new Set();
   const spine = root.children.find(m => m.isMesh && m.geometry && m.geometry.userData && m.geometry.userData.segs >= 100);
   if (spine) mats.add(spine.material);
@@ -1695,6 +1701,7 @@ function furSkin(api, kind) {
     if (m.children.some(c => c.isMesh && c.geometry.type === "SphereGeometry" && c.geometry.parameters.phiLength === Math.PI * 2 && c.geometry.parameters.thetaLength < Math.PI)) return;   // the eyeball (it carries the lids)
     let inWing = false; for (let p = m.parent; p; p = p.parent) if (api.wings && api.wings.includes && api.wings.includes(p)) inWing = true;
     if (inWing && !wingBones) return;
+    if (api.mats && (q === api.mats.horn)) return;   // horns and claws keep their own look (Petra)
     mats.add(q);
   });
   const W = 1024, H = 256, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d");
@@ -1721,6 +1728,55 @@ function furSkin(api, kind) {
   } else if (kind === "ash") {   // dusty charcoal: fine grit, soft smudges and flaky layers
     for (let i = 0; i < 300; i++) { const x = rnd() * W, y = rnd() * H, r = 10 + rnd() * 30, g = 100 + rnd() * 60 | 0; c.fillStyle = `rgba(${g},${g},${g},0.25)`; c.beginPath(); c.ellipse(x, y, r * 2, r * 0.6, rnd() * 0.4, 0, 7); c.fill(); }
     for (let i = 0; i < 6000; i++) { const g = 100 + rnd() * 70 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(rnd() * W, rnd() * H, 1, 1); }
+  } else if (kind === "scales") {   // THE TEXTURES UPDATE (softer, Petra): small overlapping scales, a little uneven in size and height, with soft edges
+    const r = 8 / SZ;
+    for (let row = -1, y = -r; y < H + r; y += r * 0.82, row++) for (let x = (row % 2) * r * 0.95 + (rnd() - 0.5) * r * 0.3; x < W + r; x += r * 1.9) {
+      const rr = r * (0.9 + rnd() * 0.2), h = 140 + rnd() * 20 | 0, gr = c.createRadialGradient(x - rr * 0.3, y, rr * 0.1, x, y, rr);
+      gr.addColorStop(0, `rgb(${h},${h},${h})`); gr.addColorStop(0.8, "rgb(122,122,122)"); gr.addColorStop(1, "rgb(104,104,104)");
+      c.fillStyle = gr; c.beginPath(); c.ellipse(x, y, rr * 1.05, rr, 0, 0, 7); c.fill(); }
+  } else if (kind === "feathers") {   // soft layered feathers: long teardrops in overlapping rows, each with a thin centre shaft
+    const fl = 34 / SZ, fw = 11 / SZ;
+    for (let row = 0, y = 0; y < H + fw; y += fw * 1.2, row++) for (let x = W + fl - (row % 2) * fl * 0.5; x > -fl; x -= fl * 0.62) {
+      const gr = c.createLinearGradient(x, y, x - fl, y); gr.addColorStop(0, "#5a5a5a"); gr.addColorStop(0.35, "#a8a8a8"); gr.addColorStop(1, "#c4c4c4");
+      c.fillStyle = gr; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x - fl * 0.5, y - fw, x - fl, y); c.quadraticCurveTo(x - fl * 0.5, y + fw, x, y); c.fill();
+      c.strokeStyle = "rgba(70,70,70,0.6)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y); c.lineTo(x - fl * 0.9, y); c.stroke(); }
+  } else if (kind === "bark") {   // tree bark (redone for Petra): thick rough ridges split by deep cracks that join and branch, like an old oak
+    for (let i = 0; i < 1800; i++) { const x = rnd() * W, y = rnd() * H, w = (30 + rnd() * 70) / SZ, h = (5 + rnd() * 8) / SZ, g = 120 + rnd() * 70 | 0;   // raised bark ridges
+      c.fillStyle = `rgba(${g},${g},${g},0.55)`; c.beginPath(); c.ellipse(x, y, w, h, (rnd() - 0.5) * 0.25, 0, 7); c.fill(); }
+    c.strokeStyle = "rgba(20,20,20,0.9)"; c.lineCap = c.lineJoin = "round";
+    for (let i = 0; i < 70; i++) { let x = rnd() * W, y = rnd() * H; c.lineWidth = (2.5 + rnd() * 2.5) / SZ; c.beginPath(); c.moveTo(x, y);   // deep cracks running along the body, wandering a little and splitting
+      for (let k = 0; k < 9; k++) { x += (14 + rnd() * 22) / SZ; y += (rnd() - 0.5) * 9 / SZ; c.lineTo(x, y); if (rnd() < 0.25) { const bx = x, by = y; c.lineTo(bx + 18 / SZ, by + (rnd() < 0.5 ? -1 : 1) * 10 / SZ); c.moveTo(bx, by); } } c.stroke(); }
+    for (let i = 0; i < 1200; i++) { const g = rnd() < 0.5 ? 60 : 190; c.fillStyle = `rgba(${g},${g},${g},0.35)`; c.fillRect(rnd() * W, rnd() * H, 2, 1); }   // rough grit
+    if (O.thorns) for (let i = 0; i < 140; i++) { const x = rnd() * W, y = rnd() * H, r = 3 + rnd() * 3, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "#ffffff"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+  } else if (kind === "leaf") {   // leaf skin (redone for Petra): overlapping little leaves, each with a midrib and side veins, pointing back along the body
+    const LV = [];
+    for (let i = 0; i < 420; i++) LV.push([rnd() * W, rnd() * H, (18 + rnd() * 14) / SZ, (rnd() - 0.5) * 0.7]);
+    LV.forEach(([x, y, L, a]) => { c.save(); c.translate(x, y); c.rotate(Math.PI + a); const g = 115 + rnd() * 30 | 0;
+      c.fillStyle = `rgb(${g},${g},${g})`; c.strokeStyle = "rgba(70,70,70,0.7)"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(L * 0.5, -L * 0.42, L, 0); c.quadraticCurveTo(L * 0.5, L * 0.42, 0, 0); c.fill(); c.stroke();
+      c.strokeStyle = "rgba(175,175,175,0.9)"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(0, 0); c.lineTo(L * 0.95, 0); c.stroke(); c.lineWidth = 0.8;
+      for (let k = 1; k <= 4; k++) { const t = k / 5 * L; [-1, 1].forEach(d => { c.beginPath(); c.moveTo(t, 0); c.lineTo(t + L * 0.14, d * L * 0.2 * Math.sin(Math.PI * k / 5)); c.stroke(); }); } c.restore(); });
+    O._leaves = LV;
+  } else if (kind === "sand") {   // fine grains, little drifts
+    for (let i = 0; i < 90; i++) { const y = rnd() * H; c.strokeStyle = "rgba(160,160,160,0.25)"; c.lineWidth = 4; c.beginPath(); for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.04 + i) * 4); c.stroke(); }
+    for (let i = 0; i < 26000; i++) { const g = 80 + rnd() * 110 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(rnd() * W, rnd() * H, 1 + (rnd() < 0.2), 1); }
+  } else if (kind === "metal") {   // smooth polished metal (no plates, Petra): just a very faint brushed grain so the shine ripples a little
+    for (let i = 0; i < 1400; i++) { const g = 120 + rnd() * 16 | 0, y = rnd() * H, x = rnd() * W; c.strokeStyle = `rgba(${g},${g},${g},0.5)`; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 40 + rnd() * 120, y); c.stroke(); }
+  } else if (kind === "velvet") {   // soft velvet nap: brushed streaks that catch the light in patches, like a moth's wing or a deer's antler velvet
+    for (let i = 0; i < 160; i++) { const x = rnd() * W, y = rnd() * H, r = 14 + rnd() * 34, g = rnd() < 0.5 ? 150 : 105; const gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${g},${g},${g},0.55)`); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.ellipse(x, y, r * 1.6, r, 0, 0, 7); c.fill(); }
+    for (let i = 0; i < 26000; i++) { const g = 100 + rnd() * 60 | 0, x = rnd() * W, y = rnd() * H; c.strokeStyle = `rgba(${g},${g},${g},0.7)`; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 3 + rnd() * 3, y + (rnd() - 0.5) * 1.5); c.stroke(); }
+  } else if (kind === "wet") {   // smooth wet skin with soft long ripples
+    for (let i = 0; i < 40; i++) { const y = rnd() * H; c.strokeStyle = "rgba(150,150,150,0.3)"; c.lineWidth = 6 + rnd() * 6; c.beginPath(); for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.02 + i) * 6); c.stroke(); }
+    if (O.spots) for (let i = 0; i < 120; i++) { const x = rnd() * W, y = rnd() * H, r = 4 + rnd() * 6, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(175,175,175,0.8)"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+  } else if (kind === "stars") {   // starfield: smooth dark skin (the stars are in the glow layer below)
+    for (let i = 0; i < 8000; i++) { const g = 120 + rnd() * 16 | 0; c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(rnd() * W, rnd() * H, 1, 1); }
+  } else if (kind === "bone") {   // old cracked bone: little pores, worn ridges and branching cracks
+    for (let i = 0; i < 2600; i++) { const x = rnd() * W, y = rnd() * H, g = 60 + rnd() * 40 | 0; c.fillStyle = `rgba(${g},${g},${g},0.6)`; c.beginPath(); c.arc(x, y, 0.8 + rnd() * 1.6, 0, 7); c.fill(); }
+    for (let i = 0; i < 60; i++) { const y = rnd() * H; c.strokeStyle = "rgba(170,170,170,0.35)"; c.lineWidth = 3; c.beginPath(); for (let x = 0; x <= W; x += 20) c.lineTo(x, y + Math.sin(x * 0.03 + i) * 3); c.stroke(); }
+    c.strokeStyle = "rgba(25,25,25,0.85)"; c.lineWidth = 1.4;
+    for (let i = 0; i < 55; i++) { let x = rnd() * W, y = rnd() * H; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 20; c.lineTo(x, y); if (rnd() < 0.3) { c.moveTo(x, y); } } c.stroke(); }
+  } else if (kind === "toxic") {   // poison skin (redone for Petra): glossy like a poison frog, with fine little grains and a few soft lumps
+    for (let i = 0; i < 9000; i++) { const x = rnd() * W, y = rnd() * H, r = 0.8 + rnd() * 1.6, g = 135 + rnd() * 30 | 0; c.fillStyle = `rgba(${g},${g},${g},0.7)`; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+    for (let i = 0; i < 90; i++) { const x = rnd() * W, y = rnd() * H, r = (6 + rnd() * 8) / SZ, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(175,175,175,0.6)"); gr.addColorStop(1, "rgba(128,128,128,0)"); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
   } else {   // pearl: layers of nacre: fine wavy growth lines and soft overlapping scale-like shells
     for (let i = 0; i < 260; i++) { const x = rnd() * W, y = rnd() * H, r = 10 + rnd() * 26; for (let k = 0; k < 4; k++) { const g = 118 + k * 8 + rnd() * 10 | 0; c.strokeStyle = `rgba(${g},${g},${g},0.35)`; c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, r * (1 - k * 0.2), Math.PI * 0.1, Math.PI * 0.9); c.stroke(); } }
     for (let y = 0; y < H; y += 3) { c.strokeStyle = `rgba(150,150,150,${0.08 + rnd() * 0.08})`; c.lineWidth = 1; c.beginPath(); for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.03 + y * 0.2) * 2.5); c.stroke(); }
@@ -1734,7 +1790,8 @@ function furSkin(api, kind) {
     spark = new THREE.CanvasTexture(sv); spark.encoding = THREE.sRGBEncoding;
   }
   let glowTex = null;   // lava: glowing cracks; ash: a few hot embers; crystal: sharp glints on facet edges (added in the shader, so the body's own glow pattern stays)
-  if (kind === "lava" || kind === "ash" || kind === "crystal" || kind === "coral") {
+  const GLOWS = { scales: O.glints, wet: O.spots || O.ripple, stars: true, toxic: true, leaf: O.veinGlow, metal: O.runes, bark: false, sand: true };
+  if (kind === "lava" || kind === "ash" || kind === "crystal" || kind === "coral" || GLOWS[kind]) {
     const gv = document.createElement("canvas"); gv.width = W; gv.height = H; const x = gv.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, W, H); seed = 7;
     if (kind === "lava") { x.lineCap = x.lineJoin = "round";
       for (let i = 0; i < 70; i++) { let px = rnd() * W, py = rnd() * H; const pts = [[px, py]]; for (let k = 0; k < 7; k++) { px += (rnd() - 0.5) * 70; py += (rnd() - 0.5) * 30; pts.push([px, py]); }
@@ -1743,9 +1800,33 @@ function furSkin(api, kind) {
     else if (kind === "coral") { for (let i = 0; i < 300; i++) { const px = rnd() * W, py = rnd() * H, r = 3 + rnd() * 2;   // tiny open coral polyps: a soft star of 8 little arms round a bright mouth
         x.fillStyle = "rgba(255,120,170,0.5)"; for (let k = 0; k < 8; k++) { const b = k / 8 * 6.28; x.beginPath(); x.arc(px + Math.cos(b) * r, py + Math.sin(b) * r, r * 0.45, 0, 7); x.fill(); }
         x.fillStyle = "#ffd0e4"; x.beginPath(); x.arc(px, py, r * 0.4, 0, 7); x.fill(); } }
+    else if (kind === "scales" || (kind === "metal" && O.runes === "lightning")) { x.lineCap = x.lineJoin = "round";   // lightning: thin zig-zag bolts that flicker
+      for (let i = 0; i < 26; i++) { let px = rnd() * W, py = rnd() * H; const pts = [[px, py]]; for (let k = 0; k < 6; k++) { px += 10 + rnd() * 26; py += (rnd() - 0.5) * 30; pts.push([px, py]); }
+        [[4, "rgba(255,255,255,0.25)"], [1.3, "#ffffff"]].forEach(([w, col]) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); pts.forEach(([a, b], j) => j ? x.lineTo(a, b) : x.moveTo(a, b)); x.stroke(); }); } }
+    else if (kind === "metal") { x.strokeStyle = "#ffffff"; x.lineWidth = 2; x.lineCap = "round";   // glowing rune lines: little angular symbols in rows
+      for (let i = 0; i < 70; i++) { const px = rnd() * W, py = rnd() * H, s2 = 8 + rnd() * 6; x.beginPath(); x.moveTo(px, py - s2); x.lineTo(px, py + s2); const k = rnd() * 4 | 0;
+        if (k === 0) { x.moveTo(px, py - s2 * 0.4); x.lineTo(px + s2 * 0.7, py - s2); } else if (k === 1) { x.moveTo(px, py); x.lineTo(px + s2 * 0.6, py - s2 * 0.6); x.lineTo(px + s2 * 0.6, py + s2 * 0.6); } else if (k === 2) { x.moveTo(px - s2 * 0.6, py - s2 * 0.5); x.lineTo(px + s2 * 0.6, py + s2 * 0.5); } else { x.moveTo(px - s2 * 0.5, py + s2); x.lineTo(px + s2 * 0.5, py - s2 * 0.2); } x.stroke(); } }
+    else if (kind === "wet") { if (O.spots) for (let i = 0; i < 120; i++) { const px = rnd() * W, py = rnd() * H, r = 3 + rnd() * 4, gr = x.createRadialGradient(px, py, 0, px, py, r * 1.6); gr.addColorStop(0, "#ffffff"); gr.addColorStop(0.5, "rgba(255,255,255,0.6)"); gr.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = gr; x.fillRect(px - r * 2, py - r * 2, r * 4, r * 4); }
+      else for (let i = 0; i < 80; i++) { x.strokeStyle = "rgba(255,255,255,0.35)"; x.lineWidth = 1.5; const px = rnd() * W, py = rnd() * H; x.beginPath(); for (let k = 0; k < 8; k++) x.lineTo(px + k * 9, py + Math.sin(k * 1.3 + i) * 5); x.stroke(); } }   // moving light ripples
+    else if (kind === "stars") { for (let i = 0; i < 520; i++) { const px = rnd() * W, py = rnd() * H, r = 0.6 + rnd() * rnd() * 2.4; x.fillStyle = rnd() < 0.15 ? "rgba(255,255,255,0.5)" : "#ffffff"; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); } }
+    else if (kind === "toxic") {   // warning blotches like a poison dart frog: soft irregular patches made of clustered blobs, and a few tiny dots
+      for (let i = 0; i < 46; i++) { let px = rnd() * W, py = rnd() * H; const n = 4 + (rnd() * 6 | 0), R = 5 + rnd() * 6; x.fillStyle = "#ffffff";
+        for (let k = 0; k < n; k++) { px += (rnd() - 0.5) * R * 1.6; py += (rnd() - 0.5) * R; x.beginPath(); x.ellipse(px, py, R * (0.7 + rnd() * 0.6), R * (0.5 + rnd() * 0.4), rnd() * 3, 0, 7); x.fill(); } }
+      for (let i = 0; i < 140; i++) { x.fillStyle = "rgba(255,255,255,0.8)"; x.beginPath(); x.arc(rnd() * W, rnd() * H, 1 + rnd() * 1.4, 0, 7); x.fill(); }
+      x.filter = "blur(1.5px)"; x.drawImage(gv, 0, 0); x.filter = "none"; }
+    else if (kind === "leaf") { x.strokeStyle = "#ffffff"; (O._leaves || []).forEach(([px, py, L, a]) => { x.save(); x.translate(px, py); x.rotate(Math.PI + a); x.lineWidth = 1.3; x.beginPath(); x.moveTo(0, 0); x.lineTo(L * 0.95, 0); x.stroke(); x.lineWidth = 0.7;
+      for (let k = 1; k <= 4; k++) { const t = k / 5 * L; [-1, 1].forEach(d => { x.beginPath(); x.moveTo(t, 0); x.lineTo(t + L * 0.14, d * L * 0.2 * Math.sin(Math.PI * k / 5)); x.stroke(); }); } x.restore(); }); }
+    else if (kind === "sand") { for (let i = 0; i < 900; i++) { x.fillStyle = "#ffffff"; x.fillRect(rnd() * W, rnd() * H, 1, 1); } }   // sun sparkle on the grains
     else { for (let i = 0; i < 260; i++) { const px = rnd() * W, py = rnd() * H, r = 1 + rnd() * 2; x.fillStyle = "#ffffff"; x.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? r * 0.35 : r * 2.2, b = k / 8 * 6.28; x.lineTo(px + Math.cos(b) * rr, py + Math.sin(b) * rr); } x.fill(); } }   // little star glints
     glowTex = new THREE.CanvasTexture(gv); glowTex.wrapS = glowTex.wrapT = THREE.RepeatWrapping; glowTex.encoding = THREE.sRGBEncoding;
   }
+  // THE TEXTURES UPDATE: remember where every skin point sits in the dragon's resting pose, so cracks, stars and spots stay PINNED to the skin when it moves (Petra)
+  root.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  root.traverse(m => { if (!m.isMesh || !mats.has(m.material) || !m.geometry.attributes.position) return; const g = m.geometry; if (g.attributes.skRest) return;
+    const P = g.attributes.position, N = g.attributes.normal, mw = m.matrixWorld.clone(), nm = new THREE.Matrix3().getNormalMatrix(mw);
+    const rp = new Float32Array(P.count * 3), rn = new Float32Array(P.count * 3), v = new THREE.Vector3();
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(mw); rp.set([v.x, v.y, v.z], i * 3); if (N) { v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); rn.set([v.x, v.y, v.z], i * 3); } else rn.set([0, 1, 0], i * 3); }
+    g.setAttribute("skRest", new THREE.BufferAttribute(rp, 3)); g.setAttribute("skRestN", new THREE.BufferAttribute(rn, 3)); });
   const SK = { t: { value: 0 } };
   const bumpSmall = bump.clone(); bumpSmall.needsUpdate = true; bumpSmall.repeat.set(0.22, 0.3);   // legs, head, horns are short tubes: use a small piece of the stone so the lumps stay the same size
   mats.forEach(m => {
@@ -1756,29 +1837,49 @@ function furSkin(api, kind) {
     if (kind === "slime") { m.bumpScale = 0.05; m.roughness = 0.08; m.metalness = 0.15; }   // wet and shiny
     if (kind === "crystal") { m.bumpScale = 0.02; m.roughness = 0.1; m.metalness = 0.45; }
     if (kind === "ash") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
+    if (kind === "scales") { m.bumpScale = 0.012; m.roughness = 0.38; m.metalness = Math.max(m.metalness, 0.12); }
+    if (kind === "feathers") { m.bumpScale = 0.03; m.roughness = 0.75; m.metalness = 0; }
+    if (kind === "bark") { m.bumpScale = 0.07; m.roughness = 1; m.metalness = 0; }
+    if (kind === "leaf") { m.bumpScale = 0.035; m.roughness = 0.55; m.metalness = 0; }
+    if (kind === "sand") { m.bumpScale = 0.02; m.roughness = 1; m.metalness = 0; }
+    if (kind === "metal") { m.bumpScale = 0.004; m.roughness = 0.2; m.metalness = 0.85; }
+    if (kind === "velvet") { m.bumpScale = 0.022; m.roughness = 0.85; m.metalness = 0; }
+    if (kind === "wet") { m.bumpScale = 0.015; m.roughness = 0.1; m.metalness = 0.1; }
+    if (kind === "stars") { m.bumpScale = 0.004; m.roughness = 0.4; m.metalness = 0.1; }
+    if (kind === "bone") { m.bumpScale = 0.035; m.roughness = 0.9; m.metalness = 0; }
+    if (kind === "toxic") { m.bumpScale = 0.012; m.roughness = 0.22; m.metalness = 0.05; }
+    if (O.skinRough != null) m.roughness = O.skinRough; if (O.skinMetal != null) m.metalness = O.skinMetal;
     if (glowTex) {   // add the glow texture on top of the part's own glow; it reads the same uv as the bump (so legs and head get small pieces, like the rock)
       const big = spine && m === spine.material, prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
-      const K = kind === "lava" ? "1.2 * (0.75 + 0.25 * sin(skT * 2.0 + vUv.x * 9.0))" : kind === "ash" ? "1.3 * (0.4 + 0.6 * max(0.0, sin(skT * 3.0 + vUv.x * 40.0 + vUv.y * 17.0)))" : kind === "coral" ? "0.55 * (0.6 + 0.4 * sin(skT * 1.2 + vUv.x * 7.0 + vUv.y * 5.0))" : "0.8 * (0.5 + 0.5 * sin(skT * 1.5 + vUv.x * 30.0 - vUv.y * 11.0))";
-      m.onBeforeCompile = sh => { if (prev) prev(sh); sh.uniforms.skG = { value: glowTex }; sh.uniforms.skT = SK.t; sh.uniforms.skR = { value: big ? new THREE.Vector2(1, 1) : new THREE.Vector2(0.5, 0.6) };
+      const K = kind === "scales" || kind === "metal" && O.runes === "lightning" ? "1.6 * pow(max(0.0, sin(skT * 2.3 + p.x * 0.7) * sin(skT * 5.1 + p.z * 0.9)), 6.0)" : kind === "metal" ? "0.9 * (0.6 + 0.4 * sin(skT * 1.6))" : kind === "wet" ? (O.spots ? "0.7 * (0.6 + 0.4 * sin(skT * 1.4 + vUv.x * 5.0))" : "0.22 * (0.5 + 0.5 * sin(skT * 1.8 + vUv.x * 6.0 + vUv.y * 3.0))") : kind === "stars" ? "1.0 * (0.55 + 0.45 * sin(skT * 2.5 + vUv.x * 37.0 + vUv.y * 23.0))" : kind === "toxic" ? "0.6 * (0.7 + 0.3 * sin(skT * 1.3 + vUv.x * 4.0))" : kind === "leaf" ? "0.35" : kind === "sand" ? "0.5 * max(0.0, sin(skT * 2.0 + vUv.x * 61.0 + vUv.y * 47.0))" : kind === "lava" ? "1.2 * (0.75 + 0.25 * sin(skT * 2.0 + vUv.x * 9.0))" : kind === "ash" ? "1.3 * (0.4 + 0.6 * max(0.0, sin(skT * 3.0 + vUv.x * 40.0 + vUv.y * 17.0)))" : kind === "coral" ? "0.55 * (0.6 + 0.4 * sin(skT * 1.2 + vUv.x * 7.0 + vUv.y * 5.0))" : "0.8 * (0.5 + 0.5 * sin(skT * 1.5 + vUv.x * 30.0 - vUv.y * 11.0))";
+      m.onBeforeCompile = sh => { if (prev) prev(sh); sh.uniforms.skG = { value: glowTex }; sh.uniforms.skT = SK.t; sh.uniforms.skC = { value: new THREE.Color(O.skinGlow || "#ffffff").convertSRGBToLinear() }; sh.uniforms.skR = { value: big ? new THREE.Vector2(1, 1) : new THREE.Vector2(0.5, 0.6) };
         // sampled from the WORLD position on three planes (triplanar), so cracks/embers/glints are the same size on body, head, legs and paws, with no stretching
-        sh.vertexShader = "varying vec3 skW; varying vec3 skN;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n skW = (modelMatrix * vec4(position, 1.0)).xyz; skN = normalize(mat3(modelMatrix) * objectNormal);");
-        sh.fragmentShader = "uniform sampler2D skG; uniform float skT; uniform vec2 skR; varying vec3 skW; varying vec3 skN;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-  { vec3 bw = pow(abs(normalize(skN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z); vec3 p = skW * ${kind === "lava" ? "0.12" : kind === "coral" ? "0.3" : "0.3"}; vec2 vUv = p.xy;
+        sh.vertexShader = "attribute vec3 skRest; attribute vec3 skRestN; varying vec3 skW; varying vec3 skN;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n skW = skRest; skN = normalize(skRestN);");
+        sh.fragmentShader = "uniform sampler2D skG; uniform float skT; uniform vec2 skR; uniform vec3 skC; varying vec3 skW; varying vec3 skN;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 bw = pow(abs(normalize(skN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z); vec3 p = skW * ${kind === "lava" ? "0.12" : kind === "stars" || kind === "toxic" || kind === "wet" ? (0.22 * SZ).toFixed(3) : (0.3 * SZ).toFixed(3)}; vec2 vUv = p.xy;
     vec3 tg = texture2D(skG, p.zy * vec2(1.0, 4.0)).rgb * bw.x + texture2D(skG, p.xz * vec2(1.0, 4.0)).rgb * bw.y + texture2D(skG, p.xy * vec2(1.0, 4.0)).rgb * bw.z;
-    totalEmissiveRadiance += tg * ${K}; }`); };
-      m.customProgramCacheKey = () => "skin|" + kind + "|" + big + "|" + (prev ? prev.toString().length : 0);
+    totalEmissiveRadiance += tg * skC * ${K}; }`); };
+      m.customProgramCacheKey = () => "skin|" + kind + "|" + big + "|" + K + "|" + SZ + "|" + (prev ? prev.toString().length : 0);
     }
     if (kind === "frost" && !m.emissiveMap) { m.roughness = 0.3; m.metalness = 0.1; m.emissiveMap = spark; m.emissive = new THREE.Color(1, 1, 1); m.emissiveIntensity = 0.6; }
-    if (kind === "pearl") {   // mother-of-pearl: a rainbow shimmer that shifts with the viewing angle, on EVERY part (body too, on top of its own glow pattern)
-      m.roughness = 0.14; m.metalness = 0.3;
+    if (kind === "velvet" || O.irid) {   // velvet: a soft bright rim where the surface turns away (like a moth's wing or a peach); irid: beetle-shell colours that shift with the angle
+      const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null, irid = O.irid ? 1 : 0;
+      m.onBeforeCompile = sh => { if (prev) prev(sh);
+        sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+    ${irid ? "vec3 ic = 0.5 + 0.5 * cos(6.2832 * (fr * 0.9 + nn.y * 0.3 + vec3(0.25, 0.45, 0.62))); totalEmissiveRadiance += ic * (0.05 + 0.3 * fr * fr) * vec3(0.7, 1.0, 0.5);" : "totalEmissiveRadiance += diffuseColor.rgb * pow(fr, 1.8) * 1.1;"} }`); };
+      m.customProgramCacheKey = () => (irid ? "irid|" : "velvet|") + (prev ? prev.toString().length : 0);
+    }
+    if (kind === "pearl" || O.pearlSheen) {   // mother-of-pearl: a rainbow shimmer that shifts with the viewing angle, on EVERY part (body too, on top of its own glow pattern)
+      m.roughness = O.pearlK != null ? 0.3 : 0.14; m.metalness = O.pearlK != null ? 0.12 : 0.3;
       const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
       m.onBeforeCompile = sh => { if (prev) prev(sh);
         sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
   { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
     float h = fr * 1.6 + nn.y * 0.6 + nn.x * 0.4;
     vec3 irid = 0.55 + 0.45 * cos(6.2832 * (h + vec3(0.0, 0.33, 0.67)));
-    totalEmissiveRadiance += irid * (0.06 + 0.32 * fr * fr) * vec3(1.0, 0.95, 1.05); }`); };
-      m.customProgramCacheKey = () => "pearl|" + (prev ? prev.toString().length : 0);
+    totalEmissiveRadiance += irid * (0.06 + 0.32 * fr * fr) * ${(O.pearlK ?? 1).toFixed(2)} * vec3(1.0, 0.95, 1.05); }`); };
+      m.customProgramCacheKey = () => "pearl|" + (O.pearlK ?? 1) + "|" + (prev ? prev.toString().length : 0);
     }
     m.needsUpdate = true;
   });
@@ -1857,6 +1958,158 @@ function addCoral(api, C) {
   });
   if (C.hideBack && api.spikes) api.spikes.forEach(m => { m.visible = false; });   // coral instead of the old crystal spikes
   return all;
+}
+
+// ---------- jellyfish dragon (Petra 2026-11-10, PREVIEW ONLY) ----------
+// addJelly(api, o): a see-through glowing body, a pulsing bell hood over the head and long stinging tentacles instead of a tail.
+// glowJ(mat, o): bioluminescent shader on top of MeshStandardMaterial. Rim glow (edges light up like real jellyfish),
+// light pulses that travel along tubes (o.bands, uses uv.x), radial canals on the bell (o.canals) and a glow wave down the body (o.wave).
+const JT = { value: 0 };
+function glowJ(mat, o) {
+  const col = new THREE.Color(o.color), prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => { if (prev && prev !== THREE.Material.prototype.onBeforeCompile) prev(sh, r);
+    sh.uniforms.jT = JT; sh.uniforms.jC = { value: col };
+    sh.vertexShader = "varying vec2 vJ; varying vec3 vJw;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vJ = uv; vJw = (modelMatrix * vec4(position, 1.0)).xyz;");
+    sh.fragmentShader = "uniform float jT; uniform vec3 jC; varying vec2 vJ; varying vec3 vJw;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      { float fr = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
+        float g = fr * ${(o.rim || 0.8).toFixed(3)};
+        ${o.bands ? `g += pow(0.5 + 0.5 * sin(vJ.x * ${o.bands.toFixed(1)} - jT * 3.5 + ${(o.ph || 0).toFixed(2)}), 8.0) * ${(o.bandK || 0.9).toFixed(2)} * (1.0 - 0.6 * vJ.x);` : ""}
+        ${o.canals ? `g += pow(abs(cos(vJ.x * 3.14159 * ${o.canals.toFixed(1)})), 60.0) * 1.2 * smoothstep(0.98, 0.3, vJ.y)
+                         + smoothstep(0.12, 0.0, abs(length(vec2(vJ.y - 1.0) * vec2(1.0)) - 0.25 - 0.06 * cos(vJ.x * 25.13))) * 0.9;` : ""}
+        ${o.wave ? `g += pow(0.5 + 0.5 * sin(vJw.x * 3.0 + jT * 2.4), 6.0) * ${o.wave.toFixed(2)};` : ""}
+        totalEmissiveRadiance += jC * g; }`);
+  };
+  mat.customProgramCacheKey = () => "glowJ" + JSON.stringify(o) + col.getHexString();
+  mat.needsUpdate = true; return mat;
+}
+function addJelly(api, j, pal) {
+  const root = api.root, spine = root.children.find(m => m.isMesh && m.geometry && m.geometry.userData && m.geometry.userData.segs >= 100);
+  const glow = new THREE.Color(pal.glow).convertSRGBToLinear(), eye = new THREE.Color(pal.eye).convertSRGBToLinear();
+  // see-through body: the skin lets light through and glows from inside
+  const mats = new Set(); if (spine) mats.add(spine.material);
+  const head = api.sockets.head; head.children.forEach(m => { if (m.isMesh && m.geometry.type !== "SphereGeometry" || (m.isMesh && m.geometry.parameters.radius >= 0.09)) mats.add(m.material); });
+  root.traverse(m => { if (m.isMesh && m.parent !== head && m.material && m.material.isMeshStandardMaterial && !m.material.transparent && m.material.map == null && m !== spine) mats.add(m.material); });
+  const limbC = new THREE.Color(pal.top).convertSRGBToLinear().lerp(new THREE.Color(pal.side).convertSRGBToLinear(), 0.45);   // legs and head match the body (Petra): deep blue, not pale cyan
+  mats.forEach(m => { if (!m || !m.isMeshStandardMaterial) return; m.transparent = true; m.opacity = 0.72; m.depthWrite = true; m.roughness = 0.2;
+    if (spine && m === spine.material) { m.emissive = m.emissive || new THREE.Color(); m.emissive.lerp(glow, 0.35); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.35); }
+    else if (!m.map) { m.color.copy(limbC); m.emissive = limbC.clone(); m.emissiveIntensity = 0.3; }
+    glowJ(m, { color: glow, rim: 0.9, wave: 0.55 }); m.needsUpdate = true; });
+  // the bell hood: a see-through dome with a wavy frilled rim, sitting over the back of the head
+  const bellM = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.top).convertSRGBToLinear(), emissive: glow, emissiveIntensity: 0.45, transparent: true, opacity: 0.5, roughness: 0.15, side: THREE.DoubleSide, depthWrite: false });
+  const bell = new THREE.Group(); bell.position.set(-0.08, 0.1, 0); head.add(bell); const bellK = 1.45;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), bellM); dome.scale.set(1.15, 0.95, 1.05); bell.add(dome); glowJ(bellM, { color: glow, canals: 8, rim: 1.3 });
+  const rimG = new THREE.TorusGeometry(0.44, 0.03, 8, 64), rp = rimG.attributes.position;
+  for (let i = 0; i < rp.count; i++) { const x = rp.getX(i), y = rp.getY(i), a = Math.atan2(y, x); rp.setZ(i, rp.getZ(i) - 0.04 * (1 + Math.sin(a * 12))); }   // wavy frill
+  rimG.computeVertexNormals();
+  const rim = new THREE.Mesh(rimG, new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85 })); rim.rotation.x = Math.PI / 2; rim.scale.set(1.15, 1.05, 1); bell.add(rim);
+  const inner = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 12), new THREE.MeshBasicMaterial({ color: eye, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })); inner.position.y = 0.2; inner.scale.set(1.3, 0.6, 1.3); bell.add(inner);   // glowing heart in the bell
+
+  // fringe: thin short threads hanging all round the bell rim, like a real jellyfish's marginal tentacles
+  const fr = [], frM = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
+  const frG = new THREE.CylinderGeometry(0.004, 0.001, 0.2, 4, 1, true); frG.translate(0, -0.1, 0);
+  for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2, piv = new THREE.Group(); piv.position.set(Math.cos(a) * 0.5, -0.03, Math.sin(a) * 0.46); piv.add(new THREE.Mesh(frG, frM)); bell.add(piv); fr.push({ piv, a }); }
+  // little glowing dots round the bell rim
+  const rimDots = new THREE.Group(), dotM = new THREE.MeshBasicMaterial({ color: eye }), dotG = new THREE.SphereGeometry(0.018, 6, 4);
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, d = new THREE.Mesh(dotG, dotM); d.position.set(Math.cos(a) * 0.5, -0.02, Math.sin(a) * 0.47); rimDots.add(d); } bell.add(rimDots);
+  // a soft light inside the bell so it lights up the ground at night
+  const lamp = new THREE.PointLight(glow, 0.9, 5, 2); lamp.position.y = 0.15; bell.add(lamp);
+  // plankton: tiny glowing specks drifting around it, like sparkles in deep water
+  const PN = 70, pG = new THREE.BufferGeometry(), pA = new Float32Array(PN * 3), pS = [];
+  for (let k = 0; k < PN; k++) pS.push([Math.random() * 6 - 4.5, Math.random() * 2.6, Math.random() * 3 - 1.5, Math.random() * 6.28]);
+  pG.setAttribute("position", new THREE.BufferAttribute(pA, 3));
+  const dc = document.createElement("canvas"); dc.width = dc.height = 32; const dx = dc.getContext("2d"), gr = dx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.4, "rgba(255,255,255,0.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); dx.fillStyle = gr; dx.fillRect(0, 0, 32, 32);
+  const plank = new THREE.Points(pG, new THREE.PointsMaterial({ color: new THREE.Color(pal.eye), size: 0.09, map: new THREE.CanvasTexture(dc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  plank.frustumCulled = false; root.add(plank);
+  // short frilly oral arms under the chin
+  const armM = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.belly).convertSRGBToLinear(), emissive: glow, emissiveIntensity: 0.5, transparent: true, opacity: 0.7, roughness: 0.3, side: THREE.DoubleSide, depthWrite: false });
+  // ----- rump skirt + tentacles (Petra: they must be attached perfectly, and jellyfish have fancy frilly arms in the middle) -----
+  // A see-through frilled skirt grows out of the rump like the rim of a jellyfish bell; every tentacle starts on its rim, so no
+  // tube end or seam ever shows through the clear skin. In the middle, four ruffled "oral arms" spiral down.
+  const N = j.tentacles || 9, L = j.len || 3, SEG = 28, RS = 10, tents = [], arms = [];
+  const tM = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.side).convertSRGBToLinear(), emissive: glow, emissiveIntensity: 0.6, transparent: true, opacity: 0.62, roughness: 0.25, depthWrite: false });
+  const aM = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.eye).convertSRGBToLinear(), emissive: new THREE.Color(pal.eye).convertSRGBToLinear(), emissiveIntensity: 0.55, transparent: true, opacity: 0.7, roughness: 0.3, side: THREE.DoubleSide, depthWrite: false });
+  const sM = bellM.clone(); sM.opacity = 0.55; glowJ(sM, { color: glow, rim: 1.0 });
+  glowJ(tM, { color: new THREE.Color(pal.eye).convertSRGBToLinear(), rim: 0.7, bands: 22, bandK: 1.1 }); glowJ(aM, { color: glow, rim: 0.9, bands: 9, bandK: 0.6 });
+  const beadM = new THREE.MeshBasicMaterial({ color: new THREE.Color(pal.eye).convertSRGBToLinear() }), beadG = new THREE.SphereGeometry(0.035, 8, 6);
+  // skirt: an open cone, wide end wavy
+  const skG = new THREE.CylinderGeometry(1, 1, 1, 48, 6, true), sp0 = skG.attributes.position, skBase = Float32Array.from(sp0.array);
+  const skirt = new THREE.Mesh(skG, sM); skirt.frustumCulled = false; root.add(skirt);
+  const skRim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.025, 6, 64), new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.8, depthWrite: false })); root.add(skRim);
+  for (let k = 0; k < N; k++) {
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), tM); mesh.frustumCulled = false; mesh.renderOrder = 2; root.add(mesh);
+    const beads = []; for (let b = 0; b < 6; b++) { const s = new THREE.Mesh(beadG, beadM); root.add(s); beads.push(s); }
+    tents.push({ mesh, beads, a: (k + 0.5) / N * Math.PI * 2, ph: k * 1.37, len: L * (0.8 + 0.2 * ((k * 7) % 5) / 4), r: 0.075 - 0.012 * (k % 3) });
+  }
+  for (let k = 0; k < 4; k++) { const mesh = new THREE.Mesh(new THREE.BufferGeometry(), aM); mesh.frustumCulled = false; mesh.renderOrder = 1; root.add(mesh); arms.push({ mesh, a: k / 4 * Math.PI * 2 + 0.4, ph: k * 2.1, len: L * 1.3 }); }   // frilly arms are LONGER than the tentacles (Petra)
+  const pos = spine.geometry.attributes.position, rad = spine.geometry.userData.radial, pts = [];
+  for (let i = 0; i <= SEG; i++) pts.push(new THREE.Vector3());
+  const ringC = (ring, out) => { out.set(0, 0, 0); for (let q = 0; q < rad; q++) { const k = ring * (rad + 1) + q; out.x += pos.getX(k); out.y += pos.getY(k); out.z += pos.getZ(k); } return out.multiplyScalar(1 / rad); };
+  const c0 = new THREE.Vector3(), c1 = new THREE.Vector3(), dir = new THREE.Vector3(), upV = new THREE.Vector3(), sdV = new THREE.Vector3(), rc = new THREE.Vector3(), tmp = new THREE.Vector3(), qq = new THREE.Quaternion();
+  // a smooth tube whose radius can change along it and around it (rf(u, ang)); centre line sampled exactly where TubeGeometry samples it
+  function tube(curve, segs, radial, rf) {
+    const g = new THREE.TubeGeometry(curve, segs, 1, radial, false), P = g.attributes.position, fr = curve.computeFrenetFrames(segs, false);
+    for (let s = 0; s <= segs; s++) { const u = s / segs, c = curve.getPointAt(u), Nn = fr.normals[s], Bn = fr.binormals[s];
+      for (let q = 0; q <= radial; q++) { const ang = q / radial * Math.PI * 2, r = rf(u, ang), cx = -Math.cos(ang) * r, cy = Math.sin(ang) * r;
+        P.setXYZ(s * (radial + 1) + q, c.x + cx * Nn.x + cy * Bn.x, c.y + cx * Nn.y + cy * Bn.y, c.z + cx * Nn.z + cy * Bn.z); } }
+    g.computeVertexNormals(); return g;
+  }
+  const up0 = api.update;
+  api.update = (t, walk, flap, dt, ...rest) => {
+    const r = up0(t, walk, flap, dt, ...rest);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.4);
+    bell.scale.set(bellK * (1 + 0.08 * pulse), bellK * (1 - 0.1 * pulse), bellK * (1 + 0.08 * pulse));
+    inner.material.opacity = 0.35 + 0.35 * pulse;
+    JT.value = t; lamp.intensity = 0.6 + 0.6 * pulse;
+    fr.forEach(f => { f.piv.rotation.z = Math.cos(f.a) * (0.08 + 0.14 * pulse) + 0.08 * Math.sin(t * 3 + f.a * 3); f.piv.rotation.x = -Math.sin(f.a) * (0.08 + 0.14 * pulse); });
+    pS.forEach((q, k) => { pA[k * 3] = q[0] + Math.sin(t * 0.4 + q[3]) * 0.3; pA[k * 3 + 1] = q[1] + ((t * 0.12 + q[3]) % 1) * 0.6; pA[k * 3 + 2] = q[2] + Math.cos(t * 0.35 + q[3]) * 0.3; });
+    pG.attributes.position.needsUpdate = true; plank.material.opacity = 0.5 + 0.4 * Math.sin(t * 1.3);
+    // rump frame: where the body ends, which way it points, how thick it is there
+    const RI = Math.round(spine.geometry.userData.segs * 0.27); ringC(0, c0); ringC(RI, c1); dir.subVectors(c1, c0).normalize();
+    let Rb = 0; for (let q = 0; q < rad; q++) { const k = RI * (rad + 1) + q; Rb += tmp.set(pos.getX(k), pos.getY(k), pos.getZ(k)).distanceTo(c1); } Rb /= rad;
+    upV.set(0, 1, 0).addScaledVector(dir, -dir.y).normalize(); sdV.crossVectors(dir, upV).normalize();
+    const flare = 1.0 + 0.05 * pulse, Rr = Rb * flare, skL = 0.42;
+    rc.copy(c0).addScaledVector(dir, 0.06);   // tentacles root ON the rump, right where the body ends (Petra: attach to the dragon, not to other tentacles)   // centre of the skirt rim, just behind the rump
+    // skirt: top ring sits inside the body at c1, bottom rim at rc, wavy edge
+    for (let i = 0; i < sp0.count; i++) { const x = skBase[i * 3], y = skBase[i * 3 + 1], z = skBase[i * 3 + 2], u = 0.5 - y, a = Math.atan2(z, x);   // u: 0 top .. 1 rim
+      const rr = Rb * 0.92 + (Rr - Rb * 0.92) * u * u, wav = u * u * 0.05 * Math.sin(a * 9 + t * 2);
+      tmp.copy(c1).lerp(rc, u).addScaledVector(upV, Math.sin(a) * rr).addScaledVector(sdV, Math.cos(a) * rr).addScaledVector(dir, -wav);
+      sp0.setXYZ(i, tmp.x, tmp.y, tmp.z); }
+    sp0.needsUpdate = true; skG.computeVertexNormals();
+    skRim.position.copy(rc); qq.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir); skRim.quaternion.copy(qq); skRim.scale.set(Rr, Rr, 1);
+    const air = flap > 0.5, drop = air ? 0.85 : 1.1;
+    tents.forEach(tn => {
+      for (let i = 0; i <= SEG; i++) { const u = i / SEG, d = u * tn.len, spread = 1 + 2.6 * Math.sqrt(u);
+        const sway = Math.sin(t * 1.6 - u * 5 + tn.ph) * 0.3 * u, sway2 = Math.cos(t * 1.1 - u * 4 + tn.ph) * 0.2 * u;
+        pts[i].copy(rc).addScaledVector(dir, -d * 0.8).addScaledVector(upV, Math.sin(tn.a) * Rr * 0.82 * spread + sway2 - drop * (0.6 * u + 0.4 * u * u) * tn.len * 0.32).addScaledVector(sdV, Math.cos(tn.a) * Rr * 0.82 * spread + sway);
+        if (!air) pts[i].y = Math.max(0.04, pts[i].y);
+      }
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      const g = tube(curve, SEG * 2, RS, u => tn.r * (1 - 0.9 * Math.pow(u, 1.3)) + 0.004);
+      tn.mesh.geometry.dispose(); tn.mesh.geometry = g;
+      tn.beads.forEach((b, i) => { const u = (i + 1) / 7; b.position.copy(curve.getPointAt(u)); const tw = 0.6 + 0.4 * Math.sin(t * 3 + i + tn.ph); b.scale.setScalar(tw * (1 - u * 0.5)); });
+    });
+    arms.forEach(am => {   // frilly oral arms (Petra: more frilly, more animated): long ruffled curtains that ripple and sway
+      for (let i = 0; i <= SEG; i++) { const u = i / SEG, d = u * am.len, sw = (0.1 + 0.16 * u) * Rb * 3;
+        const wave = Math.sin(t * 2.2 - u * 7 + am.ph) * 0.35 * u, wave2 = Math.cos(t * 1.7 - u * 5.5 + am.ph * 1.3) * 0.28 * u;   // waves travel down the arm
+        const spin = am.a + u * 6 + t * 1.1;
+        pts[i].copy(c0).addScaledVector(dir, 0.0 - d * 0.75).addScaledVector(upV, Math.sin(spin) * sw + wave2 - drop * (0.6 * u + 0.4 * u * u) * am.len * 0.3).addScaledVector(sdV, Math.cos(spin) * sw + wave);
+        if (!air) pts[i].y = Math.max(0.05, pts[i].y);
+      }
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      // cross-section: a wide flat ribbon whose edges are deeply ruffled (many small folds) that ripple along the arm
+      am.mesh.geometry.dispose(); am.mesh.geometry = tube(curve, SEG * 4, 40, (u, ang) => {
+        const w = (0.2 * (1 - 0.6 * u) + 0.02) * Math.min(1, u * 8 + 0.3);
+        const flat = 0.35 + 0.65 * Math.abs(Math.cos(ang));                         // flattened into a ribbon
+        const frill = 1 + 0.6 * Math.sin(u * 140 - t * 5 + am.ph) * Math.abs(Math.cos(ang)) ** 3 + 0.25 * Math.sin(ang * 9 + u * 50 + t * 3);   // deep folds at the edges + small crinkles
+        return w * flat * frill;
+      });
+    });
+    return r;
+  };
+  [dome, skirt, ...tents.map(x => x.mesh), ...arms.map(x => x.mesh)].forEach(m => { m.castShadow = true; });   // bell, skirt, tentacles and frilly arms cast shadows too (Petra)
+  api.update(0, 0, 0, 0.016);
+  return api;
 }
 
 // ================= dragon kinds =================
@@ -2159,6 +2412,16 @@ const SECRET_STATS = { Quantum: [50, 21, 25, 25, 30], Petralith: [55, 21, 25, 21
 // walking and flying speed (1-5) from each kind's body (Petra: show walk + fly; sprinting is Shift on top of these)
 // long legs or digging claws = good walker; big soaring / thermal / narrow wings = good flyer; tiny or fish-fin wings = poor flyer; heavy = slower
 const clamp5 = v => Math.max(1, Math.min(5, Math.round(v)));
+SPECIES.push({ name: "Medusel", rarity: "Rare", home: "Deep sea under the Ocean", speed: 3, br: "Sting Cloud: a cloud of glowing stingers that zaps monsters and slows them down",
+  pal: P("#2a5ad0", "#5a9af0", "#d0ecff", "#5ae8ff", "#d8f4ff", "#3a6ad8", "#c07aff"),
+  sp: { wings: "none", skyRun: true, tailShape: "normal", gentle: true, tailLen: 0.06, thin: 0.85, girth: 0.9, legLen: 0.85, legThick: 0.8, feet: 0.95, horns: "none", frill: "none", back: "none", tail: "none", pattern: "spots", glow: 2.2, eyes: 1.3,
+    puff: ["#3ac8ff", "#d8f4ff", "#c07aff"], noMotes: true, jelly: { tentacles: 16, len: 4.2 } },
+  ad: ["A see-through, softly glowing body: in the black deep sea it looks like a floating lantern",
+       "A pulsing bell hood over its head pushes it along, just like a jellyfish swims",
+       "No tail: a big bunch of long glowing tentacles trail behind it, and they sting anything that touches them",
+       "No wings, but it drifts through the air the same way it drifts through water",
+       "Its glow scares off big hunters and lures in little fish"] });
+
 SPECIES.forEach(s => {
   const o = s.sp || {}, b = s.speed || 3, heavy = (o.girth || 1) >= 1.15 || (o.legThick || 1) >= 1.25;
   if (s.walk == null) s.walk = clamp5(b + ((o.legLen || 1) >= 1.3 ? 1 : 0) + (o.digClaws ? 0.5 : 0) - ((o.wingScale || 1) >= 1.25 || ["soar", "narrow"].includes(o.wings) ? 1 : 0) - (heavy ? 0.5 : 0));
@@ -3894,8 +4157,8 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
     ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
-function buildDragon(kind, shiny, gear) { const s = SP(kind); return withFur(s, makeDragon(shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {}))); }
-function withFur(s, api) { try { if (typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]) addFur(api, FUR_LOOKS[s.name]); } catch (e) { console.warn("fur", e); } return api; }
+function buildDragon(kind, shiny, gear) { const s = SP(kind), pal = shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal; return withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {})), pal); }
+function withFur(s, api, pal) { try { if (typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]) addFur(api, FUR_LOOKS[s.name]); if (s.sp.jelly && typeof addJelly === "function") addJelly(api, s.sp.jelly, pal || s.pal); } catch (e) { console.warn("fur", e); } return api; }
 let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
 function setKind(kind, shiny) {
@@ -4225,7 +4488,7 @@ const HAZEL_BOOKS = [
   { t: "Lands of the World: Deep Forest", p: ["Lands of the World: Deep Forest, by Professor Hazel. Giant trees, glowing mushrooms and fireflies. Bring a lantern. Bring a snack. Bring a friend who is good at finding the way back.", "Chapter 1: The Forest. The trees here are so old and so tall that it is always a little dark at the bottom. Mossy logs, ferns, and glowing mushrooms in four colours. At night the fireflies come out and it looks like the stars fell down.", "Chapter 2: Forest Wings. With trees everywhere, there is no room to glide. Forest dragons grew broad, round wings for twisting between trunks, and leaf or moss frills to hide in the green.", "Chapter 3: Fernling and Thornwyrm. Fernling has leaf wings, leaf frills and little twig antlers that look like branches. Thornwyrm is covered in thorny spikes, so nothing wants to bite it, and it pushes through bramble bushes without a scratch.", "Chapter 4: Jadewyrm and Petalwyrm. Jadewyrm's very long body winds between bamboo stalks, and its whiskers feel the air for danger in the mist. Petalwyrm hides in flower fields with petal frills and a flower tail. It smells lovely. I sniffed one. It sneezed on me.", "Chapter 5: Rootwyrm. The slowest, toughest dragon in the forest. Bark-like skin, moss on top, antlers like tree roots, and huge claws that dig tunnels between the roots. Glowing cracks shine like sap moving under bark. Some Rootwyrms are older than the village.", "Chapter 6: Forest Monsters. Vine Creepers grab from the undergrowth. At night, Gloom Spiders drop from the branches, Hootclaws swoop silently from above, and Shade Lynxes stalk in the shadows. Stay near the glowing mushrooms after dark. They help."] },
   { t: "Lands of the World: Crystal Caves", p: ["Lands of the World: Crystal Caves, by Professor Hazel. Under a great rock roof, lit only by glowing crystals. It is the most beautiful place I know, and the most echoey. Do not sing in there. Trust me.", "Chapter 1: The Caves. A huge cavern under a dome of stone, with stalactites hanging down, stalagmites pointing up, and crystals glowing pink, purple, blue and gold. Even at noon it is dark, except for the crystals.", "Chapter 2: Seeing in the Dark. With no sunlight underground, cave dragons have big eyes or no need for eyes at all. Many have pale skin, because there is no light to need colour for.", "Chapter 3: Echowyrm. The most amazing dragon I have ever studied. Echowyrm has real sonar. It clicks, its huge ear frills catch the echoes, and it knows exactly where everything is, even in total darkness. Glowing feelers on its face sense the air moving. I tested it with a blindfold. On me, not on the dragon. It still found me first.", "Chapter 4: Geodrake. A rock-hard shell lets it squeeze through tight cracks without getting hurt. It eats crystals, so purple light glows through the cracks in its skin, and crystals grow on its back as it gets older. It is a walking rock collection.", "Chapter 5: Prismwing. See-through crystal panels in its wings catch the light of the glowing crystals, and it flashes rainbows to scare away hunters. When a Prismwing flies over you in the caves, the whole cavern turns pink and gold for a moment.", "Chapter 6: Cave Monsters. Echo Bats screech in the dark, Geode Crabs hide in crystal shells, Glimmer Slugs leave glowing trails, Prism Wisps flicker between crystals, and Stalactite Lurkers drop from the roof. Look up as you walk. Always look up in the caves."] },
   { t: "Lands of the World: Desert", p: ["Lands of the World: Desert, by Professor Hazel. Hot sand, red mesas, giant bones and one hidden oasis. Bring water. Bring a hat. Bring more water.", "Chapter 1: The Desert. Rolling golden dunes, flat-topped red mesas, tumbleweeds, cacti and old bones. Somewhere among the mesas there is an oasis with palm trees and cool water. Finding it is the best feeling in the world.", "Chapter 2: Staying Cool. Desert dragons are built to beat the heat. Pale or shiny scales bounce the sun away, extra eyelids keep out the sand, and most of them sleep through the hottest part of the day. Sensible dragons.", "Chapter 3: Dunerunner and Sunscale. Dunerunner has long legs to keep its belly off the hot sand and wide feet so it never sinks. It barely flies but runs like the wind. Sunscale has mirror-like scales, big thin ears to let heat out, and a hump that stores water for weeks.", "Chapter 4: Miragewyrm. Its wavy, shimmery scales bend the light, so it looks just like a heat mirage. Hunters think it is only the air wobbling. I once spent an afternoon sketching a Miragewyrm. It was a rock. The Miragewyrm was behind me, laughing.", "Chapter 5: Scarabyx. Gold beetle shells cover its wings and protect them from sandstorms. The shells flip open when it flies, showing thin see-through wings. It burrows into the sand at midday and has a strong horn for digging.", "Chapter 6: Sandstorms. When a sandstorm blows in, it brings eggs with it. The dragon that hatches has tall sail fins on its back and rides the wind like a boat.", "Chapter 7: Desert Monsters. Dune Sharks swim under the sand, Scorpiclaws snap and sting, Dust Devils spin and toss you about, and Mirage Stalkers hide in the shimmer. At night, Moonscarab Swarms come out to glitter in the moonlight. Pretty. Also bitey."] },
-  { t: "Lands of the World: The Ocean", p: ["Lands of the World: The Ocean, by Professor Hazel. Past the beach, the land gives way to big water, big waves and big fish. I get seasick. I wrote this book anyway, very bravely, from the beach.", "Chapter 1: The Sea. Through a gap in the mountains, the valley opens onto a sandy beach, a lighthouse, rocks, palm trees and endless blue water. It gets deep very quickly. Far out, the water turns shallow and pink again, but that is the Coral Reef, and it has its own book.", "Chapter 2: Sea Wings. Sea dragons have fin wings or flippers. Swimming against the water made them small but very strong and fast. Most of them swim better than they fly.", "Chapter 3: Aquawyrm and Gillwing. Aquawyrm has fin-wings that double as flippers, a fish-like tail fluke, and ear fins that close up when it dives. Gillwing has gills on its neck so it can breathe underwater, and big fin-wings that let it 'fly' through water as fast as through air.", "Chapter 4: Pearlhorn. Pearly scales shimmer like the inside of a shell, and one long horn pries open giant clams. Pearlhorns love the deep reefs. They are very polite dragons. They always share the clams.", "Chapter 5: Abyssar. It lives in the deepest ocean trench. Its wings started out as normal wings, but living so deep they slowly turned into wide fins. They still work as wings, so it can swim AND fly! Huge round eyes see in total darkness, and glowing spots light up the deep and lure fish close.", "Chapter 6: Bergdrake. Thick blubber keeps it warm in freezing water, flippers instead of big wings make it a great swimmer, tusks haul it up onto the ice, and big webbed feet paddle and grip. Slow on land, graceful in the sea. Like me, except I am slow in the sea too.", "Chapter 7: Ocean Monsters. In the deep, at night, the Abyss Angler dangles its lure and flashes it to dazzle you. Do not stare at the light. I stared at the light. It took me a week to see properly again."] },
+  { t: "Lands of the World: The Ocean", p: ["Lands of the World: The Ocean, by Professor Hazel. Past the beach, the land gives way to big water, big waves and big fish. I get seasick. I wrote this book anyway, very bravely, from the beach.", "Chapter 1: The Sea. Through a gap in the mountains, the valley opens onto a sandy beach, a lighthouse, rocks, palm trees and endless blue water. It gets deep very quickly. Far out, the water turns shallow and pink again, but that is the Coral Reef, and it has its own book.", "Chapter 2: Sea Wings. Sea dragons have fin wings or flippers. Swimming against the water made them small but very strong and fast. Most of them swim better than they fly.", "Chapter 3: Aquawyrm and Gillwing. Aquawyrm has fin-wings that double as flippers, a fish-like tail fluke, and ear fins that close up when it dives. Gillwing has gills on its neck so it can breathe underwater, and big fin-wings that let it 'fly' through water as fast as through air.", "Chapter 4: Pearlhorn. Pearly scales shimmer like the inside of a shell, and one long horn pries open giant clams. Pearlhorns love the deep reefs. They are very polite dragons. They always share the clams.", "Chapter 5: Abyssar. It lives in the deepest ocean trench. Its wings started out as normal wings, but living so deep they slowly turned into wide fins. They still work as wings, so it can swim AND fly! Huge round eyes see in total darkness, and glowing spots light up the deep and lure fish close.", "Chapter 6: Bergdrake. Thick blubber keeps it warm in freezing water, flippers instead of big wings make it a great swimmer, tusks haul it up onto the ice, and big webbed feet paddle and grip. Slow on land, graceful in the sea. Like me, except I am slow in the sea too.", "Chapter 7: Medusel. Deep under the Ocean, where no sunlight reaches, I once saw a blue light drifting towards me. I thought it was a jellyfish. Then it waved at me with a paw. Medusel has four legs, a dragon's head and eyes, and a see-through body that glows from inside, with a jellyfish bell over its head. It has no wings: it squeezes its bell to swim, through water or air. Instead of a tail, a ring of stinging tentacles grows from its rump. Do not touch them. I did. Its breath is a Sting Cloud of tiny glowing stingers. You need a Bubble Charm to go that deep, and it is easiest to spot at night.", "Chapter 8: Ocean Monsters. In the deep, at night, the Abyss Angler dangles its lure and flashes it to dazzle you. Do not stare at the light. I stared at the light. It took me a week to see properly again."] },
   { t: "Lands of the World: Fire Mountain", p: ["Lands of the World: Fire Mountain, by Professor Hazel. A volcano, rivers of lava, and black ash everywhere. My eyebrows grew back eventually.", "Chapter 1: The Mountain. Black rock, grey ash and glowing orange lava channels, all around a huge smoking volcano with a crater at the top. The air is hot and smells like matches. Never, ever land in the lava. Not even with a fire dragon.", "Chapter 2: Living With Heat. Fire dragons have armour plates against falling rocks and heat-proof scales. Most importantly, they have glowing cracks and veins to let extra heat out, so they never overheat.", "Chapter 3: Smoldedrake. Heavy and slow, with thick armour plates and heat-proof scales on the front of its wings. Its tail puffs smoke to hide from bigger dragons. Very hard to knock over. I tried. With a cart.", "Chapter 4: Volcanox and Ashveil. Volcanox has black cracked skin with lava glowing through, walks on cooling lava, and stores heat inside like a furnace. Ashveil has ash-grey scales that hide it inside smoke clouds, ember spots that glow like sparks, and clear inner eyelids for seeing through smoke.", "Chapter 5: Blazequill. It lives in the volcano's crater itself. Glowing fire quills can be shaken loose at enemies, and its long broad wings circle up on the hot air like a vulture. It is so hot inside that rain turns to steam on it. It is the only dragon I have seen take a bath and come out drier.", "Chapter 6: Fire Monsters. Lava Imps zip about on bat wings, Rock Trolls throw boulders, Ember Beetles glow and burn, and Ash Lurkers hide in the ash. At night, Cinder Bats and Magma Glowworms come out. Bring a water dragon if you have one."] },
   { t: "Lands of the World: Frost Peaks", p: ["Lands of the World: Frost Peaks, by Professor Hazel. Snow, sharp peaks and a frozen lake. I wore four scarves. It was not enough scarves.", "Chapter 1: The Peaks. White snow, blue-grey rock and jagged icy peaks around a big frozen lake. The ice on the lake is thin in places. Do not walk out on it. Your dragon will not tell you it is thin until it is too late.", "Chapter 2: Staying Warm. Ice dragons are round and furry, with thick legs and wide paws that work like snowshoes. A round body holds in heat, and small wings lose less of it.", "Chapter 3: Glacius and Snowpaw. Glacius grows ice crystals along its back like a glacier, and its crystal horns can break through ice. Snowpaw has thick white fur, huge paws like shovels, and burrows into the snow to sleep. Finding a sleeping Snowpaw is easy. Just step on the snow that grumbles.", "Chapter 4: Rimefang. It lives in icicle caves, with icicle spikes on its back, long ice fangs, and big gripping feet that hold on to slippery ice walls. Its blue scales hide it in the ice.", "Chapter 5: Auroran. Not quite an ice dragon at all! It has the light body, long snout and huge wings of a sky dragon, with frost-crystal horns and frost-proof paws from the ice. It is the first hybrid ever found. It gets its own book on my shelf, because one chapter was not nearly enough.", "Chapter 6: Blizzards. When a blizzard rages, eggs turn up in the snow. The dragon inside is pure white, invisible in a storm, and loves to pounce.", "Chapter 7: Frost Monsters. Frost Wolves hunt in packs, Ice Wraiths float above the snow leaving frost trails, and Snow Yetis charge on huge snowshoe feet. At night, Moon Wolves howl. I howled back once. It did not go well."] },
   { t: "Auroran: The First Hybrid", p: ["Auroran: The First Hybrid, by Professor Hazel. Every dragon I had ever studied was one kind: sky, ice, fire, water. Then one night over the Frost Peaks, the northern lights came down and landed next to my tent. That was the night everything I knew got a little bit wrong.", "Chapter 1: Half and Half. Auroran is half sky dragon and half ice dragon. From the sky it gets a light, slim body, a long snout for cutting through the wind, and huge soaring wings. From the ice it gets frost-crystal horns and thick paws that never freeze. It is the first hybrid anyone has ever found.", "Chapter 2: The Lights. Its stripes glow green, purple and pink, the same colours as the aurora. Its big wings fade from dark green to purple at the tips. When a flock of them crosses the night sky, you cannot tell where the dragons end and the lights begin.", "Chapter 3: Why Up There? Auroras only shine high in the sky over cold, icy lands. So the dragon that lives in them needs sky wings to reach them and ice paws to land on the frozen peaks after. It needed both, so it got both. Nature is clever like that.", "Chapter 4: How Did It Happen? I have a theory. Long ago, a sky dragon and an ice dragon met on the highest peak, and their eggs came out a bit of both. I have no proof. I just like the story.", "Chapter 5: Finding One. Look up on clear, cold nights over the Frost Peaks. If the northern lights seem to be moving against the wind, follow them. Bring a warm coat. Bring two. I brought four scarves and it still was not enough.", "Chapter 6: More Hybrids? If one hybrid exists, there could be others out there that nobody has found yet. Keep your eyes open, tamer. Maybe the next chapter is yours to write."] },
@@ -4823,7 +5086,7 @@ function clearFoe() {
 function buildFoe(shiny) {
   if (foeDragon) scene.remove(foeDragon.root);
   const s = SP(foe.k), pal = shiny ? shinyPal(foe.k, shiny) : s.pal;
-  foeDragon = withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}))); scene.add(foeDragon.root);
+  foeDragon = withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {})), pal); scene.add(foeDragon.root);
 }
 function practiceFoe() {
   const lv = Math.max(1, (pet.level || 1) + Math.floor(Math.random() * 3) - 1);
