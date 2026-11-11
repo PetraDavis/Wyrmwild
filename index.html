@@ -542,7 +542,8 @@ function spinePts(t, bend = 0) {
     if (TS === "droop" && k < 3 && !o.foxTails && !o.jelly) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
     if (k < 4 && hoverK < 0.5 && sitV < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.45 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w; const a = -look.yaw * 0.75 * idleK * (0.4 + 0.6 * w), px = BASE[5][0], dx = v.x - px, dz = v.z - BASE[5][2], c = Math.cos(a), sn = Math.sin(a); v.x = px + dx * c - dz * sn; v.z = BASE[5][2] + dx * sn + dz * c; }   // Petra: the NECK swings round to look, and the head goes with it
-    v.z += BEND[k] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[k] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
+    const bk = (o.foxTails || o.jelly) && k < 3 ? 3 : k;   // Petra 2026-11-11: no dragon tail = the rounded rump stays with the body when turning (the fox tails used to drift off sideways and float)
+    v.z += BEND[bk] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[bk] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
   });
   return new THREE.CatmullRomCurve3(pts, false, "centripetal").getPoints(SEGS);
@@ -4407,7 +4408,7 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, big: !!pet.big, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(), req: reqSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
@@ -4439,7 +4440,7 @@ function applySave(d) {
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
-    pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; pet.small = !!d.pet.small; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
+    pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; pet.small = !!d.pet.small; pet.big = !!d.pet.big; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
     Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
     state = d.stage; petLabel(state === "baby" ? (pet.small ? "small" : "baby") : "grown up");
     goal(state === "baby" ? (pet.small ? `${pet.name} is a small dragon. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`) : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
@@ -4879,11 +4880,12 @@ function frame() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false;
+      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false; pet.big = !pet.small && isNight && evOn("super");
       const evS = evShiny(), sh = evS || (typeof pet.shinyNext === "string" && SHINY_KINDS.includes(pet.shinyNext) ? pet.shinyNext : pet.shinyNext || Math.random() < 1 / 50 ? rollShiny() : null); pet.shinyNext = false;   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
       setKind(eggKind, sh); pet.level = 1; pet.xp = 0; dragon.root.visible = true; if (!DEX.includes(eggKind)) DEX.push(eggKind);
       if (evS) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
       else if (sh) toast(`A SHINY! A ${sh} ${eggKind}!`, "Only 1 egg in 50 hatches shiny. Lucky you!");
+      else if (pet.big) toast(`A Super Moon ${eggKind}!`, "It hatched under the Super Moon, so it will grow up extra big");
       else if (pet.small) toast(`It's a tiny ${eggKind}!`, "Small dragons stay little forever. Too small to ride, but so cute");
       else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
     }
@@ -4919,7 +4921,7 @@ function frame() {
           toast(`${pet.name} grew up!`, "Now it's big enough to ride");
         }
       }
-      if (state === "grown" && pet.scale < 1) pet.scale = Math.min(1, pet.scale + dt * 0.3);
+      const top = pet.big ? 1.3 : 1; if (state === "grown" && pet.scale < top) pet.scale = Math.min(top, pet.scale + dt * 0.3);
     } else if (state === "arena") {
       updateArena(dt); walkAmt = fx.me.lunge > 0 ? 0.6 : 0; pet.bank = fx.me.ko * 1.2; pet.y = spotMe().y - fx.me.ko * 0.4;
     } else if (state === "ride") {
@@ -5456,9 +5458,9 @@ function freeMenu(i) {
     closeMenu();
   };
 }
-function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small }); }
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small, big: !!pet.big }); }
 function takeOut(d) {
-  pet.gear = d.gear || null; pet.acc = d.acc || null; pet.small = !!d.small; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: pet.small ? 0.45 : 1 });
+  pet.gear = d.gear || null; pet.acc = d.acc || null; pet.small = !!d.small; pet.big = !!d.big; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: pet.small ? 0.45 : pet.big ? 1.3 : 1 });
   pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = pet.small ? "baby" : "grown";
   petLabel(pet.small ? "small" : "grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
@@ -7825,7 +7827,7 @@ MON.push({ name: "Hydra Hatchlings", group: "Hydra Valley", land: "Hydra Valley"
     const I = { g, phase: null, update: t => {
       const c = I.phase ?? t % 5, puff = pulse(c, 3.2, 4.4);
       pups.forEach((o, i) => {
-        const a = o.ph + t * 0.6; o.p.position.set(Math.cos(a) * o.r, Math.abs(Math.sin(t * 7 + i)) * 0.05, Math.sin(a) * o.r); o.p.rotation.y = faceTo(a) + Math.PI;
+        const a = o.ph + t * 0.6; o.p.position.set(Math.cos(a) * o.r, Math.abs(Math.sin(t * 7 + i)) * 0.05, Math.sin(a) * o.r); o.p.rotation.y = faceTo(a);   // Petra 2026-11-11: they walked backwards
         o.necks.forEach((n, k) => n.rotation.z = Math.sin(t * 5 + i + k * 2) * 0.25 - (o.squeak ? puff * 0.6 : 0));
         o.p.children[0].scale.set(1.4, 0.95 + (o.squeak ? puff * 0.4 : 0), 1 + (o.squeak ? puff * 0.3 : 0));
       });
@@ -8894,7 +8896,7 @@ function moveMon(m, tx, ty, tz, sp, dt) {
   else m.y = groundAt(m.x, m.z, m.y + 2);
 }
 function updateMonsters(dt) {
-  if (state === "arena") { mons.forEach(m => { m.holder.visible = false; m.bar.visible = false; }); return; }
+  if (state === "arena") { mons.forEach(m => { m.holder.visible = false; m.bar.visible = false; m.arenaHid = true; }); return; }
   clawCd = Math.max(0, clawCd - dt); breathCd = Math.max(0, breathCd - dt); dodgeCd = Math.max(0, dodgeCd - dt); fightT = Math.max(0, fightT - dt);
   // dodging: a quick sideways dash
   if (dodgeT > 0) {
@@ -8963,6 +8965,7 @@ function updateMonsters(dt) {
       m.inst.reach += ((m.aggro ? 1 : 0) - m.inst.reach) * Math.min(1, dt * 3);
       m.inst.hold += ((pet.held && pet.held.m === m ? 1 : 0) - m.inst.hold) * Math.min(1, dt * 5);
     }
+    if (m.arenaHid) { m.arenaHid = false; m.holder.visible = true; }   // back from the arena: show it again
     m.postT = Math.max(0, m.postT - dt); monPhase(m);
     m.inst.update(T + m.t0, dt);
     if (m.dead) {   // shrink and sink away
@@ -9959,6 +9962,8 @@ const EVT = {
              sky: "#3a1a1c", bg: "#140a1c", fog: "#3a1e1c", hemi: "#ffb070", moon: "#ffb04a", moonS: 180, leaves: true },
   red:     { name: "Red Moon", night: true, all: true, kind: "Scarlune", msg: "The moon has turned red...", hint: "Monsters are bolder tonight. Scarlune eggs only appear under a red moon",
              sky: "#2a0608", bg: "#0c0204", fog: "#1c0406", hemi: "#d8584a", moon: "#ff3a2a", moonS: 120, eyes: true },
+  super:   { name: "Super Moon", night: true, all: true, msg: "A giant Super Moon is rising!", hint: "Hatch an egg tonight and your dragon will grow up extra big",
+             sky: "#18223e", bg: "#060a18", fog: "#18223a", hemi: "#c8d4ff", moon: "#fff4d6", moonS: 320, parts: "motes", pc: "#fff0c0" },   // Petra 2026-11-11
   meteor:  { name: "Meteor Shower", night: true, all: true, kind: "Starwyrm", msg: "A meteor shower is lighting up the sky!", hint: "Watch for a meteor that crashes: a Starwyrm egg sits in the crater",
              sky: "#0e0c2a", bg: "#02020a", fog: "#0c0a22", hemi: "#6a6ab8", meteors: true },
   eclipse: { name: "Solar Eclipse", day: true, all: true, kind: "Eclipsar", len: 150, msg: "The moon is sliding over the sun!", hint: "Eclipsar eggs only appear while the sun is hidden",
@@ -10092,7 +10097,7 @@ function updateEvents(dt) {
     const e = EVT[EVS.cur];
     if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
     if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
-      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
+      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
   }
   if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
   else if (hasDragon() && state !== "arena") {
@@ -12246,7 +12251,7 @@ function mpTradeOffer(from, o) {
   let it = null;
   if (o.item && typeof o.item.egg === "string" && SPECIES.some(s => s.name === o.item.egg.replace(/[*!].*$/, ""))) it = { egg: o.item.egg };
   else if (o.item && o.item.d && SPECIES.some(s => s.name === o.item.d.kind)) { const d = o.item.d;
-    it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small } }; }
+    it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small, big: !!d.big } }; }
   T_.theirs = it; T_.myReady = T_.theirReady = false; mpPanel(true);
 }
 function mpTradeRoom() {   // can I take what they offer?
@@ -12605,7 +12610,7 @@ const GFX = (() => {
 // ================= THE SKY SHRINE (Petra 2026-11-11) =================
 // A tiny island very, very high above the Sky Islands, hidden above the clouds (you can't see it from the normal islands).
 // A walkway between two pairs of stone statues (fox-spirit Vulpyres, then the unnamed pair) leads to an old shrine.
-// Offer an egg (used up) and wish for an event or an egg: rarer eggs buy better wishes, event eggs count as Legendary, one wish a day.
+// Offer an egg (used up) and wish for an event or an egg: rarer eggs buy better wishes, event eggs count as Epic, one wish a day.
 // Secret: the shrine loves Autumn Woods eggs (one rarity better) and hates Blightwood eggs (one worse, may backfire). Nobody tells you.
 // Old Nettle has the only riddle about it.
 function shrineGround(x, z, y) { const r = Math.hypot(x - SHRINE_X, z - SHRINE_Z); return r < 21.5 && SHRINE_Y <= y + 1.6 ? SHRINE_Y : -Infinity; }
@@ -12697,10 +12702,10 @@ const sparkG = new THREE.BufferGeometry(), SPN = 160, spP = new Float32Array(SPN
 const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }); const sparks = new THREE.Points(sparkG, sparkM); root.add(sparks);
   // ---------- in the game: the offering ----------
   const RAR = ["Junk", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
-  const EVW = [["fog", "Fog", 1], ["storm", "Thunderstorm", 1], ["blizzard", "Blizzard", 1], ["sand", "Sandstorm", 1], ["meteor", "Meteor Shower", 2], ["red", "Red Moon", 3], ["blue", "Blue Moon", 3], ["harvest", "Harvest Moon", 4], ["eclipse", "Solar Eclipse", 4]];   // [event, name, smallest egg rarity that can ask for it]
+  const EVW = [["fog", "Fog", 1], ["storm", "Thunderstorm", 1], ["blizzard", "Blizzard", 1], ["sand", "Sandstorm", 1], ["meteor", "Meteor Shower", 2], ["red", "Red Moon", 3], ["blue", "Blue Moon", 3], ["harvest", "Harvest Moon", 4], ["super", "Super Moon", 4], ["eclipse", "Solar Eclipse", 4]];   // [event, name, smallest egg rarity that can ask for it]
   const ALTAR = new THREE.Vector3(0, 0, -9.6);
   let react = null, lastDT = null;
-  const eggPower = k => { if (k.includes("*")) return 1; if (k === "Dustmite") return 0; const s = SP(k); if (EVENT_KIND(s)) return 5; const r = s.rarity === "Champion" ? 5 : RAR.indexOf(s.rarity); return Math.min(5, r + (k.includes("!") ? 1 : 0)); };   // a shiny egg counts one rarity better   // event eggs count as Legendary (Petra)
+  const eggPower = k => { if (k.includes("*")) return 1; if (k === "Dustmite") return 0; const s = SP(k); if (EVENT_KIND(s)) return 4;   /* Petra 2026-11-11 evening: event eggs count as Epic at most (they're easy to get once an event starts) */ const r = s.rarity === "Champion" ? 5 : RAR.indexOf(s.rarity); return Math.min(5, r + (k.includes("!") ? 1 : 0)); };   // a shiny egg counts one rarity better   // event eggs count as Legendary (Petra)
   const eggSecret = k => !k.includes("*") && (TIER[SP(k).rarity] >= 6 || SP(k).rarity === "Boss");
   const eggLabel = k => k.includes("*") ? "Small egg" : k === "Dustmite" || k.includes("!") ? "Shiny egg" : eggSecret(k) ? "??? egg" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "") + " egg";
   const moodOf = k => { const l = SP(k.replace(/[*!].*$/, "")).land; return l === "Autumn Woods" ? "love" : l === "Blightwood" ? "hate" : "calm"; };   // secret: the shrine loves Autumn Woods eggs and hates Blightwood ones (never told)
@@ -12737,17 +12742,17 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
     };
   }
   // Petra 2026-11-11: a Legendary wish from a land with no Legendary dragons used to quietly give a lower egg. Now only the land's own rarities can be picked.
-  const landPool = land => SPECIES.filter(s => ((s.land === land || !s.land && !s.boss && s.rarity === "Legendary") && !EVENT_KIND(s) || s.anomaly && String(s.home || "").startsWith(land)) && TIER[s.rarity] < 6 && RAR.indexOf(s.rarity) >= 1);   // anomalies (Vulpyre in Autumn Woods) can be wished for too (Petra 2026-11-11)
+  const landPool = land => SPECIES.filter(s => ((s.land === land || !s.land && !s.boss && s.rarity === "Legendary")) && !EVENT_KIND(s) && TIER[s.rarity] < 6 && RAR.indexOf(s.rarity) >= 1);   // no event dragons straight from the shrine, not even Vulpyre (Petra 2026-11-11 evening)
   const landRars = land => [...new Set(landPool(land).map(s => RAR.indexOf(s.rarity)))].sort((a, b) => a - b);
   function kindFor(land, want) {
     let pool = landPool(land).filter(s => RAR.indexOf(s.rarity) === want);
-    if (pool.some(s => s.land || s.anomaly)) pool = pool.filter(s => s.land || s.anomaly);   // the land's own dragons first (Autumn Woods Legendary = Vulpyre); Lumora only where a land has no Legendary
+    if (pool.some(s => s.land)) pool = pool.filter(s => s.land);   // the land's own dragons first ; Lumora only where a land has no Legendary
     return pool.length ? pool[Math.floor(Math.random() * pool.length)].name : null;
   }
   function grant(pick, w) {
     const k = bag[pick]; if (!k) return menu();
     const mood = moodOf(k), power = Math.max(0, Math.min(5, eggPower(k) + (mood === "love" ? 1 : mood === "hate" ? -1 : 0)));
-    const lead = (eggPower(k) === 5 && EVENT_KIND(SP(k.replace(/[*!].*$/, ""))) ? "The bowl hums at the rare event egg. " : "") + (mood === "love" ? "Warm golden light pours out and leaves swirl around the shrine. " : mood === "hate" ? "The flame turns pale blue and flickers. A gust of cold wind blows past. " : "The flame glows softly. ");
+    const lead = (!k.includes("*") && EVENT_KIND(SP(k.replace(/[*!].*$/, ""))) ? "The bowl hums at the event egg. " : "") + (mood === "love" ? "Warm golden light pours out and leaves swirl around the shrine. " : mood === "hate" ? "The flame turns pale blue and flickers. A gust of cold wind blows past. " : "The flame glows softly. ");
     let msg, used = true;
     if (mood === "hate" && Math.random() < 0.5) {   // the hated land's eggs sometimes backfire
       if (Math.random() < 0.5) { if (EVS.cur) endEvent(true); startEvent("storm"); msg = "The flame sputters. A cold wind howls... a <b>Thunderstorm</b> rolls in, not the wish you asked for."; }
