@@ -12708,7 +12708,7 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
   const who = () => state === "ride" ? pet : me;
   function nearAltar() { const p = who(); return root.visible && Math.abs(p.y - SHRINE_Y) < 7 && Math.hypot(p.x - SHRINE_X, p.z - (SHRINE_Z + ALTAR.z)) < 4.5; }
   function menu(say, pick) {
-    // Petra 2026-11-11: before the fix, a Legendary wish quietly gave a lower egg and her Scarlune was lost. Her private one-time gift link (?gift=...) makes the shrine owe a Vulpyre egg, once per save.
+    // Petra 2026-11-11: before the fix, a Legendary wish quietly gave a lower egg and her Scarlune was lost. The one-time gift link that set WARD.shOwe was removed on Petra's word; an owed gift still waits at the shrine.
     if (WARD.shOwe && pick == null && !say) {
       if (bag.length >= BAG_MAX) { openMenu("The Sky Shrine", `<p class="say">The flame flares gold, as if it wants to give you something... but your backpack is full. Make room for one egg and come back.</p>`, () => lockMouse()); menuAct = () => {}; return; }
       WARD.shOwe = 0; bag.push("Vulpyre"); showCoins(); writeSave();
@@ -12803,15 +12803,6 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
   function act() { if (!nearAltar()) return false; menu(); return true; }
   return { update, act, root };
 })();
-// the private gift link: only its SHA-256 is in the code, so nobody can make their own
-(function giftLink() { try {
-  const code = new URLSearchParams(location.search).get("gift"); if (!code || !crypto.subtle) return;
-  crypto.subtle.digest("SHA-256", new TextEncoder().encode("wyrmwild-gift:" + code)).then(buf => {
-    const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
-    if (hex !== "55e4806863d9203942580fa9cf46b2d4f32870123c569c8ee542075baaae0f33") return;
-    const give = () => { if (!started) return setTimeout(give, 1000); if (WARD.shGift) return; WARD.shGift = 1; WARD.shOwe = 1; writeSave(); toast("A warm wind blows from high above the clouds...", "Something is waiting for you at the sky shrine"); };
-    give();
-  }); } catch (e) {} })();
 window.__shrine = { SHRINE, X: SHRINE_X, Y: SHRINE_Y, Z: SHRINE_Z, act: (a, i) => menuAct(a, i), closeMenu: () => closeMenu(), WARD };   // for testing
 
 // ================= MONSTER TEXTURES (Petra 2026-11-11: texture the monsters; textures stay SLIGHT) =================
