@@ -3083,6 +3083,7 @@ function groundAt(x, z, y) {
     const t = islandTopAt(s, x, z, f);
     if (t <= y + 1.6 && t > best) best = t;
   }
+  best = Math.max(best, shrineGround(x, z, y));   // the hidden sky shrine island
   return best;
 }
 // the underside of an island right above y (so dragons can't fly up through it)
@@ -3093,7 +3094,7 @@ function ceilingAt(x, z, y) {
     const b = islandBottomAt(s, f), t = islandTopAt(s, x, z, f);
     if (y < t - 1.6 && y > b - 3) return b;
   }
-  return Infinity;
+  return shrineCeil(x, z, y);
 }
 function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
 (function () {
@@ -4077,7 +4078,7 @@ function makePerson(o) {
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
       "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
-    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
+    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the clouds up high", say: ["Above the islands that float, past the clouds that hide, two foxes of stone and two shadows sit side by side. Bring an egg, dearie. Old fires are hungry, and they have favourites. Leaves. Think of leaves.", "Ever watched a dragon with no wings run right up the sky? That isn't magic, dearie. That's family. A little drop of something very old and very dark, in the blood. The same old thing that sits in stone above the clouds.", "Fly higher than you think you can. Then a bit higher. That's where the old shrine is. Don't bring it anything from that rotten Blightwood. It sulks."] }, { label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
         "Past the canyons, beyond the first lands, there are MORE lands, dearie. Take a strong dragon. And a snack.",
         "The Misty Swamp! Lovely place. If a little light floats toward you at night, don't follow it. Or do. I did. Lost a boot.",
         "Way out in the sea, past the beach, the water goes shallow and pink. Coral! The reef dragons lay their eggs on the little sandy islands.",
@@ -4129,6 +4130,7 @@ function makePerson(o) {
     { name: "Mae", title: "Shopkeeper", topics: [{ label: "Let me see the shop", fn: "shop" }, { label: "What do you sell?", say: ["Hats, scarves, saddles, capes... thirty-two things to wear! A Bubble Charm so your dragon can swim under the sea. And bigger backpacks and bigger pens, for tamers who can't stop collecting.", "Dragon treats! The crunchy kind. They heal, too.", "Each dragon keeps its own outfit. Dress them up at your nest!"] }], home: P(H.shop), wander: 4, look: { shirt: "#2f63b8", pants: "#3a3a4a", hair: "#e8c060", hairStyle: "long", apron: "#d8e4f4" }, lines: [
       "Welcome! Have a look around. Everything's dragon-sized!", "Saddles, hats, scarves... everything a dragon could want!", "No haggling! ...Okay, a little haggling.", "Dragon treats are the crunchy kind. Dragons love crunchy.", "Someone tried to pay me with a pinecone. Nettle. It was Nettle.", "Try the Bubble Charm! Your dragon can swim under the sea with it.", "Business is slow. Everyone's at the arena.", "If you find anything shiny out there, I might buy it. Might.", "My cat runs the shop when I'm out. She's terrible with money."] },
     { name: "Professor Hazel", title: "Dragonologist", hazel: true, topics: [{ label: "Tell me about my dragon", fn: "hazelPet" }, { label: "Can I see your dragon books?", fn: "books" }], home: P(H.lore), wander: 4, look: { shirt: "#3a7a5a", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "long", tool: "scroll", dress: true, skin: "#f0c8a0" }, lines: [
+      "Here's an odd one. When a dragon runs on the air, its footprints shimmer a faint violet for a moment. Not blue, not pink. Violet. I have no idea why. Yet.",
       "Dark backs, pale bellies! From above they blend into the ground, from below into the sky. Clever, clever dragons.",
       "Ice dragons have huge paws, like snowshoes. They spread the weight so they don't sink. I measured one. It stepped on my notebook.",
       "Water dragons have fin wings. Half wing, half flipper! They fly underwater. Well, swim. Swim-fly.",
@@ -4266,7 +4268,7 @@ function tickEgg(m, t, rock) {
 
 // ================= game state =================
 const PYR = PAL.Normal;
-const SP = name => SPECIES.find(s => s.name === name) || SPECIES.find(s => s.name === "Pyrrak");
+const SP = name => (name = String(name).replace(/[*!]/g, ""), SPECIES.find(s => s.name === name)) || SPECIES.find(s => s.name === "Pyrrak");
 // the first egg can be any normal kind, rarer kinds less often (no junk, no secret dragons)
 // weather / moon / eclipse dragons only come from their events, never from normal eggs
 const EVENT_KIND = s => !!(s.sp && s.sp.weather) || !!s.anomaly;   // anomalies (Vulpyre) only come from their own event
@@ -4430,7 +4432,7 @@ function applySave(d) {
   if (d.req) reqLoad(d.req);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
-  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace("*", ""))));
+  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace(/[*!]/g, ""))));
   if (Array.isArray(d.pen)) pen.push(...d.pen.filter(p => p && SPECIES.some(s => s.name === p.kind)));
   if (d.arena) { arena.entries = d.arena.entries || 0; [0, 1, 2, 3].forEach(k => { arena.won[k] = !!(d.arena.won || [])[k]; arena.owed[k] = !!(d.arena.owed || [])[k]; }); }
   showCoins();
@@ -4765,7 +4767,7 @@ function epicPick() {
 // ================= actions =================
 const near = (ax, az, bx, bz, d) => Math.hypot(ax - bx, az - bz) < d;
 function act() {
-  if (shenTalk() || questAct() || digAct() || fishAct()) return;
+  if (SHRINE.act() || shenTalk() || questAct() || digAct() || fishAct()) return;
   if (state === "find" && near(me.x, me.z, eggSpot.x, eggSpot.z, 2.6)) {
     state = "carry"; beam.visible = false; goal("Carry the egg home to your nest");
     toast("You found an egg!", "It's warm. Take it back to the nest");
@@ -4873,7 +4875,7 @@ function frame() {
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
       pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false;
-      const evS = evShiny(), sh = evS || (Math.random() < 1 / 50 ? rollShiny() : null);   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
+      const evS = evShiny(), sh = evS || (pet.shinyNext || Math.random() < 1 / 50 ? rollShiny() : null); pet.shinyNext = false;   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
       setKind(eggKind, sh); pet.level = 1; pet.xp = 0; dragon.root.visible = true; if (!DEX.includes(eggKind)) DEX.push(eggKind);
       if (evS) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
       else if (sh) toast(`A SHINY! A ${sh} ${eggKind}!`, "Only 1 egg in 50 hatches shiny. Lucky you!");
@@ -4939,7 +4941,7 @@ function frame() {
       const nx = Math.cos(pet.face) * pet.speed * dt, nz = Math.sin(pet.face) * pet.speed * dt;
       if (pet.fly) { pet.x += nx; pet.z += nz; const rr = Math.hypot(pet.x, pet.z); const lim = 255 + 220 * coast(pet.x, pet.z); if (rr > lim && pet.y < 20 && !LANDS.some(b => passW(b, pet.x, pet.z) > 0.2 || basinW(b, pet.x, pet.z) > 0.05)) { pet.x *= lim / rr; pet.z *= lim / rr; } }
       else moveCircle(pet, nx, nz, 1.0);
-      pet.y = Math.min(230, Math.max(Math.max(ground, petWater()), pet.y + vy * dt));
+      pet.y = Math.min(345, Math.max(Math.max(ground, petWater()), pet.y + vy * dt));
       // walking downhill: stay on the ground instead of drifting into the air (only a real drop, like a cliff, starts a glide)
       if (!pet.fly && !keys.Space && !(pet.jv > 0) && pet.y - Math.max(ground, petWater()) < (cf ? 3 : 0.4)) { pet.y = Math.max(ground, petWater()); pet.jv = 0; }
       const ceil = ceilingAt(pet.x, pet.z, pet.y); if (pet.y > ceil - 2.5) pet.y = ceil - 2.5;
@@ -5017,6 +5019,7 @@ function frame() {
   updateRequests(dt);
   updateBreath(dt);
   updateMP(dt);
+  SHRINE.update(dt);
   oceanAnims.forEach(f => f(T));
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
@@ -5400,7 +5403,7 @@ function arenaCamera(dt) {
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
   const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "")} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.endsWith("*") ? "Small" : k === "Dustmite" || k.endsWith("!") ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "")} egg</b><br><small>${k.endsWith("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
@@ -5432,7 +5435,7 @@ function nestMenu() {
 // getting rid of an egg (Petra 2026-11-10): leave it in a safe spot in the wild for some other dragon to hatch
 function dropEggMenu(i) {
   const k = bag[i]; if (k === undefined) return nestMenu();
-  const what = k.endsWith("*") ? "small egg" : TIER[SP(k).rarity] >= 6 ? "strange ??? egg" : SP(k).rarity + " egg";
+  const what = k.endsWith("*") ? "small egg" : k.endsWith("!") ? "shiny egg" : TIER[SP(k).rarity] >= 6 ? "strange ??? egg" : SP(k).rarity + " egg";
   openMenu("Leave this egg?", `<p>Leave the <b>${what}</b> behind? It will be gone for good.</p>
     <div class="sec"><div><b>Yes, leave it</b></div><button data-act="yes">Leave it</button></div><div class="sec"><div><b>No, keep it</b></div><button data-act="no">Keep</button></div>`, () => nestMenu());
   menuAct = a => { if (a === "yes") { bag.splice(i, 1); toast("You left the egg in a safe, warm spot", "Maybe a wild dragon will look after it"); showCoins(); writeSave(); } closeMenu(); };
@@ -5455,7 +5458,7 @@ function takeOut(d) {
   petLabel(pet.small ? "small" : "grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
 function hatchEgg(kind) {
-  pet.gear = null; pet.acc = null; pet.smallNext = kind.endsWith("*"); kind = kind.replace("*", "");
+  pet.gear = null; pet.acc = null; pet.smallNext = kind.endsWith("*"); pet.shinyNext = kind.endsWith("!"); kind = kind.replace(/[*!]/g, "");
   setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
   egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
   egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
@@ -10411,7 +10414,7 @@ function qOffers() {
 const qDone = q => q && (q.type === "hunt" || q.type === "clear" ? q.have >= q.n : q.type === "egg" ? qEggIdx(q) >= 0 : q.type === "errand" ? q.delivered : q.found);
 function qEggIdx(q) {
   const need = TIER[q.rank]; let best = -1;
-  bag.forEach((k, i) => { const t = TIER[SP(k.replace("*", "")).rarity] ?? 0; if (k !== "Crestwyrm" && !k.endsWith("*") && t >= need && t < 6 && (best < 0 || t < TIER[SP(bag[best]).rarity])) best = i; });
+  bag.forEach((k, i) => { const t = TIER[SP(k.replace(/[*!]/g, "")).rarity] ?? 0; if (k !== "Crestwyrm" && !k.endsWith("*") && t >= need && t < 6 && (best < 0 || t < TIER[SP(bag[best]).rarity])) best = i; });
   return best;
 }
 function qStatus(q) {
@@ -10827,8 +10830,8 @@ function underwaterFx(dt) {
     if (!pet.wasUnder) { pet.wasUnder = true; toast("Splash! Under the water", "The Bubble Charm lets your dragon breathe. Space to swim up"); }
   } else pet.wasUnder = false;
 }
-const shopSave = () => ({ own: WARD.own, bubble: WARD.bubble, bagLv: WARD.bagLv, penLv: WARD.penLv, pot: WARD.pot || {} });
-function shopLoad(d) { WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; WARD.pot = {}; for (const k in (d.pot || {})) if ((d.pot[k] | 0) > 0) WARD.pot[k] = Math.min(9, d.pot[k] | 0);
+const shopSave = () => ({ sh: [WARD.shDay | 0, WARD.shLast == null ? -1 : WARD.shLast, WARD.shPend || null], own: WARD.own, bubble: WARD.bubble, bagLv: WARD.bagLv, penLv: WARD.penLv, pot: WARD.pot || {} });
+function shopLoad(d) { if (d.sh) { WARD.shDay = d.sh[0] | 0; WARD.shLast = d.sh[1]; WARD.shPend = d.sh[2] || null; } WARD.own = (d.own || []).filter(n => ACC(n)); WARD.bubble = !!d.bubble; WARD.pot = {}; for (const k in (d.pot || {})) if ((d.pot[k] | 0) > 0) WARD.pot[k] = Math.min(9, d.pot[k] | 0);
   WARD.bagLv = Math.max(0, Math.min(BAG_UP.length - 1, d.bagLv | 0)); WARD.penLv = Math.max(0, Math.min(PEN_UP.length - 1, d.penLv | 0)); applyStorage(); }
 function petWater() { return WARD.bubble ? -Infinity : waterTop(pet.x, pet.z); }   // with the Bubble Charm, water is like air for your dragon
 
@@ -12218,7 +12221,7 @@ function mpDuelEnd(winner, msg) {
 // ---------- trading dragons and eggs ----------
 // Both pick what to give (a dragon from the pen, an egg from the backpack, or nothing), both press Ready, and they swap.
 function mpTradeStart(peer) { MP.trade = { peer, mine: null, theirs: null, myReady: false, theirReady: false }; mpPanel(true); }
-const mpItemName = it => !it ? "nothing" : it.egg ? `${it.egg.endsWith("*") ? "a small" : "an"} ${TIER[SP(it.egg.replace("*", "")).rarity] >= 6 ? "??? egg" : SP(it.egg.replace("*", "")).rarity + " egg"}`
+const mpItemName = it => !it ? "nothing" : it.egg ? `${it.egg.endsWith("*") ? "a small" : "an"} ${TIER[SP(it.egg.replace(/[*!]/g, "")).rarity] >= 6 ? "??? egg" : SP(it.egg.replace(/[*!]/g, "")).rarity + " egg"}`
   : `${mpEsc(it.d.name)} (${it.d.shiny ? it.d.shiny + " " : ""}${it.d.small ? "small " : ""}${it.d.kind}, Lv ${it.d.level || 1})`;
 function mpTradePick(kind, i) {
   const T_ = MP.trade; if (!T_) return;
@@ -12231,7 +12234,7 @@ function mpTradePick(kind, i) {
 function mpTradeOffer(from, o) {
   const T_ = MP.trade; if (!T_ || T_.peer !== from) return;
   let it = null;
-  if (o.item && typeof o.item.egg === "string" && SPECIES.some(s => s.name === o.item.egg.replace("*", ""))) it = { egg: o.item.egg };
+  if (o.item && typeof o.item.egg === "string" && SPECIES.some(s => s.name === o.item.egg.replace(/[*!]/g, ""))) it = { egg: o.item.egg };
   else if (o.item && o.item.d && SPECIES.some(s => s.name === o.item.d.kind)) { const d = o.item.d;
     it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small } }; }
   T_.theirs = it; T_.myReady = T_.theirReady = false; mpPanel(true);
@@ -12588,6 +12591,192 @@ const GFX = (() => {
   });
   return { set, get on() { return on; }, scatter, grass, groundInfo, get c() { return [cxL, czL]; } };
 })();
+
+// ================= THE SKY SHRINE (Petra 2026-11-11) =================
+// A tiny island very, very high above the Sky Islands, hidden above the clouds (you can't see it from the normal islands).
+// A walkway between two pairs of stone statues (fox-spirit Vulpyres, then the unnamed pair) leads to an old shrine.
+// Offer an egg (used up) and wish for an event or an egg: rarer eggs buy better wishes, event eggs count as Legendary, one wish a day.
+// Secret: the shrine loves Autumn Woods eggs (one rarity better) and hates Blightwood eggs (one worse, may backfire). Nobody tells you.
+// Old Nettle has the only riddle about it.
+function shrineGround(x, z, y) { const r = Math.hypot(x - SHRINE_X, z - SHRINE_Z); return r < 21.5 && SHRINE_Y <= y + 1.6 ? SHRINE_Y : -Infinity; }
+function shrineCeil(x, z, y) { const r = Math.hypot(x - SHRINE_X, z - SHRINE_Z); if (r > 22) return Infinity; const b = SHRINE_Y - 2 - 34 * Math.max(0, 1 - r / 22); return y < SHRINE_Y - 1.6 && y > b - 3 ? b : Infinity; }
+var SHRINE_X = -60, SHRINE_Y = 320, SHRINE_Z = 60;
+const SHRINE = (() => {
+  const lin = h => new THREE.Color(h).convertSRGBToLinear();
+  const root = new THREE.Group(); root.position.set(SHRINE_X, SHRINE_Y, SHRINE_Z); root.visible = false; scene.add(root);
+  const cloudBank = new THREE.Group(); cloudBank.position.copy(root.position); scene.add(cloudBank);   // the clouds stay put even while the island itself is hidden
+let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const std = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: lin(c), roughness: 0.85 }, o));
+function mesh(g, m, x = 0, y = 0, z = 0, par = island) { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; par.add(o); return o; }
+// stone texture (shared by the walkway, shrine and statues)
+const stoneTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d"); c.fillStyle = "#9a9590"; c.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1600; i++) { const g = 120 + rnd() * 70 | 0; c.fillStyle = `rgba(${g},${g - 4},${g - 8},0.35)`; c.beginPath(); c.arc(rnd() * 256, rnd() * 256, 1 + rnd() * 4, 0, 7); c.fill(); }
+  for (let i = 0; i < 14; i++) { c.strokeStyle = "rgba(60,58,56,0.35)"; c.lineWidth = 1; c.beginPath(); let x = rnd() * 256, y = rnd() * 256; c.moveTo(x, y); for (let k = 0; k < 5; k++) c.lineTo(x += (rnd() - 0.5) * 40, y += (rnd() - 0.5) * 40); c.stroke(); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+const STONE = std("#b8b2aa", { map: stoneTex, bumpMap: stoneTex, bumpScale: 0.04, roughness: 0.92 });
+const MOSSY = std("#8a9a78", { map: stoneTex, bumpMap: stoneTex, bumpScale: 0.04, roughness: 0.95 });
+
+// ---------- the island ----------
+const island = new THREE.Group(); root.add(island);
+(() => { const top = new THREE.CylinderGeometry(24, 22, 2, 48, 1, false), tp = top.attributes.position;
+  for (let i = 0; i < tp.count; i++) { const x = tp.getX(i), z = tp.getZ(i), y = tp.getY(i), r = Math.hypot(x, z); if (y > 0 && r > 1) tp.setY(i, y - 0.25); }   // Petra: flat top so the walkway, statues and shrine sit ON the ground (the rim is just a touch lower)
+  top.computeVertexNormals(); mesh(top, std("#7fa45a", { roughness: 1 }), 0, -1, 0, island);
+  const under = new THREE.ConeGeometry(22, 34, 40, 8), up = under.attributes.position;
+  for (let i = 0; i < up.count; i++) { const x = up.getX(i), z = up.getZ(i), y = up.getY(i), a = Math.atan2(z, x), k = 1 + 0.18 * Math.sin(a * 5 + y * 0.3) + 0.08 * Math.sin(a * 13); up.setXYZ(i, x * k, y, z * k); }
+  under.computeVertexNormals(); const u = mesh(under, std("#8a7a6c", { map: stoneTex, roughness: 1 }), 0, -19, 0, island); u.rotation.x = Math.PI;
+  for (let i = 0; i < 9; i++) { const a = rnd() * 6.28, r = 8 + rnd() * 12, c = mesh(new THREE.ConeGeometry(0.5 + rnd(), 3 + rnd() * 5, 7), std("#7a6c60", { map: stoneTex }), Math.cos(a) * r, -36 - rnd() * 3, Math.sin(a) * r, island); c.rotation.x = Math.PI; }   // hanging rock spikes
+  for (let i = 0; i < 6; i++) { const a = rnd() * 6.28, r = 25 + rnd() * 6; mesh(new THREE.DodecahedronGeometry(1.2 + rnd() * 1.6, 0), std("#8a7a6c", { map: stoneTex }), Math.cos(a) * r, -3 - rnd() * 6, Math.sin(a) * r, island).userData.bob = rnd() * 6; }   // little floating rocks
+})();
+// walkway of worn square slabs from the island edge to the shrine
+for (let z = 20; z > -6; z -= 1.6) { const s = mesh(new THREE.BoxGeometry(3.2 + rnd() * 0.2, 0.25, 1.45), rnd() < 0.3 ? MOSSY : STONE, (rnd() - 0.5) * 0.15, 0.05, z, island); s.rotation.y = (rnd() - 0.5) * 0.05; }
+
+// ---------- statue dragons ----------
+function statue(name, x, z, face) {
+  const s = SPECIES.find(q => q.name === name); const api = makeDragon(s.pal, Object.assign({ tier: 3 }, s.sp, { secret: null, foxfire: false, wingStars: false, orbGlow: false, glowTips: false }));
+  api.sit = 1; for (let k = 0; k < 240; k++) api.update(0, 0, 0, 0.016);   // time held at 0 so the neck sway is centred (Petra: necks looked lopsided); settle into the sitting pose, then freeze
+  api.root.traverse(o => { if (o.isPoints || o.isSprite || o.isLine) o.visible = false; if (o.isMesh) { const m = o.material; if (o.renderOrder > 0 || (m && m.polygonOffset)) { o.visible = false; return; } if (m && (m.transparent || m.blending === THREE.AdditiveBlending)) o.visible = false; else { o.material = STONE; o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } } });
+  const g = new THREE.Group(); g.add(api.root); const sc = 0.95 * (s.size || 1); api.root.scale.setScalar(sc); api.root.rotation.z = api.sitPitch; api.root.position.y = -api.sitDrop * sc;   // sitting up like a guardian, rump down
+  (api.wings || []).forEach(w => w.scale && w.scale.set(1, 1, 0.5));   // wings folded close
+  // Petra: centre each statue on its stone (the body sits well behind the dragon's origin), and size the stone to fit
+  g.updateMatrixWorld(true); const bb = new THREE.Box3(), tb = new THREE.Box3();
+  api.root.traverse(o => { if (o.isMesh && o.visible && o.parent.visible !== false) { o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); bb.union(tb); } });
+  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2, bw = Math.min(4.6, Math.max(2.6, bb.max.x - bb.min.x + 0.5)), bd = Math.min(3.6, Math.max(2.0, bb.max.z - bb.min.z + 0.5));
+  api.root.position.x -= cx; api.root.position.z -= cz;
+  g.position.set(x, 0.9, z); g.rotation.y = face; g.userData.statue = true; island.add(g);
+  const base = mesh(new THREE.BoxGeometry(bw, 0.9, bd), MOSSY, x, 0.45, z, island); base.rotation.y = face;
+  return g;
+}
+let statuesBuilt = false; const buildStatues = () => { statuesBuilt = true; statue("Vulpyre", -4.4, 14, -Math.PI / 2 + 0.45); statue("Vulpyre", 4.4, 14, -Math.PI / 2 - 0.45);   // fox spirits, turned a little towards the walkway, watching visitors arrive
+statue("Quantum", -4.4, 5, -Math.PI / 2 + 0.45); statue("Quantum", 4.4, 5, -Math.PI / 2 - 0.45); };   // built the first time you fly up here, so the game loads fast   // the unnamed pair (no plaque)
+// turn each statue so it faces the walkway, nose slightly towards the visitor
+
+// ---------- the shrine ----------
+const shrine = new THREE.Group(); shrine.position.set(0, 0, -10); island.add(shrine);
+[[7, 0.5, 6, 0.25], [5.6, 0.5, 4.8, 0.75], [4.2, 0.5, 3.6, 1.25]].forEach(([w, h, d, y]) => mesh(new THREE.BoxGeometry(w, h, d), STONE, 0, y, 0, shrine));   // three stone steps
+const RED = std("#c4451e", { roughness: 0.6 }), DARK = std("#3a2a24", { roughness: 0.7 }), GOLD = std("#e0b050", { metalness: 0.7, roughness: 0.35 });
+[-2.2, 2.2].forEach(x => mesh(new THREE.CylinderGeometry(0.28, 0.32, 5, 14), RED, x, 4, 4.2, shrine));   // the gate in front
+mesh(new THREE.BoxGeometry(6.4, 0.45, 0.6), DARK, 0, 6.6, 4.2, shrine).scale.set(1, 1, 1); mesh(new THREE.BoxGeometry(5.4, 0.3, 0.4), RED, 0, 5.8, 4.2, shrine);
+const curve = mesh(new THREE.BoxGeometry(7.2, 0.25, 0.8), DARK, 0, 6.95, 4.2, shrine);
+// little hall with a curved roof
+[[-1.6, -1.2], [1.6, -1.2], [-1.6, 1.2], [1.6, 1.2]].forEach(([x, z]) => mesh(new THREE.CylinderGeometry(0.16, 0.18, 3, 10), RED, x, 3, z, shrine));
+const roofG = new THREE.CylinderGeometry(2.6, 3.4, 1.2, 4, 1); roofG.rotateY(Math.PI / 4); mesh(roofG, DARK, 0, 5, 0, shrine);
+mesh(new THREE.ConeGeometry(0.4, 0.8, 4), GOLD, 0, 6, 0, shrine);
+// the offering altar: a stone bowl with a spirit flame
+const altar = mesh(new THREE.CylinderGeometry(0.9, 0.6, 1.1, 20), STONE, 0, 2.05, 0.4, shrine);
+const bowl = mesh(new THREE.SphereGeometry(0.85, 24, 12, 0, 6.29, Math.PI / 2, Math.PI / 2), STONE, 0, 3.1, 0.4, shrine); bowl.material = STONE;
+const flameM = new THREE.MeshBasicMaterial({ color: lin("#ffd7a0"), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+const flame = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.1, 16, 1, true), flameM); flame.position.set(0, 3.55, 0.4); shrine.add(flame);
+const glow = new THREE.PointLight("#ffcf8a", 1.2, 12, 2); glow.position.set(0, 3.8, 0.4); shrine.add(glow);
+// stone lanterns along the walkway
+[[-2.2, 18], [2.2, 18], [-2.2, 9.5], [2.2, 9.5], [-2.2, 0.5], [2.2, 0.5]].forEach(([x, z]) => { mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.2, 8), STONE, x, 0.6, z, island); mesh(new THREE.BoxGeometry(0.6, 0.5, 0.6), STONE, x, 1.45, z, island);
+  const l = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), new THREE.MeshBasicMaterial({ color: lin("#ffd890") })); l.position.set(x, 1.45, z); island.add(l); mesh(new THREE.ConeGeometry(0.5, 0.4, 4), STONE, x, 1.9, z, island).rotation.y = Math.PI / 4; });
+// two old maple trees with orange leaves (a hint for the clever: the shrine loves autumn)
+function maple(x, z, s) { const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); island.add(g);
+  mesh(new THREE.CylinderGeometry(0.3, 0.5, 4, 8), std("#5a3e2c"), 0, 2, 0, g);
+  ["#e8642a", "#f0a040", "#d84a2a", "#f2c04a"].forEach((c, i) => { for (let k = 0; k < 3; k++) mesh(new THREE.IcosahedronGeometry(1.4 + rnd() * 0.6, 1), std(c, { roughness: 0.8, flatShading: true }), (rnd() - 0.5) * 3, 4.4 + rnd() * 1.6, (rnd() - 0.5) * 3, g); }); }
+maple(-9, -8, 1.1); maple(9.5, -6, 1.0); maple(-12, 6, 0.8);
+// falling leaves
+const leafN = 70, leafG = new THREE.PlaneGeometry(0.22, 0.16), leafM = new THREE.MeshStandardMaterial({ color: lin("#f08a3a"), side: THREE.DoubleSide, roughness: 0.8 });
+const leaves = new THREE.InstancedMesh(leafG, leafM, leafN); root.add(leaves); const LF = []; for (let i = 0; i < leafN; i++) LF.push({ x: (rnd() - 0.5) * 30, y: rnd() * 9, z: (rnd() - 0.5) * 30 - 4, s: rnd() * 6.28 });
+// clouds all around and below, so the normal Sky Islands can't see up here
+const cloudTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 128; const c = cv.getContext("2d"), gr = c.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = gr; c.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(cv); })();
+const clouds = []; for (let i = 0; i < 90; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: lin(i % 3 ? "#ffffff" : "#f4e4ff"), transparent: true, opacity: 0.85, depthWrite: false })), a = rnd() * 6.28, r = 30 + rnd() * 90, y = -8 - rnd() * 40;
+  sp.position.set(Math.cos(a) * r, y, Math.sin(a) * r); sp.scale.setScalar(18 + rnd() * 26); cloudBank.add(sp); clouds.push(sp); }
+// spirit sparks for the offering reactions
+const sparkG = new THREE.BufferGeometry(), SPN = 160, spP = new Float32Array(SPN * 3), spV = []; sparkG.setAttribute("position", new THREE.BufferAttribute(spP, 3));
+const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }); const sparks = new THREE.Points(sparkG, sparkM); root.add(sparks);
+  // ---------- in the game: the offering ----------
+  const RAR = ["Junk", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
+  const EVW = [["fog", "Fog", 1], ["storm", "Thunderstorm", 1], ["blizzard", "Blizzard", 1], ["sand", "Sandstorm", 1], ["meteor", "Meteor Shower", 2], ["red", "Red Moon", 3], ["blue", "Blue Moon", 3], ["harvest", "Harvest Moon", 4], ["eclipse", "Solar Eclipse", 4]];   // [event, name, smallest egg rarity that can ask for it]
+  const ALTAR = new THREE.Vector3(0, 0, -9.6);
+  let react = null, lastDT = null;
+  const eggPower = k => { if (k.endsWith("*")) return 1; if (k === "Dustmite") return 0; const s = SP(k); if (EVENT_KIND(s)) return 5; const r = s.rarity === "Champion" ? 5 : RAR.indexOf(s.rarity); return Math.min(5, r + (k.endsWith("!") ? 1 : 0)); };   // a shiny egg counts one rarity better   // event eggs count as Legendary (Petra)
+  const eggSecret = k => !k.endsWith("*") && (TIER[SP(k).rarity] >= 6 || SP(k).rarity === "Boss");
+  const eggLabel = k => k.endsWith("*") ? "Small egg" : k === "Dustmite" || k.endsWith("!") ? "Shiny egg" : eggSecret(k) ? "??? egg" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "") + " egg";
+  const moodOf = k => { const l = SP(k.replace(/[*!]/g, "")).land; return l === "Autumn Woods" ? "love" : l === "Blightwood" ? "hate" : "calm"; };   // secret: the shrine loves Autumn Woods eggs and hates Blightwood ones (never told)
+  const wishedToday = () => WARD.shLast === (WARD.shDay | 0);
+  const who = () => state === "ride" ? pet : me;
+  function nearAltar() { const p = who(); return root.visible && Math.abs(p.y - SHRINE_Y) < 7 && Math.hypot(p.x - SHRINE_X, p.z - (SHRINE_Z + ALTAR.z)) < 4.5; }
+  function menu(say, pick) {
+    if (wishedToday()) { openMenu("The Sky Shrine", `<p class="say">The flame is resting. Come back tomorrow: the shrine grants one wish a day.</p>`, () => lockMouse()); menuAct = () => {}; return; }
+    if (pick == null) {
+      const rows = bag.map((k, i) => `<div class="sec"><div><b>${eggLabel(k)}</b></div><button data-act="egg" data-i="${i}">Offer</button></div>`).join("");
+      openMenu("The Sky Shrine", `<p class="say">${say || "An old stone bowl with a flame that never goes out. Offer an egg from your backpack and make a wish. The egg is used up."}</p>${rows || "<p>You have no eggs in your backpack to offer.</p>"}`, () => lockMouse());
+      menuAct = (a, i) => { if (a !== "egg" || !bag[i]) return; if (eggSecret(bag[i])) return menu("The flame shrinks away from this egg. The shrine will not take it."); menu(null, i); };
+      return;
+    }
+    const k = bag[pick], lands = Object.keys(HOME_LAND);
+    const evRows = EVW.map(([id, n, r], j) => `<div class="sec"><div><b>${n}</b><br><small>needs a ${RAR[r]} egg or better</small></div><button data-act="ev" data-i="${j}">Wish</button></div>`).join("");
+    openMenu("The Sky Shrine", `<p class="say">You hold out your <b>${eggLabel(k).toLowerCase()}</b>. What do you wish for?</p>
+      <h4>Wish for an event</h4>${evRows}
+      <h4>Wish for an egg</h4><div class="sec"><div><select id="shLand">${lands.map(l => `<option>${l}</option>`).join("")}</select> <select id="shRar">${RAR.slice(1).map((r, j) => `<option value="${j + 1}">${r}</option>`).join("")}</select> <select id="shType"><option value="n">Normal egg</option><option value="small">Small egg</option><option value="shiny">Shiny egg</option></select><br><small>A normal egg needs an offering one rarity better (a Legendary needs a Legendary). A small egg costs one rarity less. A shiny egg costs one rarity more.</small></div><button data-act="eggw" data-i="0">Wish</button></div>
+      <div class="choices"><button data-act="back" data-i="0">Back</button></div>`, () => lockMouse());
+    menuAct = (a, j) => {
+      if (a === "back") return menu();
+      if (a === "ev") return grant(pick, { ev: EVW[j] });
+      if (a === "eggw") { const l = document.getElementById("shLand"), r = document.getElementById("shRar"); const ty = document.getElementById("shType"); return grant(pick, { land: l ? l.value : lands[0], want: r ? +r.value : 1, type: ty ? ty.value : "n" }); }
+    };
+  }
+  function kindFor(land, want) {
+    const pool = SPECIES.filter(s => s.land === land && !EVENT_KIND(s) && TIER[s.rarity] < 6 && RAR.indexOf(s.rarity) >= 1);
+    let best = null, bd = 9; pool.forEach(s => { const d = Math.abs(RAR.indexOf(s.rarity) - want) + Math.random() * 0.1; if (d < bd) { bd = d; best = s; } });
+    return best ? best.name : randomKind(RAR[want]);
+  }
+  function grant(pick, w) {
+    const k = bag[pick]; if (!k) return menu();
+    const mood = moodOf(k), power = Math.max(0, Math.min(5, eggPower(k) + (mood === "love" ? 1 : mood === "hate" ? -1 : 0)));
+    const lead = (eggPower(k) === 5 && EVENT_KIND(SP(k.replace(/[*!]/g, ""))) ? "The bowl hums at the rare event egg. " : "") + (mood === "love" ? "Warm golden light pours out and leaves swirl around the shrine. " : mood === "hate" ? "The flame turns pale blue and flickers. A gust of cold wind blows past. " : "The flame glows softly. ");
+    let msg, used = true;
+    if (mood === "hate" && Math.random() < 0.5) {   // the hated land's eggs sometimes backfire
+      if (Math.random() < 0.5) { if (EVS.cur) endEvent(true); startEvent("storm"); msg = "The flame sputters. A cold wind howls... a <b>Thunderstorm</b> rolls in, not the wish you asked for."; }
+      else { bag[pick] = "Dustmite"; used = false; msg = "The flame sputters. Something drops into the bowl... a dusty <b>Junk egg</b>. It's in your backpack."; }
+    } else if (w.ev) {
+      const [id, n, need] = w.ev;
+      if (power < need) { msg = `The flame flickers. This egg isn't strong enough for <b>${n}</b>. The egg is kept.`; used = null; }
+      else { const e = EVT[id], ok = e.night ? isNight : e.day ? !isNight : true;
+        if (ok) { if (EVS.cur) endEvent(true); startEvent(id); msg = `The shrine grants it. <b>${n}</b> is beginning over the land below.`; }
+        else { WARD.shPend = id; msg = `The shrine grants it. <b>${n}</b> will begin when ${e.night ? "night falls" : "the sun is up"}.`; } }
+    } else {
+      const ty = w.type || "n", need = ty === "small" ? Math.max(1, w.want) : ty === "shiny" ? Math.min(5, w.want + 2) : Math.min(5, w.want + 1), what = (ty === "small" ? "small " : ty === "shiny" ? "shiny " : "") + RAR[w.want];
+      if (power < need) { msg = `The flame dims and the shrine refuses. That egg isn't valuable enough for ${/^[AEIOU]/i.test(what) ? "an" : "a"} ${what} egg. The egg is kept.`; used = null; }
+      else { const kind = kindFor(w.land, w.want); bag[pick] = kind + (ty === "small" ? "*" : ty === "shiny" ? "!" : ""); used = false;
+        msg = ty === "shiny" ? `A shimmering, sparkling egg rises from the bowl: a <b>shiny ${SP(kind).rarity} egg from ${SP(kind).land || w.land}</b>. Whatever hatches from it will be shiny! It's in your backpack.`
+          : ty === "small" ? `A tiny glowing egg rises from the bowl: a <b>small ${SP(kind).rarity} egg from ${SP(kind).land || w.land}</b>. The baby inside will stay small forever. It's in your backpack.`
+          : `A glowing egg rises from the bowl: a <b>${SP(kind).rarity} egg from ${SP(kind).land || w.land}</b>. It's in your backpack.`; }
+    }
+    if (used) bag.splice(pick, 1);
+    if (used !== null) { WARD.shLast = WARD.shDay | 0; showCoins(); writeSave(); }
+    react = { t: 0, mood };
+    for (let i = 0; i < SPN; i++) { spP[i * 3] = (rnd() - 0.5) * 0.6; spP[i * 3 + 1] = 3.7 + rnd() * 0.3; spP[i * 3 + 2] = -9.6 + (rnd() - 0.5) * 0.6; const a = rnd() * 6.28, s = mood === "love" ? 2.5 + rnd() * 3 : 1 + rnd(); spV[i] = [Math.cos(a) * s, 2 + rnd() * (mood === "love" ? 5 : 2), Math.sin(a) * s]; }
+    sparkM.color.copy(lin(mood === "hate" ? "#9ad8ff" : "#ffd27a")); sparkG.attributes.position.needsUpdate = true;
+    openMenu("The Sky Shrine", `<p class="say">${lead}${msg}</p><div class="choices"><button data-act="ok" data-i="0">OK</button></div>`, () => lockMouse()); menuAct = () => closeMenu();
+  }
+  // ---------- each frame ----------
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), ONE = new THREE.Vector3(1, 1, 1), PO = new THREE.Vector3(); let T = 0;
+  function update(dt) {
+    T += dt;
+    if (lastDT !== null && dayTime < lastDT - 0.5) WARD.shDay = (WARD.shDay | 0) + 1; lastDT = dayTime;   // count the days for the one-wish-a-day rule
+    if (WARD.shPend && EVT[WARD.shPend]) { const e = EVT[WARD.shPend]; if (e.night ? isNight : e.day ? !isNight : true) { if (EVS.cur) endEvent(true); startEvent(WARD.shPend); WARD.shPend = null; writeSave(); } }
+    root.visible = camera.position.y > 215;   // hidden: you can't see it from the normal Sky Islands, only once you fly up through the clouds
+    cloudBank.visible = camera.position.y > 150;
+    if (!root.visible) return;
+    if (!statuesBuilt) buildStatues();
+    flame.scale.set(1 + Math.sin(T * 9) * 0.06, 1 + Math.sin(T * 7) * 0.12, 1 + Math.cos(T * 8) * 0.06);
+    island.children.forEach(c => { if (c.userData.bob != null) c.position.y += Math.sin(T + c.userData.bob) * 0.004; });
+    const leafBoost = react && react.mood === "love" ? Math.max(0, 1 - react.t / 4) * 4 : 0, wind = react && react.mood === "hate" ? Math.max(0, 1 - react.t / 3) * 6 : 0;
+    LF.forEach((l, i) => { l.y -= dt * (0.6 + leafBoost * 0.5); l.x += dt * (Math.sin(T + l.s) * 0.6 + wind); l.s += dt * (2 + leafBoost); if (l.y < 0.1 || Math.abs(l.x) > 22) { l.y = 8 + rnd() * 3; l.x = (rnd() - 0.5) * 30; }
+      E.set(l.s, l.s * 0.7, 0); Q.setFromEuler(E); PO.set(l.x, l.y, l.z); M4.compose(PO, Q, ONE); leaves.setMatrixAt(i, M4); }); leaves.instanceMatrix.needsUpdate = true;
+    if (react) { react.t += dt; const k = Math.max(0, 1 - react.t / 3.5); sparkM.opacity = k;
+      for (let i = 0; i < SPN; i++) { spP[i * 3] += spV[i][0] * dt; spP[i * 3 + 1] += spV[i][1] * dt; spP[i * 3 + 2] += spV[i][2] * dt; spV[i][1] -= dt * (react.mood === "love" ? 1.2 : 0.4); }
+      sparkG.attributes.position.needsUpdate = true;
+      glow.intensity = 1.2 + (react.mood === "love" ? 4 * k : react.mood === "hate" ? -0.9 * k * (0.5 + 0.5 * Math.sin(T * 40)) : 1.5 * k);
+      flameM.color.copy(lin(react.mood === "hate" && k > 0 ? "#bfe6ff" : "#ffd7a0")); if (k <= 0) react = null; }
+    if (!uiOpen && nearAltar()) prompt(wishedToday() ? "The shrine's flame is resting until tomorrow" : "Press <kbd>E</kbd> to make an offering at the shrine");
+  }
+  function act() { if (!nearAltar()) return false; menu(); return true; }
+  return { update, act, root };
+})();
+window.__shrine = { SHRINE, X: SHRINE_X, Y: SHRINE_Y, Z: SHRINE_Z, act: (a, i) => menuAct(a, i), closeMenu: () => closeMenu(), WARD };   // for testing
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
