@@ -7411,7 +7411,7 @@ MON.push({ name: "Foxfire Kits", group: "Autumn Woods", land: "Autumn Woods", gr
       h.add(mesh(sph(0.14, 14, 10), f)); const sn = mesh(new THREE.ConeGeometry(0.07, 0.2, 10), w, 0.16, -0.03, 0); sn.rotation.z = -Math.PI / 2; h.add(sn);
       h.add(mesh(sph(0.025, 6, 4), dark, 0.26, -0.03, 0));
       [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.07, 0.2, 4), f, -0.02, 0.17, 0.08 * s); e.rotation.x = s * -0.2; h.add(e); });
-      if (!ghost) { const yel = Math.random() < 0.5; eyes(h, 0.1, 0.04, 0.07, 0.025, yel ? "#ffc81e" : "#141010", yel); }   // Petra: fox eyes, yellow (with a dark pupil) or black
+      if (!ghost) eyes(h, 0.1, 0.04, 0.07, 0.025, "#141010", false);   // Petra: shiny black fox eyes (yellow looked strange)
       [[0.18, 1], [0.18, -1], [-0.18, 1], [-0.18, -1]].forEach(([x, s]) => k.add(limb(new V(x, 0.25, 0.08 * s), new V(x, 0, 0.08 * s), 0.035, 0.03, ghost ? f : dark)));
       const tail = new THREE.Group(); tail.position.set(-0.3, 0.38, 0); k.add(tail);
       tail.add(mesh(sph(0.12, 12, 8), f, -0.12, 0.08, 0, 1.8, 0.9, 0.9)); tail.add(mesh(sph(0.1, 10, 8), fire, -0.36, 0.16, 0)); const hh = halo("#5ac8ff", 0.5, ghost ? 0.3 : 0.6); hh.position.set(-0.4, 0.18, 0); tail.add(hh);
