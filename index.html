@@ -12785,7 +12785,7 @@ window.__shrine = { SHRINE, X: SHRINE_X, Y: SHRINE_Y, Z: SHRINE_Z, act: (a, i) =
 // Glowing, see-through and ghostly parts are left alone.
 const MONTEX = (() => {
   const LOOK = {
-    fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
+    fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Shade Hound", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
     feather: ["Storm Harpy", "Hootclaw", "Moonraven Flock"],
     skin: ["Goblin", "Lava Imp", "Dune Shark", "Mirage Stalker", "Barracuda Pack", "Pumpkin Imp", "Nightstilt", "Strawstalker"],
     warty: ["Bog Toad", "Dart Frog", "Mirelight Croaker"],
@@ -12798,6 +12798,7 @@ const MONTEX = (() => {
     leather: ["Cinder Bat", "Echo Bat", "Crypt Bat Swarm", "Blood Bat"],
     mushroom: ["Puffcap", "Stinkbloom", "Spore Shambler"],
   };
+  const SEE_THRU = { "Shade Hound": 1 };
   const BY = {}; for (const k in LOOK) LOOK[k].forEach(n => BY[n] = k);
   // surface feel per look: [roughness, metalness, bump]
   const FEEL = { fur: [0.95, 0, 0.012], feather: [0.85, 0, 0.01], skin: [0.7, 0, 0.008], warty: [0.55, 0, 0.02], slime: [0.22, 0, 0.006], rock: [0.95, 0, 0.025],
@@ -12837,7 +12838,7 @@ const MONTEX = (() => {
     const big = new Map();   // each material once, sized by the biggest part that wears it (changed in place, so the monster's own animations still work)
     root.traverse(o => {
       if (!o.isMesh || !o.geometry || o.isInstancedMesh || !o.geometry.attributes.uv) return; const m = o.material; if (!m || Array.isArray(m) || !m.isMeshStandardMaterial) return;
-      if (m.transparent || m.opacity < 1 || m.blending !== THREE.NormalBlending || m.wireframe || m.userData.montex) return;
+      if (((m.transparent || m.opacity < 1) && !SEE_THRU[name]) || m.blending !== THREE.NormalBlending || m.wireframe || m.userData.montex) return;   // see-through parts stay smooth, except on the Shade Hound (Petra: texture yes, fur no)
       if (m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) * (m.emissiveIntensity || 1) > 0.25) return;   // glowing parts stay smooth
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); o.getWorldScale(_s);
       const size = o.geometry.boundingSphere.radius * Math.max(_s.x, _s.y, _s.z); big.set(m, Math.max(big.get(m) || 0, size));
