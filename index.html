@@ -7405,13 +7405,13 @@ MON.push({ name: "Foxfire Kits", group: "Autumn Woods", land: "Autumn Woods", gr
     const g = new THREE.Group(), fur = std("#d8661a", { roughness: 0.8 }), white = std("#fff4e8"), dark = std("#2a1a10"), fire = addGlow("#5ac8ff", 0.8);
     const kits = [];
     const mkKit = ghost => {
-      const k = new THREE.Group(), f = ghost ? addGlow("#5ac8ff", 0.35) : fur, w = ghost ? addGlow("#9ae8ff", 0.35) : white;
+      const k = new THREE.Group(), f = ghost ? addGlow("#5ac8ff", 0.35) : fur, w = ghost ? addGlow("#9ae8ff", 0.35) : white; if (!ghost) f.userData.coat = 1;
       k.add(mesh(sph(0.2, 16, 10), f, 0, 0.32, 0, 1.6, 0.9, 0.9)); k.add(mesh(sph(0.14, 12, 8), w, 0.12, 0.27, 0, 1.2, 0.8, 0.8));
       const h = new THREE.Group(); h.position.set(0.32, 0.48, 0); k.add(h);
       h.add(mesh(sph(0.14, 14, 10), f)); const sn = mesh(new THREE.ConeGeometry(0.07, 0.2, 10), w, 0.16, -0.03, 0); sn.rotation.z = -Math.PI / 2; h.add(sn);
       h.add(mesh(sph(0.025, 6, 4), dark, 0.26, -0.03, 0));
       [1, -1].forEach(s => { const e = mesh(new THREE.ConeGeometry(0.07, 0.2, 4), f, -0.02, 0.17, 0.08 * s); e.rotation.x = s * -0.2; h.add(e); });
-      if (!ghost) eyes(h, 0.1, 0.04, 0.07, 0.025, "#5ac8ff", false);
+      if (!ghost) eyes(h, 0.1, 0.04, 0.07, 0.025, "#141010", false);   // Petra: shiny black fox eyes (yellow looked strange)
       [[0.18, 1], [0.18, -1], [-0.18, 1], [-0.18, -1]].forEach(([x, s]) => k.add(limb(new V(x, 0.25, 0.08 * s), new V(x, 0, 0.08 * s), 0.035, 0.03, ghost ? f : dark)));
       const tail = new THREE.Group(); tail.position.set(-0.3, 0.38, 0); k.add(tail);
       tail.add(mesh(sph(0.12, 12, 8), f, -0.12, 0.08, 0, 1.8, 0.9, 0.9)); tail.add(mesh(sph(0.1, 10, 8), fire, -0.36, 0.16, 0)); const hh = halo("#5ac8ff", 0.5, ghost ? 0.3 : 0.6); hh.position.set(-0.4, 0.18, 0); tail.add(hh);
@@ -12886,7 +12886,7 @@ const MONTEX = (() => {
       o.getWorldScale(_w); const k = Math.max(_w.x, _w.y, _w.z) / _r.y; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if (o.geometry.boundingSphere.radius * k < 0.04 * H) return; parts.push([o, k]); });
     const area = new Map(); parts.forEach(([o, k]) => { const c = o.material.color.getHexString(), r = o.geometry.boundingSphere.radius * k; area.set(c, (area.get(c) || 0) + r * r); });
     const coat = [...area.entries()].sort((a, b) => b[1] - a[1])[0];   // only the main coat colour gets fur (not the face, paws or nose)
-    parts.filter(([o]) => coat && o.material.color.getHexString() === coat[0]).forEach(([o, k]) => { const key = o.material.uuid + "|" + k.toFixed(3); let fm = mats.get(key); if (!fm) { fm = furMat(o.material, L / k, F.dens); mats.set(key, fm); }
+    parts.filter(([o]) => o.material.userData.coat || (coat && o.material.color.getHexString() === coat[0])).forEach(([o, k]) => { const key = o.material.uuid + "|" + k.toFixed(3); let fm = mats.get(key); if (!fm) { fm = furMat(o.material, L / k, F.dens); mats.set(key, fm); }
       if (F.ghost) fm.depthWrite = false;
       const s = new THREE.Mesh(shellGeo(o.geometry, F.n), fm); s.castShadow = false; s.receiveShadow = true; s.userData.furShell = 1; o.add(s);
       if (F.ghost) { const base = o.material; s.onBeforeRender = () => { fm.opacity = base.opacity * 0.85; s.visible = base.visible !== false; }; }
