@@ -4827,7 +4827,7 @@ function moveCircle(o, dx, dz, r) {
   if ((o.y || 0) < 20) {
     if (!swim && Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
     if (!swim && waterTop(nx, nz) > -Infinity && height(nx, nz) < WATER_Y - 1.1) return;   // the sea is too deep too (dry dips are fine)
-    const open = LANDS.some(b => passW(b, nx, nz) > 0.2 || basinW(b, nx, nz) > 0.05);
+    const open = LANDS.some(b => passW(b, nx, nz) > 0.2 || basinW(b, nx, nz) > 0.05) || reefW(nx, nz) > 0.02;
     const lim = 225 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (!open && rr > lim) { nx *= lim / rr; nz *= lim / rr; }
   }
   o.x = nx; o.z = nz;
