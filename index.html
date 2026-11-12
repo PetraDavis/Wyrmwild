@@ -13155,7 +13155,7 @@ const sparkG = new THREE.BufferGeometry(), SPN = 160, spP = new Float32Array(SPN
 const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }); const sparks = new THREE.Points(sparkG, sparkM); root.add(sparks);
   // ---------- in the game: the offering ----------
   const RAR = ["Junk", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
-  const EVW = [["fog", "Fog", 1], ["storm", "Thunderstorm", 1], ["blizzard", "Blizzard", 1], ["sand", "Sandstorm", 1], ["meteor", "Meteor Shower", 2], ["red", "Red Moon", 3], ["blue", "Blue Moon", 3], ["harvest", "Harvest Moon", 4], ["super", "Super Moon", 4], ["eclipse", "Solar Eclipse", 4]];   // [event, name, smallest egg rarity that can ask for it]
+  const EVW = [["fog", "Fog", 1], ["storm", "Thunderstorm", 1], ["blizzard", "Blizzard", 1], ["sand", "Sandstorm", 1], ["meteor", "Meteor Shower", 2], ["red", "Red Moon", 3], ["blue", "Blue Moon", 3], ["harvest", "Harvest Moon", 4], ["super", "Super Moon", 4], ["eclipse", "Solar Eclipse", 4], ["heat", "Heat Wave", 1], ["tide", "Low Tide", 1], ["spore", "Spore Bloom", 1], ["wind", "Wind Day", 1], ["star", "Shooting Star", 3], ["aurora", "Aurora Night", 4]];   // Petra 2026-11-12: the new events, Rare/Epic at most   // [event, name, smallest egg rarity that can ask for it]
   const ALTAR = new THREE.Vector3(0, 0, -9.6);
   let react = null, lastDT = null;
   const eggPower = k => { if (k.includes("*")) return 1; if (k === "Dustmite") return 0; const s = SP(k); if (EVENT_KIND(s)) return 4;   /* Petra 2026-11-11 evening: event eggs count as Epic at most (they're easy to get once an event starts) */ const r = s.rarity === "Champion" ? 5 : RAR.indexOf(s.rarity); return Math.min(5, r + (k.includes("!") ? 1 : 0)); };   // a shiny egg counts one rarity better   // event eggs count as Legendary (Petra)
@@ -13207,8 +13207,8 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
     const mood = moodOf(k), power = Math.max(0, Math.min(5, eggPower(k) + (mood === "love" ? 1 : mood === "hate" ? -1 : 0)));
     const lead = (!k.includes("*") && EVENT_KIND(SP(k.replace(/[*!].*$/, ""))) ? "The bowl hums at the event egg. " : "") + (mood === "love" ? "Warm golden light pours out and leaves swirl around the shrine. " : mood === "hate" ? "The flame turns pale blue and flickers. A gust of cold wind blows past. " : "The flame glows softly. ");
     let msg, used = true;
-    if (mood === "hate" && Math.random() < 0.5) {   // the hated land's eggs sometimes backfire
-      if (Math.random() < 0.5) { if (EVS.cur) endEvent(true); startEvent("storm"); msg = "The flame sputters. A cold wind howls... a <b>Thunderstorm</b> rolls in, not the wish you asked for."; }
+    if (mood === "hate" && Math.random() < 0.3) {   // Petra 2026-11-12: 30%, and no Thunderstorm (storms are good: event eggs)   // the hated land's eggs sometimes backfire
+      if (Math.random() < 0.5) { bag.splice(pick, 1); used = false; msg = "The flame turns black and swallows the egg whole. Nothing comes back. The wish is lost."; }
       else { bag[pick] = "Dustmite"; used = false; msg = "The flame sputters. Something drops into the bowl... a dusty <b>Junk egg</b>. It's in your backpack."; }
     } else if (w.ev) {
       const [id, n, need] = w.ev;
