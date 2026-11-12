@@ -1999,7 +1999,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 // per-species fur looks (who gets fur, and how)
 const FUR_LOOKS = {
-  Vulpyre:   { length: 0.075, density: 64, tipK: 0.3, ruff: 1.5, parts: { head: true } },
+  Vulpyre:   { length: 0.125, density: 56, tipK: 0.34, ruff: 2.0, tuft: 1.7, shells: 22, partLen: { foxTails: 1.8, legs: 0.85, head: 0.45 }, parts: { head: true } },   // Petra 2026-11-12: fluffier
   Snowpaw:   { length: 0.085, density: 58, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
   Whiteout:  { length: 0.08, density: 60, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
   Glacius:   { length: 0.065, density: 60, tipK: 0.5, rootDark: 0.85, parts: { head: true } },
