@@ -8546,6 +8546,316 @@ Object.assign(SIZE_M, { "Bone Crawler": 1.6, "Crypt Bat Swarm": 1.0, "Grave Gole
   "Rattlebones": 1.3, "Blood Bat": 2.5, "The Crypt Warden": 6 });
 
 })();
+// ===== DEEP SEA monsters (Petra 2026-11-12), same code as the deep-sea monster preview =====
+(() => {
+const pulse = (c, a, b) => c > a && c < b ? Math.sin((c - a) / (b - a) * Math.PI) : 0;
+const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+const UPV = new V(0, 1, 0);
+// a smooth tube that bends through moving points: rad(u) -> [height radius, width radius], u = 0 at the first point
+function sweep(n, m, rad, mat, colorFn) {
+  const geo = new THREE.BufferGeometry(), cnt = (n + 1) * m, pos = new Float32Array(cnt * 3), uv = new Float32Array(cnt * 2), idx = [];
+  for (let i = 0; i <= n; i++) for (let j = 0; j < m; j++) {
+    uv[(i * m + j) * 2] = i / n; uv[(i * m + j) * 2 + 1] = j / m;
+    if (i < n) { const a = i * m + j, b = i * m + (j + 1) % m, c = a + m, d = b + m; idx.push(a, b, c, b, d, c); }
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+  const R = Array.from({ length: n + 1 }, (_, i) => rad(i / n));
+  if (colorFn) { const col = new Float32Array(cnt * 3); for (let i = 0; i <= n; i++) for (let j = 0; j < m; j++) { const c = colorFn(i / n, j / m * Math.PI * 2); col.set([c.r, c.g, c.b], (i * m + j) * 3); } geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); }
+  const ms = mesh(geo, mat); ms.frustumCulled = false;
+  const F = Array.from({ length: n + 1 }, () => ({ p: new V(), t: new V(), s: new V(), nn: new V() }));
+  ms.F = F; ms.R = R;
+  ms.set = pts => {
+    let k = 0;
+    for (let i = 0; i <= n; i++) {
+      const f = F[i]; f.p.copy(pts[i]); f.t.subVectors(pts[Math.min(n, i + 1)], pts[Math.max(0, i - 1)]).normalize();
+      if (i === 0) { f.s.crossVectors(f.t, UPV); if (f.s.lengthSq() < 1e-6) f.s.set(0, 0, 1); }
+      else { f.s.copy(F[i - 1].s).addScaledVector(f.t, -F[i - 1].s.dot(f.t)); }   // carry the side direction along, so curls never flip
+      f.s.normalize(); f.nn.crossVectors(f.s, f.t);
+      const rh = R[i][0], rw = R[i][1];
+      for (let j = 0; j < m; j++) { const a = j / m * Math.PI * 2, c = Math.cos(a) * rh, s = Math.sin(a) * rw;
+        pos[k++] = f.p.x + f.nn.x * c + f.s.x * s; pos[k++] = f.p.y + f.nn.y * c + f.s.y * s; pos[k++] = f.p.z + f.nn.z * c + f.s.z * s; }
+    }
+    geo.attributes.position.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingBox();
+  };
+  // a point on the surface of ring i, at angle a (0 = top, PI/2 = +side, PI = bottom), k = how far out
+  ms.surf = (i, a, k = 1, out = new V()) => { const f = F[i]; return out.copy(f.p).addScaledVector(f.nn, Math.cos(a) * R[i][0] * k).addScaledVector(f.s, Math.sin(a) * R[i][1] * k); };
+  return ms;
+}
+const yawOf = (a, b) => Math.atan2(-(a.z - b.z), a.x - b.x);   // rotation.y that points +x from b toward a
+function fin(pts, mat) { // flat fin from a list of [x, y] pairs, drawn as a smooth closed curve
+  const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]);
+  sh.splineThru(pts.slice(1).map(p => new THREE.Vector2(p[0], p[1]))); sh.lineTo(pts[0][0], pts[0][1]);
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(sh, 16), mat); m.castShadow = true; return m;
+}
+
+
+// ---------- deep-sea monsters (they all live far down under the Ocean) ----------
+// each one faces +x. size = real length (or width) in metres, hover = gap above the seabed in game units
+
+// Gulper Eel: a thin black eel that is mostly one giant stretchy mouth, with a pink light on its tail
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Gulper Eel", lv: "Lv 13–15", attack: "Pouch Gulp", size: 2.0, word: "long", hover: 0.9,
+  desc: "A long, thin black eel that's mostly mouth: its stretchy pouch can gulp down prey bigger than itself, and its glowing pink tail tip lures fish close.", ad: ["A long, thin black eel that's mostly mouth: its stretchy pouch can gulp down prey bigger than itself, and its glowing pink tail tip lures fish close."],
+  make() {
+    const g = new THREE.Group(), skin = std("#1c1c2a", { roughness: 0.25, metalness: 0.3 }), pouchM = std("#2c1e36", { roughness: 0.3, metalness: 0.15 }),
+      inside = std("#7a1c44", { roughness: 0.6, side: THREE.BackSide }), pink = glow("#ff5ab8"), dotM = glow("#ff8ad0");
+    const N = 44, body = sweep(N, 12, u => { const r = 0.12 * Math.pow(1 - u, 0.9) + 0.01; return [r, r * 0.8]; }, skin); g.add(body);
+    const pts = Array.from({ length: N + 1 }, () => new V());
+    const head = new THREE.Group(); g.add(head);
+    head.add(mesh(sph(0.14, 16, 12), skin, 0.04, 0, 0, 1.4, 1, 0.9));   // neck
+    const domeTop = new THREE.SphereGeometry(0.5, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), domeBot = new THREE.SphereGeometry(0.5, 32, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    const lip = new THREE.TorusGeometry(0.5, 0.014, 6, 48);
+    const upper = new THREE.Group(); head.add(upper);
+    upper.add(mesh(domeTop, skin, 0.5, 0, 0, 1, 0.32, 0.5)); upper.add(mesh(domeTop, inside, 0.5, -0.002, 0, 0.97, 0.3, 0.48));
+    const lipU = mesh(lip, pink, 0.5, 0, 0, 1, 0.5, 1); lipU.rotation.x = Math.PI / 2; upper.add(lipU);
+    eyes(upper, 0.84, 0.1, 0.1, 0.03, "#c8f4ff");
+    const jaw = new THREE.Group(); head.add(jaw);
+    const pouch = new THREE.Group(); jaw.add(pouch);
+    pouch.add(mesh(domeBot, pouchM, 0.5, 0, 0, 1, 0.7, 0.55)); pouch.add(mesh(domeBot, inside, 0.5, 0.002, 0, 0.97, 0.67, 0.53));
+    const lipL = mesh(lip, pink, 0.5, 0, 0, 1, 0.55, 1); lipL.rotation.x = Math.PI / 2; pouch.add(lipL);
+    const tl = new THREE.Group(); g.add(tl);
+    tl.add(mesh(sph(0.06, 14, 10), pink)); const tlh = halo("#ff5ab8", 0.9, 0.8); tl.add(tlh);
+    [-0.5, 0, 0.5].forEach(a => tl.add(limb(new V(0, 0, 0), new V(-0.16, Math.sin(a) * 0.12, Math.cos(a) * 0.04 + a * 0.1), 0.012, 0.004, dotM)));
+    const dots = []; for (let i = 3; i < N - 3; i += 3) [1, -1].forEach(s => { const d = mesh(sph(0.02, 6, 4), dotM); g.add(d); dots.push({ d, i, s }); });
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7, gulp = pulse(c, 4.0, 6.2);
+      for (let i = 0; i <= N; i++) { const u = i / N; pts[i].set(0.05 - u * 4.2, Math.sin(t * 1.2 - u * 3) * 0.06, Math.sin(t * 2.2 - u * 7) * (0.04 + u * 0.34)); }
+      body.set(pts);
+      head.position.copy(pts[0]); head.rotation.y = yawOf(pts[0], pts[2]);
+      jaw.rotation.z = -(0.14 + gulp * 0.75); pouch.scale.set(1, 1 + gulp * 0.6, 1 + gulp * 0.35); upper.rotation.z = gulp * 0.22;
+      tl.position.copy(pts[N]); tl.rotation.y = yawOf(pts[N - 2], pts[N]) + Math.PI; tlh.material.opacity = 0.55 + Math.sin(t * 3) * 0.3;
+      dots.forEach(o => body.surf(o.i, o.s * Math.PI / 2, 1.0, o.d.position));
+    } }; return I;
+  } });
+
+// Giant Isopod: an armoured pill-bug the size of a dog that curls into a ball
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Giant Isopod", lv: "Lv 12–14", attack: "Shell Roll", size: 1.0, word: "long", hover: 0,
+  desc: "A huge armoured pill-bug that creeps over the seabed on lots of little legs, and curls up into a rock-hard ball when anything attacks.", ad: ["A huge armoured pill-bug that creeps over the seabed on lots of little legs, and curls up into a rock-hard ball when anything attacks."],
+  make() {
+    const g = new THREE.Group(), shell = std("#a196bc", { roughness: 0.38, metalness: 0.12 }), rimM = std("#d8cdea", { roughness: 0.35 }), under = std("#6e6488", { roughness: 0.7 }),
+      legM = std("#bcb0d4", { roughness: 0.5 }), eyeM = std("#140e1e", { roughness: 0.08, metalness: 0.6 }), dotM = glow("#d6b0ff");
+    const NS = 9, L = 0.25, dome = new THREE.SphereGeometry(0.5, 32, 12, 0, Math.PI * 2, 0, Math.PI * 0.56);
+    const W = i => 1.32 * Math.sqrt(1 - Math.pow((i - 4.3) / 6.2, 2));   // oval outline, widest in the middle
+    const root = new THREE.Group(); g.add(root);
+    const segs = [], legs = [], ants = [], plates = [];
+    const mkSeg = i => {
+      const s = new THREE.Group(), w = W(i), p = new THREE.Group(); p.rotation.z = -0.1; s.add(p); plates.push(p);   // plates tilt so each one overlaps the next like roof tiles
+      p.add(mesh(dome, shell, 0, 0, 0, L * 1.55, 0.56, w));
+      p.add(mesh(dome, rimM, -L * 0.5, 0.004, 0, L * 0.4, 0.57, w * 1.015));
+      p.add(mesh(sph(0.03, 8, 6), dotM, 0, 0.285, 0)); const h = halo("#c8a0ff", 0.22, 0.8); h.position.set(0, 0.3, 0); p.add(h);
+      [1, -1].forEach(z => p.add(mesh(sph(0.022, 6, 4), dotM, -0.02, 0.2, z * w * 0.3)));
+      s.add(mesh(sph(0.5, 16, 8), under, 0, -0.01, 0, L * 1.3, 0.1, w * 0.86));
+      if (i > 0 && i < NS - 1) [1, -1].forEach(z => {
+        const hip = new THREE.Group(); hip.position.set(0, -0.02, z * w * 0.34); s.add(hip);
+        hip.add(limb(new V(0, 0, 0), new V(0.03, -0.06, z * 0.12), 0.022, 0.016, legM));
+        hip.add(limb(new V(0.03, -0.06, z * 0.12), new V(0.08, -0.17, z * 0.17), 0.016, 0.007, legM));
+        legs.push({ hip, i, z });
+      });
+      return s;
+    };
+    segs[4] = mkSeg(4); root.add(segs[4]);
+    let par = segs[4]; for (let i = 5; i < NS; i++) { const s = mkSeg(i); s.position.x = L; par.add(s); segs[i] = s; par = s; }
+    par = segs[4]; for (let i = 3; i >= 0; i--) { const s = mkSeg(i); s.position.x = -L; par.add(s); segs[i] = s; par = s; }
+    const hd = segs[NS - 1];   // head
+    hd.add(mesh(sph(0.5, 24, 14), shell, L * 0.45, 0.0, 0, 0.3, 0.4, W(8) * 0.9));
+    [1, -1].forEach(z => {
+      hd.add(mesh(sph(0.075, 14, 10), eyeM, L * 0.55, 0.08, z * W(8) * 0.36, 1, 0.9, 0.7));
+      const a = new THREE.Group(); a.position.set(L * 0.95, 0.03, z * 0.07); hd.add(a);
+      a.add(limb(new V(0, 0, 0), new V(0.35, 0.14, z * 0.2), 0.016, 0.01, legM)); a.add(limb(new V(0.35, 0.14, z * 0.2), new V(0.72, 0.06, z * 0.44), 0.01, 0.004, legM));
+      a.add(limb(new V(0, 0, 0), new V(0.17, 0.06, z * 0.03), 0.01, 0.005, legM));
+      ants.push({ a, z });
+    });
+    const tl = segs[0];   // tail fan
+    tl.add(mesh(sph(0.5, 24, 12), shell, -L * 0.45, 0.0, 0, 0.4, 0.32, W(0) * 0.9));
+    [1, -1].forEach(z => { const u = mesh(sph(0.5, 14, 8), rimM, -L * 0.95, -0.01, z * 0.24, 0.34, 0.05, 0.14); u.rotation.y = z * 0.45; tl.add(u); });
+    const ring = NS * L / (2 * Math.PI) * 2 + 0.28, R0 = L / (2 * Math.sin(Math.PI / NS * 0.97));
+    const ballTex = canvasTex(512, 256, (x, w, h) => { x.fillStyle = "#a196bc"; x.fillRect(0, 0, w, h);
+      for (let k = 0; k < NS; k++) { const X = k * w / NS; x.fillStyle = "#6e6488"; x.fillRect(X, 0, 5, h); x.fillStyle = "#d8cdea"; x.fillRect(X + 5, 0, 7, h);
+        x.fillStyle = "#e6ccff"; x.shadowColor = "#d6b0ff"; x.shadowBlur = 10; x.beginPath(); x.arc(X + w / NS / 2, h / 2, 12, 0, 7); x.fill(); x.shadowBlur = 0; } });
+    const ball = mesh(sph(R0 + 0.3, 36, 24), std("#ffffff", { roughness: 0.38, metalness: 0.12, map: ballTex }), 0, -R0, 0, 1, 1, 0.82); ball.rotation.x = Math.PI / 2; root.add(ball);
+    const parts = []; root.traverse(o => { if ((o.isMesh || o.isSprite) && o !== ball) parts.push(o); });   // swapped for the ball once it's rolled up   // how far the ball's bottom drops below the body line
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 9, curl = c < 4 ? 0 : c < 5 ? ease(c - 4) : c < 6.6 ? 1 : c < 7.6 ? 1 - ease(c - 6.6) : 0;
+      const a = curl * 2 * Math.PI / NS * 0.97;
+      for (let i = 0; i < NS; i++) if (i !== 4) segs[i].rotation.z = i > 4 ? -a : a;
+      root.position.set(Math.sin(t * 0.4) * 0.12 * (1 - curl), 0.2 + curl * (ring - 0.2) + Math.sin(t * 1.3) * 0.005, 0);
+      root.rotation.z = curl * Math.sin(t * 2) * 0.05; const bs = ease((curl - 0.75) / 0.25); ball.visible = bs > 0.01; parts.forEach(o => o.visible = bs < 0.5); ball.scale.set(0.6 + bs * 0.4, 0.6 + bs * 0.4, (0.6 + bs * 0.4) * 0.82); plates.forEach(p => { p.scale.set(1 + curl * 0.55, 1 + curl * 0.15, 1 - curl * 0.2); p.rotation.z = -0.1 * (1 - curl); });
+      legs.forEach(o => { o.hip.rotation.y = Math.sin(t * 7 + o.i * 0.9 + (o.z > 0 ? 0 : Math.PI)) * 0.4 * (1 - curl); o.hip.scale.setScalar(1 - curl * 0.65); });
+      ants.forEach(o => { o.a.rotation.y = o.z * Math.sin(t * 1.5 + o.z) * 0.25 - o.z * curl * 0.6; o.a.rotation.z = Math.sin(t * 2.1 + o.z) * 0.12 - curl * 0.5; });
+    } }; return I;
+  } });
+
+// Siphon Squid: a purple deep-sea squid with glowing eyes and spots that blasts glowing ink
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Siphon Squid", lv: "Lv 14–16", attack: "Glow-Ink Blast", size: 2.4, word: "long", hover: 1.0,
+  desc: "A purple squid with huge glowing eyes and shining spots that jets away in a blast of glowing ink, then grabs with its two long tentacles.", ad: ["A purple squid with huge glowing eyes and shining spots that jets away in a blast of glowing ink, then grabs with its two long tentacles."],
+  make() {
+    const g = new THREE.Group(), skin = std("#ffffff", { roughness: 0.35, map: blotch("#a058e0", ["#c080f0", "#7a38b8", "#b878f0"], 70, 9) }), armM = std("#8a48c0", { roughness: 0.4 }),
+      eyeG = glow("#7af4ff"), pupilM = new THREE.MeshBasicMaterial({ color: "#0a0618" }), spotP = glow("#ff70e0"), spotC = glow("#70e8ff");
+    const sq = new THREE.Group(); g.add(sq);
+    const ML = 1.55, mr = y => y < 0.12 ? 0.25 + 0.09 * Math.sin(Math.max(0, y + 0.12) / 0.24 * Math.PI / 2) : 0.34 * Math.pow(Math.max(0, 1 - Math.pow((y - 0.12) / (ML - 0.12), 2.2)), 0.6);
+    const prof = []; for (let k = 30; k >= 0; k--) { const y = -0.12 + k / 30 * (ML + 0.12); prof.push(new THREE.Vector2(k === 30 ? 0 : mr(y), y)); }
+    const mantle = mesh(new THREE.LatheGeometry(prof, 28), skin, 0.02, 0, 0); mantle.rotation.z = Math.PI / 2; sq.add(mantle);   // points backwards (-x)
+    [[0.35, spotP], [0.6, spotC], [0.85, spotP], [1.1, spotC], [1.3, spotP]].forEach(([y, m], k) => [Math.PI / 2 + 0.9, Math.PI / 2 - 0.9, Math.PI / 2 + 1.9, Math.PI / 2 - 1.9, Math.PI / 2].forEach((f, j) => {
+      if (j === 4 && k % 2) return; const r = mr(y) * 1.01, d = mesh(sph(0.032, 8, 6), m, 0.02 - y, r * Math.sin(f), r * Math.cos(f)); sq.add(d);
+      const h = halo(m === spotP ? "#ff70e0" : "#70e8ff", 0.16, 0.8); h.position.copy(d.position); sq.add(h); }));
+    const fins = []; [1, -1].forEach(s => { const f = new THREE.Group(); f.position.set(-1.22, 0, 0.1 * s); sq.add(f); const m = fin([[0.25, 0], [0.05, 0.24 * s], [-0.25, 0.08 * s], [-0.33, 0]], skin); m.material = std("#a058e0", { roughness: 0.35, side: THREE.DoubleSide }); m.rotation.x = Math.PI / 2; f.add(m); fins.push({ f, s }); });
+    sq.add(mesh(sph(0.28, 22, 16), skin, 0.2, 0, 0, 1.05, 0.95, 1.05));
+    const eyeH = [];
+    [1, -1].forEach(s => { sq.add(mesh(sph(0.13, 18, 14), eyeG, 0.22, 0.05, 0.2 * s)); sq.add(mesh(sph(0.065, 12, 10), pupilM, 0.25, 0.05, 0.31 * s)); const h = halo("#7af4ff", 0.75, 0.6); h.position.set(0.24, 0.05, 0.3 * s); sq.add(h); eyeH.push(h); });
+    sq.add(limb(new V(0.05, -0.2, 0), new V(0.34, -0.3, 0), 0.07, 0.045, armM));   // the siphon
+    const arms = [];
+    for (let i = 0; i < 10; i++) {
+      const long = i >= 8, a = long ? (i === 8 ? 2.2 : -2.2) : i / 8 * Math.PI * 2 + Math.PI / 8, n = long ? 26 : 14;
+      const sw = sweep(n, 8, long ? u => { const r = 0.032 * (1 - u) + 0.012 + (u > 0.74 ? Math.sin((u - 0.74) / 0.26 * Math.PI) * 0.05 : 0); return [r, r * 0.8]; } : u => { const r = 0.06 * (1 - u) + 0.008; return [r, r]; }, armM);
+      sq.add(sw); arms.push({ sw, a, long, n, pts: Array.from({ length: n + 1 }, () => new V()), o: new V(0, Math.cos(a), Math.sin(a)) });
+    }
+    const puffs = []; for (let i = 0; i < 12; i++) {
+      const pm = new THREE.MeshStandardMaterial({ color: C("#22104a"), emissive: C("#4a2ab0"), emissiveIntensity: 0.6, transparent: true, opacity: 0, roughness: 1, depthWrite: false });
+      const m = new THREE.Mesh(sph(0.5, 14, 10), pm); const h = halo(i % 2 ? "#6a8aff" : "#b06aff", 1.6, 0); m.add(h); g.add(m);
+      puffs.push({ m, h, d: new V(1 + Math.random() * 0.6, -0.3 - Math.random() * 0.5, (Math.random() - 0.5) * 1.4), dl: i * 0.06 });
+    }
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7, jet = pulse(c, 4.0, 6.4), bunch = pulse(c, 3.9, 5.0);
+      sq.position.set(-jet * 0.7, Math.sin(t * 1.3) * 0.1, 0); sq.rotation.z = Math.sin(t * 0.9) * 0.05;
+      fins.forEach(o => o.f.rotation.x = o.s * Math.sin(t * 3) * 0.3);
+      arms.forEach((o, k) => {
+        const L = o.long ? 2.0 : 0.95, sp = (o.long ? 0.18 : 0.38) * (1 - bunch * 0.8);
+        for (let i = 0; i <= o.n; i++) { const u = i / o.n, w = Math.sin(t * 2.2 + k * 1.3 - u * 4) * 0.07 * u;
+          o.pts[i].set(0.44 + u * L, -u * u * (o.long ? 0.1 : 0.12), 0).addScaledVector(o.o, 0.13 + u * L * sp + w); o.pts[i].z += Math.cos(t * 1.7 + k - u * 3) * 0.05 * u; }
+        o.sw.set(o.pts);
+      });
+      eyeH.forEach(h => h.material.opacity = 0.5 + Math.sin(t * 2) * 0.15);
+      puffs.forEach(o => { const L = Math.max(0, Math.min(1, (c - 4.05 - o.dl) / 2.2)), on = L > 0 && L < 1;
+        o.m.visible = on; if (!on) return; const e = 1 - Math.pow(1 - L, 2);
+        o.m.position.set(sq.position.x + 0.36 + o.d.x * e * 1.4, sq.position.y - 0.3 + o.d.y * e, o.d.z * e); o.m.scale.setScalar(0.12 + e * 0.55);
+        o.m.material.opacity = Math.sin(L * Math.PI) * 0.55; o.h.material.opacity = Math.sin(L * Math.PI) * 0.5; });
+    } }; return I;
+  } });
+
+// Viperfish: a little dark fish with giant needle fangs, a glowing lure and a row of blue belly lights
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Viperfish", lv: "Lv 12–14", attack: "Fang Snap", size: 0.6, word: "long", hover: 1.1,
+  desc: "A small dark fish with needle fangs so big they stick out of its mouth. It dangles a glowing lure in the dark, then snaps shut.", ad: ["A small dark fish with needle fangs so big they stick out of its mouth. It dangles a glowing lure in the dark, then snaps shut."],
+  make() {
+    const g = new THREE.Group(), skin = std("#222c4a", { roughness: 0.22, metalness: 0.5 }), finM = new THREE.MeshStandardMaterial({ color: C("#3a5080"), transparent: true, opacity: 0.7, side: THREE.DoubleSide, roughness: 0.4, depthWrite: false }),
+      fangM = std("#f6f2ea", { roughness: 0.2, emissive: C("#5a5a66") }), mouthM = std("#4a1024"), dotM = glow("#3ab4ff"), lureM = glow("#7af0ff");
+    const N = 32, body = sweep(N, 16, u => { const f = u < 0.16 ? Math.sqrt(1 - Math.pow(1 - u / 0.16, 2)) : 1, r = 0.2 * f * (1 - 0.8 * u) * (1 - Math.pow(u, 12)); return [r, r * 0.62]; }, skin); g.add(body);
+    const pts = Array.from({ length: N + 1 }, () => new V());
+    g.add(mesh(sph(0.1, 12, 8), mouthM, 0.6, -0.07, 0, 1.4, 0.5, 0.8));   // inside of the mouth
+    const jaw = new THREE.Group(); jaw.position.set(0.42, -0.07, 0); g.add(jaw);
+    jaw.add(mesh(sph(0.5, 18, 10), skin, 0.18, -0.02, 0, 0.38, 0.07, 0.17));
+    const fang = (par, x, y, z, len, rz, rx = 0) => { const f = new THREE.Group(); f.position.set(x, y, z); f.rotation.set(rx, 0, rz); par.add(f); f.add(mesh(new THREE.ConeGeometry(0.02 * len / 0.3 + 0.004, len, 8), fangM, 0, len / 2, 0)); };
+    [1, -1].forEach(s => {
+      fang(jaw, 0.34, 0, 0.045 * s, 0.44, 0.28, -s * 0.06); fang(jaw, 0.16, 0, 0.07 * s, 0.12, 0.05, -s * 0.2);
+      fang(g, 0.68, -0.04, 0.05 * s, 0.26, Math.PI + 0.35, s * 0.1);
+      g.add(mesh(sph(0.052, 14, 10), glow("#c8f4ff"), 0.57, 0.06, 0.085 * s)); g.add(mesh(sph(0.028, 10, 8), new THREE.MeshBasicMaterial({ color: "#0a0a14" }), 0.585, 0.06, 0.125 * s));
+      const pf = new THREE.Group(); pf.position.set(0.32, -0.06, 0.1 * s); g.add(pf); const m = fin([[0, 0], [-0.12, 0.07], [-0.2, 0], [-0.12, -0.04]], finM); m.rotation.x = -s * 1.2; pf.add(m);
+    });
+    const lure = new THREE.Group(); lure.position.set(0.3, 0.17, 0); g.add(lure);
+    const curve = new THREE.CatmullRomCurve3([new V(0, 0, 0), new V(0.04, 0.3, 0), new V(0.25, 0.47, 0), new V(0.48, 0.4, 0), new V(0.56, 0.28, 0)]);
+    lure.add(mesh(new THREE.TubeGeometry(curve, 24, 0.011, 6), skin));
+    const bulb = mesh(sph(0.045, 12, 10), lureM, 0.56, 0.26, 0); lure.add(bulb); const bh = halo("#7af0ff", 0.55, 0.85); bh.position.copy(bulb.position); lure.add(bh);
+    const dorsal = fin([[0.04, 0], [-0.04, 0.12], [-0.2, 0.08], [-0.24, 0]], finM), anal = fin([[0.04, 0], [-0.06, -0.1], [-0.2, -0.06], [-0.22, 0]], finM), tail = fin([[0.02, 0], [-0.16, 0.2], [-0.2, 0.17], [-0.12, 0], [-0.2, -0.17], [-0.16, -0.2]], finM);
+    [dorsal, anal, tail].forEach(f => g.add(f));
+    const dots = []; for (let i = 3; i < N - 4; i++) [1, -1].forEach(s => { const d = mesh(sph(0.016, 6, 4), dotM); g.add(d); let h = null; if (i % 2) { h = halo("#3ab4ff", 0.12, 0.8); g.add(h); } dots.push({ d, h, i, s }); });
+    const lo = []; for (let i = 6; i < N - 8; i += 2) [1, -1].forEach(s => { const d = mesh(sph(0.012, 6, 4), dotM); g.add(d); lo.push({ d, i, s }); });
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 5, snap = pulse(c, 2.8, 3.5);
+      for (let i = 0; i <= N; i++) { const u = i / N; pts[i].set(0.75 - u * 1.9, Math.sin(t * 1.5) * 0.02, Math.sin(t * 4.5 - u * 5) * 0.15 * u * u); }
+      body.set(pts);
+      jaw.rotation.z = -(0.3 + snap * 0.55) + (c > 3.5 && c < 3.7 ? 0.25 : 0);
+      lure.rotation.z = Math.sin(t * 1.5) * 0.1; bh.material.opacity = 0.6 + Math.sin(t * 4) * 0.25;
+      const put = (f, i, up) => { const F = body.F[i]; f.position.copy(F.p).addScaledVector(F.nn, body.R[i][0] * up); f.rotation.y = yawOf(body.F[Math.max(0, i - 1)].p, body.F[Math.min(N, i + 1)].p); };
+      put(dorsal, 19, 0.85); put(anal, 20, -0.85); put(tail, N - 1, 0);
+      dots.forEach(o => { body.surf(o.i, Math.PI - o.s * 0.75, 1.0, o.d.position); if (o.h) o.h.position.copy(o.d.position); });
+      lo.forEach(o => body.surf(o.i, Math.PI - o.s * 0.25, 1.0, o.d.position));
+    } }; return I;
+  } });
+
+// Deep Kraken (mini-boss): a huge dark red-purple octopus with glowing yellow eyes
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Deep Kraken", lv: "Lv 20", boss: true, attack: "Whirlpool Grab", size: 7, word: "across", hover: 0.3,
+  desc: "The giant of the deep: glowing yellow eyes watch from the dark while eight curling arms covered in suckers reach for anything that swims too close.", ad: ["The giant of the deep: glowing yellow eyes watch from the dark while eight curling arms covered in suckers reach for anything that swims too close."],
+  make() {
+    const g = new THREE.Group(), skin = std("#b88aa4", { roughness: 0.42, map: blotch("#6a1e48", ["#8a3060", "#4a1032", "#9a4068"], 90, 14) }),
+      armTop = C("#6a1e48"), armUnder = C("#d88a9c"), armM = std("#ffffff", { roughness: 0.42, vertexColors: true }), suckM = std("#f0b4c0", { roughness: 0.35 }),
+      eyeM = glow("#ffd23a"), pupilM = new THREE.MeshBasicMaterial({ color: "#1a0a00" }), spotM = glow("#ffc840");
+    const body = new THREE.Group(); g.add(body);
+    // one smooth body: a neck where the arms meet, eye bulges, then a big round mantle leaning back
+    const hp = new THREE.SplineCurve([[0.62, 0], [0.8, 0.35], [0.8, 0.75], [0.92, 1.2], [1.04, 1.7], [0.9, 2.25], [0.5, 2.65], [0.0, 2.8]].map(q => new THREE.Vector2(q[0], q[1]))).getPoints(48);
+    hp.unshift(new THREE.Vector2(0, -0.05)); hp.splice(1, 0, new THREE.Vector2(0.5, -0.02));
+    const mantle = mesh(new THREE.LatheGeometry(hp, 40), skin, 0.1, 0.45, 0); mantle.rotation.z = 0.2; body.add(mantle);
+    const rAt = y => { for (let i = 1; i < hp.length; i++) if (hp[i].y >= y) return hp[i].x; return 0; };
+    for (let i = 0; i < 18; i++) { const y = 1.15 + (i % 6) * 0.22, f = i * 2.39 + 0.4, r = rAt(y) + 0.015;
+      mantle.add(mesh(sph(0.06, 10, 8), spotM, r * Math.sin(f), y, r * Math.cos(f))); const h = halo("#ffc840", 0.4, 0.55); h.position.set((r + 0.05) * Math.sin(f), y, (r + 0.05) * Math.cos(f)); mantle.add(h); }
+    const eyeH = [], lidG = new THREE.SphereGeometry(0.31, 22, 10, 0, Math.PI * 2, 0, Math.PI * 0.27);
+    [1, -1].forEach(s => {
+      const dir = new V(0.8, 0, 0.6 * s).normalize(), p = new V(0.1, 0.98, 0).addScaledVector(dir, 0.68);
+      body.add(mesh(sph(0.32, 20, 14), skin, p.x, p.y, p.z));
+      const e = p.clone().addScaledVector(dir, 0.16); body.add(mesh(sph(0.3, 22, 16), eyeM, e.x, e.y, e.z));
+      const lid = mesh(lidG, skin, e.x, e.y, e.z); lid.rotation.set(-s * 0.3, 0, -0.45); body.add(lid);
+      const pp = e.clone().addScaledVector(dir, 0.285), pu = mesh(sph(0.11, 14, 10), pupilM, pp.x, pp.y - 0.01, pp.z, 0.25, 0.35, 1.5); pu.rotation.y = Math.atan2(-dir.z, dir.x); body.add(pu);
+      const h = halo("#ffd23a", 1.4, 0.55); h.position.copy(e).addScaledVector(dir, 0.2); body.add(h); eyeH.push(h);
+    });
+    body.add(mesh(sph(0.6, 24, 12), skin, 0.1, 0.5, 0, 1, 0.45, 1));   // where the arms meet
+    const AN = 36, arms = [];
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2 + Math.PI / 8, sw = sweep(AN, 12, u => { const r = 0.25 * Math.pow(1 - u, 0.85) + 0.02; return [r * 0.9, r * 1.1]; }, armM, (u, ang) => Math.cos(ang) < -0.3 ? armUnder : armTop);
+      body.add(sw); const su = [];
+      for (let j = 0; j < 14; j++) { const m = mesh(sph(1, 10, 6), suckM); m.castShadow = false; body.add(m); su.push({ m, i: Math.round(2 + j * 2.35) }); }
+      arms.push({ sw, su, d: new V(Math.cos(a), 0, Math.sin(a)), e: new V(-Math.sin(a), 0, Math.cos(a)), pts: Array.from({ length: AN + 1 }, () => new V()) });
+    }
+    const aura = halo("#ff4a8a", 7, 0.12); aura.position.y = 1.2; g.add(aura);
+    const q = new THREE.Quaternion(), down = new V(), dir = new V();
+    const I = { g, phase: null, update: t => {
+      body.position.y = Math.sin(t * 0.8) * 0.08; body.rotation.y = Math.sin(t * 0.3) * 0.12;
+      const b = Math.sin(t * 1.2); mantle.scale.set(1 + b * 0.03, 1 + b * 0.04, 1 + b * 0.03);
+      eyeH.forEach(h => h.material.opacity = 0.45 + Math.sin(t * 1.6) * 0.15);
+      arms.forEach((o, k) => {
+        const curl = 0.55 + 0.35 * Math.sin(t * 0.6 + k * 1.3), step = 3.6 / AN, p = o.pts[0];
+        p.set(0.1, 0.45, 0).addScaledVector(o.d, 0.5);
+        for (let i = 1; i <= AN; i++) { const u = i / AN, ph = -0.75 + u * 0.9 + curl * Math.pow(u, 3) * 5.5 + Math.sin(t * 1.1 + k * 1.7 - u * 3) * 0.25 * u, yw = Math.sin(t * 0.8 + k * 2.1 + u * 2) * 0.45 * u;
+          dir.copy(o.d).multiplyScalar(Math.cos(ph) * Math.cos(yw)).addScaledVector(o.e, Math.cos(ph) * Math.sin(yw)).addScaledVector(UPV, Math.sin(ph));
+          o.pts[i].copy(o.pts[i - 1]).addScaledVector(dir, step); }
+        o.sw.set(o.pts);
+        o.su.forEach(s => { const r = o.sw.R[s.i][0], sz = r * 0.5; o.sw.surf(s.i, Math.PI, 0.92, s.m.position); down.copy(o.sw.F[s.i].nn).negate(); q.setFromUnitVectors(UPV, down); s.m.quaternion.copy(q); s.m.scale.set(sz, sz * 0.4, sz); });
+      });
+    } }; return I;
+  } });
+
+// Ghost Shark: a pale see-through chimera with huge eyes and a whip-thin tail
+MON.push({ group: "Deep Sea", land: "Ocean (the deep)", ground: "#141c2a", name: "Ghost Shark", lv: "Lv 16–18", attack: "Phantom Fade", size: 2.2, word: "long", hover: 0.9,
+  desc: "A pale, see-through shark with huge ghostly eyes and a long whip tail. It fades almost invisible, then flickers back right next to you.", ad: ["A pale, see-through shark with huge ghostly eyes and a long whip tail. It fades almost invisible, then flickers back right next to you."],
+  make() {
+    const g = new THREE.Group(), skin = new THREE.MeshStandardMaterial({ color: C("#dceef4"), emissive: C("#5a98b0"), emissiveIntensity: 0.45, roughness: 0.3, transparent: true, opacity: 0.62 }),
+      finM = new THREE.MeshStandardMaterial({ color: C("#cfe8f0"), emissive: C("#4a8aa8"), emissiveIntensity: 0.45, roughness: 0.4, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
+      eyeM = glow("#d8fff0"), pupilM = new THREE.MeshBasicMaterial({ color: C("#1e4a58"), transparent: true }), lineM = glow("#8af0ff", { transparent: true });
+    const N = 52, body = sweep(N, 18, u => { let r; if (u < 0.12) r = 0.27 * Math.sqrt(1 - Math.pow(1 - u / 0.12, 2)); else if (u < 0.3) r = 0.27; else if (u < 0.58) r = 0.27 - (u - 0.3) / 0.28 * 0.215; else r = 0.055 * Math.pow(1 - (u - 0.58) / 0.42, 1.6) + 0.004; return [r * 1.05, r * 0.8]; }, skin);
+    g.add(body); const pts = Array.from({ length: N + 1 }, () => new V());
+    [1, -1].forEach(s => { g.add(mesh(sph(0.11, 18, 14), eyeM, 0.62, 0.08, 0.17 * s, 1, 0.85, 0.75)); g.add(mesh(sph(0.07, 14, 10), pupilM, 0.64, 0.08, 0.21 * s, 1, 0.9, 0.6)); g.add(mesh(sph(0.025, 8, 6), eyeM, 0.67, 0.11, 0.245 * s)); const h = halo("#c8fff0", 0.5, 0.35); h.position.set(0.66, 0.08, 0.22 * s); g.add(h); });
+    g.add(mesh(sph(0.06, 10, 8), std("#6a8a96"), 0.82, -0.12, 0, 0.6, 0.25, 1.4));   // little mouth
+    const wings = []; [1, -1].forEach(s => { const w = new THREE.Group(); w.position.set(0.38, -0.12, 0.17 * s); w.scale.z = s; g.add(w);
+      const m = fin([[0.06, 0], [0.02, -0.3], [-0.25, -0.72], [-0.42, -0.62], [-0.36, -0.25], [-0.36, -0.02]], finM); m.rotation.x = -Math.PI / 2; w.add(m); wings.push({ w, s }); });
+    const d1 = fin([[0.08, 0], [0.1, 0.24], [0.02, 0.44], [-0.12, 0.26], [-0.3, 0.02]], finM); d1.position.set(0.28, 0.24, 0); g.add(d1);
+    g.add(limb(new V(0.33, 0.25, 0), new V(0.24, 0.66, 0), 0.016, 0.005, eyeM));   // the spine on its back fin
+    const d2 = fin([[0.25, 0], [0.1, 0.12], [-0.4, 0.08], [-0.6, 0.02], [-0.62, 0]], finM), p2 = fin([[0.08, 0], [-0.05, -0.16], [-0.22, -0.1], [-0.26, 0]], finM), tf = fin([[0.2, 0], [0, 0.07], [-0.5, 0.03], [-0.6, 0], [-0.5, -0.04], [0, -0.08]], finM);
+    [d2, p2, tf].forEach(f => g.add(f));
+    const glowH = halo("#9ae8ff", 3.2, 0.14); g.add(glowH);
+    const ll = []; for (let i = 4; i < 34; i += 2) [1, -1].forEach(s => { const d = mesh(sph(0.013, 6, 4), lineM); g.add(d); ll.push({ d, i, s }); });
+    const head = []; for (let k = 0; k < 7; k++) [1, -1].forEach(s => { const a = k / 6 * 2.2 - 1.1; const d = mesh(sph(0.012, 6, 4), lineM, 0.55 + Math.cos(a) * 0.2, Math.sin(a) * 0.17 - 0.02, s * 0.215); g.add(d); head.push(d); });
+    const I = { g, phase: null, update: t => {
+      const c = I.phase ?? t % 7, fade = pulse(c, 4.4, 6.4);
+      for (let i = 0; i <= N; i++) { const u = i / N; pts[i].set(0.9 - u * 3.6, Math.sin(t * 1.3 - u * 2) * 0.05 * u, Math.sin(t * 2.4 - u * 6) * 0.32 * u * u); }
+      body.set(pts);
+      wings.forEach(o => o.w.rotation.x = Math.sin(t * 2.2) * 0.35);
+      const put = (f, i, up) => { const F = body.F[i]; f.position.copy(F.p).addScaledVector(F.nn, body.R[i][0] * up); f.rotation.y = yawOf(body.F[Math.max(0, i - 1)].p, body.F[Math.min(N, i + 1)].p); };
+      put(d2, 22, 0.9); put(p2, 18, -0.9); put(tf, 36, 0);
+      ll.forEach(o => body.surf(o.i, o.s * Math.PI * 0.42, 1.0, o.d.position));
+      skin.opacity = 0.62 * (1 - fade * 0.75); finM.opacity = 0.45 * (1 - fade * 0.8); lineM.opacity = 1 - fade * 0.6; pupilM.opacity = 1 - fade * 0.5;
+      glowH.position.set(-0.2, 0, 0); glowH.material.opacity = (0.14 + Math.sin(t * 1.5) * 0.04) * (1 - fade * 0.5);
+    } }; return I;
+  } });
+
+MON.forEach(m => { if (m.group === "Deep Sea") m.lenM = m.size * (m.boss ? 1 : 2); });   // sized by LENGTH (they are long and flat); a bit bigger than real so you can see them
+Object.assign(SIZE_M, { "Gulper Eel": 2.0, "Giant Isopod": 1.0, "Siphon Squid": 2.4, "Viperfish": 0.6, "Deep Kraken": 7, "Ghost Shark": 2.2 });
+})();
 MON.forEach(m => m.sizeM = SIZE_M[m.name] || 1.5);
 return MON;
 })();
@@ -8603,6 +8913,13 @@ const MONSTER = {
   "Mirelight Croaker": { land: "Misty Swamp", night: true, water: true, lv: [10, 14], hp: 1.1, dmg: 0.9, speed: 4, atk: "Hypnotic glow", range: 18, warn: 1.2, ph: [2.0, 2.0, 2.5, 3.2, 1.5] },
   "Nightstilt":        { land: "Misty Swamp", night: true, lv: [10, 14], hp: 1.2, dmg: 1.6, speed: 2, atk: "Spear stab", range: 4, disguise: "The dead tree just moved!", ph: [1, 3.6, 3.9, 4.2, 0.4] },
   // Coral Reef (all of them swim at the surface)
+  // deep sea (Petra 2026-11-12): down on the dark ocean floor, they rise up to bite dragons swimming or flying low over the water
+  "Gulper Eel":        { land: "Ocean", deep: 1.2, lv: [12, 15], hp: 1.2, dmg: 1.4, speed: 8, atk: "Pouch gulp", range: 5, ph: [1, 4.0, 5.1, 6.2, 0.6] },
+  "Giant Isopod":      { land: "Ocean", deep: 0.2, lv: [11, 14], hp: 2.2, dmg: 1.0, speed: 3, atk: "Shell roll", range: 5, warn: 1.0, ph: [1, 4.0, 5.0, 7.6, 1.0] },
+  "Siphon Squid":      { land: "Ocean", deep: 1.4, lv: [13, 16], hp: 1.1, dmg: 1.2, speed: 7, atk: "Glow-ink blast", range: 14, shot: "#5af0ff", warn: 1.0, ph: [1, 3.9, 4.6, 6.4, 1.0] },
+  "Viperfish":         { land: "Ocean", deep: 1.4, lv: [12, 14], hp: 0.7, dmg: 1.2, speed: 12, atk: "Fang snap", range: 3, pack: 3, ph: [1, 2.8, 3.15, 3.5, 0.4] },
+  "Deep Kraken":       { land: "Ocean", deep: 0.4, rare: 0.25, lv: [18, 20], hp: 4.0, dmg: 1.7, speed: 5, atk: "Whirlpool grab", range: 9, pull: 20, sense: 50, warn: 1.2 },
+  "Ghost Shark":       { land: "Ocean", deep: 1.2, lv: [15, 18], hp: 1.4, dmg: 1.6, speed: 11, atk: "Phantom bite", range: 4, stealth: true, ph: [1, 4.4, 5.4, 6.4, 0.8] },
   "Spike Urchin":      { land: "Coral Reef", reef: true, lv: [8, 12], hp: 1.3, dmg: 1.0, speed: 6, atk: "Spine ring", range: 7, warn: 1.0, ph: [1, 3.2, 3.8, 4.4, 0.6] },
   "Jelly Bloom":       { land: "Coral Reef", reef: true, lv: [8, 12], hp: 1.2, dmg: 0.8, speed: 3, atk: "Sting", range: 4 },
   "Barracuda Pack":    { land: "Coral Reef", reef: true, lv: [9, 13], hp: 0.8, dmg: 1.1, speed: 16, atk: "Dart bite", range: 9, pack: 3, ph: [0.2, 0.2, 0.7, 1.0, 0.3] },
@@ -8652,7 +8969,7 @@ for (const k in MONSTER) (MON_LANDS[MONSTER[k].land] = MON_LANDS[MONSTER[k].land
 const NEW_WATER = new Set(["Misty Swamp", "Hydra Valley", "Coral Reef"]);
 const MON_DEF = Object.fromEntries(MONLIB.map(m => [m.name, m]));
 // calm: ignores you, only fights back if you hit it.  shy: runs away when you come close, fights back if you hit it
-const TEMPER = {}; ["Bog Toad", "Snapjaw Turtle", "Glowmoth Swarm", "Cloud Jelly", "Puffcap", "Star Jelly", "Glimmer Slug", "Giant Clam", "Moonray", "Magma Glowworm"].forEach(k => TEMPER[k] = "calm");
+const TEMPER = {}; ["Bog Toad", "Snapjaw Turtle", "Glowmoth Swarm", "Cloud Jelly", "Puffcap", "Star Jelly", "Glimmer Slug", "Giant Clam", "Moonray", "Magma Glowworm", "Giant Isopod"].forEach(k => TEMPER[k] = "calm");
 ["Foxfire Kits", "Gust Sprite", "Prism Wisp", "Ink Squid", "Acorn Chucker"].forEach(k => TEMPER[k] = "shy");
 const MON_UNIT = 2.1 / 1.7;                              // game units per metre (a tamer is 1.7 m)
 const mons = [], monShots = [];
@@ -8680,7 +8997,8 @@ function spawnSpot(kind, land) {
   const d = MONSTER[kind];
   for (let tries = 0; tries < 12; tries++) {
     let p;
-    if (d.sea) { const a = COAST.a + (Math.random() - 0.5) * 0.7, r = 150 + Math.random() * 50; p = new V(Math.cos(a) * r, WATER_Y, Math.sin(a) * r); if (height(p.x, p.z) > WATER_Y - 1) continue; }
+    if (d.deep) { const a = Math.random() * 6.283, r = 45 + Math.random() * 120; p = new V(me.x + Math.cos(a) * r, 0, me.z + Math.sin(a) * r); p.y = height(p.x, p.z); if (p.y > WATER_Y - 6) continue; }
+    else if (d.sea) { const a = COAST.a + (Math.random() - 0.5) * 0.7, r = 150 + Math.random() * 50; p = new V(Math.cos(a) * r, WATER_Y, Math.sin(a) * r); if (height(p.x, p.z) > WATER_Y - 1) continue; }
     else if ((d.water || d.reef) && (land === "Misty Swamp" || land === "Hydra Valley" || land === "Coral Reef")) { if (typeof waterSpotIn !== "function") return null; p = waterSpotIn(land); }
     else if (d.reef) return null;
     else p = wildSpot(land, !!d.water);
@@ -8700,7 +9018,7 @@ function spawnMonster(kind, p, lv) {
   inst.update(0, 0.016); holder.updateMatrixWorld(true);
   const b = new THREE.Box3(), t = new THREE.Box3();
   holder.traverse(o => { if (!o.isMesh || !o.visible || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); t.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); b.union(t); });
-  const h0 = Math.max(0.2, b.max.y - b.min.y), k = def.sizeM * MON_UNIT / h0;
+  const h0 = Math.max(0.2, b.max.y - b.min.y), k = def.lenM ? def.lenM * MON_UNIT / Math.max(0.2, b.max.x - b.min.x, b.max.z - b.min.z) : def.sizeM * MON_UNIT / h0;
   holder.scale.setScalar(k);
   const tall = b.max.y * k, rad = Math.max(0.6, Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * k * 0.45);
   const mats = [];   // materials that can flash red (warning) or white (hit)
@@ -8891,6 +9209,9 @@ function moveMon(m, tx, ty, tz, sp, dt) {
   }
   if (d.under || d.ceil) return;                             // the Vine Dangler and Stalactite Lurker stay put
   if (d.fly) { const fy = Math.max(groundAt(m.x, m.z, m.y + 2), WATER_Y) + d.fly; m.y += ((ty !== null ? Math.max(ty, fy - d.fly + 0.5) : fy) - m.y) * Math.min(1, dt * 2); }
+  else if (d.deep) {   // deep sea: glides just above the seabed, rises up after a dragon it is chasing (never out of the water)
+    const fl = groundAt(m.x, m.z, m.y + 1) + d.deep, mid = petMid(), want = m.aggro ? Math.min(WATER_Y - 0.3 - m.tall * 0.6, Math.max(fl, mid.y - m.tall * 0.5)) : fl;
+    m.y += (Math.max(fl, want) - m.y) * Math.min(1, dt * 1.5); }
   else if (d.reef || (d.water && NEW_WATER.has(m.land))) m.y = Math.max(groundAt(m.x, m.z, m.y + 1), m.home.y - 0.15);   // swamp pools, the river and the reef have their own water level
   else if (d.water || d.sea) m.y = Math.max(groundAt(m.x, m.z, m.y + 1), WATER_Y - 0.15);
   else m.y = groundAt(m.x, m.z, m.y + 2);
@@ -12818,18 +13139,18 @@ const MONTEX = (() => {
   const LOOK = {
     fur: ["Snow Yeti", "Frost Wolf", "Moon Wolf", "Shade Lynx", "Foxfire Kits", "Shade Hound", "Acorn Chucker", "Gloom Spider", "Valley Raptor"],
     feather: ["Storm Harpy", "Hootclaw", "Moonraven Flock"],
-    skin: ["Goblin", "Lava Imp", "Dune Shark", "Mirage Stalker", "Barracuda Pack", "Pumpkin Imp", "Nightstilt", "Strawstalker"],
+    skin: ["Goblin", "Lava Imp", "Dune Shark", "Mirage Stalker", "Barracuda Pack", "Pumpkin Imp", "Nightstilt", "Strawstalker", "Ghost Shark"],
     warty: ["Bog Toad", "Dart Frog", "Mirelight Croaker"],
-    slime: ["Mud Eel", "Mire Blob", "Acid Slug", "Glimmer Slug", "Leech Swarm", "Bog Lurker", "Ink Squid", "Lantern Eel", "Abyss Angler", "Moonray", "Magma Glowworm", "Gas Bloater"],
+    slime: ["Mud Eel", "Mire Blob", "Acid Slug", "Glimmer Slug", "Leech Swarm", "Bog Lurker", "Ink Squid", "Lantern Eel", "Abyss Angler", "Moonray", "Magma Glowworm", "Gas Bloater", "Gulper Eel", "Siphon Squid", "Deep Kraken"],
     rock: ["Rock Troll", "Geode Crab", "Stalactite Lurker", "Moss Golem", "Grave Golem", "Ash Lurker"],
-    scales: ["Rock Python", "Great Hydra", "Hydra Hatchlings", "Gleamhydra", "Moonbasilisk", "Snapjaw Turtle"],
-    shell: ["Ember Beetle", "Scorpiclaw", "Moonscarab Swarm", "Blightpede", "Moonmantis", "Snapflash Shrimp", "Spike Urchin", "Giant Clam", "Moonmantis"],
+    scales: ["Rock Python", "Great Hydra", "Hydra Hatchlings", "Gleamhydra", "Moonbasilisk", "Snapjaw Turtle", "Viperfish"],
+    shell: ["Ember Beetle", "Scorpiclaw", "Moonscarab Swarm", "Blightpede", "Moonmantis", "Snapflash Shrimp", "Spike Urchin", "Giant Clam", "Moonmantis", "Giant Isopod"],
     bark: ["Vine Creeper", "Hollow Stump", "Vine Dangler", "Leaf Pile Lurker"],
     bone: ["Bone Crawler", "Rattlebones", "Skull Spider", "The Crypt Warden", "Wraith Stag"],
     leather: ["Cinder Bat", "Echo Bat", "Crypt Bat Swarm", "Blood Bat"],
     mushroom: ["Puffcap", "Stinkbloom", "Spore Shambler"],
   };
-  const SEE_THRU = { "Shade Hound": 1 };
+  const SEE_THRU = { "Shade Hound": 1, "Ghost Shark": 1 }, GLOW_OK = { "Ghost Shark": 1 };   // deep sea (Petra 2026-11-11): the ghost shark's pale glowing skin gets a texture too
   const BY = {}; for (const k in LOOK) LOOK[k].forEach(n => BY[n] = k);
   // surface feel per look: [roughness, metalness, bump]
   const FEEL = { fur: [0.95, 0, 0.012], feather: [0.85, 0, 0.01], skin: [0.7, 0, 0.008], warty: [0.55, 0, 0.02], slime: [0.22, 0, 0.006], rock: [0.95, 0, 0.025],
@@ -12870,7 +13191,7 @@ const MONTEX = (() => {
     root.traverse(o => {
       if (!o.isMesh || !o.geometry || o.isInstancedMesh || !o.geometry.attributes.uv) return; const m = o.material; if (!m || Array.isArray(m) || !m.isMeshStandardMaterial) return;
       if (((m.transparent || m.opacity < 1) && !SEE_THRU[name]) || m.blending !== THREE.NormalBlending || m.wireframe || m.userData.montex) return;   // see-through parts stay smooth, except on the Shade Hound (Petra: texture yes, fur no)
-      if (m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) * (m.emissiveIntensity || 1) > 0.25) return;   // glowing parts stay smooth
+      if (!GLOW_OK[name] && m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) * (m.emissiveIntensity || 1) > 0.25) return;   // glowing parts stay smooth
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); o.getWorldScale(_s);
       const size = o.geometry.boundingSphere.radius * Math.max(_s.x, _s.y, _s.z); big.set(m, Math.max(big.get(m) || 0, size));
     });
