@@ -659,13 +659,15 @@ function leg(s, zOff, pts, radii, toeLen) {
     M.thigh = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 0); }), emissiveMap: mk(cx => { cx.fillStyle = "#000"; cx.fillRect(0, 0, 256, 128); swoosh(cx, glowC2, 8); }), emissive: "#ffffff", emissiveIntensity: 0.45, roughness: M.top.roughness });
     M.shin = new THREE.MeshStandardMaterial({ map: mk(cx => { cx.fillStyle = base; cx.fillRect(0, 0, 256, 128); sock(cx, p.socks || p.foxMarks); }), roughness: M.top.roughness });
   }
-  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.thigh || M.top, 20, 16, 0.85, 1));
+  if (p.legs && !M.leg) M.leg = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.legs).convertSRGBToLinear(), roughness: 0.85, metalness: 0 });   // red panda: dark legs
+  const LM = M.leg || M.top;
+  g.add(staticTube(vs.slice(0, KI + 1), [...rr.filter(([a]) => a < kf).map(([a, r]) => [a / kf, r]), [1, kR]], M.thigh || LM, 20, 16, 0.85, 1));
   const knee = new THREE.Group(); knee.position.copy(kp); g.add(knee); g.userData.knee = knee; g.userData.kR = kR;
-  const kc = new THREE.Mesh(new THREE.SphereGeometry(kR * 1.02, 18, 12), M.top); kc.scale.set(1, 1, 0.85); knee.add(kc);
+  const kc = new THREE.Mesh(new THREE.SphereGeometry(kR * 1.02, 18, 12), LM); kc.scale.set(1, 1, 0.85); knee.add(kc);
   const low = new THREE.Group(); low.position.copy(kp).negate(); knee.add(low);   // shin parts keep leg-space coordinates
-  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.shin || M.top, 20, 16, 0.85, 1));
+  low.add(staticTube(vs.slice(KI), [[0, kR], ...rr.filter(([a]) => a > kf).map(([a, r]) => [(a - kf) / (1 - kf), r])], M.shin || LM, 20, 16, 0.85, 1));
   // round hip cap so the open top of the leg tube never shows from above
-  const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), M.top);
+  const hip = new THREE.Mesh(new THREE.SphereGeometry(rr[0][1], 20, 14), p.legs ? M.side || M.top : M.top);
   hip.scale.set(0.85, 1, 1); hip.position.copy(vs[0]); g.add(hip);
   if (o.skeleton) { const top = new V(vs[0].x, vs[0].y + 0.1, -zOff * 0.95); g.add(staticTube([vs[0], vs[0].clone().lerp(top, 0.5).add(new V(0, 0.06, 0)), top], [[0, rr[0][1] * 0.75], [0.5, 0.045], [1, 0.06]], M.top, 12, 10)); }   // hip / shoulder bone up to the spine
   const last = vs[vs.length - 1];
@@ -673,7 +675,7 @@ function leg(s, zOff, pts, radii, toeLen) {
   const ankP = new THREE.Group(); ankP.position.copy(last).sub(kp); knee.add(ankP); g.userData.ankle = ankP;
   const foot = new THREE.Group(); foot.position.copy(last).negate(); ankP.add(foot);
   const endR = radii[radii.length - 1][1] * o.legThick * lowK;
-  const PM = p.socks ? (M.sock = M.sock || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.socks).convertSRGBToLinear(), roughness: 0.55 })) : M.top;   // coloured paws (Vulpyre)
+  const PM = p.socks ? (M.sock = M.sock || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.socks).convertSRGBToLinear(), roughness: 0.55 })) : LM;   // coloured paws (Vulpyre)
   const ank = new THREE.Mesh(new THREE.SphereGeometry(endR * 1.15, 18, 12), PM);
   ank.position.copy(last); foot.add(ank);
   if (o.feet > 1.1) { // a heel that widens from the ankle down into the paw
@@ -746,11 +748,12 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
 (function () {
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 24), M.top);
   skull.scale.set(1.25, 0.9, 0.95); skull.castShadow = true; head.add(skull);
-  head.add(staticTube([new V(0.1, 0.02, 0), new V(sn(0.42), -0.02, 0), new V(sn(0.78), -0.08, 0)], [[0, 0.24], [0.6, 0.17], [1, 0.11]], M.top, 20, 20, 1, 0.78));
+  head.add(staticTube([new V(0.1, 0.02, 0), new V(sn(0.42), -0.02, 0), new V(sn(0.78), -0.08, 0)], o.pandaMask ? [[0, 0.165], [0.5, 0.145], [1, 0.11]] : [[0, 0.24], [0.6, 0.17], [1, 0.11]], M.top, 20, 20, 1, 0.78));
   const tip = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 14), M.top);
   tip.scale.set(1, 0.78, 1); tip.position.set(sn(0.78), -0.08, 0); head.add(tip);
-  head.add(staticTube([new V(0.0, -0.14, 0), new V(sn(0.4), -0.2, 0), new V(sn(0.72), -0.21, 0)], [[0, 0.2], [0.6, 0.14], [1, 0.09]], M.belly, 20, 18, 1, 0.72));
-  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.09, 18, 12), M.belly);
+  const MASK = o.pandaMask ? (M.mask = M.mask || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.mask || '#f4efe8').convertSRGBToLinear(), roughness: 0.85 })) : null; if (MASK) { tip.material = MASK; tip.scale.set(1.05, 0.72, 0.78); }   // a slimmer muzzle tip (Petra)   // red panda: white muzzle
+  head.add(staticTube([new V(0.0, -0.14, 0), new V(sn(0.4), -0.2, 0), new V(sn(0.72), -0.21, 0)], MASK ? [[0, 0.14], [0.5, 0.12], [1, 0.09]] : [[0, 0.2], [0.6, 0.14], [1, 0.09]], MASK || M.belly, 20, 18, 1, 0.72));
+  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.09, 18, 12), MASK || M.belly);
   chin.scale.set(1.1, 0.75, 1); chin.position.set(sn(0.71), -0.22, 0); head.add(chin);
   const throat = new THREE.Mesh(new THREE.SphereGeometry(0.21, 24, 16), M.belly);
   throat.scale.set(1.35, 0.85, 0.95); throat.position.set(0.05, -0.17, 0); head.add(throat);
@@ -768,10 +771,10 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
     ball.scale.set(1.1, 0.9, 0.85); ball.position.set(0.24, 0.12 - (o.gentle ? 0.01 : 0), (0.15 - 0.5 * (eyeR - 0.075)) * z); ball.rotation.y = z > 0 ? -0.6 : 0.6; head.add(ball);   // set into the head; looks forward (Petra) but not cross-eyed
     // eyelids: skin-coloured shells over the top and bottom of the eyeball (heavier, lower lids on fierce dragons)
     const up = o.gentle ? 0.95 : 1.2, lo = o.gentle ? 0.55 : 0.7;
-    const lidU = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.12, 28, 12, 0, Math.PI * 2, 0, up), M.top); lidU.rotation.z = o.gentle ? -0.15 : 0.25; ball.add(lidU);
-    const lidL = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.1, 28, 10, 0, Math.PI * 2, Math.PI - lo, lo), M.top); lidL.rotation.z = -0.1; ball.add(lidL);
-    if (o.gentle) head.add(staticTube([new V(0.36, 0.17 + 0.03 * (E - 1), 0.15 * z), new V(0.25, 0.24 + 0.05 * (E - 1), 0.21 * z), new V(0.1, 0.21, 0.2 * z)], [[0, 0.012], [0.5, 0.028], [1, 0.015]], M.top, 12, 10));   // soft raised brow
-    else head.add(staticTube([new V(0.38, 0.12 + 0.03 * (E - 1), 0.13 * z), new V(0.24, 0.2 + 0.05 * (E - 1), 0.2 * z), new V(0.06, 0.2, 0.2 * z)], [[0, 0.02], [0.5, 0.05], [1, 0.03]], M.top, 12, 10));   // low angry brow
+    const lidU = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.12, 28, 12, 0, Math.PI * 2, 0, up), M.top); lidU.rotation.z = o.gentle ? -0.15 : 0.25; if (!o.pandaMask) ball.add(lidU);
+    const lidL = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.1, 28, 10, 0, Math.PI * 2, Math.PI - lo, lo), M.top); lidL.rotation.z = -0.1; if (!o.pandaMask) ball.add(lidL); if (o.pandaMask) { ball.material = M.pEye = M.pEye || new THREE.MeshStandardMaterial({ color: new THREE.Color('#1a0e0a').convertSRGBToLinear(), roughness: 0.15, metalness: 0 }); ball.scale.set(1, 1, 1); const gl = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); gl.position.set(eyeR * 0.75, eyeR * 0.45, eyeR * 0.45); ball.add(gl); }
+    if (o.gentle && !o.pandaMask) head.add(staticTube([new V(0.36, 0.17 + 0.03 * (E - 1), 0.15 * z), new V(0.25, 0.24 + 0.05 * (E - 1), 0.21 * z), new V(0.1, 0.21, 0.2 * z)], [[0, 0.012], [0.5, 0.028], [1, 0.015]], M.top, 12, 10));   // soft raised brow
+    else if (!o.pandaMask) head.add(staticTube([new V(0.38, 0.12 + 0.03 * (E - 1), 0.13 * z), new V(0.24, 0.2 + 0.05 * (E - 1), 0.2 * z), new V(0.06, 0.2, 0.2 * z)], [[0, 0.02], [0.5, 0.05], [1, 0.03]], M.top, 12, 10));   // low angry brow
     const H = o.horns;
     if (H === "swept") {
       head.add(staticTube([new V(-0.02, 0.18, 0.14 * z), new V(-0.4, 0.34, 0.24 * z), new V(-0.72, 0.62, 0.3 * z), new V(-0.82, 0.86, 0.3 * z)], [[0, 0.075], [0.5, 0.045], [1, 0.004]], M.horn, 24, 12));
@@ -805,6 +808,16 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
     if (o.whiskers) head.add(staticTube([new V(sn(0.8), -0.06, 0.08 * z), new V(sn(0.8) + 0.1, -0.15, 0.4 * z), new V(sn(0.8) - 0.05, -0.3, 0.7 * z), new V(sn(0.8) - 0.25, -0.45, 0.8 * z)], [[0, 0.0032], [1, 0.0008]], M.fin, 16, 6));   // whiskers: much thinner (Petra), and thinner again 2026-11-11
     if (o.frill === "ears") {   // big fin ears
       const f = new THREE.Mesh(new THREE.ShapeGeometry(frillShape, 8), M.fin); f.position.set(-0.14, 0.1, 0.17 * z); f.rotation.set(z * 1.25, 0, 0.9); f.scale.set(0.45, 0.6, 1); head.add(f);   // Petra 2026-11-11: base tucked into the side of the head so the fin grows out of it
+    }
+    if (o.pandaMask) {   // red panda face: white brow spot over each eye, a white cheek patch, a red-brown 'tear' stripe from the eye down to the jaw, round white-rimmed ears
+      const onSk = (x, y, k = 1.04) => new V(x, y, z * Math.max(0.15, 0.285 * k * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2 - (y / 0.27) ** 2))));
+      const brow = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 10), MASK); brow.scale.set(1.3, 0.7, 0.6); brow.position.copy(onSk(0.2, 0.21, 1.15)); brow.lookAt(brow.position.clone().multiplyScalar(2)); head.add(brow);
+      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.1, 18, 12), MASK); cheek.scale.set(1.25, 0.9, 0.45); cheek.position.copy(onSk(0.12, -0.08, 0.95)); cheek.rotation.y = z * 0.5;   // Petra: no white cheek patches (not added)
+      M.tear = M.tear || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.tear || '#7a2a12').convertSRGBToLinear(), roughness: 0.85 });
+      { const tr = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), M.tear); tr.position.copy(onSk(0.27, -0.06, 0.99)); tr.lookAt(head.localToWorld ? tr.position.clone().multiplyScalar(3) : tr.position); tr.scale.set(0.035, 0.1, 0.012); tr.rotateZ(z * 0.25); head.add(tr); }   // a dark 'tear' patch lying flat on the cheek
+      const ear = new THREE.Group(); ear.position.set(-0.04, 0.17, 0.25 * z); ear.rotation.set(-0.85 * z, 0, 0.1); ear.scale.setScalar(1.15); head.add(ear);   // upright, rounded ears out at the sides of the head
+      const eb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 14), M.top); eb.scale.set(0.4, 1.15, 0.9); eb.position.set(-0.02, 0.1, 0); eb.castShadow = true; eb.userData.furEar = true; ear.add(eb);   // red fur on the back of the ear
+      const eo = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 14), MASK); eo.scale.set(0.3, 0.92, 0.7); eo.position.set(0.015, 0.09, 0); eo.userData.furEar = true; ear.add(eo);   // white fur on the front of the ear
     }
     if (o.foxEars) {   // NEW: tall pointy fox ears, white fur inside, dark tips
       const ear = new THREE.Group(); ear.position.set(-0.12, 0.13, 0.13 * z); ear.rotation.set(0.2 * z, -0.25 * z, 0.18); { const es = o.earScale || 1.4; ear.scale.set(es, es * 1.25, es); } head.add(ear);   // taller so the tip stays as high as before; root sunk into the skull so it grows out of the head (Petra: ears looked stuck on)
@@ -1621,25 +1634,27 @@ if (o.foxTails) {
   fm.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= smoothstep(0.04, 0.35, length(vColor - vec3(" + [white.r, white.g, white.b].map(x => x.toFixed(4)).join(",") + ")));"); };
   for (let k = 0; k < n; k++) {
     const geo = makeTube(FS, 20), col = new Float32Array((FS + 1) * 21 * 3);
-    for (let i = 0; i <= FS; i++) { const u = i / FS, m = Math.max(0, (u - 0.7) / 0.3) ** 1.3, c = white.clone().lerp(tipC, m); for (let j = 0; j <= 20; j++) col.set([c.r, c.g, c.b], (i * 21 + j) * 3); }
+    const ringA = new THREE.Color(p.tailFur || p.side).convertSRGBToLinear(), ringB = new THREE.Color(p.tailRing || '#e8c89a').convertSRGBToLinear();
+    for (let i = 0; i <= FS; i++) { const u = i / FS, m = Math.max(0, (u - 0.7) / 0.3) ** 1.3, c = o.ringTail ? ringA.clone().lerp(ringB, Math.min(1, Math.max(0, (Math.sin(u * Math.PI * 11 - 1.2) - 0.1) * 2.2)) * Math.min(1, u * 6)) : white.clone().lerp(tipC, m); for (let j = 0; j <= 20; j++) col.set([c.r, c.g, c.b], (i * 21 + j) * 3); }
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     const mesh = new THREE.Mesh(geo, fm); mesh.castShadow = true; mesh.frustumCulled = false; dragon.add(mesh);
     const c0 = (n - 1) / 2, d0 = c0 ? (k - c0) / c0 : 0; foxTails.push({ mesh, z: d0 * (n > 3 ? 1.0 : 0.55), hi: (n > 3 ? 0.55 : 0.3) * (1 - d0 * d0) + (n > 3 ? 0.25 * (k % 2) : 0), ph: k * 2.1, pts: Array.from({ length: FS + 1 }, () => new V()) });
   }
-  fm.emissiveIntensity = 0.5 * (o.glow || 1);
-  var foxTailL = L;
+  fm.emissiveIntensity = o.ringTail ? 0 : 0.5 * (o.glow || 1); if (o.ringTail) fm.roughness = 0.9;
+  var foxTailL = L * (o.ringTail ? 0.85 : 1);
 }
 const _ft = [new V(), new V(), new V(), new V()], _ftB = new V();
 function updateFoxTails(t) {
   if (!foxTails.length) return;
   const base = _ftB.copy(frames[0].p).add(_ft[3].set(0.1, 0.18, 0)), dir = _ft[0].copy(frames[0].p).sub(frames[10].p).setY(0).normalize().lerp(_ft[3].set(-1, 0, 0), 0.6).normalize(), L = foxTailL;
-  if (foxTails[0]) foxTails[0].mesh.material.emissiveIntensity = (0.7 + 0.45 * Math.sin(t * 2.2)) * (o.glow || 1);   // the tips breathe with light
+  if (foxTails[0] && !o.ringTail) foxTails[0].mesh.material.emissiveIntensity = (0.7 + 0.45 * Math.sin(t * 2.2)) * (o.glow || 1);   // the tips breathe with light
   foxTails.forEach((f, k) => {
     const sway = Math.sin(t * 1.1 + f.ph) * (0.35 + 0.3 * idleK), lift = Math.sin(t * 0.8 + f.ph * 1.3) * 0.15;
     // a graceful S: out along the tail, rising, then the tip curls up; hovering lets them hang in a curve
     const c1 = _ft[1].copy(base).addScaledVector(dir, L * 0.42).add(_ft[3].set(0, 0.35 + lift * 0.4, f.z * 0.6 + sway * 0.3));
     const c2 = _ft[2].copy(base).addScaledVector(dir, L * 0.85).add(_ft[3].set(0, 1.25 + f.hi + lift, f.z * 1.5 + sway * 0.8));
-    const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));   // a rising arc whose plume tip bows softly over
+    const end = new V().copy(base).addScaledVector(dir, L * 1.05).add(_ft[3].set(0, 1.2 + f.hi + lift * 1.3, f.z * 2.1 + sway));
+    if (o.ringTail) { c1.copy(base).addScaledVector(dir, L * 0.38).add(_ft[3].set(0, -0.12 + lift * 0.2, sway * 0.25)); c2.copy(base).addScaledVector(dir, L * 0.75).add(_ft[3].set(0, -0.05 + lift * 0.5, sway * 0.6)); end.copy(base).addScaledVector(dir, L * 1.0).add(_ft[3].set(0, 0.25 + lift, sway)); }   // red panda: a long thick tail held out low behind, the tip lifting a little   // a rising arc whose plume tip bows softly over
     if (sitV > 0.01) {   // sitting (Petra 2026-11-11): the tails fan out behind like a big fox-fire fan, rising from the rump
       const n = foxTails.length, d = n > 1 ? k / (n - 1) * 2 - 1 : 0, th = d * 1.0, cp = Math.cos(-sitPitchV), sp = Math.sin(-sitPitchV), sw = Math.sin(t * 0.9 + f.ph) * 0.05;
       const fan = (q, bx, r) => { const x = -bx * L, y = Math.cos(th + sw) * r * L, z = Math.sin(th + sw) * r * L; return q.set(base.x + x * cp - y * sp, base.y + x * sp + y * cp, base.z + z); };
@@ -1648,7 +1663,7 @@ function updateFoxTails(t) {
     }
     if (hoverK > 0.01) { const h = hoverK; c2.y -= L * 0.32 * h; end.addScaledVector(dir, -L * 0.15 * h).y -= L * 0.5 * h; }   // hovering: the plumes trail down behind in a soft curve
     f.pts.forEach((q, i) => { const u = i / (f.pts.length - 1), w = 1 - u; q.set(0, 0, 0).addScaledVector(base, w * w * w).addScaledVector(c1, 3 * w * w * u).addScaledVector(c2, 3 * w * u * u).addScaledVector(end, u * u * u); });
-    const tk = foxTails.length > 3 ? 0.72 : 1; fillTube(f.mesh.geometry, f.pts, u => tk * (u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2))), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
+    const tk = foxTails.length > 3 ? 0.72 : 1; if (o.ringTail) fillTube(f.mesh.geometry, f.pts, u => 0.26 * (0.72 + 0.28 * Math.sin(Math.min(1, u / 0.45) * Math.PI / 2)) * Math.sqrt(Math.max(0, 1 - Math.max(0, (u - 0.8) / 0.2) ** 2)), 1, 1, true); else fillTube(f.mesh.geometry, f.pts, u => tk * (u < 0.74 ? 0.15 + 0.15 * (0.5 - 0.5 * Math.cos(u / 0.74 * Math.PI)) : 0.3 * Math.sqrt(Math.max(0, 1 - ((u - 0.74) / 0.26) ** 2))), 1, 1, true);   // thick root, swelling to a full rounded brush at the free end
   });
 }
 // ---------- foxfire magic (Vulpyre, Petra: "more magical, it looks bland"): spirit flames circling it, sparks rising off every tail tip, a slow glow pulse ----------
@@ -1985,6 +2000,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   const clumps = []; if (O.hideClumps) root.traverse(m => { if (m.isMesh && m.geometry && m.geometry.type === "IcosahedronGeometry" && m.material && m.material.roughness === 0.95 && !m.material.transparent) clumps.push(m); });
   clumps.forEach(m => { if (m.geometry.parameters.radius < 0.2) furFor(m, "tail", O.legShells); else hidden.push(m); });   // Petra: small fluffs (tail-tip tuft, cheek/ear fluff) get real fur instead of vanishing; only the big back/mane balls hide
   root.traverse(m => { if (m.isMesh && m.geometry && m.geometry.type === "ConeGeometry" && Math.abs(m.geometry.parameters.radius - 0.13) < 1e-6 && Math.abs(m.geometry.parameters.height - 0.3) < 1e-6) furFor(m, "head", O.legShells); });   // fox ears get fur too
+  root.traverse(m => { if (m.isMesh && m.userData.furEar) furFor(m, "head", O.legShells); });   // red panda ears get fur too
   const fur = {
     opts: O, parts: made, enabled: true,
     setEnabled(on) {
@@ -1999,7 +2015,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 // per-species fur looks (who gets fur, and how)
 const FUR_LOOKS = {
-  Vulpyre:   { length: 0.075, density: 64, tipK: 0.3, ruff: 1.5, parts: { head: true } },
+  Vulpyre:   { length: 0.125, density: 56, tipK: 0.34, ruff: 2.0, tuft: 1.7, shells: 22, partLen: { foxTails: 1.8, legs: 0.85, head: 0.45 }, parts: { head: true } },   // Petra 2026-11-12: fluffier
   Snowpaw:   { length: 0.085, density: 58, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
   Whiteout:  { length: 0.08, density: 60, tip: "#ffffff", tipK: 0.6, ruff: 1.6, tuft: 1.5, parts: { head: true } },
   Glacius:   { length: 0.065, density: 60, tipK: 0.5, rootDark: 0.85, parts: { head: true } },
@@ -2578,6 +2594,7 @@ FUR_LOOKS.Rimefang = Object.assign({}, FUR_LOOKS.Rimefang, { skin: "frost" });
   });
 }
 
+FUR_LOOKS.Kindlepaw = { length: 0.09, density: 58, tipK: 0.25, rootDark: 0.75, ruff: 1.6, tuft: 1.3, droop: 0.25, sheen: 0.25, shells: 20, partLen: { foxTails: 2.6 }, parts: { head: true } };   // Petra: a VERY fuzzy tail
 FUR_LOOKS.Lunaria = { length: 0.08, density: 56, tip: "#ffffff", tipK: 0.45, ruff: 2.0, tuft: 1.3, droop: 0.2, sheen: 0.4, parts: { head: true, wings: true } };   // moth fuzz: white, soft, a big fluffy collar
 FUR_LOOKS.Medusel = FUR_LOOKS.Medusel || { noFur: true };
 
@@ -2902,6 +2919,18 @@ SPECIES.push({ name: "Lunaria", nightEgg: true, rarity: "Epic", home: "Deep Fore
        "Big feathery antennae (instead of horns) smell flowers and other Lunarias from very far away",
        "Soft white fuzz on its chest, head and legs keeps it warm on cold forest nights",
        "Only comes out at night, and its wings glow softly in the dark"] });
+SPECIES.push({ name: "Kindlepaw", rarity: "Uncommon", home: "Frost Peaks (pine forest at the edge of the snow)", speed: 4,
+  br: "Ember Puff: a warm puff of glowing embers that makes monsters sneeze and stumble",
+  pal: P("#b8441c", "#c4501f", "#2a1610", "#ffb060", "#2a1a14", "#a83c18", "#1a1210", { legs: "#241410", mask: "#f6f0e8", tear: "#4a160a", tailFur: "#b8441c", tailRing: "#ecd2a4", fin: "#f6f0e8", wingTip: "#6a2410", metal: 0.02 }),
+  sp: { gentle: true, tier: 2, foxTails: 1, ringTail: true, tailLen: 0.06, tail: "none", pandaMask: true, whiskers: true, wings: "bat", wingScale: 0.85, horns: "none", back: "none", frill: "none", pattern: "none",
+    thin: 0.95, girth: 1.05, len: 0.9, neck: 0.75, legLen: 0.8, legThick: 1.05, feet: 1.1, eyes: 0.8, glow: 0.4, head: [0.84, 1.0, 1.06], noMotes: true },
+  ad: ["Thick rusty-red fur keeps it warm in snowy mountain forests",
+       "A white face mask with red 'tear' stripes under its eyes",
+       "Round, white-rimmed ears instead of horns",
+       "A long, thick tail with red and cream rings: it wraps it around itself like a blanket when it sleeps",
+       "Black legs and belly hide it in the shadows of the pine branches",
+       "Short red wings, just enough to glide from tree to tree"] });
+LEAN.Kindlepaw = [-3, 1, 0];
 LEAN.Lunaria = [-2, -1, 3];
 SPECIES.forEach(s => {
   const o = s.sp || {}, b = s.speed || 3, heavy = (o.girth || 1) >= 1.15 || (o.legThick || 1) >= 1.25;
@@ -2942,7 +2971,7 @@ const HOME_LAND = {
   "Desert": ["Dunerunner", "Sunscale", "Miragewyrm", "Scarabyx"],
   "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake"],
   "Fire Mountain": ["Smoldedrake", "Volcanox", "Ashveil", "Blazequill"],
-  "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran"],
+  "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran", "Kindlepaw"],
   "Sky Islands": ["Tempestra", "Driftail", "Aerolash", "Skyrune"],
   "Misty Swamp": ["Mirewyrm", "Fogdrake", "Lanternfen", "Venomire"],
   "Coral Reef": ["Coralwyrm", "Reefdart", "Tidelash", "Deepcrown"],
@@ -3585,6 +3614,14 @@ const biomeAnims = [];
   const cap = new THREE.InstancedMesh(capG, new THREE.MeshLambertMaterial({ color: "#f4f8fc", flatShading: true }), pines.length);
   [tr, pm, cap].forEach(m => { m.castShadow = true; scene.add(m); });
   pines.forEach(([x, z], i) => { const k = 0.8 + rnd() * 0.7; o.position.set(x, height(x, z) - 0.2, z); o.rotation.set(0, rnd() * 6, 0); o.scale.setScalar(k); o.updateMatrix(); tr.setMatrixAt(i, o.matrix); pm.setMatrixAt(i, o.matrix); cap.setMatrixAt(i, o.matrix); blockers.push({ x, z, r: 0.7 }); });
+  // ----- FROST: a small, thick pine forest on the side of the Frost Peaks facing the valley (Petra 2026-11-12: a home for the red panda dragon) -----
+  { const ga = Math.atan2(-FROST.z, -FROST.x), gx = FROST.x + Math.cos(ga) * FROST.R * 0.62, gz = FROST.z + Math.sin(ga) * FROST.R * 0.62, gp = [];
+    for (let i = 0; i < 1500 && gp.length < 130; i++) { const a = rnd() * 6.28, d = Math.sqrt(rnd()) * 26, x = gx + Math.cos(a) * d, z = gz + Math.sin(a) * d;
+      if (height(x, z) < 45 && Math.hypot(x - FROST.lake.x, z - FROST.lake.z) > FROST.lake.r * 1.3 && gp.every(([px, pz]) => Math.hypot(px - x, pz - z) > 2.6)) gp.push([x, z]); }
+    const gt = new THREE.InstancedMesh(trunkG, tr.material, gp.length), gm = new THREE.InstancedMesh(pg, new THREE.MeshLambertMaterial({ color: "#244e3e", flatShading: true }), gp.length), gc = new THREE.InstancedMesh(capG, cap.material, gp.length);
+    [gt, gm, gc].forEach(m => { m.castShadow = true; scene.add(m); });
+    gp.forEach(([x, z], i) => { const k = 1.0 + rnd() * 0.9; o.position.set(x, height(x, z) - 0.2, z); o.rotation.set(0, rnd() * 6, (rnd() - 0.5) * 0.06); o.scale.set(k, k * (1 + rnd() * 0.35), k); o.updateMatrix(); gt.setMatrixAt(i, o.matrix); gm.setMatrixAt(i, o.matrix); gc.setMatrixAt(i, o.matrix); blockers.push({ x, z, r: 0.7 * k }); });
+    FROST.grove = { x: gx, z: gz, r: 26 }; }
   const crysM = new THREE.MeshStandardMaterial({ color: lin("#a8e8ff"), roughness: 0.1, metalness: 0.1, emissive: lin("#6ad0ff"), emissiveIntensity: 0.35, transparent: true, opacity: 0.85, flatShading: true });
   const crysG = new THREE.ConeGeometry(0.5, 3, 5); crysG.translate(0, 1.4, 0);
   const crys = new THREE.InstancedMesh(crysG, crysM, 120); crys.castShadow = true; scene.add(crys);
@@ -4417,7 +4454,7 @@ function makePerson(o) {
         "Hydra Valley hides behind a crack in the cliffs. Count the heads before you fight. Then count again.",
         "Hydras breathe from every head at once. More heads, more breath. Simple sums, dearie.",
         "Not every dragon needs wings. Some walk, some swim, and some... some run right up the sky.",
-        "Once, on a Harvest Moon, I saw a white fox made of fire run across the moon. Three tails, glowing like embers! I wait for it every Harvest Moon.",
+        "Once, on a Harvest Moon, I saw a white fox made of fire run across the moon. Nine tails, glowing like embers! I wait for it every Harvest Moon.",
         "The Autumn Spirit only comes to the Autumn Woods, and only under a big orange moon. And even then, only when it feels like it. Very picky, spirits.",
         "Strange-weather eggs pile up, but not forever. Five to a land, dearie, and never more than two alike.",
         "Every dragon is shaped by its home. Swamp dragons are wide and floaty, reef dragons are sleek, valley hydras are... well. Extra."] }, { label: "Ask about her teapot", say: ["My teapot? Don't mention the teapot. It can hear you.", "The teapot and I had an argument in 1847. Or Tuesday. It started it."] }], home: P(H.nettle), wander: 3, slow: true, look: { shirt: "#4a3a5a", pants: "#3a2a3a", hair: "#f2f2f2", hairStyle: "wild", shawl: "#7a4a8a", cane: true, hunch: true, dress: true, skin: "#d8a888" }, lines: [
@@ -10408,6 +10445,7 @@ const BREATH = {
   Dawnwing:    { n: "Sunrise Beam",     t: "beam", R: 26, mult: 1.1, burn: 1 },
   Lumora:      { n: "Starfall",         t: "stars", k: 4, mult: 1.4 },
   Glacius:     { n: "Frost Breath",     t: "cone", slow: 4 },
+  Kindlepaw:   { n: "Ember Puff",       t: "cloud", r: 5, mult: 1.0, slow: 2, col: "#ffb060" },   // a warm puff of embers: monsters sneeze and stumble
   Snowpaw:     { n: "Snow Flurry",      t: "cone", ang: 0.8, slow: 3, mult: 0.85, col: "#ffffff" },
   Rimefang:    { n: "Icicle Shards",    t: "shot", k: 5, mult: 1.2, slow: 2, col: "#c8f0ff" },
   Auroran:     { n: "Aurora Ribbon",    t: "beam", R: 24, slow: 3, mult: 1.0 },
@@ -10947,10 +10985,10 @@ function evNewStart(id) {
   if (id === "tide") { const land = EVS.land; for (let i = 0; i < 14; i++) { const p = wildSpot(land, false); if (p) evShell(p); } }
   if (id === "star") {   // the star lands far away, in a land you're not in
     const lands = WILD_LANDS.filter(l => l !== landNow && l !== "Crystal Caves" && l !== "Bone Caves");
-    if (EVS.hostStar) { const h = EVS.hostStar, p = new V(h.x, h.y, h.z), w = addWild(h.k, h.land, p); w.star = true; EVS.star = { w, land: h.land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone()); }
+    if (EVS.hostStar) { const h = EVS.hostStar, p = new V(h.x, h.y, h.z), w = addWild(h.k, h.land, p); w.star = true; w.ev = true; EVS.star = { w, land: h.land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone()); }
     for (let i = 0; i < 10 && !EVS.star; i++) {
       const land = lands[Math.floor(Math.random() * lands.length)], p = wildSpot(land, false); if (!p) continue;
-      const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true;   // "!" = always hatches shiny
+      const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true; w.ev = true;   // "!" = always hatches shiny
       EVS.star = { w, land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone());
     }
   }
@@ -10975,8 +11013,8 @@ function evNewTick(dt, e, k) {
       p.needsUpdate = true; b.m.material.opacity = k * (0.55 + 0.25 * Math.sin(T * 0.8 + b.ph)); });
     if (hasDragon()) { EVS.extraT -= dt;
       if (EVS.extraT <= 0) { EVS.extraT = 40 + Math.random() * 30;
-        if (wild.filter(w => w.land === "Frost Peaks" && !w.ev).length < WILD_PER_LAND + 3) { const p = wildSpot("Frost Peaks", false), L = HOME_LAND["Frost Peaks"];
-          if (p) { addWild(L[Math.floor(Math.random() * L.length)], "Frost Peaks", p); if (landNow === "Frost Peaks") toast("Something shimmers under the aurora...", "An ice dragon egg has appeared!"); } } } }
+        if (wild.filter(w => w.land === "Frost Peaks" && w.ev).length < EV_MAX_LAND) { const p = wildSpot("Frost Peaks", false), L = HOME_LAND["Frost Peaks"];
+          if (p) { addWild(L[Math.floor(Math.random() * L.length)], "Frost Peaks", p).ev = true; if (landNow === "Frost Peaks") toast("Something shimmers under the aurora...", "An ice dragon egg has appeared!"); } } } }
     wild.forEach(w => { if (w.kind.startsWith("Auroran") && w.g.visible) { const u = w.g.userData; u.glow.scale.setScalar(4 + Math.sin(T * 3) * 1.2); u.glow.material.color.setHSL(0.38 + Math.sin(T * 0.7) * 0.2, 1, 0.6); u.sh.material.opacity = 0.35; } });
   }
   // Low Tide: the sea pulls back; shells, pearls and coins to pick up; a couple of stranded eggs
@@ -10993,7 +11031,7 @@ function evNewTick(dt, e, k) {
   }
   if (id === "tide" && hasDragon() && EVS.stranded < 2) { EVS.extraT -= dt;
     if (EVS.extraT <= 0) { EVS.extraT = 45 + Math.random() * 40; const land = EVS.land, p = wildSpot(land, false), L = HOME_LAND[land];
-      if (p) { addWild(L[Math.floor(Math.random() * L.length)], land, p); EVS.stranded++; if (landNow === land) toast("The sea left something behind...", "A stranded egg is lying on the sand!"); } } }
+      if (p) { addWild(L[Math.floor(Math.random() * L.length)], land, p).ev = true; EVS.stranded++; if (landNow === land) toast("The sea left something behind...", "A stranded egg is lying on the sand!"); } } }
   // Shooting Star: the beam shows where it landed until somebody picks the egg up
   if (id === "star" && !EVS.star && !EVS.starDone) { endEvent(true); return; }   // after loading a save the star is gone
   if (EVS.star) {
@@ -13511,6 +13549,7 @@ const AB = {
   Veinfang:    { n: "Drain Bite", t: "Fight", fx: "bite", dmg: 1.6, drain: 1, col: "#ff2a3a" },
   Lunaria:     { n: "Moondust", t: "Fight", fx: "ring", r: 12, sleep: 5, col: "#d8f0ff" },
   Thrumwing:   { n: "Hover Dash", t: "Move", fx: "dash", d: 34, inv: 1, hover: 0.5, col: "#7affb0" },
+  Kindlepaw:   { n: "Tail Wrap", t: "Guard", fx: "buff", inv: 3, still: 1, col: "#ecd2a4" },   // curls up in its big ringed tail and blocks the damage for a few seconds
 };
 // second abilities at level 75 (Legendary and Secret only)
 const AB2 = {
