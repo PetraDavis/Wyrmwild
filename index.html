@@ -4838,7 +4838,8 @@ addEventListener("resize", resize); resize();
 const clock = new THREE.Clock();
 let T = 0;
 const tmp = new V();
-function frame() {
+function frame() { try { frameBody(); posGuard(); } catch (e) { onFrameErr(e); requestAnimationFrame(frame); } }
+function frameBody() {
   const dt = PAUSED ? (clock.getDelta(), 0) : Math.min(0.05, clock.getDelta()); T += dt;
   const fwd = new V(Math.cos(camYaw), 0, Math.sin(camYaw)), right = new V(-Math.sin(camYaw), 0, Math.cos(camYaw));
   let ix = 0, iz = 0;
@@ -12986,6 +12987,40 @@ function perfTick(dt) {   // watch the frame rate during the first minutes of pl
     PERF.slowFor = fps < 24 ? PERF.slowFor + 1 : 0;
     if (PERF.slowFor >= 3) { PERF.checked = true; SET.fast = true; SET.fastAsked = true; applySettings(); applyFast();
       toast("Fast mode is on", "The game was running slowly, so the graphics are lighter now. You can change it in Settings"); } }
+}
+
+// ================= freeze guards (Petra 2026-11-12: "the game freezes at random, I can open the menu but can't walk or look") =================
+// 1) The whole world runs in one loop, frame(). If any single line in it ever threw an error, the loop stopped for good:
+//    the picture froze, but the HTML menus still opened. Now an error is caught, written down, and the loop keeps going.
+const GLITCH = { n: 0, shown: 0, last: "" };
+function onFrameErr(e) {
+  GLITCH.n++; const msg = String(e && e.message || e), where = String(e && e.stack || "").split("\n").slice(1, 3).map(s => s.trim().replace(/^at /, "").replace(/\(.*\//, "(")).join(" < ");
+  GLITCH.last = msg + (where ? " @ " + where : "");
+  console.error("[Wyrmwild glitch]", e);
+  try { localStorage.setItem("ww_lastGlitch", new Date().toISOString() + " " + GLITCH.last); } catch (x) {}
+  if (performance.now() - GLITCH.shown > 60000) { GLITCH.shown = performance.now();
+    try { toast("Oops, a glitch was caught and skipped", "If this keeps popping up, tell Claude: " + GLITCH.last.slice(0, 140)); } catch (x) {} }
+}
+// 2) Walking and looking are switched off while a menu is open (uiOpen). If uiOpen was ever left on with no menu
+//    on screen, you could still open menus but never walk or look again. Now it switches itself back off.
+(function uiHeal() {
+  if (typeof uiOpen !== "undefined" && uiOpen && typeof menuEl !== "undefined" && menuEl.hidden && state !== "arena" && !(typeof mpChatEl !== "undefined" && mpChatEl.querySelector("input"))) {
+    GLITCH.uiStuck = (GLITCH.uiStuck || 0) + 1;
+    if (GLITCH.uiStuck > 30) { uiOpen = false; GLITCH.uiStuck = 0; console.warn("[Wyrmwild] menu lock was stuck with no menu open: cleared");
+      try { localStorage.setItem("ww_lastGlitch", new Date().toISOString() + " uiOpen stuck with no menu"); } catch (x) {} }
+  } else GLITCH.uiStuck = 0;
+  requestAnimationFrame(uiHeal);
+})();
+// a bad number (NaN) in your position or the camera also freezes everything: put things back where they last were fine
+const POSOK = { me: null, pet: null, cam: null };
+function posGuard() {
+  const f = v => v === undefined || Number.isFinite(v);
+  if (f(me.x) && f(me.y) && f(me.z) && f(pet.x) && f(pet.y) && f(pet.z) && f(camYaw) && f(camPitch)) {
+    POSOK.me = [me.x, me.y, me.z]; POSOK.pet = [pet.x, pet.y, pet.z]; POSOK.cam = [camYaw, camPitch]; return;
+  }
+  if (!POSOK.me) return;
+  [me.x, me.y, me.z] = POSOK.me; [pet.x, pet.y, pet.z] = POSOK.pet; [camYaw, camPitch] = POSOK.cam;
+  onFrameErr(new Error("position became NaN"));
 }
 
 // ===== BETTER LAND GRAPHICS (Petra 2026-11-11: "slightly better graphics" for the land) =====
