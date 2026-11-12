@@ -4448,10 +4448,10 @@ function applySave(d) {
   }
 }
 // ---- the home screen (Petra): your partner dragon flies behind the title; Continue, New game, Save slots, How to play, Settings; a random tip ----
-const SET = { mouse: 1, invert: false, shadows: true, keys: true, music: 0.5, sfx: 0.7, bright: 1 };
+const SET = { mouse: 1, invert: false, shadows: true, keys: true, music: 0.5, sfx: 0.7, bright: 1, fast: false, fastAsked: false };
 try { Object.assign(SET, JSON.parse(localStorage.getItem("wyrmwild-settings") || "{}")); } catch (e) {}
 function applySettings() {
-  sun.castShadow = !!SET.shadows; $("keys").style.display = SET.keys ? "" : "none";
+  sun.castShadow = !!SET.shadows && !SET.fast; $("keys").style.display = SET.keys ? "" : "none";
   if (typeof auVolume === "function") auVolume();
   try { localStorage.setItem("wyrmwild-settings", JSON.stringify(SET)); } catch (e) {}
 }
@@ -4586,6 +4586,7 @@ function showPane(which, msg) {
       <label class="setRow"><span>Brightness</span><input type="range" id="sBright" min="0.6" max="1.8" step="0.05" value="${SET.bright}"></label>
       <label class="setRow"><span>Mouse speed</span><input type="range" id="sMouse" min="0.4" max="2" step="0.1" value="${SET.mouse}"></label>
       <label class="setRow"><span>Flip looking up and down</span><input type="checkbox" id="sInv" ${SET.invert ? "checked" : ""}></label>
+      <label class="setRow"><span>Fast mode (for slower computers: lighter graphics)</span><input type="checkbox" id="sFast" ${SET.fast ? "checked" : ""}></label>
       <label class="setRow"><span>Shadows (turn off if the game is slow)</span><input type="checkbox" id="sShadow" ${SET.shadows ? "checked" : ""}></label>
       <label class="setRow"><span>Better land graphics (grass, ground detail, water)</span><input type="checkbox" id="sGfx" ${typeof GFX === "undefined" || GFX.on ? "checked" : ""}></label>
       <label class="setRow"><span>Show the controls bar</span><input type="checkbox" id="sKeys" ${SET.keys ? "checked" : ""}></label>`;
@@ -4595,6 +4596,7 @@ function showPane(which, msg) {
     $("sBright").oninput = e => { SET.bright = +e.target.value; applySettings(); };
     $("sInv").onchange = e => { SET.invert = e.target.checked; applySettings(); };
     $("sShadow").onchange = e => { SET.shadows = e.target.checked; applySettings(); };
+    $("sFast").onchange = e => { SET.fast = e.target.checked; SET.fastAsked = true; applySettings(); applyFast(); if (!SET.fast && typeof GFX !== "undefined") GFX.set(true); };
     $("sGfx").onchange = e => { if (typeof GFX !== "undefined") GFX.set(e.target.checked); };
     $("sKeys").onchange = e => { SET.keys = e.target.checked; applySettings(); };
   }
@@ -5028,7 +5030,8 @@ function frame() {
   updateBreath(dt);
   updateMP(dt);
   SHRINE.update(dt);
-  oceanAnims.forEach(f => f(T));
+  if (!SET.fast || (++perfN % 3 === 0)) oceanAnims.forEach(f => f(T));
+  perfTick(dt);
   biomeAnims.forEach(f => f(T, me.x, ly, me.z));
   // the air changes colour in the hot and cold lands
   const caveDark = (Math.hypot(me.x - CAVES.x, me.z - CAVES.z) < CAVE_IN && ly < caveRoof(me.x, me.z)) ? basinW(CAVES, me.x, me.z) : (Math.hypot(me.x - BONE.x, me.z - BONE.z) < BONE.IN && ly < caveRoof(me.x, me.z)) ? Math.min(1, basinW(BONE, me.x, me.z) * 1.1) : 0;
@@ -12857,6 +12860,8 @@ function pauseOpen() {
       on("sMouse", "oninput", e => { SET.mouse = +e.target.value; applySettings(); });
       on("sInv", "onchange", e => { SET.invert = e.target.checked; applySettings(); });
       on("sShadow", "onchange", e => { SET.shadows = e.target.checked; applySettings(); });
+      on("sFast", "onchange", e => { SET.fast = e.target.checked; SET.fastAsked = true; applySettings(); applyFast(); if (!SET.fast && typeof GFX !== "undefined") GFX.set(true); });
+      on("sGfx", "onchange", e => { if (typeof GFX !== "undefined") GFX.set(e.target.checked); });
       on("sGfx", "onchange", e => { if (typeof GFX !== "undefined") GFX.set(e.target.checked); });
       on("sKeys", "onchange", e => { SET.keys = e.target.checked; applySettings(); });
       menuAct = b => { if (b === "back") { menuEl._onClose = null; menuEl.hidden = true; uiOpen = false; pauseOpen(); } }; return;
@@ -12960,6 +12965,28 @@ let potLast = performance.now();
   if (POT.fx.fire > 0) breathCd = Math.max(0, breathCd - dt);   // twice as fast
   potEl.hidden = !on.length; if (on.length) potEl.innerHTML = on.join("<br>");
 })();
+
+// ================= Fast mode for slower computers (Petra 2026-11-12) =================
+// Fewer pixels, no shadows, no fancy ground, nothing drawn past the fog, calmer waves and weather.
+// Turns itself on if the game runs slowly for a while; Settings can turn it off again.
+let perfN = 0;
+const PERF = { t: 0, frames: 0, slowFor: 0, checked: false };
+function applyFast() {
+  const f = !!SET.fast;
+  renderer.setPixelRatio(f ? Math.min(window.devicePixelRatio, 1) * 0.8 : Math.min(window.devicePixelRatio, 1.75));
+  if (typeof resize === "function") resize(); else { renderer.setSize(stage.clientWidth, stage.clientHeight, false); }
+  if (f) { sun.castShadow = false; if (typeof GFX !== "undefined") GFX.set(false); }
+  else sun.castShadow = !!SET.shadows;
+  camera.far = f ? 470 : 900; camera.updateProjectionMatrix();   // the fog hides everything past ~420 anyway
+}
+function perfTick(dt) {   // watch the frame rate during the first minutes of play; if it stays low, switch to Fast mode once
+  if (PERF.checked || SET.fast || SET.fastAsked || !started) return;
+  PERF.t += dt; PERF.frames++;
+  if (PERF.t >= 4) { const fps = PERF.frames / PERF.t; PERF.t = 0; PERF.frames = 0;
+    PERF.slowFor = fps < 24 ? PERF.slowFor + 1 : 0;
+    if (PERF.slowFor >= 3) { PERF.checked = true; SET.fast = true; SET.fastAsked = true; applySettings(); applyFast();
+      toast("Fast mode is on", "The game was running slowly, so the graphics are lighter now. You can change it in Settings"); } }
+}
 
 // ===== BETTER LAND GRAPHICS (Petra 2026-11-11: "slightly better graphics" for the land) =====
 // 1. the ground gets fine detail (grainy grass, soft patches) instead of flat colour, fading out in the distance
@@ -13380,6 +13407,8 @@ const MONTEX = (() => {
   return { texMonster: (n, r) => texMonster(n, r), LOOK, BY, FURRY };
 })();
 const texMonster = MONTEX.texMonster;
+
+if (SET.fast) setTimeout(applyFast, 0);
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 frame();
