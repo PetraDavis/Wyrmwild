@@ -456,7 +456,7 @@ function paint(p) {
   M.body.roughness = M.top.roughness = Math.max(0.2, 0.55 - 0.04 * T);
   if (T >= 3) { M.body.metalness = M.top.metalness = Math.min(0.6, (p.metal || 0) + 0.1 * (T - 2)); } // Rare+: shinier scales
   M.body.emissiveIntensity = 1.1 * o.glow * (0.55 + 0.15 * T);
-  M.horn.emissive.set(p.glow); M.horn.emissiveIntensity = T >= 3 ? 0.08 * T : T >= 2 ? 0.07 : 0;
+  M.horn.emissive.set(p.glow); M.horn.emissiveIntensity = T >= 3 ? 0.08 * T : T >= 2 ? 0.07 : 0; if (o.hornGlow != null) M.horn.emissiveIntensity = o.hornGlow;
   if (!p.wingTip && T >= 1) p = Object.assign({}, p, { wingTip: "#" + mix(p.wing, p.glow, Math.min(0.6, 0.12 + 0.07 * T)).getHexString() });
   M.bone.color.copy(M.top.color); M.bone.metalness = M.top.metalness; M.bone.roughness = M.top.roughness;
   M.bone.emissive.set(p.glow); M.bone.emissiveIntensity = T >= 3 ? 0.25 + 0.1 * (T - 3) : 0;
@@ -762,7 +762,7 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
     const gc = document.createElement("canvas"); gc.width = gc.height = 64; const gx = gc.getContext("2d");
     const gg = gx.createRadialGradient(32, 32, 0, 32, 32, 32); gg.addColorStop(0, "rgba(255,255,255,0.9)"); gg.addColorStop(0.25, "rgba(255,255,255,0.35)"); gg.addColorStop(1, "rgba(255,255,255,0)");
     gx.fillStyle = gg; gx.fillRect(0, 0, 64, 64);
-    const sm = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), color: new THREE.Color(p.eye).convertSRGBToLinear(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 + 0.05 * o.tier });
+    const sm = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), color: new THREE.Color(p.eye).convertSRGBToLinear(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: (0.55 + 0.05 * o.tier) * (o.eyeGlowK ?? 1) });
     [1, -1].forEach(z => { const s = new THREE.Sprite(sm); s.scale.setScalar(0.28 * E + 0.02 * o.tier); s.position.set(0.3, 0.12, 0.16 * z); head.add(s); });
   }
   [1, -1].forEach(z => {
@@ -847,6 +847,28 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       c.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
       c.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.1, emissive: new THREE.Color(p.hornTip).convertSRGBToLinear(), emissiveIntensity: 0.15 });
     }
+  }
+  if (o.featherCrest) {   // Valkyra: a natural crest of stiff swept-back feathers (tips glow softly), a small feather tuft on each cheek, a dark falcon "war paint" stripe behind each eye
+    const cm = swanMat(p.glow, 0.55), cW = new THREE.Color(p.fin || p.top).convertSRGBToLinear(), cG = new THREE.Color(p.wingTip || p.horn).convertSRGBToLinear();
+    const yTop = x => 0.27 * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2));
+    for (let i = 0; i < 9; i++) { const x = 0.16 - i * 0.055, el = 0.3 + i * 0.03, L = 0.4 + i * 0.06, sd = i % 2 ? 1 : -1, zz = sd * 0.04, yaw = sd * 0.16;
+      const d = new V(-Math.cos(el), Math.sin(el), yaw).normalize(), w = new V(Math.sin(el), Math.cos(el), 0).normalize(); w.addScaledVector(d, -w.dot(d)).normalize(); w.applyAxisAngle(d, sd * 0.75); const y = new V().crossVectors(w, d);
+      const geo = featherGeo(L, 0.1 + i * 0.005, 0), f = new THREE.Mesh(geo, cm); f.position.set(x, yTop(x) - 0.03, zz); f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(d, y, w));
+      paintFeather(geo, u => [cW.clone().lerp(cG, vss(0.4, 1, u)), 0, 0.85 * vss(0.72, 1, u)]); f.castShadow = true; head.add(f); }
+    const onSk = (x, y, z, k = 1.0) => new V(x, y, z * 0.285 * k * Math.sqrt(Math.max(0.02, 1 - (x / 0.375) ** 2 - (y / 0.27) ** 2)));
+    M.paint = M.paint || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.paint || "#3a3446").convertSRGBToLinear(), roughness: 0.9, metalness: 0 });
+    M.paintSoft = M.paintSoft || new THREE.MeshStandardMaterial({ color: new THREE.Color(p.paintSoft || "#a49eb0").convertSRGBToLinear(), roughness: 0.9, metalness: 0, transparent: true, opacity: 0.45, depthWrite: false });
+    M.paintGlow = M.paintGlow || new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow).convertSRGBToLinear(), transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false });
+    [1, -1].forEach(z => {
+      const path = k => [onSk(0.175, 0.105, z, k), onSk(0.07, 0.085, z, k), onSk(-0.07, 0.045, z, k), onSk(-0.22, -0.02, z, k)];
+      head.add(staticTube(path(1.04), [[0, 0.02], [0.25, 0.045], [0.7, 0.035], [1, 0.006]], M.paintSoft, 18, 10, 1, 0.5));   // soft edge, so the dark stripe blends into the white
+      head.add(staticTube(path(1.06), [[0, 0.014], [0.25, 0.032], [0.7, 0.024], [1, 0.004]], M.paint, 18, 10, 1, 0.45));
+      head.add(staticTube(path(1.085), [[0, 0.003], [0.3, 0.007], [0.8, 0.005], [1, 0.001]], M.paintGlow, 18, 6));   // a faint glowing line down the middle
+      for (let k = 0; k < 4; k++) {   // cheek tuft: short feathers sweeping back and down
+        const R0 = onSk(0.06 - k * 0.035, -0.07 - k * 0.012, z, 0.96), d = new V(-1, -0.28 - k * 0.1, 0.3 * z).normalize(), n0 = new V(0, -0.15, z).normalize(); n0.addScaledVector(d, -n0.dot(d)).normalize();
+        const geo = featherGeo(0.2 - k * 0.02, 0.075, 0.015), f = new THREE.Mesh(geo, cm); f.position.copy(R0); f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(d, n0, new V().crossVectors(d, n0)));
+        paintFeather(geo, () => [cW.clone(), 0, 0]); f.castShadow = true; head.add(f); }
+    });
   }
   if (o.horns === "antennae") [1, -1].forEach(z => {   // NEW (Lunaria): big feathery moth antennae: a curved stalk with a comb of fine barbs on both sides
     const pts = [new V(0.12, 0.24, 0.07 * z), new V(0.1, 0.55, 0.15 * z), new V(-0.04, 0.86, 0.28 * z), new V(-0.28, 1.04, 0.4 * z)];
@@ -1140,7 +1162,125 @@ function hummerWing(pivot, g, zs) {
   const w = { pivot, zs, up, y0: pivot.position.y }; wings.push(w);
   custom.hum.push({ w, mats, fan, fmat, k: 0 });
 }
+// ----- Valkyra: swan feathers. ONE feather picture and ONE material for the wings, crest, cheek tufts and the spear tail.
+// Colour is painted per vertex, so white fades smoothly into gold (no colour steps between feathers); aFx.x = soft prism shimmer, aFx.y = soft glow -----
+var _swanTex = null, _fluffTex = null;
+function vss(a, b, x) { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function swanTex() {
+  if (_swanTex) return _swanTex;
+  const W = 256, H = 64, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const hw = u => 0.47 * Math.min(1, u * 5) * (u < 0.7 ? 1 : Math.pow(Math.cos((u - 0.7) / 0.3 * Math.PI / 2), 0.7));   // a long feather with a rounded point
+  const vane = sg => { x.beginPath(); x.moveTo(0, H / 2); for (let px = 0; px <= W; px += 2) x.lineTo(px, H / 2 + sg * hw(px / W) * H * (sg > 0 ? 0.82 : 1)); x.lineTo(W, H / 2); x.closePath(); };
+  [1, -1].forEach(sg => { vane(sg); x.fillStyle = "#f4f4f4"; x.fill();
+    x.save(); vane(sg); x.clip(); x.strokeStyle = "rgba(214,214,214,0.5)"; x.lineWidth = 1; for (let px = 3; px < W; px += 4) { x.beginPath(); x.moveTo(px, H / 2); x.lineTo(px + 9, H / 2 + sg * H * 0.5); x.stroke(); } x.restore();   // faint barbs
+    vane(sg); x.strokeStyle = "rgba(196,196,196,0.75)"; x.lineWidth = 1.2; x.stroke(); });   // soft edge so each feather reads, without a dark outline
+  x.strokeStyle = "rgba(232,232,232,0.9)"; x.lineWidth = 1; x.beginPath(); x.moveTo(0, H / 2); x.lineTo(W * 0.9, H / 2); x.stroke();   // shaft: barely there (no white streaks)
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (_swanTex = t);
+}
+function fluffTex() {   // the owl ruff: soft fluffy feathers with ragged edges (alphaTest cuts the gaps), bright so they match the white skin
+  if (_fluffTex) return _fluffTex;
+  const W = 128, H = 64, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  x.lineCap = "round";
+  for (let px = 1; px < W * 0.97; px += 1.1) { const u = px / W, w = 0.48 * Math.sqrt(Math.max(0, Math.sin(Math.PI * Math.min(1, u * 0.95 + 0.05)))) * H;
+    [1, -1].forEach(sg => { const ww = w * (0.72 + rnd() * 0.32), v = 228 + rnd() * 27 | 0; x.strokeStyle = `rgba(${v},${v},${v},0.9)`; x.lineWidth = 1.3; x.beginPath(); x.moveTo(px, H / 2); x.quadraticCurveTo(px + 4, H / 2 + sg * ww * 0.6, px + 11, H / 2 + sg * ww); x.stroke(); }); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (_fluffTex = t);
+}
+function swanMat(glowHex, glowK = 1) {
+  const m = new THREE.MeshStandardMaterial({ map: swanTex(), alphaTest: 0.5, vertexColors: true, roughness: 0.42, metalness: 0.12, side: THREE.DoubleSide });   // Petra: a real sheen on the wings, not just colour
+  const gc = new THREE.Color(glowHex).convertSRGBToLinear().multiplyScalar(glowK), f3 = `vec3(${gc.r.toFixed(3)}, ${gc.g.toFixed(3)}, ${gc.b.toFixed(3)})`;
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = "attribute vec2 aFx; varying vec2 vFx;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n  vFx = aFx;");
+    sh.fragmentShader = "varying vec2 vFx;\n" + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+    vec3 pr = 0.5 + 0.5 * cos(6.2832 * (fr * 0.8 + vViewPosition.y * 0.12 + vFx.x * 1.4 + vec3(0.0, 0.33, 0.67)));   // light through a prism: a rainbow that slides as it turns (Petra: make it clearly visible)
+    float rk = smoothstep(0.0, 1.0, vFx.x);
+    diffuseColor.rgb = mix(diffuseColor.rgb, pr * 0.95 + 0.05, rk * 0.55);
+    totalEmissiveRadiance += pr * rk * (0.12 + 0.12 * fr);
+    vec3 wu = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz); float dn = clamp(-dot(nn, wu), 0.0, 1.0);
+    totalEmissiveRadiance += diffuseColor.rgb * (0.03 + 0.3 * dn);   // sunlight shining through the feathers, so the underside stays white instead of picking up the brown ground light
+    float nv = dot(nn, vv);
+    float band = pow(0.5 + 0.5 * sin(abs(nv) * 10.0 + vViewPosition.x * 1.5 - vViewPosition.y * 0.9), 5.0);   // satin glints: soft bright streaks that slide over the feathers as the wing moves or the camera turns
+    vec3 shc = mix(vec3(1.0, 0.82, 0.45), pr, rk * 0.8);   // gold glint on the white, rainbow glint at the tips
+    diffuseColor.rgb *= 0.6 + 0.25 * band;   // the feathers away from the glint sit a touch darker, so the shine reads
+    totalEmissiveRadiance += shc * (0.9 * band + 0.15 * fr * fr * fr);
+    totalEmissiveRadiance += ${f3} * vFx.y; }`);
+  };
+  m.customProgramCacheKey = () => "swan|" + glowHex + glowK;
+  return m;
+}
+// colour one feather card per vertex: fn(u, worldish position) -> [THREE.Color, prism, glow]
+function paintFeather(geo, fn, mtx) {
+  const P = geo.attributes.position, uv = geo.attributes.uv, col = [], fx = [], v = new V();
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); if (mtx) v.applyMatrix4(mtx); const [c, pr, gl] = fn(uv.getX(i), v); col.push(c.r, c.g, c.b); fx.push(pr, gl); }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); geo.setAttribute("aFx", new THREE.Float32BufferAttribute(fx, 2));
+}
+// ----- Valkyra: huge swan wings, built from real feathers in layers like a big bird's: long primaries on the hand (the outer ones extra long and gold),
+// a row of broad secondaries on the arm, then greater, median and small coverts over their roots. White fades smoothly to gold toward the tip. -----
+function swanWing(pivot, g, zs) {
+  const LIFT = 0.3, flat3 = wing3(LIFT, 0.45), nrm = new V(0, Math.cos(LIFT), -Math.sin(LIFT));
+  const to3 = (sx, sy) => flat3(sx, sy).addScaledVector(nrm, 0.03 - 0.045 * (sx + 0.6) * (sx + 0.6));   // a gentle arch, like a real wing
+  const lead = [[0.04, 0], [0.2, 0.55], [0.28, 1.25], [0.16, 1.95], [-0.1, 2.6], [-0.4, 3.15]];
+  const lerpLead = sy => { if (sy <= 0) return lead[0]; for (let i = 1; i < lead.length; i++) if (lead[i][1] >= sy) { const a = lead[i - 1], b = lead[i], t = (sy - a[1]) / (b[1] - a[1]); return [a[0] + (b[0] - a[0]) * t, sy]; } return lead[lead.length - 1]; };
+  const mat = swanMat(p.glow, 0.6), cW = new THREE.Color(p.wing).convertSRGBToLinear(), cG = new THREE.Color(p.wingTip || p.horn).convertSRGBToLinear(), SPAN = 3.7;
+  const tipK = (x, sy) => vss(0.4, 0.98, Math.hypot(sy, x * 0.3) / SPAN);
+  const feather = (r2, t2, wid, layer, curl = 0.02) => {
+    const R = to3(r2[0], r2[1]).addScaledVector(nrm, layer * 0.013), T = to3(t2[0], t2[1]).addScaledVector(nrm, layer * 0.013), d = T.clone().sub(R), len = d.length(); d.normalize();
+    const geo = featherGeo(len, wid, curl), f = new THREE.Mesh(geo, mat); f.position.copy(R);
+    const z = new V().crossVectors(d, nrm).normalize(), y = new V().crossVectors(z, d); f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(d, y, z)); f.updateMatrix();
+    paintFeather(geo, (u, v) => { const k = tipK(v.x, Math.hypot(v.y, v.z)); return [cW.clone().lerp(cG, k), vss(0.45, 1, k), 0]; }, f.matrix);
+    f.castShadow = true; g.add(f); return f; };
+  const NP = 11;
+  for (let i = 0; i < NP; i++) { const u = i / (NP - 1), root = lerpLead(2.55 - u * 1.3), ext = i < 4 ? (4 - i) * 0.13 : 0;   // primaries, outermost first; the outer four are the long gold flight feathers
+    const tx = -0.48 - 1.02 * u - 0.22 * Math.sin(Math.PI * u), ty = 3.55 - 2.0 * u, dx = tx - root[0], dy = ty - root[1], dl = Math.hypot(dx, dy);
+    feather([root[0] - 0.05, root[1]], [tx + dx / dl * ext, ty + dy / dl * ext], i < 4 ? 0.22 : 0.27, 3 - i * 0.18, 0.03); }
+  for (let j = 0; j < 12; j++) { const sy = 0.32 + j * 0.081, r = lerpLead(sy); feather([r[0] - 0.06, sy], [-1.5 + 0.04 * Math.sin(j * 1.7), sy - 0.1 + (j < 2 ? 0.08 : 0)], 0.3, 1 + j * 0.01); }   // secondaries
+  for (let sy = 0.32; sy <= 2.35; sy += 0.12) { const r = lerpLead(sy), L = 0.82 - 0.36 * Math.min(1, sy / 2.3); feather([r[0] - 0.03, sy], [r[0] - 0.03 - L, sy - 0.07], 0.24, 5); }   // greater coverts
+  for (let sy = 0.3; sy <= 2.7; sy += 0.1) { const r = lerpLead(sy), L = 0.5 - 0.2 * Math.min(1, sy / 2.7); feather([r[0] - 0.01, sy], [r[0] - 0.01 - L, sy - 0.05], 0.2, 6.5); }   // median coverts
+  for (let sy = 0.26; sy <= 3.05; sy += 0.08) { const r = lerpLead(sy), L = 0.3 - 0.1 * Math.min(1, sy / 3); feather([r[0] + 0.02, sy], [r[0] + 0.02 - L, sy - 0.03], 0.15, 8); }   // small coverts along the front edge
+  g.add(staticTube([lead[0], lead[1], lead[2]].map(q => to3(q[0] - 0.04, q[1]).addScaledVector(nrm, 0.085)), [[0, 0.06], [1, 0.03]], M.top, 16, 10));   // the arm (body skin) at the shoulder, hidden under the coverts further out
+  // a thin soft glow line along the front edge
+  M.swanEdge = M.swanEdge || new THREE.MeshBasicMaterial({ color: new THREE.Color(p.glow).convertSRGBToLinear(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+  const edge = staticTube(lead.slice(1).map(q => to3(q[0] + 0.035, q[1]).addScaledVector(nrm, 0.1)), [[0, 0.006], [0.5, 0.01], [1, 0.004]], M.swanEdge, 40, 6); edge.castShadow = false; g.add(edge);
+  const up = Math.max(0.15, 1.28 - LIFT);   // the up-stroke stops short of straight up, so the two wings never meet over the back
+  wings.push({ pivot, zs, up, down: 0.45, y0: pivot.position.y });
+}
+// ----- Valkyra: a fluffy white owl ruff round the base of the neck and the chest. Fluffy feather cards that ride on the moving neck every frame,
+// longest under the chest, short on top; same white and the same gold-on-top rule as the skin -----
+let ruff = null;
+function addRuff() {
+  const geo = featherGeo(1, 0.95, 0.1); geo.scale(-1, 1, 1); geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ map: fluffTex(), alphaTest: 0.45, roughness: 1, metalness: 0, side: THREE.DoubleSide, color: new THREE.Color(p.fur || p.belly).convertSRGBToLinear() });
+  if (o.goldBack) goldSheen(mat, o.goldBack, o.goldK || 0.5);
+  const list = [], S0 = 0.04, S1 = 0.975;   // Petra: ruffled feathers on the tail too, down to the spearhead fan   // Petra: fluffy ruff feathers over the WHOLE body and neck (not fur)   // Petra: the ruff covers the WHOLE neck, up to the head
+  for (let s = S0, ri = 0; s <= S1; s += 0.011, ri++) { const r = at(s).r, NA = Math.max(12, Math.round(2 * Math.PI * r / 0.075)), bell = Math.sin(Math.PI * (s - S0) / (S1 - S0));
+    for (let j = 0; j < NA; j++) { const th = (j + (ri % 2) * 0.5) / NA * Math.PI * 2 + 0.1 * Math.sin(ri * 5.1 + j), down = (1 - Math.sin(th)) / 2;
+      list.push({ s, th, len: s < 0.3 ? (0.07 + 0.08 * down) * Math.min(1, Math.max(0.45, r / 0.22)) * (0.9 + 0.2 * ((ri * 7 + j * 3) % 5) / 4) : (s < 0.6 ? (0.12 + 0.14 * down * down) * (0.75 + 0.25 * Math.min(1, (s - S0) / 0.06)) * (1 + 0.6 * Math.max(0, Math.min(1, (s - 0.5) / 0.14)) * down) : (0.13 + 0.3 * down * down) * (1 - 0.3 * Math.max(0, (s - 0.9) / 0.075))) * (0.9 + 0.2 * ((ri * 7 + j * 3) % 5) / 4), lift: 0.35 + 0.35 * down }); } }
+  const mesh = new THREE.InstancedMesh(geo, mat, list.length); mesh.castShadow = false; mesh.frustumCulled = false; dragon.add(mesh);
+  ruff = { mesh, list };
+  // the legs get the same fluffy feathers (Petra: the look must cover the legs too). Cards ride on each leg part, so they move with it
+  const lv = new V(), ln = new V(), D = new V(), X = new V(), Y = new V(), Z = new V(), M4 = new THREE.Matrix4();
+  legs.forEach(g => { const knee = g.userData.knee, low = knee && knee.children.find(c => c.isGroup && c.children[0] && c.children[0].isMesh);
+    [[g.children[0], 0.2], [g.children.find(c => c.isMesh && c.geometry.type === "SphereGeometry"), 0.18], [low && low.children[0], 0.15]].forEach(([m, L]) => {
+      if (!m || !m.isMesh) return; const P = m.geometry.attributes.position, N = m.geometry.attributes.normal, pick = []; m.geometry.computeBoundingSphere();
+      for (let i = 0; i < P.count; i += 2) pick.push(i);
+      const im = new THREE.InstancedMesh(geo, mat, pick.length); im.frustumCulled = false; m.add(im);
+      pick.forEach((i, k) => { lv.fromBufferAttribute(P, i); ln.fromBufferAttribute(N, i).normalize(); if (lv.clone().sub(m.geometry.boundingSphere ? m.geometry.boundingSphere.center : lv).dot(ln) < 0) ln.negate(); D.set(0, -1, 0).addScaledVector(ln, ln.y).normalize(); if (D.lengthSq() < 0.1) D.set(-1, 0, 0);
+        const cl = Math.cos(0.45), sl = Math.sin(0.45); X.copy(D).multiplyScalar(cl).addScaledVector(ln, -sl); Y.copy(ln).multiplyScalar(cl).addScaledVector(D, sl); Z.crossVectors(X, Y);
+        const len = L * (0.85 + 0.3 * ((k * 7) % 5) / 4); M4.makeBasis(X, Y, Z).scale(new V(len, len, len * 0.8)).setPosition(lv.addScaledVector(ln, -0.005)); im.setMatrixAt(k, M4); });
+      im.instanceMatrix.needsUpdate = true; }); });
+}
+const _rm = new THREE.Matrix4(), _rx = new V(), _ry = new V(), _rz = new V(), _rp = new V(), _rr = new V(), _rs = new V();
+function placeRuff() {
+  ruff.list.forEach((F, i) => { const f = at(F.s), c = Math.cos(F.th), s = Math.sin(F.th);
+    _rr.copy(f.side).multiplyScalar(c).addScaledVector(f.n, s).normalize(); const T = _rs.copy(f.T).addScaledVector(_rr, -_rr.dot(f.T)).normalize();
+    const cl = Math.cos(F.lift), sl = Math.sin(F.lift);
+    _rx.copy(T).multiplyScalar(cl).addScaledVector(_rr, -sl); _ry.copy(_rr).multiplyScalar(cl).addScaledVector(T, sl); _rz.crossVectors(_rx, _ry);   // tips point back and fluff outward
+    _rp.copy(f.p).addScaledVector(f.side, f.r * c * 0.9).addScaledVector(f.n, f.r * s * 0.97);
+    _rm.makeBasis(_rx, _ry, _rz).scale(new V(F.len, F.len, F.len * 0.8)).setPosition(_rp); ruff.mesh.setMatrixAt(i, _rm); });
+  ruff.mesh.instanceMatrix.needsUpdate = true;
+}
 function updateCustom(t, flap, dt) {
+  if (ruff) placeRuff();
   if (bodyFeathers && !bodyFeathers.coated) coatParts();   // first frame: after the skin textures are on, so the matte setting sticks
   placeBodyFeathers();
   custom.ribbons.forEach(r => r.update(t, flap ? 1 : 0));
@@ -1219,6 +1359,7 @@ function placeBodyFeathers() {
   bodyFeathers.mesh.instanceMatrix.needsUpdate = true;
 }
 if (o.bodyFeathers) { addBodyFeathers(); placeBodyFeathers(); }
+if (o.owlRuff) { addRuff(); placeRuff(); }
 function wing(zs) {
   const pivot = new THREE.Group();
   const f = at(0.6);
@@ -1228,6 +1369,7 @@ function wing(zs) {
   const type = o.wings;
   if (type === "moth") return mothWing(pivot, g, zs);
   if (type === "hummer") return hummerWing(pivot, g, zs);
+  if (type === "swan") return swanWing(pivot, g, zs);
   let S = new V(0, 0, 0), E = new V(-0.25, 0.75, 0.55), W = new V(0.15, 1.35, 1.15);
   let tips = [new V(-0.35, 1.7, 2.35), new V(-1.15, 1.05, 2.45), new V(-1.75, 0.45, 1.75)];
   let back = new V(-1.35, -0.05, 0.05), sagT = [0.28, 0.22, 0.2], fingers = true;
@@ -1392,6 +1534,17 @@ if (o.tail === "flame" || o.tail === "smoke") {
       const f = new THREE.Mesh(fg, fm); f.rotation.x = Math.PI / 2; f.scale.set(L, 1, 1); f.position.y = (3 - Math.abs(i - 3)) * 0.01; piv.add(f);
       if (Math.abs(i - 3) >= 2) { const d = new THREE.Mesh(tipG, tm); d.rotation.x = -Math.PI / 2; d.scale.set(1.6, 0.7, 1); d.position.set(0.5 * L, f.position.y + 0.003, 0); piv.add(d); } }   // white spots near the tips of the outer feathers
   }
+  if (T === "spearfan") {   // Valkyra: a fan of stiff feathers laid flat, their tips tracing a spearhead; white fading to gold, the point glows softly
+    const sm = swanMat(p.glow, 0.7), cW = new THREE.Color(p.fin || p.wing).convertSRGBToLinear(), cG = new THREE.Color(p.wingTip || p.horn).convertSRGBToLinear();
+    const TIP = [1.3, 0], SH = [0.55, 0.34], BASE = [0.02, 0.07];
+    const hit = a => { const dx = Math.cos(a), dy = Math.abs(Math.sin(a));
+      const seg = (A, B) => { const ex = B[0] - A[0], ey = B[1] - A[1], den = dx * ey - dy * ex; if (Math.abs(den) < 1e-6) return 1e9; const t = (A[0] * ey - A[1] * ex) / den, q = (A[0] * dy - A[1] * dx) / den; return q >= -0.02 && q <= 1.02 && t > 0 ? t : 1e9; };
+      return Math.min(seg(TIP, SH), seg(SH, BASE)); };
+    const N = 13, AM = 0.72;
+    for (let i = 0; i < N; i++) { const a = -AM + 2 * AM * i / (N - 1), L = Math.min(1.35, hit(a)), piv = new THREE.Group(); piv.rotation.y = a; piv.position.y = (AM - Math.abs(a)) * 0.035; tailTip.add(piv);
+      const geo = featherGeo(L, 0.15 + 0.05 * (1 - Math.abs(a) / AM), 0), f = new THREE.Mesh(geo, sm); f.castShadow = true; piv.add(f);
+      paintFeather(geo, u => { const X = u * L * Math.cos(a); return [cW.clone().lerp(cG, vss(0.35, 1.2, X)), 0, 0.9 * vss(0.95, 1.28, X)]; }); }
+  }
   if (T === "orb") { const c = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), o.orbGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.35)).convertSRGBToLinear() }) : M.flame2); c.position.x = 0.12; tailTip.add(c); flameLight.intensity = 1; tailTip.add(flameLight); }
   tailTip.traverse(m => { if (m.isMesh) m.castShadow = true; });
 }
@@ -1401,7 +1554,7 @@ let walkT = 0, bendNow = 0;
 const headTurn = new THREE.Quaternion(), tb = new THREE.Matrix4(), _eul = new THREE.Euler();
 // ----- Epic and up: glowing motes drift around the dragon -----
 const TIER = o.tier ?? 1; let motes = null;
-if (TIER >= 4 || o.sparks) {
+if ((TIER >= 4 && !o.noTierMotes) || o.sparks) {
   const n = TIER >= 4 ? 14 * (TIER - 3) : o.sparks,   // o.sparks: a few hot sparks drift around even a Common (Cinderpup)
  pos = new Float32Array(n * 3), cols = [], seed = [];
   const pc = [p.glow, p.glow2 || p.glow, p.crystalTip || p.glow, p.hornTip || p.eye || p.glow];
@@ -1556,7 +1709,7 @@ function update(t, walk, flap, dt, bend = 0) {
   hoverK += (((api && api.hover) && flap ? 1 : 0) - hoverK) * Math.min(1, dt * 3);   // HOVER (Petra 2026-11-10): flying but standing still
   wingPh += dt * (shells.length ? (o.flapSpeed || 7) * 2.2 : (o.flapSpeed || 7) * (1 - 0.35 * hoverK));
   const flapSpeed = o.flapSpeed || 7; // negative rotation = wings up; the up-stroke stops before the wings cross
-  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes
+  wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (w.down != null ? w.down + 0.2 * hoverK : 0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes
     const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
     if (shells.length) { w.pivot.rotation.y = w.zs * f * -0.52; w.pivot.rotation.z = 0; w.pivot.scale.set(1 - 0.45 * f, 1 - 0.45 * f, 1 - 0.78 * f); w.pivot.position.y = w.y0 - f * 0.22; } });
   updateCustom(t, flap, dt);
@@ -1812,7 +1965,7 @@ varying float vFurMul;
 `;
   const FHEAD = `
 uniform float uSleek, uTipSet, uUnder, uDens, uThick, uCut, uRootDark, uTipK, uSheen, uTintK, uRu, uRv, uRingN, uCircMax;
-uniform vec3 uTip, uTint;
+uniform vec3 uTip, uTint, uSheenCol;
 uniform sampler2D uCirc;
 varying vec2 vFurUv;
 varying float vFurL;
@@ -1875,7 +2028,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   }`)
       .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
   totalEmissiveRadiance *= (1.0 - 0.45 * vFurL);
-  totalEmissiveRadiance += uSheen * diffuseColor.rgb * pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0) * vFurL;`);
+  totalEmissiveRadiance += uSheen * mix(diffuseColor.rgb, uSheenCol, step(0.001, dot(uSheenCol, uSheenCol))) * pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0) * vFurL;`);
   }
   const col = c => new THREE.Color(c).convertSRGBToLinear();
   // patches (moss): smooth blotchy noise over the uv; fur only grows where it is high, so there is bare skin in between (Petra)
@@ -1911,7 +2064,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
     const base = O.tip ? col(O.tip) : new THREE.Color(1, 1, 1);
     const U = {
       uSleek: { value: O.sleek ? 1 : 0 }, uFurLen: { value: O.length * (O.partLen[kind] || 1) }, uUnder: { value: O.undercoat }, uDroop: { value: O.droop }, uDens: { value: O.density }, uThick: { value: O.thickness }, uCut: { value: 0.5 },
-      uRootDark: { value: O.rootDark }, uTipK: { value: O.tipK }, uSheen: { value: O.sheen }, uTip: { value: base }, uTipSet: { value: O.tip ? 1 : 0 }, uTint: { value: O.tint ? col(O.tint) : new THREE.Color(1, 1, 1) }, uTintK: { value: O.tint ? O.tintK : 0 },
+      uRootDark: { value: O.rootDark }, uTipK: { value: O.tipK }, uSheen: { value: O.sheen }, uTip: { value: base }, uTipSet: { value: O.tip ? 1 : 0 }, uTint: { value: O.tint ? col(O.tint) : new THREE.Color(1, 1, 1) }, uTintK: { value: O.tint ? O.tintK : 0 }, uSheenCol: { value: O.sheenCol ? col(O.sheenCol) : new THREE.Color(0, 0, 0) },
       uRu: { value: 100 }, uRv: { value: 50 }, uRingN: { value: 2 }, uCircMax: { value: 1 }, uCirc: { value: null }
     };
     mat.onBeforeCompile = sh => { if (prev) prev(sh); patch(sh, U, tube); };
@@ -2032,6 +2185,16 @@ const FUR_LOOKS = {
 
 // ---------- special skins (Petra 2026-11-10): rock, frost sparkle, pearl shine ----------
 // furSkin(api, kind) changes the dragon's own skin materials (body tube, top/skull, belly) instead of adding fur.
+// soft gold sheen: surfaces that face UP are tinted a little gold, fading smoothly to pure white on the sides and belly (same rule on body, head, legs and ruff)
+function goldSheen(m, hex, K) {
+  const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null, prevKey = m.customProgramCacheKey && m.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey ? m.customProgramCacheKey.bind(m) : null;
+  const c = new THREE.Color(hex).convertSRGBToLinear();
+  m.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r);
+    sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  { vec3 wu = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz); float gu = smoothstep(-0.1, 1.0, dot(normalize(normal), wu)) * ${K.toFixed(3)};
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}), gu); }`); };
+  m.customProgramCacheKey = () => "gold|" + hex + K + "|" + (prevKey ? prevKey() : ""); m.needsUpdate = true;
+}
 function furSkin(api, kind, O = {}) {
   const SZ = O.skinSize || 1;   // bigger or smaller pattern (1 = normal)
   const root = api.root, mats = new Set();
@@ -2232,6 +2395,7 @@ function furSkin(api, kind, O = {}) {
     totalEmissiveRadiance += ic * (0.05 + 0.4 * fr * fr) * ${(O.iridK ?? 1).toFixed(2)}; }`); };
       m.customProgramCacheKey = () => "irid2|" + (O.iridRainbow ? "rb|" : "") + O.irid2.join() + "|" + (prev ? prev.toString().length : 0);
     }
+    if (O.goldBack) goldSheen(m, O.goldBack, O.goldK || 0.5);   // Valkyra: soft gold on everything that faces up (back, top of head, tops of legs), fading smoothly to white
     if (kind === "pearl" || O.pearlSheen) {   // mother-of-pearl: a rainbow shimmer that shifts with the viewing angle, on EVERY part (body too, on top of its own glow pattern)
       m.roughness = O.pearlK != null ? 0.3 : 0.14; m.metalness = O.pearlK != null ? 0.12 : 0.3;
       const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
@@ -2604,6 +2768,7 @@ FUR_LOOKS.Rimefang = Object.assign({}, FUR_LOOKS.Rimefang, { skin: "frost" });
 
 FUR_LOOKS.Kindlepaw = { length: 0.09, density: 58, tipK: 0.25, rootDark: 0.75, ruff: 1.6, tuft: 1.3, droop: 0.25, sheen: 0.25, shells: 20, partLen: { foxTails: 2.6 }, parts: { head: true } };   // Petra: a VERY fuzzy tail
 FUR_LOOKS.Lunaria = { length: 0.08, density: 56, tip: "#ffffff", tipK: 0.45, ruff: 2.0, tuft: 1.3, droop: 0.2, sheen: 0.4, parts: { head: true, wings: true } };   // moth fuzz: white, soft, a big fluffy collar
+FUR_LOOKS.Valkyra = { skin: "plumes", goldBack: "#f0c870", goldK: 0.32, length: 0.065, density: 60, tip: "#f0cc7c", tipK: 0.5, rootDark: 0.85, ruff: 1.15, tuft: 1.1, droop: 0.18, sheen: 1.0, sheenCol: "#e8a830", shells: 20, partLen: { head: 0.55, legs: 0.85, paws: 0.6, neck: 1 }, parts: { head: true } };   // Petra 2026-11-12: short fur all over (head + legs too), wings left as feathers   // Petra: fluffier: a soft down of feather fluff over the one plumes surface, same white everywhere   // ONE surface with ONE feather texture (the Thrumwing fix): body, head and legs all wear the plumes skin in one white
 FUR_LOOKS["Thrumwing"] = { skin: "plumes", noFur: true, irid2: ["#3aff8a", "#2fd6a0"], iridK: 1.4, iridRainbow: true };   // feather texture on head and legs; the body wears real feathers (sp.bodyFeathers)
 FUR_LOOKS.Medusel = FUR_LOOKS.Medusel || { noFur: true };
 
@@ -2951,6 +3116,19 @@ SPECIES.push({ name: "Thrumwing", size: 0.72, rarity: "Uncommon", home: "Green V
        "A shiny ruby-red throat patch it shows off to other Thrumwings",
        "Tiny and very fast (speed 5), but not very tough",
        "Folds its wings flat along its back when it lands"] });
+SPECIES.push({ name: "Valkyra", rarity: "Legendary", anomaly: true, home: "Frost Peaks summit (only during thunderstorms)", speed: 4,
+  br: "Rise Again: once per fight, if your dragon would faint, it gets back up with some HP",
+  pal: P("#fbf8f2", "#fbf8f2", "#fbf8f2", "#ffd36a", "#cf9a34", "#fbf8f2", "#ffc23a", { wingTip: "#f2c766", fin: "#fbf8f2", fur: "#fbf8f2", glow2: "#ffe6a0", paint: "#3a3446", paintSoft: "#b8b2c2", metal: 0.02 }),
+  sp: { tier: 6, gentle: true, wings: "swan", wingScale: 1.3, flapSpeed: 5, horns: "swept", hornGlow: 0.06, back: "none", frill: "none", tail: "spearfan", tailShape: "normal", tailLen: 1.3, pattern: "none",
+    thin: 0.88, girth: 0.92, len: 1.05, neck: 1.0, legLen: 1.15, legThick: 0.9, eyes: 0.95, glow: 0.6, head: [0.95, 1, 0.95],
+    featherCrest: true, goldBack: "#f0c870", goldK: 0.32, noTierMotes: true, eyeGlowK: 0.45 },
+  ad: ["Sky Spear: shoots straight up, then dives like a golden spear, hitting every monster in a line",
+       "How to get it: in a thunderstorm, fly to the top of Frost Peaks and find a ring of golden feathers. Survive 3 waves of monsters without fainting and the egg appears",
+       "Pearl-white fur with a soft golden sheen on the tips, golden horns and a swept-back feather crest",
+       "Gold eyes with dark war-paint stripes, and short snowy fur all over its body",
+       "Huge swan wings fading to gold, with a rainbow shimmer at the tips that shifts as it turns",
+       "A long tail ending in a spearhead of stiff feathers"] });
+LEAN.Valkyra = [3, 1, -2];
 LEAN.Lunaria = [-2, -1, 3]; LEAN["Thrumwing"] = [-5, 1, 1];
 
 SPECIES.forEach(s => {
@@ -2992,7 +3170,7 @@ const HOME_LAND = {
   "Desert": ["Dunerunner", "Sunscale", "Miragewyrm", "Scarabyx"],
   "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake"],
   "Fire Mountain": ["Smoldedrake", "Volcanox", "Ashveil", "Blazequill"],
-  "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran", "Kindlepaw"],
+  "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran", "Kindlepaw", "Valkyra"],
   "Sky Islands": ["Tempestra", "Driftail", "Aerolash", "Skyrune"],
   "Misty Swamp": ["Mirewyrm", "Fogdrake", "Lanternfen", "Venomire"],
   "Coral Reef": ["Coralwyrm", "Reefdart", "Tidelash", "Deepcrown"],
@@ -9498,6 +9676,11 @@ function hurtPet(dmg, m) {
   if (pet.hp <= 0) faint(m);
 }
 function faint(m) {
+  if (ABL.rise > 0 && state === "ride") {   // Valkyra's Rise Again
+    ABL.rise = 0; pet.hp = Math.max(1, Math.round(petMaxHp() * 0.4)); petHurtT = 0; abRingFx(pet.x, pet.y, pet.z, 10, "#ffd36a", 1.2); abSparks(petMid(), 3, "#ffd36a", 18);
+    toast(`${pet.name} rises again!`, "Golden light pulls it back to its feet"); return;
+  }
+  if (typeof vkFail === "function") vkFail("fainted");
   // Petra's rule: you wake up at the nest and keep your coins
   toast(`${pet.name} fainted!`, `The ${m ? m.kind : "monster"} was too strong. You both woke up back at the nest. You kept your coins.`);
   state = "grown"; camDist = 9; pet.dive = false; pet.fly = false; pet.speed = 0; $("rideKeys").hidden = true;
@@ -10505,6 +10688,7 @@ const BREATH = {
   Hedgewyrm:   { n: "Needle Burst",     t: "shot", k: 8, spread: 0.16, mult: 1.15, col: "#c8a060" },
   Maplewing:   { n: "Maple Spin",       t: "shot", k: 4, speed: 16, mult: 1.25, col: "#e8501a" },
   Gloamhorn:   { n: "Dusk Ray",         t: "beam", R: 28, burn: 1, mult: 1.35, col: "#c86ae8" },
+  Valkyra:     { n: "Golden Feathers",  t: "shot", k: 5, spread: 0.12, speed: 24, size: 0.45, mult: 1.35, col: "#ffd36a" },   // a fan of glowing golden feathers
   Vulpyre:     { n: "Foxfire",          t: "shot", k: 3, boom: 4, size: 0.7, speed: 15, burn: 1, mult: 1.5, col: "#ff8a3a" },
   Sludgeling:  { n: "Goo Glob",         t: "lob",  boom: 4, burn: 1, mult: 0.9, col: "#8ad83a" },
   Toxitail:    { n: "Sting Shot",       t: "shot", k: 1, speed: 30, size: 0.35, burn: 1, mult: 1.4, col: "#b8ff4a" },
@@ -10742,7 +10926,7 @@ const EVT = {
              sky: "#c88a4a", bg: "#c88a4a", fog: "#c28a4c", hemi: "#ffcf9a", parts: "sand", pc: "#f0c890", fogFar: 55, dark: 0.15 },
   blizzard:{ name: "Blizzard", lands: ["Frost Peaks"], kind: "Whiteout", len: [180, 280], msg: "A blizzard is raging on the Frost Peaks!", hint: "Whiteout eggs turn up in the snow",
              sky: "#d0d8e2", bg: "#d0d8e2", fog: "#d8e0e8", hemi: "#e8f0ff", parts: "snow", pc: "#ffffff", fogFar: 50, dark: 0.1 },
-  storm:   { name: "Thunderstorm", lands: ["Green Valley", "Deep Forest", "Ocean", "Sky Islands"], kind: "Voltwing", len: [160, 260], msg: "A thunderstorm is rolling in", hint: "Voltwing eggs fall where lightning strikes",
+  storm:   { name: "Thunderstorm", lands: ["Green Valley", "Deep Forest", "Ocean", "Sky Islands", "Frost Peaks"], kind: "Voltwing", len: [160, 260], msg: "A thunderstorm is rolling in", hint: "Voltwing eggs fall where lightning strikes",
              sky: "#1e2430", bg: "#1e2430", fog: "#1e2430", hemi: "#8a9ab8", parts: "rain", pc: "#a8b8d8", fogFar: 170, dark: 0.6, bolts: true },
   fog:     { name: "Fog", lands: ["Green Valley", "Deep Forest"], kind: "Wispwyrm", len: [160, 260], msg: "A thick fog is rolling in", hint: "Wispwyrm eggs appear only in the fog",
              sky: "#cdd3d6", bg: "#cdd3d6", fog: "#cdd3d6", hemi: "#e0e6ea", fogFar: 38, dark: 0.2 },
@@ -10850,7 +11034,7 @@ function startEvent(id, land, t) {
   if (id === "wind") EVS.windA = Math.random() * 6.283;
   epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a");
   evNewStart(id);
-  if (started) toast(e.msg, e.hint + (EVS.land && EVS.land !== landNow ? ` (in the ${EVS.land})` : ""));
+  if (started) toast(e.msg, e.hint + (id === "storm" && EVS.land === "Frost Peaks" ? ". Something golden glints on the highest peak..." : "") + (EVS.land && EVS.land !== landNow ? ` (in the ${EVS.land})` : ""));
   writeSave();
 }
 function endEvent(quiet) {
@@ -10875,6 +11059,60 @@ function evSpawnEgg(land, p, quiet, kind) {   // one event egg
   const w = addWild(kind, land, p); w.ev = true; EVS.eggs[land] = (EVS.eggs[land] || 0) + 1;
   if (!quiet && started && land === landNow) toast(`Something glows nearby...`, `${e.name}: an event egg has appeared in the ${land}!`);
   writeSave(); return true;
+}
+// ---- Valkyra's storm trial (Petra 2026-11-12): in a thunderstorm on the Frost Peaks, a ring of golden feathers sits on the highest summit.
+// Ride into it and 3 waves of monsters come. Survive all 3 without fainting and a Valkyra egg appears in the ring.
+const VK = { ring: null, wave: 0, list: [], done: false, peak: null };
+function vkPeak() {
+  if (VK.peak) return VK.peak; let best = null;
+  for (let x = -FROST.R; x <= FROST.R; x += 4) for (let z = -FROST.R; z <= FROST.R; z += 4) {
+    if (x * x + z * z > FROST.R * FROST.R * 0.85) continue; const px = FROST.x + x, pz = FROST.z + z, h = height(px, pz);
+    if (!best || h > best.y) best = new V(px, h, pz); }
+  return (VK.peak = best);
+}
+function vkRingMake(p) {
+  const g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color: new THREE.Color("#ffd36a").convertSRGBToLinear(), emissive: new THREE.Color("#ffb03a").convertSRGBToLinear(), emissiveIntensity: 0.9, roughness: 0.4, side: THREE.DoubleSide });
+  const vane = new THREE.SphereGeometry(1, 14, 10); vane.translate(0, 1, 0);   // a feather: a long soft vane on a thin quill, stood on its end and leaning out
+  const quill = new THREE.CylinderGeometry(0.03, 0.05, 2.9, 5); quill.translate(0, 1.2, 0);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, f = new THREE.Group(), v = new THREE.Mesh(vane, mat); v.scale.set(0.42, 1.25, 0.05); v.position.y = 0.35; f.add(v, new THREE.Mesh(quill, mat));
+    f.position.set(Math.cos(a) * 6, 0.4, Math.sin(a) * 6); f.rotation.set(0, -a, 0); f.children.forEach(c => { c.rotation.z = -0.3; c.rotation.y = 0.5; }); g.add(f); }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: new THREE.Color("#ffd36a"), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.set(12, 12, 1); glow.position.y = 2; g.add(glow);
+  g.position.copy(p); scene.add(g); return g;
+}
+function vkWave() {
+  const P = vkPeak(), kinds = (MON_LANDS["Frost Peaks"] || []).filter(k => !MONSTER[k].night && !MONSTER[k].boss);
+  const n = 2 + VK.wave; VK.list = [];
+  for (let j = 0; j < n; j++) {
+    const kind = VK.wave === 3 && j === 0 && MONSTER["Storm Harpy"] ? "Storm Harpy" : kinds[Math.floor(Math.random() * kinds.length)];
+    const a = j / n * 6.283 + Math.random() * 0.5, r = 16 + Math.random() * 6, x = P.x + Math.cos(a) * r, z = P.z + Math.sin(a) * r;
+    const m = spawnMonster(kind, new V(x, groundAt(x, z, P.y + 20) + (MONSTER[kind].fly ? 3 : 0), z), MONSTER[kind].lv[1] + VK.wave * 2);
+    m.aggro = true; m.land = "Frost Peaks"; VK.list.push(m);
+  }
+  evBolt(P); toast(`Wave ${VK.wave} of 3!`, VK.wave === 3 ? "The last wave! Hold on!" : "Beat every monster to call the next wave");
+}
+function vkFail(why) {
+  if (!VK.wave) return; VK.wave = 0; VK.list = [];
+  toast("The golden feathers scatter...", (why === "left" ? "You left the summit." : "Your dragon fainted.") + " The ring will come back while the storm lasts.");
+}
+function vkTick(dt) {
+  if (mpGuest()) return;
+  const storm = EVS.cur === "storm" && EVS.land === "Frost Peaks";
+  if (!storm && !VK.wave) { if (VK.ring) { scene.remove(VK.ring); VK.ring = null; } VK.done = false; return; }
+  if (storm && !VK.ring && !VK.done) VK.ring = vkRingMake(vkPeak());
+  const P = vkPeak();
+  if (VK.ring) { VK.ring.rotation.y += dt * 0.4; VK.ring.children.forEach((f, i) => { if (f.isGroup) f.position.y = 0.4 + 0.3 * Math.sin(T * 2 + i) + (VK.wave ? 1.5 : 0); }); }
+  if (!VK.wave) {
+    if (VK.ring && state === "ride" && landNow === "Frost Peaks" && Math.hypot(pet.x - P.x, pet.z - P.z) < 9 && pet.y < P.y + 14) {
+      VK.wave = 1; toast("The golden feathers rise into the storm!", "Survive 3 waves of monsters without fainting"); vkWave(); }
+    return;
+  }
+  if (state !== "ride" || Math.hypot(pet.x - P.x, pet.z - P.z) > 90) { vkFail("left"); return; }
+  if (VK.list.every(m => m.dead || !mons.includes(m))) {
+    if (VK.wave < 3) { VK.wave++; vkWave(); return; }
+    VK.wave = 0; VK.list = []; VK.done = true; if (VK.ring) { scene.remove(VK.ring); VK.ring = null; }
+    const w = addWild("Valkyra", "Frost Peaks", P.clone()); w.ev = true; evBolt(P);
+    toast("The storm goes quiet for a moment...", "A golden egg lies where the feathers were!"); writeSave();
+  }
 }
 function evFog(fogT) { const e = EVT[EVS.cur]; return e && EVS.here > 0 ? fogT.lerp(evC(e.fog), EVS.here * 0.85) : fogT; }
 function updateEvents(dt) {
@@ -10930,6 +11168,7 @@ function updateEvents(dt) {
   if (EVS.cur !== "eclipse") { eclipseSun.visible = false; sunDisc.material.opacity = 1; }
   epTick(dt, e && e.parts || (e && e.leaves) ? k : 0);
   evNewTick(dt, e, k);
+  vkTick(dt);
   // lightning flashes and shooting stars
   if (e && e.bolts && k > 0.5) { EVS.boltT -= dt; if (EVS.boltT <= 0) { EVS.boltT = 4 + Math.random() * 6; const a = Math.random() * 6.283, r = 40 + Math.random() * 60, x = me.x + Math.cos(a) * r, z = me.z + Math.sin(a) * r; evBolt(new V(x, height(x, z), z)); } }
   if (e && e.meteors) { EVS.metT -= dt; if (EVS.metT <= 0) { EVS.metT = 0.3 + Math.random() * 1.2; evMeteor(null); } }
@@ -12265,7 +12504,7 @@ const SKILL = {
   Grow:   { verb: "make the old tree grow again", need: "a valley dragon", col: "#7ae05a", lands: ["Green Valley", "Deep Forest"] },
 };
 const SKILL_OF_LAND = { "Fire Mountain": "Burn", "Frost Peaks": "Freeze", "Sky Islands": "Gust", "Ocean": "Wash", "Green Valley": "Grow", "Misty Swamp": "Wash", "Coral Reef": "Wash", "Autumn Woods": "Grow", "Blightwood": "Burn", "Hydra Valley": "Grow" };
-const SKILL_KIND = { Stonewyrm: "Smash", Bergdrake: "Smash", Starwyrm: "Burn", Scarlune: "Burn", Voltwing: "Gust", Sirocco: "Gust", Whiteout: "Freeze", Wispwyrm: "Wash", Vulpyre: "Burn", Emberleaf: "Burn", Twinhead: "Burn", Thunderhydra: "Gust", Burrowdrake: "Smash", Hedgewyrm: "Smash" };
+const SKILL_KIND = { Valkyra: "Gust", Stonewyrm: "Smash", Bergdrake: "Smash", Starwyrm: "Burn", Scarlune: "Burn", Voltwing: "Gust", Sirocco: "Gust", Whiteout: "Freeze", Wispwyrm: "Wash", Vulpyre: "Burn", Emberleaf: "Burn", Twinhead: "Burn", Thunderhydra: "Gust", Burrowdrake: "Smash", Hedgewyrm: "Smash" };
 const skillOf = kind => { if (!kind) return null; if (SKILL_KIND[kind]) return SKILL_KIND[kind]; const s = SP(kind); return SKILL_OF_LAND[s.land] || "Smash"; };
 const SKL = { spots: null, open: [], msgT: 0, near: null };
 const skSpots = [];
@@ -13558,6 +13797,7 @@ const AB = {
   Starwyrm:    { n: "Meteor Drop", t: "Fight", fx: "rain", at: 14, r: 8, n2: 1, big: 1, dmg: 3.0, col: "#ffb04a" },
   Scarlune:    { n: "Blood Moon", t: "Fight", fx: "buff", dmgMul: 1.5, steal: 0.25, t2: 10, col: "#ff3a4a" },
   Eclipsar:    { n: "Eclipse", t: "Fight", fx: "ring", r: 30, hold: 4, dark: 1, col: "#ffd27a" },
+  Valkyra:     { n: "Rise Again", t: "Heal", fx: "buff", rise: 1, t2: 30, glow: 1, col: "#ffd36a" },   // for 30 s: if your dragon would faint, it gets back up with some HP instead
   Vulpyre:     { n: "Spirit Fire", t: "Heal", fx: "buff", regen: 0.035, t2: 10, flames: 1, col: "#ff6a2a" },
   Crestwyrm:   { n: "Champion's Roar", t: "Guard", fx: "buff", half: 10, roar: 1, col: "#ffd24a" },
   Quantum:     { n: "Blink", t: "Move", fx: "tp", d: 22, col: "#a05aff" },
@@ -13576,6 +13816,7 @@ const AB = {
 const AB2 = {
   Lumora:    { n: "Starfall Night", t: "Fight", fx: "buff", dmgMul: 1.6, t2: 20, glow: 1, col: "#cfe0ff" },
   Eclipsar:  { n: "Corona Ring", t: "Guard", fx: "zone", at: 0, follow: 1, r: 6, t2: 10, dps: 0.35, col: "#ffb03a" },
+  Valkyra:   { n: "Sky Spear", t: "Fight", fx: "dash", d: 70, dmg: 1.8, inv: 1, hover: 0.6, up: 24, col: "#ffd36a" },   // shoots straight up, then dives like a golden spear through every monster in a line
   Vulpyre:   { n: "Nine-Tail Dash", t: "Move", fx: "dash", d: 55, dmg: 1.0, inv: 1, col: "#ff6a2a" },
   Quantum:   { n: "Rift", t: "Move", fx: "nest", col: "#a05aff" },
   Petralith: { n: "Titan Stomp", t: "Fight", fx: "ring", r: 16, dmg: 1.8, stun: 3, knock: 8, col: "#ffb03a" },
@@ -13709,6 +13950,7 @@ function abUse(two) {
     if (a.heal) pet.hp = Math.min(petMaxHp(), petHp() + Math.round(petMaxHp() * a.heal));
     if (a.mud) ABL.mud = a.mud;
     if (a.healAfter) ABL.healAfter = 1;
+    if (a.rise) { ABL.rise = a.t2; msg = `If ${pet.name} falls in the next ${a.t2} s, it will rise again`; }
     ABL.fxT = T2; ABL.fxKind = a.smoke ? "smoke" : a.cloud ? "cloud" : a.flames ? "flames" : a.dark ? "dark" : a.trail ? "trail" : a.bubble ? "bubble" : a.glide ? "leaves" : a.glow ? "glow" : null;
     if (a.block || a.half || a.inv || a.phase || a.thorns) abAura(a.col, a.phase ? 0.15 : 0.25);
     else if (a.smoke || a.cloud || a.bubble) abAura(a.col, a.smoke ? 0.45 : 0.3);
@@ -13764,6 +14006,7 @@ function updateAbilities(dt) {
   const riding = state === "ride";
   if (!riding) { ABL.dash = null; }
   if (ABL.hide > 0) mons.forEach(m => { if (m.aggro && !m.d.boss) { m.aggro = false; m.warn = 0; } });
+  if (ABL.rise > 0) ABL.rise = riding ? Math.max(0, ABL.rise - dt) : 0;
   if (ABL.regenT > 0 && riding) pet.hp = Math.min(petMaxHp(), petHp() + petMaxHp() * ABL.regen * dt);
   // the aura bubble follows your dragon; it goes when nothing needs it any more
   if (ABL.aura) { const on = ABL.block > 0 || ABL.half > 0 || ABL.inv > 0 || ABL.phase > 0 || ABL.thorns > 0 || (ABL.fxT > 0 && /smoke|cloud|bubble/.test(ABL.fxKind || ""));
@@ -13821,8 +14064,9 @@ function updateAbilities(dt) {
   // dashes: Wind Dash, Shell Spin, Crest Charge, Dart, Hover Dash, Nine-Tail Dash
   if (ABL.dash && riding) {
     const D = ABL.dash, f = abFwd();
-    if (D.wait > 0) { D.wait -= dt; pet.speed = 0; burstAt(pet.x, pet.y + 1, pet.z, D.a.col); }
-    else { D.t -= dt; const st = D.v * dt; if (pet.fly) { pet.x += f.x * st; pet.z += f.z * st; } else moveCircle(pet, f.x * st, f.z * st, 1.0);
+    if (D.wait > 0) { D.wait -= dt; pet.speed = 0; if (D.a.up) { pet.y += D.a.up * dt; pet.fly = true; } burstAt(pet.x, pet.y + 1, pet.z, D.a.col); }   // Sky Spear shoots straight up first
+    else { D.t -= dt; const st = D.v * dt; if (D.a.up) pet.y = Math.max(groundAt(pet.x, pet.z, pet.y + 2) + 0.6, pet.y - D.a.up * D.a.hover / (D.a.d / 60) * dt);   // ...then dives back down
+      if (pet.fly) { pet.x += f.x * st; pet.z += f.z * st; } else moveCircle(pet, f.x * st, f.z * st, 1.0);
       burstAt(pet.x - f.x * 2, pet.y + 1, pet.z - f.z * 2, D.a.col);
       if (D.a.dmg) { const c = petMid(); abLive().forEach(m => { if (D.hit.includes(m) || Math.hypot(m.x - c.x, m.z - c.z) > m.rad + petRad() + 1.5) return; D.hit.push(m); abHitMon(m, D.a, D.a.dmg, "claw"); abEffect(m, D.a, c); }); }
       if (D.t <= 0) ABL.dash = null; }
