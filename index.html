@@ -4080,7 +4080,7 @@ function makePerson(o) {
     { name: "Little Pip", title: "Kid", home: P(H.c2, 2, 2), wander: 12, fast: true, look: { shirt: "#e8b030", pants: "#3a5a9a", hair: "#3a2414", scale: 0.62, hat: "cap", capColor: "#2f8a5a" }, lines: [
       "Is that YOUR dragon? Can I pet it? Please please please?", "Old Nettle is my best friend. She tells the best stories!",
       "Grown-ups say Nettle's crazy. I think she's just been everywhere.", "When I grow up I'm going to have a hundred dragons.", "I found a shiny rock! ...Oh. It's a snail.", "Nettle taught me how to talk to frogs. They don't talk back yet.", "I'm saving my coins for a dragon egg. I have three coins!", "Fen and Fern said I can't play tag. I'm faster than both of them anyway.", "Nettle's hut smells like soup and old books. I love it.", "Can your dragon do a loop-de-loop? Do one! Do one!", "Grown-ups are mean about Nettle. She gave me a rock that's shaped like a heart.", "I named a worm after you. He's very brave.", "When it gets dark I look for glowing things. Nettle says not to follow them."] },
-    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the clouds up high", say: ["Clouds taste like soap, dearie. I licked one. Above the floaty islands, past the soapy ones, two stone foxes and two stone shadows sit and sit and SIT. Never stand up. Rude. They want eggs. Not for eating! Probably. Leaves, dearie. Think of leaves. Or turnips.", "My teapot ran up the sky once. No wings! Just ran. Up, up, up. That's how you know something old and dark sloshed into the family. Same thing sits in stone above the clouds, sulking. The teapot came back down. It's cracked now. Aren't we all.", "Fly higher. No, higher. No, HIGHER. Higher than your dragon thinks it can, and then one more higher for luck. There's a bowl with a fire that never goes out. I warmed my socks there. Don't feed it anything from that rotten Blightwood. It sulks. Like Rose's pie."] }, { label: "Ask about the moons and skies", lines: [7, 8, 9, 10, 11, 12] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
+    { name: "Old Nettle", title: "", topics: [{ label: "Ask about the clouds up high", say: ["Clouds taste like soap, dearie. I licked one. Above the floaty islands, past the soapy ones, two stone foxes and two stone shadows sit and sit and SIT. Never stand up. Rude. They want eggs. Not for eating! Probably. Leaves, dearie. Think of leaves. Or turnips.", "My teapot ran up the sky once. No wings! Just ran. Up, up, up. That's how you know something old and dark sloshed into the family. Same thing sits in stone above the clouds, sulking. The teapot came back down. It's cracked now. Aren't we all.", "Fly higher. No, higher. No, HIGHER. Higher than your dragon thinks it can, and then one more higher for luck. There's a bowl with a fire that never goes out. I warmed my socks there. Don't feed it anything from that rotten Blightwood. It sulks. Like Rose's pie."] }, { label: "Ask about the moons and skies", lines: [7, 8, 9, 27, 28, 29, 30, 31, 32] }, { label: "Ask about the old days", lines: [0, 1, 2, 3, 4, 5, 6] }, { label: "Ask about the far lands", say: [
         "Past the canyons, beyond the first lands, there are MORE lands, dearie. Take a strong dragon. And a snack.",
         "The Misty Swamp! Lovely place. If a little light floats toward you at night, don't follow it. Or do. I did. Lost a boot.",
         "Way out in the sea, past the beach, the water goes shallow and pink. Coral! The reef dragons lay their eggs on the little sandy islands.",
@@ -4805,6 +4805,7 @@ function closest(b, x, z) {
   return [b.x + lx * c + lz * s, b.z - lx * s + lz * c];
 }
 function moveCircle(o, dx, dz, r) {
+  if (o === pet && ABL.phase > 0) { o.x += dx; o.z += dz; return; }   // Ash Veil, Fade, Ghost Glide: through anything
   let nx = o.x + dx, nz = o.z + dz;
   const y = o.y || 0;
   for (let pass = 0; pass < 2; pass++) for (const b of blockers) {
@@ -4822,9 +4823,10 @@ function moveCircle(o, dx, dz, r) {
       nx = cx + ax / l * rr; nz = cz + az / l * rr;
     }
   }
+  const swim = o === pet && WARD.bubble;   // with the Bubble Charm your dragon walks and swims under water
   if ((o.y || 0) < 20) {
-    if (Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
-    if (waterTop(nx, nz) > -Infinity && height(nx, nz) < WATER_Y - 1.1) return;   // the sea is too deep too (dry dips are fine)
+    if (!swim && Math.hypot(nx - POND.x, nz - POND.z) < POND.r * 0.72) return; // too deep to walk in
+    if (!swim && waterTop(nx, nz) > -Infinity && height(nx, nz) < WATER_Y - 1.1) return;   // the sea is too deep too (dry dips are fine)
     const open = LANDS.some(b => passW(b, nx, nz) > 0.2 || basinW(b, nx, nz) > 0.05);
     const lim = 225 + 60 * coast(nx, nz), rr = Math.hypot(nx, nz); if (!open && rr > lim) { nx *= lim / rr; nz *= lim / rr; }
   }
@@ -4935,7 +4937,7 @@ function frameBody() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() * potSwift() : walkMul()) * evPetSpeed();   // Shift in the air = fly sprint; Swiftwing Elixir = faster
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() * potSwift() : walkMul()) * evPetSpeed() * abSpeed();   // Shift in the air = fly sprint; Swiftwing Elixir = faster
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
@@ -5027,6 +5029,7 @@ function frameBody() {
   updateDig(dt);
   updateFish(dt);
   updateSpecials(dt);
+  updateAbilities(dt);
   updateRequests(dt);
   updateBreath(dt);
   updateMP(dt);
@@ -5218,7 +5221,7 @@ function buttons(list) {
 btnEl.addEventListener("click", e => { const b = e.target.closest("button"); if (b && btnEl._list) btnEl._list[+b.dataset.i][2](); });
 function pressKey(code) {
   const list = btnEl._list; if (!list || battleEl.hidden) return false;
-  const k = { Digit1: "1", Digit2: "2", Digit3: "3", Digit4: "4", Digit5: "5", Enter: "Enter", Space: "Enter", KeyE: "Enter" }[code];
+  const k = { Digit1: "1", Digit2: "2", Digit3: "3", Digit4: "4", Digit5: "5", Digit6: "6", Digit0: "0", Enter: "Enter", Space: "Enter", KeyE: "Enter" }[code];
   const b = list.find(x => x[1] === k || (k === "Enter" && list.length === 1)); if (b) { b[2](); return true; } return false;
 }
 function bars() {
@@ -5293,7 +5296,7 @@ async function nextFoe() {
 function turnMenu(msg) {
   say(msg); busy = false;
   const m = run.me;
-  const sp = spKnown().length > 0 && m.mcd;
+  const sp = (spKnown().length > 0 || abHas(false)) && m.mcd;
   buttons([["Claw", "1", () => turn("claw")], [m.tired ? "Breath (tired)" : "Breath", "2", () => !m.tired && turn("breath")], ["Guard", "3", () => turn("guard")]].concat(sp ? [["Moves", "4", () => movesMenu()]] : []));
   [...btnEl.children][1].disabled = m.tired;
 }
@@ -5303,8 +5306,12 @@ function movesMenu() {
   if (busy) return; const m = run.me;
   const why = i => (pet.level || 1) < SPECIALS[i].lv ? `Lv ${SPECIALS[i].lv}` : m.mcd[i] > 50 ? "used" : m.mcd[i] > 0 ? `${m.mcd[i]} turn${m.mcd[i] > 1 ? "s" : ""}` : (i === 2 && m.tired) ? "tired" : "";
   say(`Which special move? <small>Tail Whip can't be dodged and breaks guards. Mighty Roar scares the foe out of its next attack. Power Blast is a huge breath. Second Wind heals a third of your HP once a fight.</small>`);
-  buttons(SPECIALS.map((s, i) => [why(i) ? `${s.name} (${why(i)})` : s.name, String(i + 1), () => !why(i) && turn("sp" + i)]).concat([["Back", "5", () => turnMenu(`What will ${pet.name} do?`)]]));
+  const abs = [false, true].filter(two => abHas(two)).map(two => { const a = abOf(pet.kind, two), used = m.abUsed && m.abUsed[two ? 1 : 0];
+    return [used ? `${a.n} (used)` : a.n, two ? "6" : "5", () => !used && turn(two ? "ab2" : "ab"), used]; });
+  if (abs.length) say(`Which special move? <small>${[false, true].filter(two => abHas(two)).map(two => `<b>${abOf(pet.kind, two).n}</b> (once a fight): ${abArenaDesc(abOf(pet.kind, two))}.`).join(" ")} Tail Whip can't be dodged. Mighty Roar makes the foe skip a turn. Power Blast is a huge breath. Second Wind heals once a fight.</small>`);
+  buttons(SPECIALS.map((s, i) => [why(i) ? `${s.name} (${why(i)})` : s.name, String(i + 1), () => !why(i) && turn("sp" + i)]).concat(abs.map(b => b.slice(0, 3))).concat([["Back", "0", () => turnMenu(`What will ${pet.name} do?`)]]));
   SPECIALS.forEach((s, i) => { [...btnEl.children][i].disabled = !!why(i); });
+  abs.forEach((b, j) => { [...btnEl.children][4 + j].disabled = !!b[3]; });
 }
 async function actSp(i) {
   const A = run.me, D = run.foe, dName = `${shownName(foe)}'s ${foe.k}`, col = SP(pet.kind).pal.glow;
@@ -5340,11 +5347,13 @@ function foeMove() {
   return "claw";
 }
 async function act1(who, move) {
+  if (who === "me" && move.startsWith("ab")) return abArena(move === "ab2");
   if (who === "me" && move.startsWith("sp")) return actSp(+move[2]);
   if (who === "foe" && run.foe.stun) { run.foe.stun = false; say(`${shownName(foe)}'s ${foe.k} is still too scared to attack!`); await sleep(900); return; }
   const A = run[who], D = run[who === "me" ? "foe" : "me"], aName = who === "me" ? pet.name : `${shownName(foe)}'s ${foe.k}`;
   const dName = who === "me" ? `${shownName(foe)}'s ${foe.k}` : pet.name;
   if (move === "guard") { A.guard = true; A.tired = false; say(`${aName} braces itself and catches its breath.`); await sleep(700); return; }
+  if (who === "foe" && run.me.dodge) { run.me.dodge = false; fx.foe.lunge = 1; await sleep(320); say(`${pet.name} zips out of the way! ${shownName(foe)}'s ${foe.k} misses completely.`); await sleep(900); return; }
   const breath = move === "breath";
   A.tired = breath;
   fx[who].lunge = 1;
@@ -5352,9 +5361,10 @@ async function act1(who, move) {
   // speed matters (Petra): a faster dragon dodges more and a slower one gets dodged more; breath is wider, so it's harder to dodge than a claw
   const miss = Math.max(0.03, Math.min(0.4, 0.07 + (D.speed - A.speed) * (breath ? 0.05 : 0.08)));
   if (Math.random() < miss) { say(D.speed > A.speed ? `${dName} is too quick! It dodges ${aName}'s ${breath ? "breath" : "claw"}!` : `${aName} ${breath ? "breathes" : "swipes"}... and misses!`); await sleep(800); return; }
-  let dmg = rnd(breath ? A.breath : A.claw), crit = Math.random() < 0.1;
+  let dmg = rnd(breath ? A.breath : A.claw), crit = Math.random() < 0.1 || !!A.crit; A.crit = false;
   if (crit) dmg = Math.round(dmg * 1.5);
   if (D.guard) dmg = Math.ceil(dmg / 2);
+  { const d0 = dmg; dmg = abArenaHit(A, D, dmg); if (d0 > 0 && dmg === 0) { say(`The shield blocks the hit! ${D.block ? `(${D.block} more)` : "It breaks."}`); bars(); await sleep(900); return; } }
   D.hp -= dmg; fx[who === "me" ? "foe" : "me"].hit = 1; crowd.hype = 1;
   const at = who === "me" ? spotFoe() : spotMe();
   const col = who === "me" ? SP(pet.kind).pal.glow : (run.foe.shiny ? PAL[run.foe.shiny].glow : SP(foe.k).pal.glow);
@@ -5371,13 +5381,15 @@ async function turn(move) {
   if (busy) return; busy = true; buttons([]);
   const me = run.me, f = run.foe, fm = foeMove();
   // guarding always comes first; otherwise the faster dragon goes first (ties go to you)
-  const pMe = move === "guard" || move === "sp1" || move === "sp3", pFoe = fm === "guard";   // guard, Roar and Second Wind go first
+  const abPri = move.startsWith("ab") && !["hit", "crit"].includes(abArenaKind(abOf(pet.kind, move === "ab2")));
+  const pMe = move === "guard" || move === "sp1" || move === "sp3" || abPri, pFoe = fm === "guard";   // guard, Roar and Second Wind go first
   const order = pMe !== pFoe ? (pMe ? ["me", "foe"] : ["foe", "me"]) : (f.speed > me.speed ? ["foe", "me"] : ["me", "foe"]);
   for (const who of order) {
     await act1(who, who === "me" ? move : fm);
     if (f.hp <= 0 || me.hp <= 0) break;
   }
   me.guard = f.guard = false; if (me.mcd) me.mcd = me.mcd.map(c => Math.max(0, c - 1));
+  if (f.hp > 0 && me.hp > 0) { const pz = abArenaTurnEnd(); if (pz) { say(pz); await sleep(900); } }
   if (f.hp <= 0) return winFight();
   if (me.hp <= 0) return loseFight();
   turnMenu(`What will ${pet.name} do?`);
@@ -9091,6 +9103,8 @@ const RED = new THREE.Color("#ff2a1a"), WHITE = new THREE.Color("#ffffff");
 // ---- your dragon gets hurt ----
 function hurtPet(dmg, m) {
   dmg = Math.round(dmg * evMonDmg(m));   // heat wave: fire monsters hit harder
+  if (m && m.abWeak > 0) dmg = Math.max(1, Math.round(dmg * 0.6));
+  dmg = abHurt(dmg, m); if (dmg <= 0) return;
   if (dodgeT > 0 && !pet.held) { toast("Dodged!", ""); return; }
   pet.hp = Math.max(0, petHp() - dmg); petHurtT = 0.35; fightT = 6;
   burstAt(pet.x, pet.y + 1.5, pet.z, "#ff4a3a");
@@ -9130,7 +9144,7 @@ function damageMon(m, dmg, crit, how) {
   if (how === "breath" && PST().weak > 0) { dmg = Math.max(1, Math.round(dmg * 0.6)); note = "Your breath is weak from the frog poison! "; }
   const mv = MOVES[m.kind]; if (mv && mv.hurt) { const r = mv.hurt(m, dmg, how); dmg = r[0]; if (r[1]) note = r[1]; }
   if (m.d.burrow && m.inst.phase === 1 && how === "claw") { dmg = Math.max(1, Math.round(dmg / 2)); note = "It's under the sand! "; }
-  m.hp -= dmg; m.hitT = 0.15; m.aggro = true; m.hurt = 5; fightT = 6;
+  dmg = abDmg(m, dmg); m.hp -= dmg; m.hitT = 0.15; m.aggro = true; m.hurt = 5; fightT = 6;
   burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
   m.bar.visible = true; monBar(m);
   toast(`${how === "breath" ? "Breath" : "Claw"}! ${note}${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${Math.max(0, m.hp)} / ${m.max} HP`);
@@ -9249,7 +9263,7 @@ function monAttack(m) {
 function moveMon(m, tx, ty, tz, sp, dt) {
   const d = m.d, dx = tx - m.x, dz = tz - m.z, dist = Math.hypot(dx, dz);
   if (dist > 0.3 && sp > 0) {
-    const step = Math.min(dist, sp * dt * evMonSpd(m));
+    const step = Math.min(dist, sp * dt * evMonSpd(m) * abMonSpd(m));
     m.x += dx / dist * step; m.z += dz / dist * step;
     m.face = angLerp(m.face, Math.atan2(dz, dx), Math.min(1, dt * 6));
   }
@@ -9343,7 +9357,7 @@ function updateMonsters(dt) {
     }
     const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
     let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
-    sense *= evMonSense(m);                                                          // spore bloom: sleepy
+    sense *= evMonSense(m) * abSense(m);                                                          // spore bloom: sleepy
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
     if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
     if (d.boss) sense = 120;
@@ -10441,6 +10455,7 @@ function evBolt(p) {
 function evPickLand(e) { return e.all ? null : e.lands[Math.floor(Math.random() * e.lands.length)]; }
 function startEvent(id, land, t) {
   const e = EVT[id]; if (!e) return;
+  if (mpGuest() && !EVS.hostSays) return;   // in a friend's game, only the host's world has events
   EVS.cur = id; EVS.land = land !== undefined ? land : evPickLand(e); EVS.eggs = {};
   EVS.fox = id === "harvest" && Math.random() < 0.2 ? 40 + Math.random() * 150 : 0;   // the Autumn Spirit only comes on some Harvest Moons EVS.eggT = 15 + Math.random() * 15; EVS.bigT = 12;
   EVS.t = t !== undefined ? t : e.len ? (Array.isArray(e.len) ? e.len[0] + Math.random() * (e.len[1] - e.len[0]) : e.len) : Infinity;
@@ -10452,6 +10467,7 @@ function startEvent(id, land, t) {
 }
 function endEvent(quiet) {
   const e = EVT[EVS.cur]; if (!e) return;
+  if (mpGuest() && !EVS.hostSays) { EVS.t = Math.max(EVS.t, 1); return; }
   EVS.roll = Math.max(EVS.roll, 300);   // a quiet spell after every event
   if (!quiet && started) toast(e.night ? (e.name.includes("Moon") ? "The moon is back to normal" : "The meteor shower is over") : e.day ? "The sun is back!" : `The ${e.name.toLowerCase()} is over`, "Any event eggs you haven't found are still out there");
   evNewEnd(quiet);
@@ -10602,6 +10618,7 @@ function evNewStart(id) {
   if (id === "tide") { const land = EVS.land; for (let i = 0; i < 14; i++) { const p = wildSpot(land, false); if (p) evShell(p); } }
   if (id === "star") {   // the star lands far away, in a land you're not in
     const lands = WILD_LANDS.filter(l => l !== landNow && l !== "Crystal Caves" && l !== "Bone Caves");
+    if (EVS.hostStar) { const h = EVS.hostStar, p = new V(h.x, h.y, h.z), w = addWild(h.k, h.land, p); w.star = true; EVS.star = { w, land: h.land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone()); }
     for (let i = 0; i < 10 && !EVS.star; i++) {
       const land = lands[Math.floor(Math.random() * lands.length)], p = wildSpot(land, false); if (!p) continue;
       const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true;   // "!" = always hatches shiny
@@ -12162,9 +12179,9 @@ function updateSpecials(dt) {
   const k = spKnown().length, who = pet.name + "|" + pet.kind; if (who !== spWho) { spWho = who; spSaid = -1; }
   if (started && hasDragon() && state !== "arena") { if (spSaid < 0) spSaid = k; else if (k > spSaid) { const nw = SPECIALS.slice(spSaid, k); spSaid = k; toast(`${pet.name} learned ${nw.map(s => s.name).join(" and ")}!`, `Press ${nw.map(s => s.n).join(" or ")} while riding to use ${nw.length > 1 ? "them" : "it"}`); } }
   if ((spHudT -= dt) > 0) return; spHudT = 0.25;
-  const show = state === "ride" && hasDragon() && spKnown().length > 0;
+  const show = state === "ride" && hasDragon() && (spKnown().length > 0 || abHas(false));
   spHud.hidden = !show; if (!show) return;
-  spHud.innerHTML = SPECIALS.map((s, i) => (pet.level || 1) >= s.lv ? `<span class="${SPC.cd[i] > 0 ? "wait" : ""}"><kbd>${s.n}</kbd> ${s.name}${SPC.cd[i] > 0 ? ` ${Math.ceil(SPC.cd[i])}s` : ""}</span>` : `<span class="lock"><kbd>${s.n}</kbd> Lv ${s.lv}</span>`).join("");
+  spHud.innerHTML = SPECIALS.map((s, i) => (pet.level || 1) >= s.lv ? `<span class="${SPC.cd[i] > 0 ? "wait" : ""}"><kbd>${s.n}</kbd> ${s.name}${SPC.cd[i] > 0 ? ` ${Math.ceil(SPC.cd[i])}s` : ""}</span>` : `<span class="lock"><kbd>${s.n}</kbd> Lv ${s.lv}</span>`).join("") + abHud();
 }
 addEventListener("keydown", e => {
   if (e.repeat || uiOpen || state !== "ride") return;
@@ -12427,6 +12444,7 @@ function mpMsg(o) {
     case "full": MP.note = "That game is full (4 players)."; mpPanel(); break;
     case "bye": break;
     case "s": { const p = MP.players.get(from); if (p) { p.st = o.s; p.seen = T; } break; }
+    case "world": if (MP.role === "guest" && from === 0) mpWorld(o); break;
     case "chat": mpSay(mpName(from), mpEsc(String(o.text).slice(0, 200))); break;
     case "mon": mpMirrorList(from, o.l); break;
     case "hit": mpGotHit(from, o); break;
@@ -12444,6 +12462,16 @@ function mpMsg(o) {
 }
 
 // ---------- other players in your world ----------
+const mpGuest = () => typeof MP !== "undefined" && MP.role === "guest";
+function mpWorld(o) {   // a guest gets the host's time of day and event
+  if (typeof o.d === "number") { let dd = o.d - dayTime; if (dd > 0.5) dd -= 1; if (dd < -0.5) dd += 1; if (Math.abs(dd) > 0.002) dayTime = ((o.d % 1) + 1) % 1; }
+  EVS.hostSays = true;
+  try {
+    if ((EVS.cur || null) !== (o.ev || null)) { if (EVS.cur) endEvent(true); if (o.ev) { EVS.hostStar = o.star || null; startEvent(o.ev, o.land || null, o.et < 0 ? Infinity : o.et); EVS.hostStar = null; } }
+    else if (o.ev) { EVS.t = o.et < 0 ? Infinity : o.et; if (o.wa) EVS.windA = o.wa; }
+    if (o.ev === "wind" && o.wa) EVS.windA = o.wa;
+  } finally { EVS.hostSays = false; }
+}
 function mpMyState() {
   const r = state === "ride";
   return { x: +me.x.toFixed(2), y: +me.y.toFixed(2), z: +me.z.toFixed(2), f: +me.face.toFixed(2), r: r ? 1 : 0,
@@ -12867,6 +12895,8 @@ function updateMP(dt) {
   if (!mpOn()) return;
   mpBadge.textContent = `${MP.role === "host" ? "Hosting" : "Online"}${MP.code ? " · " + MP.code : ""} · ${MP.players.size + 1} player${MP.players.size ? "s" : ""}`;
   if ((MP.sT -= dt) <= 0) { MP.sT = 0.1; mpSend({ t: "s", s: mpMyState() }); }
+  if (MP.role === "host" && (MP.wT = (MP.wT || 0) - dt) <= 0) { MP.wT = 2; const st = EVS.star && EVS.star.w; mpSend({ t: "world", d: +dayTime.toFixed(4), ev: EVS.cur || null, land: EVS.land || null, et: EVS.t === Infinity ? -1 : +(+EVS.t).toFixed(1), wa: EVS.windA || 0,
+    star: st ? { k: st.kind, land: EVS.star.land, x: +st.x.toFixed(1), y: +st.y.toFixed(2), z: +st.z.toFixed(1) } : null }); }
   if ((MP.mT -= dt) <= 0) { MP.mT = 0.25; mpSend({ t: "mon", l: mpMonList() }); }
   for (const p of MP.players.values()) mpAvUpdate(p, dt);
   if ((MP.pT = (MP.pT || 0) - dt) <= 0) { MP.pT = 2; const ae = document.activeElement; if (!menuEl.hidden && $("menuTitle").textContent === "Multiplayer" && !(ae && /INPUT|TEXTAREA/.test(ae.tagName))) mpPanel(); }
@@ -13061,6 +13091,430 @@ function posGuard() {
   if (!POSOK.me) return;
   [me.x, me.y, me.z] = POSOK.me; [pet.x, pet.y, pet.z] = POSOK.pet; [camYaw, camPitch] = POSOK.cam;
   onFrameErr(new Error("position became NaN"));
+}
+
+// ================= every dragon's own ability (Petra 2026-11-12, from the "Wyrmwild Dragon Abilities" doc) =================
+// Each kind has one ability of its own. It stays SECRET until the dragon reaches level 50, then press 5 while riding.
+// Legendary and Secret dragons learn a second one at level 75 (press 6). In arena battles each one can be used once per fight.
+// fx kinds: ring (all around you) · cone (in front) · bolt (shots) · bite (one monster in front) · rain (things fall ahead)
+//           zone (a lasting patch) · buff (on your dragon) · dash · tp (teleport) · nest · find · decoy
+// Effect fields: dmg = x your breath (claw for bites) · knock · stun/hold/sleep/fear = seconds · slow · poison · weak · drain
+const AB = {
+  Pyrrak:      { n: "Ember Burst", t: "Fight", fx: "ring", r: 10, dmg: 1.0, knock: 6, col: "#ff8a2a" },
+  Fernling:    { n: "Leaf Cloak", t: "Guard", fx: "buff", hide: 8, col: "#6ad04a" },
+  Lichenwing:  { n: "Rock Pose", t: "Guard", fx: "buff", inv: 4, still: 1, col: "#9aa88a" },
+  Stonewyrm:   { n: "Rockslide", t: "Fight", fx: "rain", at: 9, r: 7, n2: 6, dmg: 1.3, col: "#a89a88" },
+  Thornwyrm:   { n: "Bramble Trap", t: "Fight", fx: "zone", at: 6, r: 7, t2: 8, dps: 0.25, slow: 1, col: "#4a8a2a" },
+  Petalwyrm:   { n: "Blossom Balm", t: "Heal", fx: "buff", heal: 0.5, col: "#ff9ad0" },
+  Dawnwing:    { n: "Sunrise", t: "Guard", fx: "ring", r: 14, stun: 2, heal: 0.2, col: "#ffd27a" },
+  Jadewyrm:    { n: "Jade Shield", t: "Guard", fx: "buff", block: 3, t2: 30, col: "#3ad08a" },
+  Rootwyrm:    { n: "Deep Roots", t: "Heal", fx: "zone", at: 0, r: 7, t2: 8, regenStill: 0.06, trip: 1, col: "#7a5a2a" },
+  Smoldedrake: { n: "Smoke Screen", t: "Guard", fx: "buff", hide: 7, smoke: 1, col: "#6a6a6a" },
+  Ashveil:     { n: "Ash Veil", t: "Guard", fx: "buff", phase: 3, col: "#b0a8a0" },
+  Volcanox:    { n: "Lava Crack", t: "Fight", fx: "zone", at: 0, line: 18, r: 2.5, t2: 6, dps: 0.4, col: "#ff4a1a" },
+  Blazequill:  { n: "Quill Volley", t: "Fight", fx: "bolt", n2: 7, spread: 0.9, dmg: 0.8, col: "#ff6a1a" },
+  Glacius:     { n: "Ice Slide", t: "Move", fx: "buff", speed: 2.2, t2: 5, trail: "#cfefff", col: "#bfe8ff" },
+  Snowpaw:     { n: "Snow Dive", t: "Move", fx: "tp", d: 26, ground: 1, col: "#ffffff" },
+  Tempestra:   { n: "Thunderclap", t: "Fight", fx: "ring", r: 12, dmg: 0.5, stun: 2, col: "#e8f0ff" },
+  Rimefang:    { n: "Icicle Rain", t: "Fight", fx: "rain", at: 0, r: 11, n2: 10, dmg: 0.9, col: "#bfe8ff" },
+  Aquawyrm:    { n: "Bubble Ride", t: "Move", fx: "buff", speed: 2.0, water: 1, t2: 8, bubble: 1, col: "#7ad0ff" },
+  Gillwing:    { n: "Fish Finder", t: "Find", fx: "find", what: "water", col: "#5ab8ff" },
+  Bergdrake:   { n: "Iceberg", t: "Guard", fx: "buff", half: 8, wall: 1, col: "#cfefff" },
+  Pearlhorn:   { n: "Pearl Glow", t: "Find", fx: "find", what: "chest", col: "#f8f0ff" },
+  Abyssar:     { n: "Deep Dark", t: "Fight", fx: "buff", hide: 6, dmgMul: 1.5, t2: 6, dark: 1, col: "#3a2a7a" },
+  Driftail:    { n: "Cloud Nap", t: "Heal", fx: "buff", inv: 5, regen: 0.08, t2: 5, cloud: 1, col: "#ffffff" },
+  Aerolash:    { n: "Wind Dash", t: "Move", fx: "dash", d: 40, col: "#e8f4ff" },
+  Skyrune:     { n: "Sun Flare", t: "Fight", fx: "cone", r: 18, dmg: 1.6, col: "#ffa02a" },
+  Lumora:      { n: "Moonbeam", t: "Fight", fx: "bolt", n2: 1, dmg: 2.4, beam: 1, col: "#cfe0ff" },
+  Auroran:     { n: "Aurora Veil", t: "Guard", fx: "zone", at: 0, r: 8, t2: 10, regen: 0.04, col: "#7affb0" },
+  Geodrake:    { n: "Crystal Sense", t: "Find", fx: "find", what: "dig", col: "#b07aff" },
+  Prismwing:   { n: "Rainbow Beam", t: "Fight", fx: "bolt", n2: 1, dmg: 1.2, chain: 4, rainbow: 1, col: "#ff7ad0" },
+  Echowyrm:    { n: "Echo Map", t: "Find", fx: "find", what: "all", col: "#7ad0ff" },
+  Dunerunner:  { n: "Sprint", t: "Move", fx: "buff", speed: 2.0, t2: 6, col: "#e8c87a" },
+  Sunscale:    { n: "Mirror Flash", t: "Fight", fx: "cone", r: 20, stun: 2, col: "#fff2a0" },
+  Miragewyrm:  { n: "Mirage", t: "Guard", fx: "decoy", t2: 8, col: "#ffe0a0" },
+  Scarabyx:    { n: "Shell Spin", t: "Fight", fx: "dash", d: 28, dmg: 1.2, inv: 1, col: "#3ad0a0" },
+  Mirewyrm:    { n: "Mud Bath", t: "Heal", fx: "buff", heal: 0.25, mud: 10, col: "#6a4a2a" },
+  Fogdrake:    { n: "Fog Bank", t: "Guard", fx: "buff", hide: 8, smoke: 1, col: "#d8e0e8" },
+  Lanternfen:  { n: "Lure Light", t: "Find", fx: "find", what: "egg", far: 1, col: "#ffe07a" },
+  Venomire:    { n: "Venom Spit", t: "Fight", fx: "bolt", n2: 1, dmg: 0.6, poison: 8, col: "#9ae04a" },
+  Coralwyrm:   { n: "Coral Wall", t: "Guard", fx: "buff", block: 4, t2: 20, wall: 1, col: "#ff7a6a" },
+  Reefdart:    { n: "Dart", t: "Move", fx: "dash", d: 32, col: "#5ad0ff" },
+  Tidelash:    { n: "Tidal Wave", t: "Fight", fx: "cone", r: 20, dmg: 1.1, knock: 14, col: "#3a9aff" },
+  Deepcrown:   { n: "Crown of the Deep", t: "Guard", fx: "buff", thorns: 10, col: "#7ad0ff" },
+  Emberleaf:   { n: "Leaf Fire", t: "Fight", fx: "bolt", n2: 5, spread: 0.6, dmg: 0.7, col: "#ff8a3a" },
+  Hedgewyrm:   { n: "Spike Ball", t: "Guard", fx: "buff", inv: 4, thorns: 4, col: "#8a6a4a" },
+  Maplewing:   { n: "Leaf Glide", t: "Move", fx: "buff", speed: 1.7, t2: 10, glide: 1, col: "#ff8a2a" },
+  Gloamhorn:   { n: "Dusk Horn", t: "Fight", fx: "ring", r: 24, fear: 6, weakOnly: 1, col: "#8a5ab0" },
+  Sludgeling:  { n: "Slime Trail", t: "Fight", fx: "zone", at: 0, follow: 1, r: 3, t2: 8, slow: 1, col: "#8ad04a" },
+  Toxitail:    { n: "Tail Sting", t: "Fight", fx: "bite", dmg: 2.0, poison: 6, col: "#9ae04a" },
+  Sporecrest:  { n: "Spore Cloud", t: "Fight", fx: "ring", r: 12, sleep: 4, col: "#d0a0ff" },
+  Venomaw:     { n: "Toxic Bite", t: "Fight", fx: "bite", dmg: 2.2, poison: 6, weak: 10, col: "#7ae02a" },
+  Bramblehydra:{ n: "Two Bites", t: "Fight", fx: "bite", dmg: 1.8, twice: 1, col: "#6aa04a" },
+  Coilwyrm:    { n: "Coil Squeeze", t: "Fight", fx: "bite", dmg: 1.0, hold: 5, col: "#c0a04a" },
+  Burrowdrake: { n: "Tunnel", t: "Move", fx: "tp", d: 30, ground: 1, col: "#8a6a4a" },
+  Marshhydra:  { n: "Water Jets", t: "Fight", fx: "bolt", n2: 2, spread: 0.25, dmg: 1.1, knock: 6, col: "#5ab8ff" },
+  Thunderhydra:{ n: "Twin Lightning", t: "Fight", fx: "bolt", n2: 2, spread: 0.25, dmg: 1.3, beam: 1, col: "#f0f0ff" },
+  Crestrunner: { n: "Crest Charge", t: "Fight", fx: "dash", d: 26, dmg: 1.5, knock: 10, col: "#ffb04a" },
+  Twinhead:    { n: "Double Breath", t: "Fight", fx: "cone", r: 16, dmg: 1.4, slow: 1, col: "#ff7a2a", col2: "#7ad0ff" },
+  Dustmite:    { n: "Sneeze", t: "Fight", fx: "ring", r: 8, dmg: 0.05, stun: 1.5, laugh: 1, col: "#b0a890" },
+  Sirocco:     { n: "Sand Sail", t: "Move", fx: "buff", speed: 2.0, t2: 8, air: 1, col: "#e8c87a" },
+  Whiteout:    { n: "Whiteout", t: "Guard", fx: "buff", hide: 7, smoke: 1, col: "#ffffff" },
+  Voltwing:    { n: "Chain Lightning", t: "Fight", fx: "bolt", n2: 1, dmg: 1.3, chain: 5, beam: 1, col: "#c0e0ff" },
+  Wispwyrm:    { n: "Fade", t: "Move", fx: "buff", phase: 3, col: "#e0f0ff" },
+  Starwyrm:    { n: "Meteor Drop", t: "Fight", fx: "rain", at: 14, r: 8, n2: 1, big: 1, dmg: 3.0, col: "#ffb04a" },
+  Scarlune:    { n: "Blood Moon", t: "Fight", fx: "buff", dmgMul: 1.5, steal: 0.25, t2: 10, col: "#ff3a4a" },
+  Eclipsar:    { n: "Eclipse", t: "Fight", fx: "ring", r: 30, hold: 4, dark: 1, col: "#ffd27a" },
+  Vulpyre:     { n: "Spirit Fire", t: "Heal", fx: "buff", regen: 0.035, t2: 10, flames: 1, col: "#ff6a2a" },
+  Crestwyrm:   { n: "Champion's Roar", t: "Guard", fx: "buff", half: 10, roar: 1, col: "#ffd24a" },
+  Quantum:     { n: "Blink", t: "Move", fx: "tp", d: 22, col: "#a05aff" },
+  Petralith:   { n: "Stone Heart", t: "Guard", fx: "buff", inv: 5, healAfter: 1, cd: 600, col: "#ffb03a" },
+  Medusel:     { n: "Sting Bloom", t: "Fight", fx: "ring", r: 11, dmg: 1.0, slow: 1, col: "#7affff" },
+  Ribcrawler:  { n: "Bone Rattle", t: "Fight", fx: "ring", r: 18, fear: 6, col: "#e8e0c8" },
+  Gravemaw:    { n: "Grave Grip", t: "Fight", fx: "bite", dmg: 1.2, hold: 5, col: "#c8b890" },
+  Wraithwing:  { n: "Ghost Glide", t: "Move", fx: "buff", phase: 3, col: "#c0e0ff" },
+  Lichcrown:   { n: "Soul Lantern", t: "Find", fx: "find", what: "chest", col: "#7affb0" },
+  Veinfang:    { n: "Drain Bite", t: "Fight", fx: "bite", dmg: 1.6, drain: 1, col: "#ff2a3a" },
+  Lunaria:     { n: "Moondust", t: "Fight", fx: "ring", r: 12, sleep: 5, col: "#d8f0ff" },
+  Thrumwing:   { n: "Hover Dash", t: "Move", fx: "dash", d: 34, inv: 1, hover: 0.5, col: "#7affb0" },
+};
+// second abilities at level 75 (Legendary and Secret only)
+const AB2 = {
+  Lumora:    { n: "Starfall Night", t: "Fight", fx: "buff", dmgMul: 1.6, t2: 20, glow: 1, col: "#cfe0ff" },
+  Eclipsar:  { n: "Corona Ring", t: "Guard", fx: "zone", at: 0, follow: 1, r: 6, t2: 10, dps: 0.35, col: "#ffb03a" },
+  Vulpyre:   { n: "Nine-Tail Dash", t: "Move", fx: "dash", d: 55, dmg: 1.0, inv: 1, col: "#ff6a2a" },
+  Quantum:   { n: "Rift", t: "Move", fx: "nest", col: "#a05aff" },
+  Petralith: { n: "Titan Stomp", t: "Fight", fx: "ring", r: 16, dmg: 1.8, stun: 3, knock: 8, col: "#ffb03a" },
+};
+const AB_UNLOCK = 50, AB2_UNLOCK = 75;
+const AB_CD = { Junk: 15, Common: 20, Uncommon: 25, Rare: 30, Epic: 35, Champion: 40, Legendary: 40, Secret: 40 };
+const abOf = (kind, two) => (two ? AB2 : AB)[kind] || null;
+const abHas = two => !pet.small && hasDragon() && (pet.level || 1) >= (two ? AB2_UNLOCK : AB_UNLOCK) && !!abOf(pet.kind, two);
+const abCd = a => a.cd || AB_CD[SP(pet.kind).rarity] || 30;
+
+const ABL = { cd: [0, 0], hide: 0, inv: 0, phase: 0, half: 0, thorns: 0, block: 0, blockT: 0, dmgMul: 1, dmgT: 0, steal: 0, speed: 1, speedT: 0, water: 0, air: 0,
+  regen: 0, regenT: 0, regenStill: 0, mud: 0, healAfter: 0, zones: [], shots: [], marks: [], decoy: null, fxT: 0, fxKind: null, aura: null, said: "", lastX: 0, lastZ: 0 };
+const abCol = c => new THREE.Color(c).convertSRGBToLinear();
+
+// ---- hooks the rest of the game calls ----
+function abMonSpd(m) { if (m.abHold > 0) return 0; if (m.abFear > 0) return 0; return m.abSlow > 0 ? 0.4 : 1; }
+function abSense(m) { return ABL.hide > 0 || (ABL.decoy && Math.hypot(m.x - ABL.decoy.x, m.z - ABL.decoy.z) < 40) ? 0 : 1; }
+function abSpeed() { if (ABL.speedT <= 0) return 1; if (ABL.water && !(typeof waterTop === "function" && waterTop(pet.x, pet.z) > pet.y - 2)) return 1.15; if (ABL.air && !pet.fly) return 1.1; return ABL.speed; }
+function abHurt(dmg, m) {
+  if (ABL.inv > 0 || ABL.phase > 0) { if (m && ABL.thorns > 0) abThorn(m, dmg); return 0; }
+  if (ABL.block > 0) { ABL.block--; burstAt(pet.x, pet.y + 1.6, pet.z, abOf(pet.kind).col || "#3ad08a"); toast("Blocked!", ABL.block ? `${ABL.block} more` : "The shield breaks"); if (!ABL.block) abAura(null); return 0; }
+  if (ABL.half > 0) dmg = Math.ceil(dmg / 2);
+  if (m && ABL.thorns > 0) abThorn(m, dmg);
+  if (m && ABL.mud > 0) { m.abSlow = Math.max(m.abSlow || 0, 4); }
+  return dmg;
+}
+function abThorn(m, dmg) { if (m.dead) return; m.hp -= Math.max(1, Math.round(dmg * 0.6)); m.hitT = 0.15; m.bar.visible = true; monBar(m); burstAt(m.x, m.y + m.tall * 0.6, m.z, "#7ad0ff"); if (m.hp <= 0) killMon(m); }
+function abDmg(m, dmg) {
+  if (ABL.dmgT > 0) dmg = Math.round(dmg * ABL.dmgMul);
+  if (ABL.dmgT > 0 && ABL.steal > 0) pet.hp = Math.min(petMaxHp(), petHp() + Math.max(1, Math.round(dmg * ABL.steal)));
+  if (m.abHold > 0 && m.abSleep) { m.abHold = 0; m.stun = 0; m.abSleep = false; }   // a hit wakes a sleeping monster up
+  return dmg;
+}
+
+// ---- little visual helpers ----
+function abMark(x, y, z, col, t, size) {   // a glowing dot that shows through walls
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: abCol(col), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+  s.scale.setScalar(size || 2.2); s.position.set(x, y, z); s.renderOrder = 999; scene.add(s); ABL.marks.push({ s, t, t0: t });
+}
+function abRingFx(x, y, z, r, col, t) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.15, r, 40), new THREE.MeshBasicMaterial({ color: abCol(col), transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, y + 0.3, z); m.scale.setScalar(0.1); scene.add(m); ABL.marks.push({ s: m, t: t || 0.6, t0: t || 0.6, grow: 1 });
+}
+function abAura(col, op) {   // a see-through bubble round your dragon (shields, smoke, clouds)
+  if (ABL.aura) { scene.remove(ABL.aura); ABL.aura.geometry.dispose(); ABL.aura.material.dispose(); ABL.aura = null; }
+  if (!col) return;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: abCol(col), transparent: true, opacity: op || 0.25, depthWrite: false, side: THREE.DoubleSide }));
+  scene.add(m); ABL.aura = m;
+}
+function abSparks(c, r, col, n) { for (let k = 0; k < (n || 10); k++) { const a = k / (n || 10) * 6.283; burstAt(c.x + Math.cos(a) * r, c.y + Math.random() * 1.5, c.z + Math.sin(a) * r, col); } }
+const abFwd = () => new V(Math.cos(pet.face), 0, Math.sin(pet.face));
+const abLive = () => mons.filter(m => !m.dead);
+const abHitMon = (m, a, mul, how) => { const st = petStats(); damageMon(m, Math.max(1, Math.round(rollR(how === "claw" ? st.claw : st.breath) * mul)), Math.random() < 0.1, how || "breath"); };
+function abEffect(m, a, from) {   // the extras a hit can carry
+  if (m.dead) return;
+  if (a.knock) { const ang = Math.atan2(m.z - from.z, m.x - from.x); m.x += Math.cos(ang) * a.knock; m.z += Math.sin(ang) * a.knock; }
+  if (a.stun) { m.stun = Math.max(m.stun || 0, a.stun); m.warn = 0; tint(m, null, 0); }
+  if (a.hold) { m.abHold = Math.max(m.abHold || 0, a.hold); m.stun = Math.max(m.stun || 0, a.hold); m.warn = 0; tint(m, null, 0); }
+  if (a.sleep) { m.abHold = Math.max(m.abHold || 0, a.sleep); m.stun = Math.max(m.stun || 0, a.sleep); m.abSleep = true; m.warn = 0; tint(m, null, 0); m.aggro = false; }
+  if (a.fear) { m.abFear = a.fear; m.stun = Math.max(m.stun || 0, a.fear); m.aggro = false; m.warn = 0; tint(m, null, 0); }
+  if (a.slow) m.abSlow = Math.max(m.abSlow || 0, 5);
+  if (a.poison) m.abPoison = { t: a.poison, tick: 1, dmg: Math.max(1, Math.round(rollR(petStats().breath) * 0.25)) };
+  if (a.weak) m.abWeak = a.weak;
+}
+
+// ---- using an ability ----
+function abUse(two) {
+  const i = two ? 1 : 0, a = abOf(pet.kind, two);
+  if (!a || !abHas(two)) { if (!two && a && !pet.small) toast("???", `${pet.name} hasn't found its own ability yet. Keep levelling up!`); return; }
+  if (ABL.cd[i] > 0) { toast(`${a.n} isn't ready`, `${Math.ceil(ABL.cd[i])} s`); return; }
+  if (a.t === "Fight" && !canFight()) return;
+  ABL.cd[i] = abCd(a);
+  const mid = petMid(), f = abFwd(), st = petStats(); let msg = "";
+  if (a.fx === "ring") {
+    abRingFx(mid.x, pet.y, mid.z, a.r, a.col, 0.7); abSparks(mid, a.r * 0.6, a.col, 12);
+    let n = 0; abLive().forEach(m => { const d = Math.hypot(m.x - mid.x, m.z - mid.z); if (d > a.r + m.rad || Math.abs(m.y + m.tall * 0.5 - mid.y) > a.r + 4) return;
+      if (a.weakOnly && (m.d.boss || m.lv >= (pet.level || 1))) return;
+      if (a.dmg) abHitMon(m, a, a.dmg); abEffect(m, a, mid); n++; });
+    if (a.heal) pet.hp = Math.min(petMaxHp(), petHp() + Math.round(petMaxHp() * a.heal));
+    msg = a.laugh ? (n ? `Achoo! ${n} monster${n > 1 ? "s" : ""} can't stop laughing!` : "Achoo! Bless you.") : n ? `Hit ${n} monster${n > 1 ? "s" : ""}!` : "Nothing close enough";
+    if (a.dark) ABL.fxT = Math.max(ABL.fxT, 4), ABL.fxKind = "dark";
+  } else if (a.fx === "cone") {
+    for (let k = 0; k < 14; k++) { const d = 3 + k * a.r / 14, s = (Math.random() - 0.5) * d * 0.9; burstAt(mid.x + f.x * d - f.z * s, mid.y + (Math.random() - 0.3), mid.z + f.z * d + f.x * s, a.col2 && k % 2 ? a.col2 : a.col); }
+    let n = 0; abLive().forEach(m => { const dx = m.x - mid.x, dz = m.z - mid.z, d = Math.hypot(dx, dz); if (d > a.r + m.rad) return;
+      const dot = (dx * f.x + dz * f.z) / Math.max(0.01, d); if (dot < 0.55 && d > m.rad + 2) return;
+      if (a.dmg) abHitMon(m, a, a.dmg); abEffect(m, a, mid); n++; });
+    msg = n ? `Hit ${n} monster${n > 1 ? "s" : ""}!` : "Nothing in front of you";
+  } else if (a.fx === "bolt") {
+    for (let k = 0; k < a.n2; k++) {
+      const off = a.n2 > 1 ? (k / (a.n2 - 1) - 0.5) * (a.spread || 0.5) : 0, dir = new V(Math.cos(pet.face + off), pet.fly ? -0.12 : 0, Math.sin(pet.face + off)).normalize();
+      const col = a.rainbow ? "#ff7ad0" : a.col;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(a.beam ? 0.35 : 0.45, 10, 8), new THREE.MeshBasicMaterial({ color: abCol(col) }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: abCol(col), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.set(2.6, 2.6, 1); ball.add(glow);
+      ball.position.copy(mid).addScaledVector(dir, 2); scene.add(ball);
+      ABL.shots.push({ ball, v: dir.multiplyScalar(a.beam ? 70 : 40), life: 1.4, a, chain: a.chain || 0, hit: [] });
+    }
+    msg = "";
+  } else if (a.fx === "bite") {
+    let best = null, bd = 1e9; abLive().forEach(m => { const dx = m.x - mid.x, dz = m.z - mid.z, d = Math.hypot(dx, dz) - m.rad; if (d > 9) return; const dot = (dx * f.x + dz * f.z) / Math.max(0.01, Math.hypot(dx, dz)); if (dot < 0.2 && d > 2) return; if (d < bd) { bd = d; best = m; } });
+    if (!best) { msg = "Nothing close enough to bite"; ABL.cd[i] = 2; }
+    else { const hp0 = best.hp; abHitMon(best, a, a.dmg, "claw"); if (a.twice && !best.dead) setTimeout(() => { if (!best.dead) abHitMon(best, a, a.dmg * 0.8, "claw"); }, 250);
+      abEffect(best, a, mid); if (a.drain) { const got = Math.max(0, hp0 - Math.max(0, best.hp)); pet.hp = Math.min(petMaxHp(), petHp() + got); msg = `+${got} HP for ${pet.name}`; }
+      for (let k = 0; k < 6; k++) burstAt(best.x + (Math.random() - 0.5) * 2, best.y + best.tall * 0.6, best.z + (Math.random() - 0.5) * 2, a.col); }
+  } else if (a.fx === "rain") {
+    const c = new V(pet.x + f.x * (a.at || 0), 0, pet.z + f.z * (a.at || 0)); c.y = groundAt(c.x, c.z, pet.y + 6);
+    abRingFx(c.x, c.y, c.z, a.r, a.col, 1.2);
+    for (let k = 0; k < a.n2; k++) {
+      const ang = Math.random() * 6.283, rr = a.n2 > 1 ? Math.sqrt(Math.random()) * a.r : 0, p = new V(c.x + Math.cos(ang) * rr, c.y + 26, c.z + Math.sin(ang) * rr);
+      const geo = a.big ? new THREE.DodecahedronGeometry(1.6, 0) : a.col === "#bfe8ff" ? new THREE.ConeGeometry(0.35, 2.2, 6) : new THREE.DodecahedronGeometry(0.9, 0);
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: abCol(a.col), emissive: abCol(a.big ? "#ff6a1a" : a.col), emissiveIntensity: a.big ? 1 : 0.3, flatShading: true }));
+      if (a.col === "#bfe8ff") mesh.rotation.x = Math.PI;
+      mesh.position.copy(p); scene.add(mesh);
+      ABL.shots.push({ ball: mesh, v: new V(0, -38, 0), life: 2, a, delay: k * 0.12, rain: 1, floor: c.y, hit: [] });
+    }
+    msg = a.big ? "Look up!" : "";
+  } else if (a.fx === "zone") {
+    const pts = []; if (a.line) for (let d = 3; d <= a.line; d += 2.5) pts.push(new V(pet.x + f.x * d, 0, pet.z + f.z * d)); else pts.push(new V(pet.x + f.x * (a.at || 0), 0, pet.z + f.z * (a.at || 0)));
+    const parts = pts.map(p => { p.y = groundAt(p.x, p.z, pet.y + 4);
+      const m = new THREE.Mesh(new THREE.CircleGeometry(a.r, 28), new THREE.MeshBasicMaterial({ color: abCol(a.col), transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
+      m.rotation.x = -Math.PI / 2; m.position.set(p.x, p.y + 0.25, p.z); scene.add(m); return { p, m }; });
+    ABL.zones.push({ a, parts, t: a.t2, tick: 0 });
+    msg = "";
+  } else if (a.fx === "buff") {
+    const T2 = a.t2 || a.hide || a.inv || a.phase || a.half || a.thorns || 6;
+    if (a.hide) { ABL.hide = a.hide; mons.forEach(m => { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }); }
+    if (a.inv) ABL.inv = a.inv; if (a.phase) ABL.phase = a.phase; if (a.half) ABL.half = a.half; if (a.thorns) ABL.thorns = a.thorns;
+    if (a.block) { ABL.block = a.block; ABL.blockT = a.t2 || 30; }
+    if (a.dmgMul) { ABL.dmgMul = a.dmgMul; ABL.dmgT = T2; ABL.steal = a.steal || 0; }
+    if (a.speed) { ABL.speed = a.speed; ABL.speedT = T2; ABL.water = a.water || 0; ABL.air = a.air || 0; }
+    if (a.regen) { ABL.regen = a.regen; ABL.regenT = T2; }
+    if (a.heal) pet.hp = Math.min(petMaxHp(), petHp() + Math.round(petMaxHp() * a.heal));
+    if (a.mud) ABL.mud = a.mud;
+    if (a.healAfter) ABL.healAfter = 1;
+    ABL.fxT = T2; ABL.fxKind = a.smoke ? "smoke" : a.cloud ? "cloud" : a.flames ? "flames" : a.dark ? "dark" : a.trail ? "trail" : a.bubble ? "bubble" : a.glide ? "leaves" : a.glow ? "glow" : null;
+    if (a.block || a.half || a.inv || a.phase || a.thorns) abAura(a.col, a.phase ? 0.15 : 0.25);
+    else if (a.smoke || a.cloud || a.bubble) abAura(a.col, a.smoke ? 0.45 : 0.3);
+    if (a.heal) { abRingFx(pet.x, pet.y, pet.z, 8, a.col, 1); abSparks(mid, 3, a.col, 14); }
+    if (a.still) msg = `${pet.name} holds still. Nothing can hurt it for ${a.inv} s`;
+    if (a.hide) msg = "The monsters lost track of you!";
+    if (a.heal && !msg) msg = `+${Math.round(petMaxHp() * a.heal)} HP`;
+    if (a.roar) abRingFx(pet.x, pet.y, pet.z, 14, a.col, 0.8);
+  } else if (a.fx === "dash") {
+    ABL.dash = { t: a.d / 60, v: 60, a, hit: [] }; if (a.inv) ABL.inv = Math.max(ABL.inv, a.d / 60 + 0.2); if (a.hover) ABL.dash.wait = a.hover;
+    abSparks(mid, 2, a.col, 8);
+  } else if (a.fx === "tp") {
+    const from = mid.clone(); let nx = pet.x + f.x * a.d, nz = pet.z + f.z * a.d;
+    if (a.ground && pet.fly) { toast(`${a.n} only works on the ground`, ""); ABL.cd[i] = 1; return; }
+    for (let k = 0; k < 10; k++) burstAt(from.x + (Math.random() - 0.5) * 3, from.y + (Math.random() - 0.5) * 2, from.z + (Math.random() - 0.5) * 3, a.col);
+    pet.x = nx; pet.z = nz; const g = groundAt(nx, nz, pet.y + 40); if (a.ground || pet.y < g + 0.5) pet.y = g;
+    const to = petMid(); for (let k = 0; k < 10; k++) burstAt(to.x + (Math.random() - 0.5) * 3, to.y + (Math.random() - 0.5) * 2, to.z + (Math.random() - 0.5) * 3, a.col);
+  } else if (a.fx === "nest") {
+    abSparks(mid, 2, a.col, 14); pet.x = NEST.x + 5; pet.z = NEST.z + 5; pet.y = groundAt(pet.x, pet.z, 40); pet.fly = false; abSparks(petMid(), 2, a.col, 14); msg = "Back at your nest!";
+  } else if (a.fx === "find") msg = abFind(a);
+  else if (a.fx === "decoy") {
+    const g = dragon.root.clone(); g.position.copy(dragon.root.position); g.rotation.copy(dragon.root.rotation); g.scale.copy(dragon.root.scale); scene.add(g);
+    ABL.decoy = { g, x: pet.x, z: pet.z, t: a.t2 }; mons.forEach(m => { if (m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); } }); msg = "The monsters are chasing the copy!";
+  }
+  toast(`${a.n}!`, msg);
+  if (typeof sfx === "function") sfx(a.t === "Heal" ? "egg" : a.t === "Fight" ? "breath" : "click");
+}
+function abFind(a) {
+  const mid = petMid(); let list = [];
+  if (a.what === "egg" || a.what === "water" || a.what === "all") wild.forEach(w => { if (!w.g || w.g.visible === false) return; if (a.what === "water" && !(typeof waterTop === "function" && (waterTop(w.x, w.z) > -Infinity || height(w.x, w.z) < WATER_Y + 1))) return; list.push([w.x, w.y + 1, w.z, "egg"]); });
+  if (a.what === "chest") { skSpots.forEach(s => { if (!s.paid) list.push([s.x, s.y + 2, s.z, "chest"]); }); if (typeof SECRET_SPOTS !== "undefined") SECRET_SPOTS.forEach(s => list.push([s.x, s.y + 1, s.z, "secret"])); }
+  if (a.what === "dig") DIG.spots.forEach(s => list.push([s.x, s.y + 1, s.z, "treasure"]));
+  if (a.what === "all") { abLive().forEach(m => { if (Math.hypot(m.x - mid.x, m.z - mid.z) < 90) abMark(m.x, m.y + m.tall * 0.6, m.z, "#ff5a4a", 8, 2.6); });
+    list.filter(p => Math.hypot(p[0] - mid.x, p[2] - mid.z) < 120).forEach(p => abMark(p[0], p[1], p[2], a.col, 8, 3));
+    abRingFx(pet.x, pet.y, pet.z, 40, a.col, 1.2); const nm = abLive().filter(m => Math.hypot(m.x - mid.x, m.z - mid.z) < 90).length, ne = list.filter(p => Math.hypot(p[0] - mid.x, p[2] - mid.z) < 120).length;
+    return `${nm} monster${nm === 1 ? "" : "s"} (red) and ${ne} egg${ne === 1 ? "" : "s"} nearby`; }
+  if (!list.length) return a.what === "water" ? "No water eggs anywhere right now" : a.what === "dig" ? "No buried treasure around here right now" : a.what === "egg" ? "No eggs out there right now" : "Nothing hidden around here";
+  list.sort((p, q) => Math.hypot(p[0] - mid.x, p[2] - mid.z) - Math.hypot(q[0] - mid.x, q[2] - mid.z));
+  const p = list[0], d = Math.hypot(p[0] - mid.x, p[2] - mid.z), steps = Math.min(30, Math.ceil(d / 5));
+  for (let k = 1; k <= steps; k++) { const u = k / steps; abMark(mid.x + (p[0] - mid.x) * u, mid.y + (p[1] - mid.y) * u, mid.z + (p[2] - mid.z) * u, a.col, 6 + u * 4, 1.2 + u); }
+  abMark(p[0], p[1] + 1, p[2], a.col, 12, a.far ? 8 : 4);
+  const dirs = ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"], ang = Math.atan2(p[2] - mid.z, p[0] - mid.x);
+  return `The nearest ${p[3]} is ${Math.round(d)} m away (${dirs[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]}). Follow the sparkles!`;
+}
+
+// ---- every frame ----
+function updateAbilities(dt) {
+  for (let i = 0; i < 2; i++) ABL.cd[i] = Math.max(0, ABL.cd[i] - dt);
+  const was = ABL.inv > 0;
+  ["hide", "inv", "phase", "half", "thorns", "dmgT", "speedT", "regenT", "mud", "fxT"].forEach(k => { ABL[k] = Math.max(0, ABL[k] - dt); });
+  if (ABL.block > 0 && (ABL.blockT -= dt) <= 0) { ABL.block = 0; }
+  if (ABL.healAfter && was && ABL.inv <= 0) { ABL.healAfter = 0; pet.hp = petMaxHp(); toast("Stone Heart", `${pet.name} wakes up fully healed!`); }
+  const riding = state === "ride";
+  if (!riding) { ABL.dash = null; }
+  if (ABL.hide > 0) mons.forEach(m => { if (m.aggro && !m.d.boss) { m.aggro = false; m.warn = 0; } });
+  if (ABL.regenT > 0 && riding) pet.hp = Math.min(petMaxHp(), petHp() + petMaxHp() * ABL.regen * dt);
+  // the aura bubble follows your dragon; it goes when nothing needs it any more
+  if (ABL.aura) { const on = ABL.block > 0 || ABL.half > 0 || ABL.inv > 0 || ABL.phase > 0 || ABL.thorns > 0 || (ABL.fxT > 0 && /smoke|cloud|bubble/.test(ABL.fxKind || ""));
+    if (!on || !riding) abAura(null); else { const c = petMid(), r = petRad() * (ABL.fxKind === "smoke" ? 3 : 1.6); ABL.aura.position.copy(c); ABL.aura.scale.setScalar(r * (1 + Math.sin(T * 6) * 0.03)); } }
+  // little particle effects while a buff lasts
+  if (ABL.fxT > 0 && riding && (ABL.tick = (ABL.tick || 0) - dt) <= 0) {
+    ABL.tick = 0.12; const c = petMid(), a = abOf(pet.kind) || {}, k = ABL.fxKind;
+    if (k === "flames") { for (let j = 0; j < 9; j++) { const ang = T * 2 + j * 0.698; burstAt(c.x + Math.cos(ang) * 3, c.y + 0.6, c.z + Math.sin(ang) * 3, "#ff6a2a"); } }
+    else if (k === "trail" || k === "leaves" || k === "bubble") burstAt(pet.x, pet.y + 0.3, pet.z, k === "leaves" ? "#ff8a2a" : a.col || "#ffffff");
+    else if (k === "dark") burstAt(c.x + (Math.random() - 0.5) * 8, c.y + Math.random() * 3, c.z + (Math.random() - 0.5) * 8, "#2a1a4a");
+    else if (k === "glow") burstAt(c.x + (Math.random() - 0.5) * 3, c.y + Math.random() * 2, c.z + (Math.random() - 0.5) * 3, "#cfe0ff");
+  }
+  // monster effects
+  mons.forEach(m => {
+    if (m.abHold > 0) { m.abHold -= dt; if (m.abHold <= 0) m.abSleep = false; else if (m.abSleep && Math.random() < dt * 1.5) burstAt(m.x, m.y + m.tall + 0.5, m.z, "#d0e0ff"); }
+    if (m.abSlow > 0) m.abSlow -= dt;
+    if (m.abWeak > 0) m.abWeak -= dt;
+    if (m.abFear > 0) { m.abFear -= dt; const ang = Math.atan2(m.z - pet.z, m.x - pet.x), sp = 9 * dt; if (!m.d.boss && !m.dead) { m.x += Math.cos(ang) * sp; m.z += Math.sin(ang) * sp; m.face = ang; if (!m.d.fly && !m.d.deep) m.y = groundAt(m.x, m.z, m.y + 3); m.holder.position.set(m.x, m.y, m.z); } }
+    if (m.abPoison && !m.dead) { const q = m.abPoison; q.t -= dt; q.tick -= dt; if (q.tick <= 0) { q.tick = 1; m.hp -= q.dmg; m.hitT = 0.15; m.bar.visible = true; monBar(m); burstAt(m.x, m.y + m.tall * 0.7, m.z, "#9ae04a"); if (m.hp <= 0) killMon(m); } if (q.t <= 0) m.abPoison = null; }
+  });
+  // shots: bolts, beams and falling things
+  for (let i = ABL.shots.length - 1; i >= 0; i--) {
+    const s = ABL.shots[i];
+    if (s.delay > 0) { s.delay -= dt; continue; }
+    s.life -= dt; s.ball.position.addScaledVector(s.v, dt); const p = s.ball.position, a = s.a;
+    if (s.rain) { if (p.y <= s.floor + 0.5 || s.life <= 0) { const rr = a.big ? a.r : 3; abRingFx(p.x, s.floor, p.z, rr, a.col, 0.5); for (let k = 0; k < (a.big ? 16 : 4); k++) burstAt(p.x + (Math.random() - 0.5) * rr, s.floor + Math.random() * 2, p.z + (Math.random() - 0.5) * rr, a.col);
+        abLive().forEach(m => { if (Math.hypot(m.x - p.x, m.z - p.z) < rr + m.rad && Math.abs(m.y - s.floor) < 8) { abHitMon(m, a, a.dmg); abEffect(m, a, p); } });
+        scene.remove(s.ball); s.ball.geometry.dispose(); ABL.shots.splice(i, 1); }
+      continue; }
+    if (a.beam && Math.random() < 0.7) burstAt(p.x, p.y, p.z, a.rainbow ? ["#ff5a5a", "#ffd25a", "#5aff7a", "#5ab0ff", "#c05aff"][Math.floor(T * 20) % 5] : a.col);
+    const hit = abLive().find(m => !s.hit.includes(m) && Math.hypot(m.x - p.x, m.z - p.z, m.y + m.tall * 0.5 - p.y) < m.rad + 1.4);
+    if (hit) { abHitMon(hit, a, a.dmg); abEffect(hit, a, p); s.hit.push(hit);
+      if (s.chain > 0) { s.chain--; const nx = abLive().filter(m => !s.hit.includes(m)).sort((u, w) => Math.hypot(u.x - p.x, u.z - p.z) - Math.hypot(w.x - p.x, w.z - p.z))[0];
+        if (nx && Math.hypot(nx.x - p.x, nx.z - p.z) < 25) { const to = new V(nx.x, nx.y + nx.tall * 0.5, nx.z).sub(p).normalize(); s.v.copy(to.multiplyScalar(a.beam ? 70 : 40)); s.life = 0.8; continue; } }
+      s.life = 0; }
+    if (s.life <= 0 || p.y < groundAt(p.x, p.z, p.y + 1) + 0.2) { burstAt(p.x, p.y, p.z, a.col); scene.remove(s.ball); s.ball.geometry.dispose(); ABL.shots.splice(i, 1); }
+  }
+  // lasting zones: thorn patches, lava cracks, slime, roots, aurora curtains, the corona ring
+  for (let i = ABL.zones.length - 1; i >= 0; i--) {
+    const z = ABL.zones[i], a = z.a; z.t -= dt; z.tick -= dt;
+    if (a.follow) { const f = abFwd(); z.parts.forEach(q => { q.p.set(pet.x - f.x * 1.5, groundAt(pet.x, pet.z, pet.y + 4), pet.z - f.z * 1.5); q.m.position.set(q.p.x, q.p.y + 0.25, q.p.z); });
+      if (a.r === 3 && (z.drop = (z.drop || 0) - dt) <= 0 && riding) { z.drop = 0.35; const q = { p: new V(pet.x, groundAt(pet.x, pet.z, pet.y + 4), pet.z), m: z.parts[0].m.clone() }; q.m.material = z.parts[0].m.material; q.m.position.set(q.p.x, q.p.y + 0.24, q.p.z); scene.add(q.m); z.parts.push(q); } }
+    z.parts.forEach(q => { q.m.material.opacity = 0.45 * Math.min(1, z.t) * (0.8 + Math.sin(T * 5 + q.p.x) * 0.2); });
+    const inZone = (x, y, zz, pad) => z.parts.some(q => Math.hypot(x - q.p.x, zz - q.p.z) < a.r + (pad || 0) && Math.abs(y - q.p.y) < 6);
+    if (z.tick <= 0) { z.tick = 0.5;
+      abLive().forEach(m => { if (!inZone(m.x, m.y, m.z, m.rad)) return; if (a.dps) abHitMon(m, a, a.dps); if (a.slow) m.abSlow = Math.max(m.abSlow || 0, 1.5); if (a.trip && !m.abTripped) { m.abTripped = 1; abEffect(m, { hold: 1.5 }, z.parts[0].p); } });
+      z.parts.forEach(q => burstAt(q.p.x + (Math.random() - 0.5) * a.r, q.p.y + 0.4, q.p.z + (Math.random() - 0.5) * a.r, a.col)); }
+    if (riding && inZone(pet.x, pet.y, pet.z)) {
+      if (a.regen) pet.hp = Math.min(petMaxHp(), petHp() + petMaxHp() * a.regen * dt);
+      if (a.regenStill && Math.hypot(pet.x - ABL.lastX, pet.z - ABL.lastZ) < 0.05) pet.hp = Math.min(petMaxHp(), petHp() + petMaxHp() * a.regenStill * dt);
+    }
+    if (z.t <= 0) { z.parts.forEach((q, j) => { scene.remove(q.m); if (j === 0 || !a.follow) q.m.geometry.dispose(); }); z.parts[0].m.material.dispose(); mons.forEach(m => m.abTripped = 0); ABL.zones.splice(i, 1); }
+  }
+  ABL.lastX = pet.x; ABL.lastZ = pet.z;
+  // dashes: Wind Dash, Shell Spin, Crest Charge, Dart, Hover Dash, Nine-Tail Dash
+  if (ABL.dash && riding) {
+    const D = ABL.dash, f = abFwd();
+    if (D.wait > 0) { D.wait -= dt; pet.speed = 0; burstAt(pet.x, pet.y + 1, pet.z, D.a.col); }
+    else { D.t -= dt; const st = D.v * dt; if (pet.fly) { pet.x += f.x * st; pet.z += f.z * st; } else moveCircle(pet, f.x * st, f.z * st, 1.0);
+      burstAt(pet.x - f.x * 2, pet.y + 1, pet.z - f.z * 2, D.a.col);
+      if (D.a.dmg) { const c = petMid(); abLive().forEach(m => { if (D.hit.includes(m) || Math.hypot(m.x - c.x, m.z - c.z) > m.rad + petRad() + 1.5) return; D.hit.push(m); abHitMon(m, D.a, D.a.dmg, "claw"); abEffect(m, D.a, c); }); }
+      if (D.t <= 0) ABL.dash = null; }
+  }
+  // the Mirage copy
+  if (ABL.decoy) { const dc = ABL.decoy; dc.t -= dt; if (dc.t <= 0 || !riding) { scene.remove(dc.g); ABL.decoy = null; }
+    else abLive().forEach(m => { if (m.d.boss || Math.hypot(m.x - dc.x, m.z - dc.z) > 40) return; const d = Math.hypot(dc.x - m.x, dc.z - m.z); if (d > 2.5) { m.x += (dc.x - m.x) / d * 6 * dt; m.z += (dc.z - m.z) / d * 6 * dt; m.face = Math.atan2(dc.z - m.z, dc.x - m.x); if (!m.d.fly && !m.d.deep) m.y = groundAt(m.x, m.z, m.y + 3); m.holder.position.set(m.x, m.y, m.z); } }); }
+  // glowing markers fade away
+  for (let i = ABL.marks.length - 1; i >= 0; i--) { const k = ABL.marks[i]; k.t -= dt;
+    if (k.grow) { const u = 1 - k.t / k.t0; k.s.scale.setScalar(0.1 + u * 0.9); k.s.material.opacity = 0.55 * (1 - u); }
+    else k.s.material.opacity = Math.min(1, k.t) * (0.7 + Math.sin(T * 6 + i) * 0.3);
+    if (k.t <= 0) { scene.remove(k.s); k.s.geometry && k.s.geometry.dispose && k.s.geometry.dispose(); k.s.material.dispose(); ABL.marks.splice(i, 1); } }
+  // tell the player once when the dragon discovers its ability
+  const who = pet.name + "|" + pet.kind + "|" + (abHas(false) ? 1 : 0) + (abHas(true) ? 1 : 0);
+  if (started && hasDragon() && state !== "arena" && who !== ABL.said) {
+    const prev = ABL.said; ABL.said = who;
+    if (prev && prev.split("|").slice(0, 2).join("|") === who.split("|").slice(0, 2).join("|")) {
+      if (abHas(true) && prev.endsWith("1" + "0")) toast(`${pet.name} discovered a second ability: ${abOf(pet.kind, true).n}!`, "Press 6 while riding to use it");
+      else if (abHas(false) && prev.endsWith("00")) toast(`${pet.name} discovered its own ability: ${abOf(pet.kind).n}!`, "Press 5 while riding to use it");
+    }
+  }
+}
+addEventListener("keydown", e => {
+  if (e.repeat || uiOpen || state !== "ride") return;
+  if (e.code === "Digit5") abUse(false); else if (e.code === "Digit6") abUse(true);
+});
+
+// ---- arena version: once per fight, turned into a turn-based move ----
+function abArenaKind(a) {
+  if (a.t === "Heal") return "heal";
+  if (a.t === "Find") return "crit";
+  if (a.t === "Move") return "dodge";
+  if (a.t === "Guard") return a.block ? "block" : a.half ? "half" : a.thorns ? "thorns" : a.heal || a.regen ? (a.stun ? "stunheal" : "heal") : "dodge";
+  return "hit";   // Fight
+}
+function abArenaDesc(a) {
+  const k = abArenaKind(a);
+  return { heal: "heals a big chunk of HP", crit: "spots a weak spot: your next hit is a critical", dodge: "the foe's next attack misses", block: `blocks the next ${a.block || 2} hits`,
+    half: "you take half damage for 3 turns", thorns: "hurts the foe back when it hits you, for 3 turns", stunheal: "heals a little and dazzles the foe so it skips its next attack",
+    hit: a.stun || a.hold || a.sleep || a.fear ? "a hit, and the foe skips its next attack" : a.poison ? "a hit that keeps poisoning for 3 turns" : a.weak ? "a hit that weakens the foe's attacks" : a.drain ? "a hit that heals you as much as it hurts" : a.dmgMul ? "your hits are stronger for 3 turns" : "a big hit" }[k];
+}
+async function abArena(two) {
+  const A = run.me, D = run.foe, a = abOf(pet.kind, two), dName = `${shownName(foe)}'s ${foe.k}`, k = abArenaKind(a);
+  A.abUsed = A.abUsed || [0, 0]; A.abUsed[two ? 1 : 0] = 1; fx.me.lunge = 1; await sleep(320);
+  const me = spotMe().clone().add(new V(0, 1.6, 0)), them = spotFoe().clone().add(new V(0, 1.6, 0));
+  let txt = `${pet.name} uses <b>${a.n}</b>! `;
+  if (k === "heal" || k === "stunheal") { const add = Math.min(A.max - A.hp, Math.round(A.max * (k === "stunheal" ? 0.2 : a.heal || 0.45))); A.hp += add; burst(me, a.col); txt += `<b>+${add} HP</b>. `; if (k === "stunheal") { D.stun = true; txt += `${dName} is dazzled!`; } }
+  else if (k === "crit") { A.crit = true; burst(me, a.col); txt += "It spots a weak spot! The next hit will be a critical."; }
+  else if (k === "dodge") { A.dodge = true; burst(me, a.col); txt += `${dName}'s next attack will miss.`; }
+  else if (k === "block") { A.block = a.block || 2; burst(me, a.col); txt += `It will block the next ${A.block} hits.`; }
+  else if (k === "half") { A.half = 3; burst(me, a.col); txt += "It takes half damage for 3 turns."; }
+  else if (k === "thorns") { A.thorns = 3; burst(me, a.col); txt += "Anything that hits it gets hurt back."; }
+  else {
+    if (a.dmgMul && !a.dmg) { A.buff = 3; burst(me, a.col); txt += "Its hits are stronger for 3 turns!"; if (a.steal) A.steal = 1; }
+    else {
+      const base = a.fx === "bite" || a.fx === "dash" ? A.claw : A.breath, mul = Math.max(0.6, (a.dmg || 0.8) * (a.n2 > 1 && a.fx === "bolt" ? Math.min(2.2, 0.5 + a.n2 * 0.25) : 1) * (a.chain ? 1.3 : 1) * (a.twice ? 1.6 : 1));
+      let dmg = Math.max(1, Math.round(rnd(base) * Math.min(mul, 3))); if (a.laugh) dmg = 1; if (D.guard) dmg = Math.ceil(dmg / 2);
+      D.hp -= dmg; fx.foe.hit = 1; for (let j = 0; j < 3; j++) burst(them.clone().add(new V((Math.random() - 0.5) * 2, Math.random(), (Math.random() - 0.5) * 2)), a.col);
+      txt += `${D.guard ? "(guarded) " : ""}${dName} takes <b>${dmg}</b>. `;
+      if (a.drain) { const add = Math.min(A.max - A.hp, dmg); A.hp += add; txt += `${pet.name} drinks <b>${add} HP</b>. `; }
+    }
+    if (a.stun || a.hold || a.sleep || a.fear || a.laugh) { D.stun = true; txt += a.laugh ? `${dName} can't stop laughing!` : a.sleep ? `${dName} falls asleep!` : a.fear ? `${dName} is scared stiff!` : `${dName} can't move!`; }
+    if (a.poison) { D.poison = 3; D.poisonDmg = Math.max(1, Math.round(rnd(A.breath) * 0.3)); txt += `${dName} is poisoned!`; }
+    if (a.weak) { D.weak = 3; txt += `${dName}'s attacks get weaker!`; }
+  }
+  crowd.hype = 1; say(txt); bars(); await sleep(1000);
+}
+function abHud() {
+  let h = ""; [false, true].forEach((two, i) => { if (!abHas(two)) return; const a = abOf(pet.kind, two); h += `<span class="${ABL.cd[i] > 0 ? "wait" : ""}"><kbd>${5 + i}</kbd> ${a.n}${ABL.cd[i] > 0 ? ` ${Math.ceil(ABL.cd[i])}s` : ""}</span>`; });
+  return h;
+}
+// damage changes from abilities during an arena hit (A = attacker, D = defender); returns the new damage
+function abArenaHit(A, D, dmg) {
+  if (A.buff > 0) dmg = Math.round(dmg * 1.5);
+  if (A.buff > 0 && A.steal) A.hp = Math.min(A.max, A.hp + Math.max(1, Math.round(dmg * 0.25)));
+  if (A.weak > 0) dmg = Math.max(1, Math.round(dmg * 0.6));
+  if (D.block > 0) { D.block--; return 0; }
+  if (D.half > 0) dmg = Math.ceil(dmg / 2);
+  if (D.thorns > 0) A.hp -= Math.max(1, Math.round(dmg * 0.5));
+  return dmg;
+}
+function abArenaTurnEnd() {
+  const me = run.me, f = run.foe;
+  [me, f].forEach(x => { ["half", "thorns", "buff", "weak"].forEach(k => { if (x[k] > 0) x[k]--; }); });
+  if (f.poison > 0 && f.hp > 0) { f.poison--; f.hp -= f.poisonDmg; burst(spotFoe().clone().add(new V(0, 1.6, 0)), "#9ae04a"); bars(); return `Poison hurts ${shownName(foe)}'s ${foe.k} for <b>${f.poisonDmg}</b>. `; }
+  return "";
 }
 
 // ===== BETTER LAND GRAPHICS (Petra 2026-11-11: "slightly better graphics" for the land) =====
