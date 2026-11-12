@@ -835,33 +835,6 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       c.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.1, emissive: new THREE.Color(p.hornTip).convertSRGBToLinear(), emissiveIntensity: 0.15 });
     }
   }
-  if (o.horns === "antennae") [1, -1].forEach(z => {   // NEW (Lunaria): big feathery moth antennae: a curved stalk with a comb of fine barbs on both sides
-    const pts = [new V(0.12, 0.24, 0.07 * z), new V(0.1, 0.55, 0.15 * z), new V(-0.04, 0.86, 0.28 * z), new V(-0.28, 1.04, 0.4 * z)];
-    const curve = new THREE.CatmullRomCurve3(pts); head.add(staticTube(pts, [[0, 0.02], [1, 0.008]], M.horn, 24, 8));
-    const bg = new THREE.CylinderGeometry(0.005, 0.0025, 1, 5); bg.translate(0, 0.5, 0);
-    const X = new V(1, 0, 0), side = new V(), dir = new V();
-    for (let i = 3; i < 34; i++) { const s = i / 34, q = curve.getPoint(s), tg = curve.getTangent(s), L = 0.16 * Math.sin(Math.PI * Math.min(1, s * 1.05)) + 0.015;
-      side.crossVectors(tg, X).normalize();
-      [1, -1].forEach(k => { dir.copy(side).multiplyScalar(k).addScaledVector(tg, 0.45).normalize(); const b = new THREE.Mesh(bg, M.horn); b.position.copy(q); b.quaternion.setFromUnitVectors(UP, dir); b.scale.set(1, L, 1); head.add(b); }); }
-  });
-  if (o.beak) {   // NEW (hummingbird): one smooth egg-shaped bird head: rounded crown, forehead sloping down into a long thin beak, eyes on the sides, throat blending into the neck
-    head.children.forEach((m, i) => { if (!m.isMesh) return; const r = m.geometry.parameters && m.geometry.parameters.radius;
-      if (i >= 1 && i <= 4 && (m.material === M.top || m.material === M.belly)) m.visible = false;   // dragon snout, snout tip, jaw, chin
-      if (m.material === M.flame2 && r && r < 0.03) m.visible = false;   // nostrils
-      if (i > 5 && m.material === M.top && m.geometry.userData && m.geometry.userData.radial) m.visible = false;   // dragon brows
-      if (m.material === M.belly && r === 0.21) { m.scale.set(1.05, 0.72, 0.82); m.position.set(-0.02, -0.12, 0); } });   // smaller throat tucked under the head
-    const sk = head.children[0]; sk.scale.set(1.12, 0.95, 0.92);   // rounder crown
-    head.children.forEach(m => { if (m.material === M.eye) m.children.forEach(l => l.visible = false); });   // bird eyes: round shiny beads, no heavy dragon eyelids
-    head.children[0].scale.set(1.2, 0.9, 0.88);   // a slightly longer, egg-shaped head with a flatter crown
-    const bm = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.beak || "#222222").convertSRGBToLinear(), roughness: 0.3, metalness: 0.1 });
-    head.add(staticTube([new V(0.12, 0.04, 0), new V(0.26, 0.0, 0), new V(0.36, -0.04, 0), new V(0.44, -0.06, 0)], [[0, 0.24], [0.45, 0.16], [0.8, 0.085], [1, 0.05]], M.top, 20, 20, 1, 0.92));   // forehead and face taper smoothly into the beak
-    const L = o.beak, bpts = [new V(0.4, -0.055, 0), new V(0.5, -0.065, 0), new V(0.5 + L * 0.5, -0.09, 0), new V(0.5 + L, -0.12, 0)];
-    head.add(staticTube(bpts, [[0, 0.058], [0.12, 0.042], [0.5, 0.024], [0.9, 0.011], [1, 0.002]], bm, 24, 14, 1, 0.85));   // long, needle-thin beak bending down a tiny bit
-  }
-  if (p.gorget) {   // NEW (hummingbird): a shiny pink throat patch, like a real hummingbird's gorget
-    const gm = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.gorget).convertSRGBToLinear(), roughness: 0.3, metalness: 0.35 });
-    head.children.forEach(m => { if (m.material === M.belly) m.material = gm; });
-  }
   if (o.crown) {   // NEW: a ring of glowing points on top of the head (Deepcrown)
     const cg = new THREE.Group(); cg.position.set(-0.08, 0.24, 0); head.add(cg);
     const cm = new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.35)).convertSRGBToLinear() });
@@ -948,257 +921,6 @@ function emberMat() {
   _ember = M.wing.clone(); _ember.userData.cracks = t;   // finished after paint(), once the wing colours are known
   return _ember;
 }
-// ---------- NEW (Petra 2026-11-12): wings that look like the real animal: Lunaria's moth wings, the hummingbird's feather wings ----------
-const custom = { ribbons: [], hum: [] };
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-const hx = (a, b, t) => "#" + mix(a, b, t).getHexString();
-function smoothLoop(pts, n) {   // closed smooth curve through [x, y] points (n = steps between points; 1 = keep sharp corners)
-  const out = [], N = pts.length;
-  for (let i = 0; i < N; i++) { const p0 = pts[(i - 1 + N) % N], p1 = pts[i], p2 = pts[(i + 1) % N], p3 = pts[(i + 2) % N];
-    for (let k = 0; k < n; k++) { const t = k / n, t2 = t * t, t3 = t2 * t;
-      out.push([0, 1].map(j => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3))); } }
-  return out;
-}
-const bboxOf = pts => [Math.min(...pts.map(q => q[0])), Math.min(...pts.map(q => q[1])), Math.max(...pts.map(q => q[0])), Math.max(...pts.map(q => q[1]))];
-// a flat wing drawn in 2D (x = forward/back, y = out from the body), then tilted up by `lift`; it droops a little towards the tip
-const wing3 = (lift, droop) => (sx, sy) => new V(sx, sy * Math.sin(lift) - droop * sy * sy * 0.06, sy * Math.cos(lift));
-function flatWing(outline, ctr, to3, mat) {
-  const RINGS = 8, pos = [], uvs = [], ix = [], [x0, y0, x1, y1] = bboxOf(outline);
-  outline.forEach(pt => { for (let r = 0; r <= RINGS; r++) { const t = r / RINGS, sx = ctr[0] + (pt[0] - ctr[0]) * t, sy = ctr[1] + (pt[1] - ctr[1]) * t, v = to3(sx, sy);
-    v.y += Math.sin(t * Math.PI) * 0.03; pos.push(v.x, v.y, v.z); uvs.push((sx - x0) / (x1 - x0), (sy - y0) / (y1 - y0)); } });
-  const n = outline.length; for (let i = 0; i < n; i++) { const j = (i + 1) % n; for (let r = 0; r < RINGS; r++) { const a = i * (RINGS + 1) + r, b = j * (RINGS + 1) + r; ix.push(a, b, a + 1, b, b + 1, a + 1); } }   // wound so the normals point UP (fur grows on the top)
-  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(ix); geo.computeVertexNormals();
-  const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m;
-}
-// paint a wing picture that lines up with flatWing's uv (200 px per unit, so circles stay round)
-function wingCanvas(outline, paintFn) {
-  const [x0, y0, x1, y1] = bboxOf(outline), K = 200, W = Math.ceil((x1 - x0) * K), H = Math.ceil((y1 - y0) * K);
-  const X = sx => (sx - x0) * K, Y = sy => (1 - (sy - y0) / (y1 - y0)) * H;
-  const mk = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
-  const cc = mk(), gc = mk(), bc = mk(), c = cc.getContext("2d"), g = gc.getContext("2d"), b = bc.getContext("2d");
-  b.fillStyle = "#808080"; b.fillRect(0, 0, W, H);
-  const path = x => { x.beginPath(); outline.forEach(([a, b], i) => i ? x.lineTo(X(a), Y(b)) : x.moveTo(X(a), Y(b))); x.closePath(); };
-  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
-  paintFn(c, g, X, Y, path, K, b);
-  const t1 = new THREE.CanvasTexture(cc), t2 = new THREE.CanvasTexture(gc), t3 = new THREE.CanvasTexture(bc); [t1, t2].forEach(t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; }); t3.anisotropy = 4;
-  return [t1, t2, t3];
-}
-// a long thin ribbon that twists once and curls up at the tip (Lunaria's wing tails and tail streamers); rebuilt every frame so it flutters
-function makeRibbon(len, wMax, c0, c1, cEdge, droop = 0.35) {
-  const N = 60, pos = new Float32Array((N + 1) * 9), col = [], ix = [];
-  const A = new THREE.Color(c0).convertSRGBToLinear(), B = new THREE.Color(c1).convertSRGBToLinear(), E = new THREE.Color(cEdge).convertSRGBToLinear();
-  for (let i = 0; i <= N; i++) { const s = i / N, base = A.clone().lerp(B, sstep(0.5, 0.92, s)), edge = base.clone().lerp(E, 0.5); [edge, base, edge].forEach(k => col.push(k.r, k.g, k.b));
-    if (i < N) for (let j = 0; j < 2; j++) { const a = i * 3 + j, b = a + 3; ix.push(a, b, a + 1, a + 1, b, b + 1); } }
-  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(ix);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.75, emissive: B.clone(), emissiveIntensity: 0.18 });
-  const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.frustumCulled = false;
-  const ph = Math.random() * 6, P = new V(), T = new V(), Nn = new V(), Bn = new V(), Wv = new V();
-  const R = { mesh, update(t, k) {
-    P.set(0, 0, 0); const ds = len / N;
-    for (let i = 0; i <= N; i++) { const s = i / N;
-      const phi = -droop * (0.6 + 0.6 * s) + (0.1 + 0.25 * k) * Math.sin(t * (2 + 3 * k) - s * 5 + ph) * s + Math.pow(sstep(0.7, 1, s), 1.4) * 5.4;   // droops, waves, then curls up at the tip
-      const yaw = (0.06 + 0.14 * k) * Math.sin(t * 1.7 - s * 4 + ph) * s;
-      T.set(Math.cos(phi) * Math.cos(yaw), Math.sin(phi), Math.cos(phi) * Math.sin(yaw));
-      if (i) P.addScaledVector(T, ds);
-      Nn.set(-Math.sin(phi) * Math.cos(yaw), Math.cos(phi), -Math.sin(phi) * Math.sin(yaw)); Bn.crossVectors(T, Nn);
-      const tau = Math.PI * 2 * sstep(0, 0.68, s) + 0.25 * Math.sin(t * 1.3 + ph);   // one full twist, flat again for the curl
-      Wv.copy(Bn).multiplyScalar(Math.cos(tau)).addScaledVector(Nn, Math.sin(tau));
-      const w = wMax * (0.3 + 0.7 * sstep(0.12, 0.62, s)) * Math.sqrt(1 - 0.92 * sstep(0.86, 1, s));
-      pos.set([P.x - Wv.x * w, P.y - Wv.y * w, P.z - Wv.z * w, P.x + Nn.x * w * 0.08, P.y + Nn.y * w * 0.08, P.z + Nn.z * w * 0.08, P.x + Wv.x * w, P.y + Wv.y * w, P.z + Wv.z * w], i * 9);
-    }
-    geo.attributes.position.needsUpdate = true; geo.computeVertexNormals();
-  } };
-  custom.ribbons.push(R); R.update(0, 0); return R;
-}
-// ----- Lunaria: four wide moth wings (front and back on each side) with glowing moon eye spots, a purple-pink rim and long twisting tails -----
-function mothPaint(outline, fore, eye) {
-  return wingCanvas(outline, (c, g, X, Y, path, K, bm) => {
-    const bx = X(fore ? 0 : -0.5), by = Y(0);
-    { let sd = fore ? 11 : 23; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, Wd = bm.canvas.width, Hd = bm.canvas.height;   // NEW (Petra): wing texture: tiny overlapping dust scales, raised veins and a ridged rim
-      for (let y = 0; y < Hd; y += 3.2) for (let x = (y / 3.2 % 2) * 2.2; x < Wd; x += 4.4) { const v = 120 + rnd() * 40 | 0; bm.fillStyle = `rgb(${v},${v},${v})`; bm.beginPath(); bm.ellipse(x, y, 2.6, 1.9, 0, 0, 7); bm.fill(); }
-      bm.strokeStyle = "#c8c8c8"; bm.lineWidth = 4; bm.lineCap = "round";
-      for (let i = 3; i < outline.length - 3; i += 6) { const [ex, ey] = outline[i]; bm.beginPath(); bm.moveTo(bx, by); bm.quadraticCurveTo((bx + X(ex)) / 2 + 12, (by + Y(ey)) / 2 - 12, X(ex), Y(ey)); bm.stroke(); }
-      for (let i = 0; i < 6; i++) { const t = 0.35 + i * 0.1; bm.strokeStyle = "rgba(150,150,150,0.6)"; bm.lineWidth = 2; bm.beginPath(); outline.forEach(([a, q], j) => { const px = bx + (X(a) - bx) * t, py = by + (Y(q) - by) * t; j ? bm.lineTo(px, py) : bm.moveTo(px, py); }); bm.stroke(); }   // faint growth rings between the veins
-      path(bm); bm.strokeStyle = "#d8d8d8"; bm.lineWidth = 14; bm.stroke();
-      c.save(); path(c); c.clip(); for (let i = 0; i < 1600; i++) { c.fillStyle = rnd() < 0.5 ? "rgba(40,80,30,0.07)" : "rgba(255,255,220,0.08)"; c.beginPath(); c.arc(rnd() * Wd, rnd() * Hd, 2 + rnd() * 6, 0, 7); c.fill(); } c.restore(); }   // soft mottled dust in the colour
-    c.save(); path(c); c.clip();
-    const gr = c.createRadialGradient(bx, by, 10, bx, by, 2.6 * K); gr.addColorStop(0, hx(p.wing, "#ffffff", 0.3)); gr.addColorStop(0.45, p.wing); gr.addColorStop(1, hx(p.wing, "#f0ff9a", 0.4));
-    c.fillStyle = gr; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
-    c.strokeStyle = hx(p.wing, "#2a5a32", 0.4); c.globalAlpha = 0.45; c.lineWidth = 2.2;   // veins fanning out from the body
-    for (let i = 3; i < outline.length - 3; i += 6) { const [ex, ey] = outline[i]; c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo((bx + X(ex)) / 2 + 12, (by + Y(ey)) / 2 - 12, X(ex), Y(ey)); c.stroke(); }
-    c.globalAlpha = 1;
-    const fz = c.createRadialGradient(bx, by, 0, bx, by, 0.9 * K); fz.addColorStop(0, "rgba(255,255,255,0.85)"); fz.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = fz; c.fillRect(0, 0, c.canvas.width, c.canvas.height);   // white fuzz where it joins the body
-    if (fore) { c.strokeStyle = p.mothTrim; c.lineWidth = 22; c.lineCap = "round"; c.beginPath(); c.moveTo(X(0.12), Y(0.05)); [[0.22, 0.8], [0.3, 1.6], [0.4, 2.3]].forEach(([a, b]) => c.lineTo(X(a), Y(b))); c.stroke(); }   // the purple front edge of a real luna moth
-    path(c); c.strokeStyle = p.mothTip; c.lineWidth = 22; c.stroke(); path(c); c.strokeStyle = p.mothTrim; c.lineWidth = 9; c.stroke();   // purple rim, pink just inside it
-    const [ex, ey] = eye, R = (fore ? 0.2 : 0.23) * K, cx = X(ex), cy = Y(ey);   // the moon eye spot
-    [[1, p.mothTrim], [0.8, "#fff6dc"], [0.68, "#f2c25a"], [0.54, "#2a1838"]].forEach(([k, col]) => { c.fillStyle = col; c.beginPath(); c.arc(cx, cy, R * k, 0, 7); c.fill(); });
-    c.fillStyle = p.moon; c.beginPath(); c.arc(cx, cy, R * 0.4, 0, 7); c.fill(); c.fillStyle = "#2a1838"; c.beginPath(); c.arc(cx + R * 0.18, cy - R * 0.08, R * 0.34, 0, 7); c.fill();
-    c.restore();
-    // glow picture: the moons shine brightest, the rims and spot rings softly
-    g.save(); path(g); g.clip(); g.fillStyle = hx(p.wing, "#000000", 0.82); g.fillRect(0, 0, g.canvas.width, g.canvas.height);   // a faint all-over glow so the wings show at night
-    path(g); g.strokeStyle = hx(p.mothTip, "#000000", 0.45); g.lineWidth = 18; g.stroke();
-    g.strokeStyle = hx(p.moon, "#000000", 0.55); g.lineWidth = R * 0.12; g.beginPath(); g.arc(cx, cy, R * 0.74, 0, 7); g.stroke();
-    const mg = g.createRadialGradient(cx, cy, 0, cx, cy, R * 1.1); mg.addColorStop(0, hx(p.moon, "#000000", 0.6)); mg.addColorStop(1, "#000000"); g.fillStyle = mg; g.beginPath(); g.arc(cx, cy, R * 1.1, 0, 7); g.fill();
-    g.fillStyle = p.moon; g.beginPath(); g.arc(cx, cy, R * 0.4, 0, 7); g.fill(); g.fillStyle = "#000"; g.beginPath(); g.arc(cx + R * 0.18, cy - R * 0.08, R * 0.34, 0, 7); g.fill();
-    g.restore();
-  });
-}
-function mothWing(pivot, g, zs) {
-  const F = smoothLoop([[0.12, 0], [0.22, 0.8], [0.3, 1.6], [0.4, 2.3], [0.2, 2.55], [-0.18, 2.35], [-0.58, 2.02], [-0.86, 1.58], [-0.95, 1.08], [-0.8, 0.52], [-0.48, 0.14], [-0.16, 0.02]], 6);
-  const Hw = smoothLoop([[-0.3, 0.08], [-0.34, 0.78], [-0.5, 1.42], [-0.85, 1.74], [-1.3, 1.68], [-1.62, 1.34], [-1.82, 0.92], [-1.96, 0.6], [-1.72, 0.36], [-1.22, 0.16], [-0.72, 0.05]], 6);
-  const mat = ([map, glow, bump]) => new THREE.MeshStandardMaterial({ map, emissiveMap: glow, bumpMap: bump, bumpScale: 0.012, emissive: new THREE.Color("#ffffff"), emissiveIntensity: 1.0, roughness: 0.85, side: THREE.DoubleSide });
-  const fTo = wing3(0.42, 0.25), hTo = wing3(0.28, 0.3);
-  const fm = flatWing(F, [-0.25, 0.3], fTo, mat(mothPaint(F, true, [-0.32, 1.55])));
-  const hm = flatWing(Hw, [-0.9, 0.55], hTo, mat(mothPaint(Hw, false, [-1.08, 1.0])));
-  hm.position.set(-0.14, -0.12, 0); g.add(hm); g.add(fm); fm.userData.furWing = hm.userData.furWing = true;
-  [fm, hm].forEach(m => {   // an invisible copy facing down, so the fuzz grows on the underside too
-    const gd = m.geometry.clone(), ixd = gd.index.array; for (let i = 0; i < ixd.length; i += 3) { const t = ixd[i + 1]; ixd[i + 1] = ixd[i + 2]; ixd[i + 2] = t; } gd.computeVertexNormals();
-    const md = m.material.clone(); md.colorWrite = false; md.depthWrite = false; const under = new THREE.Mesh(gd, md); under.position.copy(m.position); under.userData.furWing = true; under.castShadow = false; under.renderOrder = -1; g.add(under); });
-  const tg = new THREE.Group(); tg.position.copy(hTo(-1.9, 0.6)).add(hm.position); tg.rotation.y = Math.PI + 0.3; g.add(tg);   // the long tail grows from the back corner of the back wing
-  tg.add(makeRibbon(2.5, 0.13, p.wing, p.mothTip, p.mothTrim, 0.2).mesh);
-  wings.push({ pivot, zs, up: Math.max(0.15, 1.4 - 0.42), y0: pivot.position.y });
-}
-// a real feather picture with see-through gaps (alphaTest cuts it out): a shaft down the middle and hundreds of fine barbs, ragged at the edge, fluffy down at the base
-const _ftex = {};
-function featherTex(kind) {
-  if (_ftex[kind]) return _ftex[kind];
-  const W = 256, H = 96, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); let sd = kind === "flight" ? 5 : 9; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  const hw = u => kind === "flight" ? 0.36 * Math.min(1, u * 6) * (u < 0.8 ? 1 : Math.cos((u - 0.8) / 0.2 * Math.PI / 2)) : 0.46 * Math.sqrt(Math.max(0, Math.sin(Math.PI * Math.min(1, u * 0.95 + 0.05))));
-  x.lineCap = "round";
-  if (kind === "flight") {   // flight feathers (Petra: smoother): a solid vane with clean edges, faint barb lines and a slightly darker tip
-    const vane = sgn => { x.beginPath(); x.moveTo(0, H / 2); for (let px = 0; px <= W; px += 4) x.lineTo(px, H / 2 + sgn * hw(px / W) * H * (sgn > 0 ? 0.7 : 1)); x.lineTo(W, H / 2); x.closePath(); };
-    [1, -1].forEach(sgn => { const gr = x.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, "#e8e8e8"); gr.addColorStop(0.75, "#d0d0d0"); gr.addColorStop(1, "#8a8a8a"); vane(sgn); x.fillStyle = gr; x.fill();
-      x.save(); vane(sgn); x.clip(); x.strokeStyle = "rgba(120,120,120,0.35)"; x.lineWidth = 1; for (let px = 4; px < W; px += 5) { x.beginPath(); x.moveTo(px, H / 2); x.lineTo(px + 10, H / 2 + sgn * H * 0.5); x.stroke(); } x.restore();
-      vane(sgn); x.strokeStyle = "rgba(90,90,90,0.6)"; x.lineWidth = 1.5; x.stroke(); });
-  } else {
-  for (let px = 2; px < W * 0.98; px += 1.4) { const u = px / W, w = hw(u) * H, lean = kind === "flight" ? 14 : 18;
-    [1, -1].forEach(sg => { const ww = w * (sg > 0 && kind === "flight" ? 0.7 : 1) * (0.9 + rnd() * 0.12), v = 140 + rnd() * 100 | 0;   // flight feathers: the front vane is narrower, like a real one
-      x.strokeStyle = `rgba(${v},${v},${v},${u < 0.18 ? 0.5 : 1})`; x.lineWidth = u < 0.18 ? 0.8 : 1.3; x.beginPath(); x.moveTo(px, H / 2); x.quadraticCurveTo(px + lean * 0.4, H / 2 + sg * ww * 0.6, px + lean, H / 2 + sg * ww); x.stroke(); }); }
-  for (let i = 0; i < 120; i++) { const u = rnd() * 0.2, px = u * W, a = (rnd() - 0.5) * 2.4, L = 6 + rnd() * 14; x.strokeStyle = "rgba(235,235,235,0.6)"; x.lineWidth = 0.7; x.beginPath(); x.moveTo(px, H / 2); x.lineTo(px + Math.cos(a) * L, H / 2 + Math.sin(a) * L); x.stroke(); }   // fluffy down at the base
-  }
-  const sg = x.createLinearGradient(0, 0, W, 0); const sw = kind === "flight" ? [0.95, 0.4, 3] : [0.35, 0.15, 1.5]; sg.addColorStop(0, `rgba(255,255,255,${sw[0]})`); sg.addColorStop(1, `rgba(255,255,255,${sw[1]})`); x.strokeStyle = sg; x.lineWidth = sw[2];   /* body feathers: faint shaft (Petra: white streaks) */ x.beginPath(); x.moveTo(0, H / 2); x.lineTo(W * 0.93, H / 2); x.stroke();   // shaft
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (_ftex[kind] = t);
-}
-// one feather card from root (u=0) to tip (u=1), lying along +x; `curl` lifts the tip
-function featherGeo(len, wid, curl) {
-  const g = new THREE.PlaneGeometry(1, 1, 6, 1); const P = g.attributes.position, uv = g.attributes.uv;
-  for (let i = 0; i < P.count; i++) { const u = P.getX(i) + 0.5, v = P.getY(i); P.setXYZ(i, u * len, curl * u * u, v * wid); uv.setXY(i, u, v + 0.5); }
-  g.computeVertexNormals(); return g;
-}
-// ----- hummingbird: long, narrow, pointed feather wings that beat so fast they turn into a blur -----
-function hummerWing(pivot, g, zs) {
-  const LIFT = 0.35, tip = [-0.5, 2.6], end = [-0.62, 0.12], NF = 10;
-  const lead = [[0.08, 0], [0.15, 0.45], [0.12, 1.0], [0.0, 1.55], [-0.2, 2.1], tip];
-  const trail = [], tips = [];
-  for (let k = 1; k <= NF * 2; k++) { const u = k / (NF * 2); let sx = tip[0] + (end[0] - tip[0]) * u - 0.32 * Math.sin(Math.PI * u), sy = tip[1] + (end[1] - tip[1]) * u;
-    if (k % 2) { sx += 0.1 * (1 - 0.5 * u); sy += 0.05; } else tips.push([sx, sy]); trail.push([sx, sy]); }   // little notches between the feather tips
-  const O = lead.concat(trail); tips.unshift(tip);
-  const lerpLead = sy => { for (let i = 1; i < lead.length; i++) if (lead[i][1] >= sy) { const a = lead[i - 1], b = lead[i], t = (sy - a[1]) / (b[1] - a[1]); return [a[0] + (b[0] - a[0]) * t, sy]; } return tip; };
-  // the wing is CURVED (Petra): the back edge and the tip bend in, so a folded wing wraps around the round body instead of cutting into it
-  // the wing is built from real feathers in layers, like a bird's: 10 long flight feathers, a row of shorter secondaries, and two rows of small coverts on top
-  const nrm = new V(0, Math.cos(LIFT), -Math.sin(LIFT)), flat3 = wing3(LIFT, 0.12), to3 = (sx, sy) => flat3(sx, sy).addScaledVector(nrm, 0.22 * sx * sx + 0.035 * sy * sy), wm = new THREE.MeshStandardMaterial({ map: featherTex("flight"), alphaTest: 0.45, roughness: 0.7, metalness: 0.05, side: THREE.DoubleSide, transparent: true });
-  const mats = [wm]; const mk = col => { const m = wm.clone(); m.color.set(col).convertSRGBToLinear(); mats.push(m); return m; };
-  const mPrim = mk(hx(p.wingTip || p.wing, p.wing, 0.3)), mSec = mk(p.wing), mCov = mk(p.side), mCov2 = mk(hx(p.side, p.top, 0.5));
-  const feather = (r2, t2, wid, mat, layer, curl = 0.04) => {   // r2/t2 = root and tip in wing (sx, sy) coordinates
-    const R = to3(r2[0], r2[1]).addScaledVector(nrm, layer * 0.018), T = to3(t2[0], t2[1]).addScaledVector(nrm, layer * 0.018), d = T.clone().sub(R), len = d.length(); d.normalize();
-    const f = new THREE.Mesh(featherGeo(len, wid, curl), mat); f.position.copy(R);
-    const z = new V().crossVectors(d, nrm).normalize(), y = new V().crossVectors(z, d); f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(d, y, z)); f.castShadow = true; g.add(f); };
-  tips.forEach(([sx, sy], i) => { const root = lerpLead(Math.max(0.3, sy * 0.48)); feather([root[0] - 0.05, root[1]], [sx, sy], 0.24 + 0.02 * i, i < 6 ? mPrim : mSec, 4 - i * 0.25); });   // flight feathers, outermost on top
-  for (let i = 0; i < 9; i++) { const sy = 0.12 + i * 0.17, r = lerpLead(sy); feather([r[0], sy], [r[0] - 0.62 + i * 0.02, sy - 0.14], 0.22, mCov, 6); }   // big coverts
-  for (let i = 0; i < 12; i++) { const sy = 0.06 + i * 0.16, r = lerpLead(sy); feather([r[0] + 0.02, sy], [r[0] - 0.32, sy - 0.08], 0.16, mCov2, 8); }   // small coverts along the front edge
-  g.add(staticTube([to3(0.05, 0), to3(0.12, 0.9), to3(0.0, 1.6)].map(v => v.addScaledVector(nrm, 0.1)), [[0, 0.06], [1, 0.02]], M.top, 16, 10));   // the arm along the front edge
-  const up = Math.max(0.15, 1.4 - LIFT);
-  // the blur: a soft see-through fan covering the whole wing beat, brightest at the two ends of the stroke where the wing slows down
-  const lo = LIFT - 1.05, hi = LIFT + up, NA = 28, NR = 6, R = 2.7, pos = [], uvs = [], ix = [];
-  for (let i = 0; i <= NA; i++) for (let j = 0; j <= NR; j++) { const th = lo + (hi - lo) * i / NA, r = R * (0.1 + 0.9 * j / NR); pos.push(-0.45 * j / NR, r * Math.sin(th), zs * r * Math.cos(th)); uvs.push(i / NA, j / NR); }
-  for (let i = 0; i < NA; i++) for (let j = 0; j < NR; j++) { const a = i * (NR + 1) + j, b = a + NR + 1; ix.push(a, b, a + 1, a + 1, b, b + 1); }
-  const fgeo = new THREE.BufferGeometry(); fgeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); fgeo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); fgeo.setIndex(ix);
-  const bc = document.createElement("canvas"); bc.width = 256; bc.height = 64; const bx = bc.getContext("2d"), id = bx.createImageData(256, 64);
-  for (let x = 0; x < 256; x++) for (let y = 0; y < 64; y++) { const u = x / 255, v = 1 - y / 63, ends = Math.max(0, 1 - u * 5) + Math.max(0, u * 5 - 4), a = (0.28 + 0.72 * ends) * sstep(0.05, 0.3, v) * (1 - sstep(0.85, 1, v)) * (0.85 + 0.15 * Math.sin(v * 60));
-    const q = (y * 256 + x) * 4; id.data[q] = id.data[q + 1] = id.data[q + 2] = 255; id.data[q + 3] = Math.round(255 * a); }
-  bx.putImageData(id, 0, 0);
-  const fmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), color: new THREE.Color(hx(p.wing, "#ffffff", 0.35)).convertSRGBToLinear(), transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
-  const fan = new THREE.Mesh(fgeo, fmat); fan.position.copy(pivot.position); fan.scale.setScalar(o.wingScale); fan.visible = false; dragon.add(fan);
-  const w = { pivot, zs, up, y0: pivot.position.y }; wings.push(w);
-  custom.hum.push({ w, mats, fan, fmat, k: 0 });
-}
-function updateCustom(t, flap, dt) {
-  placeBodyFeathers();
-  custom.ribbons.forEach(r => r.update(t, flap ? 1 : 0));
-  custom.hum.forEach(h => {
-    h.k += ((flap ? 1 : 0) - h.k) * Math.min(1, dt * 4);
-    const op = 1 - 0.75 * h.k; h.mats.forEach(m => { m.opacity = op; m.depthWrite = op > 0.97; m.alphaTest = op > 0.97 ? 0.45 : 0.05; });
-    h.fan.visible = h.k > 0.02; h.fan.castShadow = false; h.fmat.opacity = 0.55 * h.k * (0.9 + 0.1 * Math.sin(t * 47));
-    const f = 1 - h.k, P = h.w.pivot, zs = h.w.zs;   // landed: wings fold back and lie against the sides of the body, like a perched hummingbird
-    if (!h.qF) { const a = 0.35, s0 = new V(0, Math.sin(a), zs * Math.cos(a)), c0 = new V(-1, 0, 0), s1 = new V(-1, -0.13, -0.1 * zs).normalize(), c1 = new V(0, -0.66, 0.75 * zs).normalize();
-      const B = (s, c) => new THREE.Matrix4().makeBasis(s, c.clone().sub(s.clone().multiplyScalar(c.dot(s))).normalize(), new V().crossVectors(s, c).normalize());
-      const M0 = B(s0, c0), M1 = B(s1, c1); h.qF = new THREE.Quaternion().setFromRotationMatrix(M1.multiply(M0.transpose())); h.qA = new THREE.Quaternion(); }
-    h.qA.setFromAxisAngle(new V(1, 0, 0), P.rotation.x); P.quaternion.copy(h.qA).slerp(h.qF, f);
-    if (h.z0 == null) { h.z0 = P.position.z; h.y0 = P.position.y; } const r = at(0.6).r; P.position.y = h.y0 + r * 0.25 * f; P.position.z = h.z0 + zs * r * 0.85 * f; P.scale.set(1 - 0.5 * f, 1, 1);   // folded like a perched hummingbird: each wing lies flat against its side, front edge on top, narrowed as the feathers stack, tips reaching back to meet over the tail
-  });
-}
-// ----- Thrumwing: real overlapping body feathers (Petra: the texture alone looked like scales). Small feather shapes laid in rows over the body,
-// each one pointing back towards the tail with its tip lifted a little; they ride on the moving body tube every frame -----
-let bodyFeathers = null;
-function addBodyFeathers() {
-  const geo = featherGeo(1, 0.8, 0.03); geo.scale(-1, 1, 1); geo.translate(0, 0.02, 0); geo.computeVertexNormals();   // root at 0, tip pointing back (-x), lifted a little
-  const mat = new THREE.MeshStandardMaterial({ map: featherTex("contour"), alphaTest: 0.45, roughness: 0.78, metalness: 0.05, side: THREE.DoubleSide });   // Petra: was too shiny
-  mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv)); float h = clamp(fr * 1.5 + nn.y * 0.25 - 0.15, 0.0, 1.0);
-    totalEmissiveRadiance += vec3(0.05, 0.9, 0.35) * (0.02 + 0.08 * fr * fr) * (0.5 + 0.5 * h); }`); };   // soft green sheen only; the pink flash showed as pink streaks under the belly   // green-to-pink flash
-  const cTop = new THREE.Color(p.top).convertSRGBToLinear(), cSide = new THREE.Color(p.side).convertSRGBToLinear(), cBel = new THREE.Color(p.belly).convertSRGBToLinear(), cG = new THREE.Color(p.gorget || p.belly).convertSRGBToLinear();
-  const colFor = (up, s, k) => (s > 0.88 && up < -0.3 ? cG.clone() : cSide.clone()).multiplyScalar(0.98 + 0.04 * (k % 5) / 4);   // ONE green all over (Petra: no colour change); only the throat patch is pink
-  // ONE feather size everywhere (Petra: the look must not change partway down the body), rows spaced by real length along the body
-  const L = at(0.62).r * 0.4 * (o.featherSize || 1), list = []; let prev = at(0.02).p.clone(), acc = 1e9, ri = 0;
-  for (let s = 0.02; s <= 0.97; s += 0.002) { const f = at(s); acc += f.p.distanceTo(prev); prev.copy(f.p); if (acc < L * 0.32) continue; acc = 0;
-    const NA = Math.max(7, Math.round(2 * Math.PI * f.r / (L * 0.42)));
-    for (let j = 0; j < NA; j++) list.push({ s, th: (j + (ri % 2) * 0.5) / NA * Math.PI * 2 + 0.12 * Math.sin(ri * 7.3 + j), k: ri * 13 + j * 7 }); ri++; }
-  const mesh = new THREE.InstancedMesh(geo, mat, list.length); mesh.castShadow = true; mesh.frustumCulled = false; dragon.add(mesh);
-  list.forEach((F, i) => mesh.setColorAt(i, colFor(Math.sin(F.th), F.s, F.k))); mesh.instanceColor.needsUpdate = true;
-  bodyFeathers = { mesh, list, L, geo, mat, colFor, coated: false };
-}
-// the same feathers laid over other parts (head, thighs, knees, shins), so the whole dragon has one feather look; the feet stay scaly like a real bird's
-function featherCoat(src, tipDir, colorUp) {
-  const B = bodyFeathers, gm = src.geometry, P = gm.attributes.position, idx = gm.index, L = B.L * 0.62, ws = new V(); src.getWorldScale(ws);
-  const tri = [], va = new V(), vb = new V(), vc = new V(); let total = 0; const nT = idx ? idx.count / 3 : P.count / 3;
-  for (let t = 0; t < nT; t++) { const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
-    va.fromBufferAttribute(P, i0).multiply(ws); vb.fromBufferAttribute(P, i1).multiply(ws); vc.fromBufferAttribute(P, i2).multiply(ws);
-    const ar = vb.clone().sub(va).cross(vc.clone().sub(va)).length() / 2; total += ar; tri.push([i0, i1, i2, total]); }
-  const N = Math.min(1500, Math.max(8, Math.round(total / (L * L * 0.12)))), m = new THREE.InstancedMesh(B.geo, B.mat, N); m.castShadow = false;   // no self-shadow blotches (they made the legs look darker than the body) m.frustumCulled = false;
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const x = new V(), y = new V(), z = new V(), pt = new V(), M4 = new THREE.Matrix4(), inv = new V(1 / ws.x, 1 / ws.y, 1 / ws.z);
-  for (let k = 0; k < N; k++) { const r = rnd() * total; let lo = 0, hi = tri.length - 1; while (lo < hi) { const md = (lo + hi) >> 1; if (tri[md][3] < r) lo = md + 1; else hi = md; }
-    const [i0, i1, i2] = tri[lo]; let u = rnd(), v = rnd(); if (u + v > 1) { u = 1 - u; v = 1 - v; }
-    va.fromBufferAttribute(P, i0); vb.fromBufferAttribute(P, i1); vc.fromBufferAttribute(P, i2);
-    pt.copy(va).multiplyScalar(1 - u - v).addScaledVector(vb, u).addScaledVector(vc, v);
-    y.copy(vb).sub(va).multiply(ws).cross(vc.clone().sub(va).multiply(ws)).normalize(); if (y.dot(pt.clone().multiply(ws)) < 0 && src.geometry.type === "SphereGeometry") y.negate();
-    if (!src.geometry.type.startsWith("Sphere")) { const nA = new V().fromBufferAttribute(gm.attributes.normal, i0); if (y.dot(nA) < 0) y.negate(); }
-    x.copy(tipDir).addScaledVector(y, -y.dot(tipDir)).normalize(); z.crossVectors(x, y);
-    pt.multiply(ws).addScaledVector(y, L * 0.02);   // feathers sized in world units, then the mesh scale is undone
-    M4.makeBasis(x, y, z).scale(new V(L, L, L * 0.75)).setPosition(pt); M4.premultiply(new THREE.Matrix4().makeScale(inv.x, inv.y, inv.z));
-    m.setMatrixAt(k, M4); m.setColorAt(k, B.colFor(colorUp(y), 0.5, k)); }
-  m.instanceColor.needsUpdate = true; src.add(m);
-}
-function coatParts() {
-  const B = bodyFeathers; B.coated = true;
-  legs.forEach(g => { const knee = g.userData.knee, low = knee && knee.children.find(c => c.isGroup && c.children[0] && c.children[0].isMesh);
-    const parts = [g.children[0], g.children.find(c => c.isMesh && c.geometry.type === "SphereGeometry"), knee && knee.children[0], low && low.children[0]];
-    parts.forEach(m => { if (m && m.isMesh) featherCoat(m, new V(-0.35, -1, 0).normalize(), n => 0.05 + n.y * 0.2); }); });
-  const sk = head && head.children[0]; if (sk && sk.isMesh) featherCoat(sk, new V(-1, 0, 0), n => n.y);   // head feathers point back, green on top
-}
-const _fm = new THREE.Matrix4(), _fx = new V(), _fy = new V(), _fz = new V(), _fp = new V();
-function placeBodyFeathers() {
-  if (!bodyFeathers) return;
-  if (!bodyFeathers.coated) coatParts();
-  const L = bodyFeathers.L;
-  bodyFeathers.list.forEach((F, i) => { const f = at(F.s), c = Math.cos(F.th), s = Math.sin(F.th);
-    _fy.copy(f.side).multiplyScalar(c).addScaledVector(f.n, s).normalize(); _fx.copy(f.T).addScaledVector(_fy, -_fy.dot(f.T)).normalize(); _fz.crossVectors(_fx, _fy);
-    _fp.copy(f.p).addScaledVector(f.side, f.r * c * 0.88).addScaledVector(f.n, f.r * s * 1.03);   // sit right on the skin
-    const k = Math.min(1, 0.45 + f.r / (L * 2.2)); _fm.makeBasis(_fx, _fy, _fz).scale(new V(L * k, L * k, L * 0.75 * k)).setPosition(_fp);   // only shrink a little where the tail gets very thin
-    bodyFeathers.mesh.setMatrixAt(i, _fm); });
-  bodyFeathers.mesh.instanceMatrix.needsUpdate = true;
-}
-if (o.bodyFeathers) { addBodyFeathers(); placeBodyFeathers(); }
 function wing(zs) {
   const pivot = new THREE.Group();
   const f = at(0.6);
@@ -1206,8 +928,6 @@ function wing(zs) {
   dragon.add(pivot);
   const g = new THREE.Group(); const ws = o.wingScale; g.scale.set(ws, ws, zs * ws); pivot.add(g);
   const type = o.wings;
-  if (type === "moth") return mothWing(pivot, g, zs);
-  if (type === "hummer") return hummerWing(pivot, g, zs);
   let S = new V(0, 0, 0), E = new V(-0.25, 0.75, 0.55), W = new V(0.15, 1.35, 1.15);
   let tips = [new V(-0.35, 1.7, 2.35), new V(-1.15, 1.05, 2.45), new V(-1.75, 0.45, 1.75)];
   let back = new V(-1.35, -0.05, 0.05), sagT = [0.28, 0.22, 0.2], fingers = true;
@@ -1361,16 +1081,6 @@ if (o.tail === "flame" || o.tail === "smoke") {
     const hg = new THREE.ExtrudeGeometry(hs, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2, curveSegments: 12 }); hg.translate(0, 0, -0.025);
     tailHeart = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: new THREE.Color(p.side).convertSRGBToLinear(), roughness: 0.35, metalness: 0.2, emissive: new THREE.Color(p.glow).convertSRGBToLinear(), emissiveIntensity: 0.3 }));
     tailHeart.rotation.z = Math.PI / 2; tailHeart.scale.setScalar(0.62); tailHeart.position.x = 0.3; tailTip.add(tailHeart);
-  }
-  if (T === "streamers") [1, -1].forEach(s => { const gp = new THREE.Group(); gp.rotation.y = s * 0.3; tailTip.add(gp); gp.add(makeRibbon(1.7, 0.1, p.wing, p.mothTip, p.mothTrim, -0.05).mesh); });   // NEW (Lunaria): two long twisting ribbons with curled pink tips
-  if (T === "plumefan") {   // NEW (hummingbird): a short fan of pointed tail feathers, spread flat like a bird's
-    const fm = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.fin).convertSRGBToLinear(), roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide });
-    const tm = new THREE.MeshStandardMaterial({ color: new THREE.Color(p.tailTip || "#ffffff").convertSRGBToLinear(), roughness: 0.5, side: THREE.DoubleSide });
-    const fs = new THREE.Shape(); fs.moveTo(0, 0); fs.quadraticCurveTo(0.26, 0.09, 0.5, 0.035); fs.lineTo(0.64, 0); fs.lineTo(0.5, -0.035); fs.quadraticCurveTo(0.26, -0.09, 0, 0);
-    const fg = new THREE.ShapeGeometry(fs, 8), tipG = new THREE.CircleGeometry(0.045, 12);
-    for (let i = 0; i < 7; i++) { const a = (i - 3) * 0.22, L = 1.15 + Math.abs(i - 3) * 0.1, piv = new THREE.Group(); piv.rotation.y = a; piv.rotation.x = 0.0; tailTip.add(piv);
-      const f = new THREE.Mesh(fg, fm); f.rotation.x = Math.PI / 2; f.scale.set(L, 1, 1); f.position.y = (3 - Math.abs(i - 3)) * 0.01; piv.add(f);
-      if (Math.abs(i - 3) >= 2) { const d = new THREE.Mesh(tipG, tm); d.rotation.x = -Math.PI / 2; d.scale.set(1.6, 0.7, 1); d.position.set(0.5 * L, f.position.y + 0.003, 0); piv.add(d); } }   // white spots near the tips of the outer feathers
   }
   if (T === "orb") { const c = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), o.orbGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(mix(p.glow, "#ffffff", 0.35)).convertSRGBToLinear() }) : M.flame2); c.position.x = 0.12; tailTip.add(c); flameLight.intensity = 1; tailTip.add(flameLight); }
   tailTip.traverse(m => { if (m.isMesh) m.castShadow = true; });
@@ -1539,7 +1249,6 @@ function update(t, walk, flap, dt, bend = 0) {
   wings.forEach(w => { const st = Math.sin(wingPh), rest = -0.1 + Math.sin(t * 1.1) * 0.12, fly = shells.length ? 0.05 + st * 0.3 : st > 0 ? -0.1 + st * (0.85 + 0.3 * hoverK) : -0.1 + st * (w.up - 0.1);   // hovering: deeper, slower strokes
     const f = w.fold || 0; w.pivot.rotation.x = w.zs * (flap ? fly : rest) * (1 - f);   // beetle wings: fast shallow buzz below the open shells
     if (shells.length) { w.pivot.rotation.y = w.zs * f * -0.52; w.pivot.rotation.z = 0; w.pivot.scale.set(1 - 0.45 * f, 1 - 0.45 * f, 1 - 0.78 * f); w.pivot.position.y = w.y0 - f * 0.22; } });
-  updateCustom(t, flap, dt);
   const airRun = flap && airPuffs.length;   // skyRun dragons bound through the air instead of tucking their legs
   if (api) { const c = walkT; const tread = airRun && hoverK > 0.5; api.airBob = tread ? 0.05 * Math.sin(c * 2) : airRun ? 0.28 * Math.sin(c - 0.6) : hoverK * 0.16 * Math.sin(wingPh - 1.2); api.airPitch = tread ? 0.04 * Math.sin(c) : airRun ? 0.16 * Math.cos(c) : hoverK * (0.22 + 0.04 * Math.sin(wingPh)); }   // hover: each downstroke lifts the body a little, nose tipped up   // rise during the stretch, dip into the next push; nose up as it pushes off
   walkT += dt * (airRun ? 3.4 * (1 - 0.35 * hoverK) : 8 * walk);   // air leaps: one bound every ~1.8 s
@@ -1765,7 +1474,7 @@ const FUR_DEFAULTS = {
   ruff: 1.35,          // longer fur round the chest / base of the neck
   tuft: 1.3,           // longer fur at the very tip of the tail
   parts: { body: true, neck: true, tail: true, legs: true, paws: true, foxTails: true, head: false },
-  partLen: { wings: 0.5, tail: 1, body: 1, neck: 0.9, legs: 0.75, paws: 0.6, foxTails: 1.25, head: 0.35 },
+  partLen: { tail: 1, body: 1, neck: 0.9, legs: 0.75, paws: 0.6, foxTails: 1.25, head: 0.35 },
   hideClumps: true     // hide the old round "fur ball" clumps (back fur, mane, tail tuft) while fur is on
 };
 function addFur(api, opts) {
@@ -1789,7 +1498,7 @@ varying float vFurL;
 varying float vFurMul;
 `;
   const FHEAD = `
-uniform float uSleek, uTipSet, uUnder, uDens, uThick, uCut, uRootDark, uTipK, uSheen, uTintK, uRu, uRv, uRingN, uCircMax;
+uniform float uTipSet, uUnder, uDens, uThick, uCut, uRootDark, uTipK, uSheen, uTintK, uRu, uRv, uRingN, uCircMax;
 uniform vec3 uTip, uTint;
 uniform sampler2D uCirc;
 varying vec2 vFurUv;
@@ -1828,7 +1537,6 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
     float k = L / hgt;
     float r = uThick * 0.5 * pow(max(0.0, 1.0 - k), 0.7);    // tapering strand
     float d = length(f - c);
-    if (uSleek > 0.5) d = length(vec2((f.x - c.x + L * 0.5) * 0.4, f.y - c.y));   // NEW: barbs lie back towards the tail
     furA = clamp((r - d) * 6.0 + 0.5, 0.0, 1.0);
     if (k > 1.0) furA = 0.0;
     #if __VERSION__ >= 300
@@ -1888,7 +1596,7 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
     // the tip colour: the skin colour lifted towards white (or opts.tip)
     const base = O.tip ? col(O.tip) : new THREE.Color(1, 1, 1);
     const U = {
-      uSleek: { value: O.sleek ? 1 : 0 }, uFurLen: { value: O.length * (O.partLen[kind] || 1) }, uUnder: { value: O.undercoat }, uDroop: { value: O.droop }, uDens: { value: O.density }, uThick: { value: O.thickness }, uCut: { value: 0.5 },
+      uFurLen: { value: O.length * (O.partLen[kind] || 1) }, uUnder: { value: O.undercoat }, uDroop: { value: O.droop }, uDens: { value: O.density }, uThick: { value: O.thickness }, uCut: { value: 0.5 },
       uRootDark: { value: O.rootDark }, uTipK: { value: O.tipK }, uSheen: { value: O.sheen }, uTip: { value: base }, uTipSet: { value: O.tip ? 1 : 0 }, uTint: { value: O.tint ? col(O.tint) : new THREE.Color(1, 1, 1) }, uTintK: { value: O.tint ? O.tintK : 0 },
       uRu: { value: 100 }, uRv: { value: 50 }, uRingN: { value: 2 }, uCircMax: { value: 1 }, uCirc: { value: null }
     };
@@ -1970,7 +1678,6 @@ float furH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       if (isTube(m) || t === "SphereGeometry") furFor(m, "legs", O.legShells);
     });
   });
-  if (O.parts.wings) root.traverse(m => { if (m.isMesh && m.userData.furWing) furFor(m, "wings", O.wingShells || 8); });   // NEW: moth wing fuzz
   if (O.parts.head) {   // optional: short fur on the skull only (eyes, snout and ears stay smooth)
     const head = root.children.find(m => m.isGroup && m.children[0] && m.children[0].isMesh && m.children[0].geometry.type === "SphereGeometry" && Math.abs(m.children[0].geometry.parameters.radius - 0.3) < 1e-6);
     if (head && O.skullOnly) {   // moss (Petra): only the top and back of the skull; nothing near the snout or mouth
@@ -2063,17 +1770,6 @@ function furSkin(api, kind, O = {}) {
       const gr = c.createLinearGradient(x, y, x - fl, y); gr.addColorStop(0, "#5a5a5a"); gr.addColorStop(0.35, "#a8a8a8"); gr.addColorStop(1, "#c4c4c4");
       c.fillStyle = gr; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x - fl * 0.5, y - fw, x - fl, y); c.quadraticCurveTo(x - fl * 0.5, y + fw, x, y); c.fill();
       c.strokeStyle = "rgba(70,70,70,0.6)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y); c.lineTo(x - fl * 0.9, y); c.stroke(); }
-  } else if (kind === "plumes") {   // NEW feathers (Petra 2026-11-12, redone): long pointed feathers like a bird's, each with a centre shaft and fine slanted barbs; the tips lie over the roots of the row behind
-    const fl = 46 / SZ, fw = 10 / SZ;
-    for (let row = 0, y = -fw; y < H + fw * 2; y += fw * 1.15, row++) for (let x = -fl - (row % 2) * fl * 0.28; x < W + fl; x += fl * 0.56) {   // tail end first, so feathers nearer the head lie on top
-      const tx = x + (rnd() - 0.5) * 3, ty = y + (rnd() - 0.5) * 2, rx = tx + fl, w = fw * (0.9 + rnd() * 0.2);
-      const shape = () => { c.beginPath(); c.moveTo(rx, ty); c.bezierCurveTo(rx - fl * 0.25, ty - w * 1.1, tx + fl * 0.2, ty - w * 0.9, tx, ty); c.bezierCurveTo(tx + fl * 0.2, ty + w * 0.9, rx - fl * 0.25, ty + w * 1.1, rx, ty); };
-      c.save(); c.shadowColor = "rgba(40,40,40,0.8)"; c.shadowBlur = 4; c.shadowOffsetX = -1.5; shape(); c.fillStyle = "#8a8a8a"; c.fill(); c.restore();   // soft shadow under the tip
-      const gr = c.createLinearGradient(0, ty - w, 0, ty + w); gr.addColorStop(0, "#7c7c7c"); gr.addColorStop(0.5, "#b4b4b4"); gr.addColorStop(1, "#7c7c7c"); shape(); c.fillStyle = gr; c.fill();
-      c.save(); shape(); c.clip(); c.strokeStyle = "rgba(90,90,90,0.55)"; c.lineWidth = 0.8;   // the fine barbs, slanting back towards the tip
-      for (let a = 0.06; a < 0.95; a += 0.07) { const bx = tx + fl * a; c.beginPath(); c.moveTo(bx, ty); c.lineTo(bx - w * 0.9, ty - w); c.moveTo(bx, ty); c.lineTo(bx - w * 0.9, ty + w); c.stroke(); }
-      c.restore();
-      c.strokeStyle = "rgba(205,205,205,0.9)"; c.lineWidth = 1.1; c.beginPath(); c.moveTo(rx, ty); c.lineTo(tx + fl * 0.08, ty); c.stroke(); }   // pale shaft down the middle
   } else if (kind === "bark") {   // wood (redone again for Petra): just a soft, fine wood grain running along the body, no cracks or knots
     for (let y = 0; y < H; y += 2) { const g = 118 + rnd() * 20 | 0; c.strokeStyle = `rgba(${g},${g},${g},0.8)`; c.lineWidth = 1 + rnd() * 2; c.beginPath(); const ph = rnd() * 6;
       for (let x = 0; x <= W; x += 16) c.lineTo(x, y + Math.sin(x * 0.008 + ph) * 3); c.stroke(); }
@@ -2166,7 +1862,6 @@ function furSkin(api, kind, O = {}) {
     if (kind === "ash") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
     if (kind === "scales") { m.bumpScale = 0.012; m.roughness = 0.38; m.metalness = Math.max(m.metalness, 0.12); }
     if (kind === "feathers") { m.bumpScale = 0.03; m.roughness = 0.75; m.metalness = 0; }
-    if (kind === "plumes") { m.bumpScale = 0.032; m.roughness = 0.75; m.metalness = 0.05; }
     if (kind === "bark") { m.bumpScale = 0.03; m.roughness = 1; m.metalness = 0; }
     if (kind === "leaf") { m.bumpScale = 0.006; m.roughness = 0.4; m.metalness = 0; }
     if (kind === "sand") { m.bumpScale = 0.02; m.roughness = 1; m.metalness = 0; }
@@ -2197,16 +1892,6 @@ function furSkin(api, kind, O = {}) {
   { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
     ${irid ? "vec3 ic = 0.5 + 0.5 * cos(6.2832 * (fr * 0.9 + nn.y * 0.3 + vec3(0.25, 0.45, 0.62))); totalEmissiveRadiance += ic * (0.05 + 0.3 * fr * fr) * vec3(0.7, 1.0, 0.5);" : "totalEmissiveRadiance += diffuseColor.rgb * pow(fr, 1.8) * 1.1;"} }`); };
       m.customProgramCacheKey = () => (irid ? "irid|" : "velvet|") + (prev ? prev.toString().length : 0);
-    }
-    if (O.irid2) {   // NEW (hummingbird): feathers that flash from one colour to another as they turn (green to pink)
-      const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
-      const cA = new THREE.Color(O.irid2[0]).convertSRGBToLinear(), cB = new THREE.Color(O.irid2[1]).convertSRGBToLinear(), f3 = c => `vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)})`;
-      m.onBeforeCompile = sh => { if (prev) prev(sh);
-        sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
-    float h = clamp(fr * 1.5 + nn.y * 0.25 - 0.15, 0.0, 1.0);
-    totalEmissiveRadiance += mix(${f3(cA)}, ${f3(cB)}, smoothstep(0.15, 0.85, h)) * (0.05 + 0.4 * fr * fr) * ${(O.iridK ?? 1).toFixed(2)}; }`); };
-      m.customProgramCacheKey = () => "irid2|" + O.irid2.join() + "|" + (prev ? prev.toString().length : 0);
     }
     if (kind === "pearl" || O.pearlSheen) {   // mother-of-pearl: a rainbow shimmer that shifts with the viewing angle, on EVERY part (body too, on top of its own glow pattern)
       m.roughness = O.pearlK != null ? 0.3 : 0.14; m.metalness = O.pearlK != null ? 0.12 : 0.3;
@@ -2578,7 +2263,6 @@ FUR_LOOKS.Rimefang = Object.assign({}, FUR_LOOKS.Rimefang, { skin: "frost" });
   });
 }
 
-FUR_LOOKS.Lunaria = { length: 0.08, density: 56, tip: "#ffffff", tipK: 0.45, ruff: 2.0, tuft: 1.3, droop: 0.2, sheen: 0.4, parts: { head: true, wings: true } };   // moth fuzz: white, soft, a big fluffy collar
 FUR_LOOKS.Medusel = FUR_LOOKS.Medusel || { noFur: true };
 
 // ================= dragon kinds =================
@@ -2891,18 +2575,6 @@ SPECIES.push({ name: "Medusel", rarity: "Rare", home: "Deep sea under the Ocean"
        "No wings, but it drifts through the air the same way it drifts through water",
        "Its glow scares off big hunters and lures in little fish"] });
 
-// ----- NEW (Petra 2026-11-12): Lunaria, the luna moth dragon -----
-SPECIES.push({ name: "Lunaria", nightEgg: true, rarity: "Epic", home: "Deep Forest (at night; eggs show up more on bright moon nights)", speed: 3,
-  br: "Moondust: a glittering cloud of moon dust that puts monsters to sleep",
-  pal: P("#9ad68a", "#bfeaa8", "#f2fbe6", "#eaffc0", "#e8d49a", "#a6e07c", "#c8a0ff", { mothTrim: "#7a3c38", mothTip: "#e2e47a", moon: "#fff4c0", fur: "#ffffff", fin: "#c8e07a", metal: 0.05 }),
-  sp: { gentle: true, tier: 4, wings: "moth", wingScale: 1.25, flapSpeed: 5, horns: "antennae", back: "none", frill: "none", tail: "streamers", tailShape: "whip", thin: 0.85, girth: 0.95, neck: 0.9, pattern: "none", glow: 1.2, eyes: 1.2, head: [0.85, 1, 1] },
-  ad: ["Four wide moth wings, two on each side, pale lime green with a maroon front edge and a yellow rim, just like a real luna moth",
-       "A glowing moon eye spot on every wing: when it flashes them open, hunters think a huge animal is staring at them",
-       "The back wings end in long twisting ribbon tails with curled tips. They flutter and confuse bats and other night hunters",
-       "Big feathery antennae (instead of horns) smell flowers and other Lunarias from very far away",
-       "Soft white fuzz on its chest, head and legs keeps it warm on cold forest nights",
-       "Only comes out at night, and its wings glow softly in the dark"] });
-LEAN.Lunaria = [-2, -1, 3];
 SPECIES.forEach(s => {
   const o = s.sp || {}, b = s.speed || 3, heavy = (o.girth || 1) >= 1.15 || (o.legThick || 1) >= 1.25;
   if (s.walk == null) s.walk = clamp5(b + ((o.legLen || 1) >= 1.3 ? 1 : 0) + (o.digClaws ? 0.5 : 0) - ((o.wingScale || 1) >= 1.25 || ["soar", "narrow"].includes(o.wings) ? 1 : 0) - (heavy ? 0.5 : 0));
@@ -2937,7 +2609,7 @@ SPECIES.forEach(s => {
 // ----- which land each kind's eggs turn up in most (Lumora: anywhere; secret dragons have their own way) -----
 const HOME_LAND = {
   "Green Valley": ["Pyrrak", "Lichenwing", "Dawnwing"],
-  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Lunaria"],
+  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm"],
   "Crystal Caves": ["Stonewyrm", "Echowyrm", "Geodrake", "Prismwing"],
   "Desert": ["Dunerunner", "Sunscale", "Miragewyrm", "Scarabyx"],
   "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake"],
@@ -4607,8 +4279,7 @@ const EGG_ODDS = { Common: 62, Uncommon: 27, Rare: 9, Epic: 1.2, Legendary: 0.25
 const HOME_BOOST = { Common: 5, Uncommon: 5, Rare: 3, Epic: 1.5, Legendary: 1 };
 function rollKind(land) {
   const pool = SPECIES.filter(s => EGG_ODDS[s.rarity] && !EVENT_KIND(s)), n = r => pool.filter(s => s.rarity === r).length;
-  let moonK = 1; try { moonK = isNight && (evOn("super") || evOn("blue") || evOn("harvest")) ? 3 : 1; } catch (e) {}
-  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && s.land === land ? HOME_BOOST[s.rarity] : 1) * (s.nightEgg ? (isNight ? moonK : 0) : 1);   // night kinds (Lunaria): eggs only at night, 3x on bright moon nights
+  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && s.land === land ? HOME_BOOST[s.rarity] : 1);
   let r = Math.random() * pool.reduce((t, s) => t + w(s), 0);
   for (const s of pool) { r -= w(s); if (r <= 0) return s.name; }
   return "Pyrrak";
@@ -5498,7 +5169,7 @@ function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
   return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null, shell: sh.side, crystalTip: sh.glow, hornTip: sh.glow, spikeTip: sh.glow, flame: sh.glow, smoke: sh.wing, glow2: sh.horn, glow3: sh.eye,
     foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.glow, earInner: s.pal.earInner && sh.belly,
-    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow, mothTrim: s.pal.mothTrim && sh.horn, mothTip: s.pal.mothTip && sh.glow, gorget: s.pal.gorget && sh.glow, moon: s.pal.moon && sh.eye });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
+    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
 }
 const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
 const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
@@ -10947,10 +10618,10 @@ function evNewStart(id) {
   if (id === "tide") { const land = EVS.land; for (let i = 0; i < 14; i++) { const p = wildSpot(land, false); if (p) evShell(p); } }
   if (id === "star") {   // the star lands far away, in a land you're not in
     const lands = WILD_LANDS.filter(l => l !== landNow && l !== "Crystal Caves" && l !== "Bone Caves");
-    if (EVS.hostStar) { const h = EVS.hostStar, p = new V(h.x, h.y, h.z), w = addWild(h.k, h.land, p); w.star = true; EVS.star = { w, land: h.land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone()); }
+    if (EVS.hostStar) { const h = EVS.hostStar, p = new V(h.x, h.y, h.z), w = addWild(h.k, h.land, p); w.star = true; w.ev = true; EVS.star = { w, land: h.land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone()); }
     for (let i = 0; i < 10 && !EVS.star; i++) {
       const land = lands[Math.floor(Math.random() * lands.length)], p = wildSpot(land, false); if (!p) continue;
-      const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true;   // "!" = always hatches shiny
+      const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true; w.ev = true;   // "!" = always hatches shiny
       EVS.star = { w, land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone());
     }
   }
@@ -10975,8 +10646,8 @@ function evNewTick(dt, e, k) {
       p.needsUpdate = true; b.m.material.opacity = k * (0.55 + 0.25 * Math.sin(T * 0.8 + b.ph)); });
     if (hasDragon()) { EVS.extraT -= dt;
       if (EVS.extraT <= 0) { EVS.extraT = 40 + Math.random() * 30;
-        if (wild.filter(w => w.land === "Frost Peaks" && !w.ev).length < WILD_PER_LAND + 3) { const p = wildSpot("Frost Peaks", false), L = HOME_LAND["Frost Peaks"];
-          if (p) { addWild(L[Math.floor(Math.random() * L.length)], "Frost Peaks", p); if (landNow === "Frost Peaks") toast("Something shimmers under the aurora...", "An ice dragon egg has appeared!"); } } } }
+        if (wild.filter(w => w.land === "Frost Peaks" && w.ev).length < EV_MAX_LAND) { const p = wildSpot("Frost Peaks", false), L = HOME_LAND["Frost Peaks"];
+          if (p) { addWild(L[Math.floor(Math.random() * L.length)], "Frost Peaks", p).ev = true; if (landNow === "Frost Peaks") toast("Something shimmers under the aurora...", "An ice dragon egg has appeared!"); } } } }
     wild.forEach(w => { if (w.kind.startsWith("Auroran") && w.g.visible) { const u = w.g.userData; u.glow.scale.setScalar(4 + Math.sin(T * 3) * 1.2); u.glow.material.color.setHSL(0.38 + Math.sin(T * 0.7) * 0.2, 1, 0.6); u.sh.material.opacity = 0.35; } });
   }
   // Low Tide: the sea pulls back; shells, pearls and coins to pick up; a couple of stranded eggs
@@ -10993,7 +10664,7 @@ function evNewTick(dt, e, k) {
   }
   if (id === "tide" && hasDragon() && EVS.stranded < 2) { EVS.extraT -= dt;
     if (EVS.extraT <= 0) { EVS.extraT = 45 + Math.random() * 40; const land = EVS.land, p = wildSpot(land, false), L = HOME_LAND[land];
-      if (p) { addWild(L[Math.floor(Math.random() * L.length)], land, p); EVS.stranded++; if (landNow === land) toast("The sea left something behind...", "A stranded egg is lying on the sand!"); } } }
+      if (p) { addWild(L[Math.floor(Math.random() * L.length)], land, p).ev = true; EVS.stranded++; if (landNow === land) toast("The sea left something behind...", "A stranded egg is lying on the sand!"); } } }
   // Shooting Star: the beam shows where it landed until somebody picks the egg up
   if (id === "star" && !EVS.star && !EVS.starDone) { endEvent(true); return; }   // after loading a save the star is gone
   if (EVS.star) {
