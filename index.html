@@ -5218,7 +5218,7 @@ function buttons(list) {
 btnEl.addEventListener("click", e => { const b = e.target.closest("button"); if (b && btnEl._list) btnEl._list[+b.dataset.i][2](); });
 function pressKey(code) {
   const list = btnEl._list; if (!list || battleEl.hidden) return false;
-  const k = { Digit1: "1", Digit2: "2", Digit3: "3", Enter: "Enter", Space: "Enter", KeyE: "Enter" }[code];
+  const k = { Digit1: "1", Digit2: "2", Digit3: "3", Digit4: "4", Digit5: "5", Enter: "Enter", Space: "Enter", KeyE: "Enter" }[code];
   const b = list.find(x => x[1] === k || (k === "Enter" && list.length === 1)); if (b) { b[2](); return true; } return false;
 }
 function bars() {
@@ -5276,7 +5276,7 @@ async function nextFoe() {
   placeFighters();
   fx.me.ko = fx.foe.ko = 0;
   const st = petStats(), fs = statsAt(foe.k, foe.l);
-  run.me = { hp: st.hp, max: st.hp, claw: st.claw, breath: st.breath, speed: speedOf(), tired: false, guard: false };
+  run.me = { hp: st.hp, max: st.hp, claw: st.claw, breath: st.breath, speed: speedOf(), tired: false, guard: false, mcd: [0, 0, 0, 0] };
   run.foe = { hp: fs.hp, max: fs.hp, claw: fs.claw, breath: fs.breath, speed: SP(foe.k).speed || 3, tired: false, guard: false, shiny, flaked: false };
   bars();
   // the tamer talks first: their intro, then what they think of your dragon
@@ -5293,8 +5293,45 @@ async function nextFoe() {
 function turnMenu(msg) {
   say(msg); busy = false;
   const m = run.me;
-  buttons([["Claw", "1", () => turn("claw")], [m.tired ? "Breath (tired)" : "Breath", "2", () => !m.tired && turn("breath")], ["Guard", "3", () => turn("guard")]]);
+  const sp = spKnown().length > 0 && m.mcd;
+  buttons([["Claw", "1", () => turn("claw")], [m.tired ? "Breath (tired)" : "Breath", "2", () => !m.tired && turn("breath")], ["Guard", "3", () => turn("guard")]].concat(sp ? [["Moves", "4", () => movesMenu()]] : []));
   [...btnEl.children][1].disabled = m.tired;
+}
+// special moves in arena fights (Petra 2026-11-12): the same 4 moves as in monster fights, but they wait some turns instead of seconds
+const SP_TURNS = [3, 5, 4, 99];   // Tail Whip, Mighty Roar, Power Blast, Second Wind (once a fight)
+function movesMenu() {
+  if (busy) return; const m = run.me;
+  const why = i => (pet.level || 1) < SPECIALS[i].lv ? `Lv ${SPECIALS[i].lv}` : m.mcd[i] > 50 ? "used" : m.mcd[i] > 0 ? `${m.mcd[i]} turn${m.mcd[i] > 1 ? "s" : ""}` : (i === 2 && m.tired) ? "tired" : "";
+  say(`Which special move? <small>Tail Whip can't be dodged and breaks guards. Mighty Roar scares the foe out of its next attack. Power Blast is a huge breath. Second Wind heals a third of your HP once a fight.</small>`);
+  buttons(SPECIALS.map((s, i) => [why(i) ? `${s.name} (${why(i)})` : s.name, String(i + 1), () => !why(i) && turn("sp" + i)]).concat([["Back", "5", () => turnMenu(`What will ${pet.name} do?`)]]));
+  SPECIALS.forEach((s, i) => { [...btnEl.children][i].disabled = !!why(i); });
+}
+async function actSp(i) {
+  const A = run.me, D = run.foe, dName = `${shownName(foe)}'s ${foe.k}`, col = SP(pet.kind).pal.glow;
+  A.mcd[i] = SP_TURNS[i]; fx.me.lunge = 1; await sleep(320);
+  if (i === 0) {   // TAIL WHIP: can't be dodged, smashes through a guard
+    const dmg = Math.round(rnd(A.claw) * 0.9), g = D.guard; D.guard = false; D.hp -= dmg; fx.foe.hit = 1;
+    burst(spotFoe().clone().add(new V(0, 1.6, 0)), "#ffffff");
+    say(`${pet.name} uses <b>Tail Whip</b>! ${g ? "It smashes right through the guard! " : ""}${dName} takes <b>${dmg}</b>.`);
+  } else if (i === 1) {   // MIGHTY ROAR: the foe skips its next attack
+    D.stun = true; burst(spotMe().clone().add(new V(0, 2, 0)), col);
+    say(`${pet.name} uses <b>Mighty Roar</b>! ROOOAR! ${dName} is too scared to attack!`);
+  } else if (i === 2) {   // POWER BLAST: a huge breath that leaves you tired
+    A.tired = true;
+    const miss = Math.max(0.03, Math.min(0.3, 0.05 + (D.speed - A.speed) * 0.04));
+    if (Math.random() < miss) say(`${pet.name} fires a <b>Power Blast</b>... and ${dName} dodges it!`);
+    else { let dmg = Math.round(rnd(A.breath) * 1.8); if (D.guard) dmg = Math.ceil(dmg / 2); D.hp -= dmg; fx.foe.hit = 1;
+      for (let k = 0; k < 3; k++) burst(spotFoe().clone().add(new V((Math.random() - 0.5) * 2, 1.2 + Math.random(), (Math.random() - 0.5) * 2)), col);
+      say(`${pet.name} fires a <b>Power Blast</b>! ${D.guard ? "(guarded) " : ""}${dName} takes <b>${dmg}</b>!`); }
+  } else {   // SECOND WIND: heal a third of max HP, once a fight
+    const add = Math.min(A.max - A.hp, Math.round(A.max / 3)); A.hp += add; burst(spotMe().clone().add(new V(0, 1.6, 0)), "#7aff9a");
+    say(`${pet.name} uses <b>Second Wind</b> and catches its breath: <b>+${add} HP</b>.`);
+  }
+  crowd.hype = 1; bars(); await sleep(900);
+  if (foe.n === "Sheen" && !run.foe.flaked && run.foe.hp <= run.foe.max / 2 && run.foe.hp > 0) {
+    run.foe.flaked = true; run.foe.shiny = null; buildFoe(null); placeFighters(); bars();
+    say(`The gold is flaking off! It was just polish. It's a plain old Dustmite!`); await sleep(1500);
+  }
 }
 function foeMove() {
   const f = run.foe;
@@ -5303,6 +5340,8 @@ function foeMove() {
   return "claw";
 }
 async function act1(who, move) {
+  if (who === "me" && move.startsWith("sp")) return actSp(+move[2]);
+  if (who === "foe" && run.foe.stun) { run.foe.stun = false; say(`${shownName(foe)}'s ${foe.k} is still too scared to attack!`); await sleep(900); return; }
   const A = run[who], D = run[who === "me" ? "foe" : "me"], aName = who === "me" ? pet.name : `${shownName(foe)}'s ${foe.k}`;
   const dName = who === "me" ? `${shownName(foe)}'s ${foe.k}` : pet.name;
   if (move === "guard") { A.guard = true; A.tired = false; say(`${aName} braces itself and catches its breath.`); await sleep(700); return; }
@@ -5332,12 +5371,13 @@ async function turn(move) {
   if (busy) return; busy = true; buttons([]);
   const me = run.me, f = run.foe, fm = foeMove();
   // guarding always comes first; otherwise the faster dragon goes first (ties go to you)
-  const order = (move === "guard") !== (fm === "guard") ? (move === "guard" ? ["me", "foe"] : ["foe", "me"]) : (f.speed > me.speed ? ["foe", "me"] : ["me", "foe"]);
+  const pMe = move === "guard" || move === "sp1" || move === "sp3", pFoe = fm === "guard";   // guard, Roar and Second Wind go first
+  const order = pMe !== pFoe ? (pMe ? ["me", "foe"] : ["foe", "me"]) : (f.speed > me.speed ? ["foe", "me"] : ["me", "foe"]);
   for (const who of order) {
     await act1(who, who === "me" ? move : fm);
     if (f.hp <= 0 || me.hp <= 0) break;
   }
-  me.guard = f.guard = false;
+  me.guard = f.guard = false; if (me.mcd) me.mcd = me.mcd.map(c => Math.max(0, c - 1));
   if (f.hp <= 0) return winFight();
   if (me.hp <= 0) return loseFight();
   turnMenu(`What will ${pet.name} do?`);
