@@ -233,6 +233,7 @@ const PAL = {
   Neon:    { top: "#11112a", side: "#1e1e44", belly: "#2b2b5c", glow: "#3dff8c", horn: "#ff45d6", wing: "#0e0e24", eye: "#3dff8c", metal: 0.1 },
   "Purple & blue": { top: "#2a1462", side: "#4c2bab", belly: "#73bbff", glow: "#c38dff", horn: "#c4e8ff", wing: "#1c2b7e", eye: "#ffffff", metal: 0.25 },
   "Blue Moon": { top: "#1c2c5c", side: "#6c8cca", belly: "#e6eeff", glow: "#9fd4ff", horn: "#f2f7ff", wing: "#26366c", eye: "#d4ecff", metal: 0.45 },
+  "Aurora": { top: "#0e4a3c", side: "#2aa88a", belly: "#c8a8ff", glow: "#ff7ae0", glow2: "#ff7ae0", horn: "#b07aff", wing: "#6a2ab0", eye: "#a8ffd8", metal: 0.4 },   // Aurora Night shiny (Petra 2026-11-12)
   "Harvest Moon": { top: "#c4581a", side: "#e88a2a", belly: "#ffc46a", glow: "#ffb03a", horn: "#fff0d0", wing: "#7a1a24", eye: "#ffe07a", metal: 0.2 }   // blue moon / harvest moon: only from eggs found under that moon
 };
 // ---------- tapered tube (smooth, analytic normals) ----------
@@ -3833,7 +3834,7 @@ const oceanAnims = [];
   const p = g.attributes.position, base = new Float32Array(p.count), keep = new Uint8Array(p.count);
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); keep[i] = Math.hypot(x, z) > 128 && coast(x, z) > 0.05 ? 1 : 0; base[i] = keep[i] ? WATER_Y + 0.15 : -60; p.setY(i, base[i]); }
   const sea = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: lin("#2f86c0"), specular: lin("#5a7a90"), shininess: 35, flatShading: true, transparent: true, opacity: 0.9 }));
-  sea.receiveShadow = true; scene.add(sea);
+  sea.receiveShadow = true; scene.add(sea); globalThis.SEA_MESH = sea;
   oceanAnims.push(t => {
     for (let i = 0; i < p.count; i++) if (keep[i]) { const x = p.getX(i), z = p.getZ(i); p.setY(i, base[i] + Math.sin(x * 0.07 + t * 1.3) * 0.35 + Math.sin(z * 0.09 - t * 1.1) * 0.25 + Math.sin((x + z) * 0.03 + t * 0.7) * 0.3); }
     p.needsUpdate = true;
@@ -4636,7 +4637,7 @@ const HAZEL_BOOKS = [
   { t: "Wings of the World", p: ["Wings of the World, by Professor Hazel. I have spent forty years looking at dragon wings. My neck hurts. This book is about what I learned: that no two lands grow the same wings.", "Chapter 1: Why Wings Are Different. A dragon's wings are shaped by where its family has lived for a very, very long time. Dragons that needed to glide grew long wings. Dragons that needed to twist and turn grew short round ones. Dragons that stopped needing wings at all... well, we will get to them.", "Chapter 2: Sky Wings. Sky dragons have the biggest wings of all, long and thin, with light bodies underneath. Driftail can glide for days without one flap. Aerolash has narrow swept-back racing wings and is the fastest flyer I have ever timed. I timed it with a stopwatch. It was gone before I pressed the button.", "Chapter 3: Forest Wings. In the Deep Forest there is no room to glide, so forest dragons grew broad, round wings to dodge between tree trunks. Fernling and Bramblehydra even have leafy wings, which fold flat so they can push through bushes.", "Chapter 4: Water Wings. Sea dragons have fin wings, half wing and half flipper. Aquawyrm and Gillwing 'fly' through water nearly as fast as through air. Abyssar is my favourite: its wings started out as ordinary wings, but living so deep they slowly turned into fins. And they still work as wings! It can swim and fly.", "Chapter 5: Hot Wings. Fire dragons have a problem: they get too hot. So their wings have glowing veins that let out extra heat, like the cracks in Volcanox's skin. Ashveil's wings are ragged on purpose, so hot ash blows straight through instead of tearing them.", "Chapter 6: Cold Wings. Ice dragons keep their wings small and close to their round, furry bodies, so the heat does not escape. Auroran is the exception: big wings with purple tips, for long flights between the frozen peaks at night.", "Chapter 7: Odd Wings. Scarabyx hides its wings under a golden beetle shell. Prismwing has see-through crystal panels that flash rainbows. Maplewing's wings look like maple leaves, and it spins down from the treetops like a maple seed. I cried a little when I first saw that. Do not tell anyone.", "Chapter 8: No Wings At All. Some dragons have no wings. Coilwyrm slithers, Burrowdrake digs, Crestrunner sprints, and they are all perfectly happy on the ground. And then there are a very few wingless dragons that fly anyway, leaping across the sky on puffs of fire and frost. Twinhead does it. I watched it happen and I still do not believe it."] },
   { t: "Why Is It Glowing?", p: ["Why Is It Glowing? by Professor Hazel. A short book about a big question. I asked it when I was six years old, and I am still asking it.", "Chapter 1: Night Lights. Go outside after dark near any dragon and you will see it: soft glowing markings, eyes, horns or tails. Almost every dragon glows a little at night. A few glow even in the daytime.", "Chapter 2: My Best Guess. Long ago, I believe, the dark was the only safe time for dragons to be out. Something hunted them in the daytime. So dragons learned to find each other at night by their light, the way we find a friend by their voice.", "Chapter 3: Glowing for Food. Some dragons glow to catch dinner. Lanternfen dangles a little lantern on its tail over the swamp water, and bugs fly right up to it. Deepcrown hangs a glowing lure from its tail in the deep sea. Abyssar's glowing spots light up the dark trench and bring curious fish close.", "Chapter 4: Glowing to Talk. Crestrunner flashes its bright crest to talk to its herd. Thunderhydra's cracks flash when it gets angry, which is extremely useful to know. When the cracks start flashing, I start walking. Quickly.", "Chapter 5: Glowing to Cool Down. Fire dragons glow because they are hot inside. The light you see is extra heat leaking out through cracks and veins. If they could not let it out, they would cook themselves. Volcanox stores heat like a furnace. Do not hug a Volcanox.", "Chapter 6: The Rarer, the Brighter. Here is the strange part. The rarer the dragon, the brighter it seems to glow. Epic dragons sparkle. Legendary dragons are surrounded by drifting lights. I cannot explain this one. I just write it down, and then I stare at it for a while."] },
   { t: "Eggs: A Very Short Book", p: ["Eggs: A Very Short Book, by Professor Hazel. It started as a very short book. Then I kept finding things out. It is now a medium book with a short title.", "Chapter 1: Where Eggs Are. Dragons lay their eggs in the land they love best. You will find far more swamp dragon eggs in the Misty Swamp, and far more fire dragon eggs on Fire Mountain. Look for the soft glow and the faint shimmer of light rising from them.", "Chapter 2: Water Eggs. Water dragons only lay near water: by ponds, by the desert oasis, on beaches, and on the little sandy islands of the Coral Reef. Never in a desert dune. They are very fussy about that.", "Chapter 3: Small Eggs. Now and then you will find a small egg. It holds a baby of a kind you have already hatched. Small dragons stay small. They are very cute and very proud.", "Chapter 4: Weather Eggs. Some eggs only appear in strange weather. Sandstorms, blizzards, thunderstorms and fog each bring their own dragon. If you see a storm coming, go out in it! Carefully. With a coat.", "Chapter 5: Sky Eggs. Others only appear under strange skies: a red moon, a falling star, or the sun going dark in the middle of the day. I have a whole book about those, called Strange Skies.", "Chapter 6: How Many? Strange-weather eggs pile up, but not forever. As far as I can count, no land ever holds more than five of them at once, and never more than two of the same kind. I think the dragons do not like crowds. I don't either.", "Chapter 7: The Rarest Eggs. Some eggs are so rare that most tamers never see one in their whole lives. Epic eggs are about one in a hundred. Legendary eggs are even rarer. And a few eggs, I am told, only appear when something very special happens. I am still waiting for mine."] },
-  { t: "Strange Skies", p: ["Strange Skies, by Professor Hazel. Look up. That is the whole book, really. But I wrote more, because looking up is more fun with some notes.", "Chapter 1: The Blue Moon. Some nights the moon turns blue. Any egg that hatches under a blue moon comes out blue as midnight. I hatched one once. I named it Midnight. I am not very creative at midnight.", "Chapter 2: The Harvest Moon. A huge orange moon, low in the sky, with leaves drifting in the air. Eggs that hatch under it come out pumpkin-orange, with autumn leaves that follow them around. The leaves follow me around too, but that is because I forget to brush my hair.", "Chapter 3: The Red Moon. When the moon turns red, monsters get bold and come out in bigger numbers. And a fierce red-eyed dragon lays its eggs, but only then. Stay close to home on a red moon night, unless you are very brave or very curious. I am always curious.", "Chapter 4: Falling Stars. During a meteor shower, watch for a star that does not burn out. Sometimes one crashes, and in the crater sits an egg that rode all the way down from space. That dragon is freckled with glowing star spots, and its tail streams behind it like a comet.", "Chapter 5: The Sun Goes Dark. Very rarely the moon slides right over the sun, in the middle of the day. The old stories say a dragon with a ring of fire round its head comes down while the sun is hidden. I have seen it once. My hands shook so much that my notes just say 'AAAAH'.", "Chapter 6: Wild Weather. Sandstorms in the Desert, blizzards on the Frost Peaks, thunderstorms over the valley and the sea, and thick fog. Each kind of weather brings its own dragon. A dragon born in a storm loves storms forever.", "Chapter 7: The Autumn Spirit. Some tamers say that on certain Harvest Moons something runs across the sky above the Autumn Woods. I do not know if it is true. I have written what I know about it in my book on the Autumn Woods."] },
+  { t: "Strange Skies", p: ["Strange Skies, by Professor Hazel. Look up. That is the whole book, really. But I wrote more, because looking up is more fun with some notes.", "Chapter 1: The Blue Moon. Some nights the moon turns blue. Any egg that hatches under a blue moon comes out blue as midnight. I hatched one once. I named it Midnight. I am not very creative at midnight.", "Chapter 2: The Harvest Moon. A huge orange moon, low in the sky, with leaves drifting in the air. Eggs that hatch under it come out pumpkin-orange, with autumn leaves that follow them around. The leaves follow me around too, but that is because I forget to brush my hair.", "Chapter 3: The Red Moon. When the moon turns red, monsters get bold and come out in bigger numbers. And a fierce red-eyed dragon lays its eggs, but only then. Stay close to home on a red moon night, unless you are very brave or very curious. I am always curious.", "Chapter 4: Falling Stars. During a meteor shower, watch for a star that does not burn out. Sometimes one crashes, and in the crater sits an egg that rode all the way down from space. That dragon is freckled with glowing star spots, and its tail streams behind it like a comet.", "Chapter 5: The Sun Goes Dark. Very rarely the moon slides right over the sun, in the middle of the day. The old stories say a dragon with a ring of fire round its head comes down while the sun is hidden. I have seen it once. My hands shook so much that my notes just say 'AAAAH'.", "Chapter 6: Wild Weather. Sandstorms in the Desert, blizzards on the Frost Peaks, thunderstorms over the valley and the sea, and thick fog. Each kind of weather brings its own dragon. A dragon born in a storm loves storms forever.", "Chapter 7: The Autumn Spirit. Some tamers say that on certain Harvest Moons something runs across the sky above the Autumn Woods. I do not know if it is true. I have written what I know about it in my book on the Autumn Woods.", "Chapter 8: The Aurora. On rare nights, green and pink lights ripple across the whole sky. Eggs that hatch under them come out green and pink like the lights themselves. Up on the Frost Peaks, ice dragon eggs pop up everywhere, and Auroran eggs glow like little lanterns.", "Chapter 9: Strange Days. A Heat Wave makes fire monsters fierce, but fire dragons love it and zoom about. At Low Tide the sea pulls back and leaves shells, pearls, coins and even eggs on the sand. A Spore Bloom fills the swamps with glowing dust that makes monsters yawn. And on Wind Day, the gusts over the Sky Islands will shove you around, unless you fly the same way the wind blows. Then you fly like an arrow!", "Chapter 10: The Big Star. Once in a long while, one huge star falls and lands somewhere far away. A beam of light shows where. Whoever gets there first finds a rare egg that always hatches shiny. It never waits past sunrise. I have never once got there first. My dragon stops to sniff flowers."] },
   { t: "Bones in the Sand", p: ["Bones in the Sand, by Professor Hazel. Out in the Desert lie bones so big you can walk inside the ribs. This is the book about them, and about what I think they mean.", "Chapter 1: The Bones. The first time I saw them, I thought they were rocks. Then I saw the teeth. Each one is longer than I am tall. These bones are far too big for any dragon. Far, far too big.", "Chapter 2: The Carvings. All around the lands there are old stone carvings. Some are in the Desert, some in the forest, some on the Sky Islands. They show huge creatures in the sky, with dragons running and hiding below them.", "Chapter 3: The Sky Titans. I call them the Sky Titans. Creatures so big they hunted dragons from above, the way an owl hunts mice. I know, I know. It sounds like a scary story. But the bones are real.", "Chapter 4: Dark Backs. Look at almost any dragon from above. Its back is darker than its belly. That is camouflage against something looking DOWN at it. Nothing in the world today hunts dragons from above. So why would they need it? Unless something used to.", "Chapter 5: Perches and Towers. I believe the Sky Islands were the Titans' perches. And the stone ring on Sky Haven was not built for the view. I think the old tamers built it to watch the sky.", "Chapter 6: Where Did They Go? Nobody knows. The carvings just stop. The bones are very, very old. Maybe they are gone forever. Maybe. I check the sky every morning anyway.", "Chapter 7: The Scattering. When a huge shadow once passed over the lands, dragons everywhere fled their homes at once. I think they remembered something very old, something from above. Old habits, it seems, last a very long time in dragons."] },
   { t: "The Breathing Stone (a theory)", p: ["The Breathing Stone (a theory), by Professor Hazel. Most scholars laugh at this book. That is fine. They laughed at my book about Driftails being fluffy, too, and look who was right.", "Chapter 1: The Miners' Story. Miners deep under the mountains all tell the same story. Rocks that are warm to the touch. Gold veins that glow in the dark. And a sound like very, very slow breathing.", "Chapter 2: A Question. What if, long ago, when something hunted dragons from above, some dragons went the other way? Not up. DOWN. Deep under the mountains, where nothing could follow.", "Chapter 3: Turning to Stone. What if they grew so still, and so quiet, that they started to look like stone? Hiding in plain sight, inside the mountain itself. Sleeping for hundreds of years.", "Chapter 4: What Would They Need? A dragon sleeping that long would need to store energy somewhere, the way a bear stores fat for winter. Perhaps that is what the glowing gold veins are. Perhaps not. I only have questions here, no answers.", "Chapter 5: Why I Believe It. I have been down there. Once. In the quiet, I heard it too: slow, deep breathing, from inside the rock. Then my lantern went out and I ran. Scholars do not usually admit to running. I am admitting it.", "Chapter 6: If You Go Looking. Please be careful. Mountains are old, and what sleeps in them may not like being woken. If you ever find a warm stone with gold cracks, be gentle. And tell me. Please tell me."] },
   { t: "Blacker Than Night (a theory)", p: ["Blacker Than Night (a theory), by Professor Hazel. This is the book I am least sure about, and the one I think about most.", "Chapter 1: The Paintings. Very old cave paintings show a dragon drawn as a hole in the sky. Blacker than night, with violet eyes. The old tamers painted it everywhere, next to everyday things like fish and goats.", "Chapter 2: Friendly and Common. The paintings show it near people, playing, sleeping by fires. The old tamers wrote that it was friendly. Common, even. Not a scary dragon at all.", "Chapter 3: Then They Stop. And then, suddenly, the paintings stop. Not slowly, as if the dragons died out. All at once. As if one day they simply... vanished.", "Chapter 4: My Theory. I think they could slip between places. Here one moment, somewhere else the next. When something hunted them, they slipped away and never came back. Not gone. Just elsewhere.", "Chapter 5: Right Next to Us? If any are left, they might be right next to us, and we would never know. Sometimes, in the dark, I feel like something is watching me with violet eyes. Usually it is my cat. Usually.", "Chapter 6: An Old Woman's Story. In the village, Old Nettle says a black dragon once ate her dragons, and that it had an egg. She says a lot of things. She also says her teapot can hear us. But I have learned to write down everything she says, just in case."] },
@@ -4931,7 +4932,7 @@ function frame() {
       let want = ix * 1.8 * dt;
       if (locked && !ix) { let d = ((camYaw - pet.face + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; want = d * Math.min(1, dt * 3); }
       pet.face += Math.max(-maxTurn, Math.min(maxTurn, want));
-      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() * potSwift() : walkMul());   // Shift in the air = fly sprint; Swiftwing Elixir = faster
+      let target = (iz > 0 ? (pet.fly ? (run ? 48 : 30) : (run ? 20 : 12)) : iz < 0 ? (pet.fly ? -6 : -4) : 0) * (pet.fly ? flyMul() * potSwift() : walkMul()) * evPetSpeed();   // Shift in the air = fly sprint; Swiftwing Elixir = faster
       let vy = 0;
       if (pet.dive) {
         // dive bomb: wings tucked, straight down and very fast; let go of Shift (or get close to the ground) to pull up
@@ -9045,6 +9046,7 @@ const RED = new THREE.Color("#ff2a1a"), WHITE = new THREE.Color("#ffffff");
 
 // ---- your dragon gets hurt ----
 function hurtPet(dmg, m) {
+  dmg = Math.round(dmg * evMonDmg(m));   // heat wave: fire monsters hit harder
   if (dodgeT > 0 && !pet.held) { toast("Dodged!", ""); return; }
   pet.hp = Math.max(0, petHp() - dmg); petHurtT = 0.35; fightT = 6;
   burstAt(pet.x, pet.y + 1.5, pet.z, "#ff4a3a");
@@ -9203,7 +9205,7 @@ function monAttack(m) {
 function moveMon(m, tx, ty, tz, sp, dt) {
   const d = m.d, dx = tx - m.x, dz = tz - m.z, dist = Math.hypot(dx, dz);
   if (dist > 0.3 && sp > 0) {
-    const step = Math.min(dist, sp * dt);
+    const step = Math.min(dist, sp * dt * evMonSpd(m));
     m.x += dx / dist * step; m.z += dz / dist * step;
     m.face = angLerp(m.face, Math.atan2(dz, dx), Math.min(1, dt * 6));
   }
@@ -9297,6 +9299,7 @@ function updateMonsters(dt) {
     }
     const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
     let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
+    sense *= evMonSense(m);                                                          // spore bloom: sleepy
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
     if (d.ceil) sense = dy < -2 ? 16 : 0;                                              // only notices dragons flying underneath
     if (d.boss) sense = 120;
@@ -9319,7 +9322,7 @@ function updateMonsters(dt) {
         m.warn -= dt; tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5);
         if (m.warn <= 0) { tint(m, null, 0); monAttack(m); m.cd = 1.5 + Math.random() * 1.2 + (d.ceil ? 2 : 0); m.postT = d.ph ? d.ph[4] : 0; }
       } else {
-        m.cd -= dt;
+        m.cd -= dt * evMonCd(m);
         const d3 = Math.hypot(pd, (m.y + m.tall * 0.5) - mid.y);   // Petra: monsters can only aim as far as their attack reaches (up and down too)
         const inReach = d.ceil ? pd < 7 && dy < -2 && dy > -d.range : d.shot || d.beam ? d3 < d.range + 4 : d.scream ? d3 < d.range : d3 < d.range + m.rad + petRad() + 2;
         if (m.cd <= 0 && inReach && own !== 2) { m.warn = d.warn || 0.75; m.aim = mid.clone(); }   // the red flash: your cue to dodge
@@ -10297,6 +10300,19 @@ const EVT = {
              sky: "#1e2430", bg: "#1e2430", fog: "#1e2430", hemi: "#8a9ab8", parts: "rain", pc: "#a8b8d8", fogFar: 170, dark: 0.6, bolts: true },
   fog:     { name: "Fog", lands: ["Green Valley", "Deep Forest"], kind: "Wispwyrm", len: [160, 260], msg: "A thick fog is rolling in", hint: "Wispwyrm eggs appear only in the fog",
              sky: "#cdd3d6", bg: "#cdd3d6", fog: "#cdd3d6", hemi: "#e0e6ea", fogFar: 38, dark: 0.2 },
+  // ---- Petra's six new events (2026-11-12) ----
+  aurora:  { name: "Aurora Night", night: true, all: true, msg: "Green and pink lights are dancing across the sky!", hint: "Hatch an egg tonight and the baby comes out an Aurora shiny. Ice dragon eggs show up more on the Frost Peaks, and Auroran eggs glow",
+             sky: "#08222a", bg: "#020c14", fog: "#0a1c26", hemi: "#7ad8b8", parts: "motes", pc: "#a8ffd8", auroraSky: true },
+  heat:    { name: "Heat Wave", day: true, lands: ["Desert", "Fire Mountain"], len: [180, 280], msg: "A heat wave has hit! The air is shimmering", hint: "Fire monsters hit harder, but fire dragons go faster",
+             sky: "#f0b070", bg: "#f0b070", fog: "#e8a868", hemi: "#ffc890", parts: "motes", pc: "#ffb060", fogFar: 240, dark: -0.15 },
+  tide:    { name: "Low Tide", lands: ["Ocean", "Coral Reef"], len: [200, 300], msg: "The tide is going out!", hint: "Shells, coins and stranded eggs are lying on the sand",
+             sky: "#8ec8f0", bg: "#a8d4f4", fog: "#b0d8f0", hemi: "#d8f0ff" },
+  spore:   { name: "Spore Bloom", lands: ["Blightwood", "Misty Swamp"], len: [180, 280], msg: "Glowing spores are drifting everywhere!", hint: "The monsters here are sleepy and slow",
+             sky: "#3a4a28", bg: "#2a3820", fog: "#4a5a30", hemi: "#c8f08a", parts: "motes", pc: "#d8ff7a", fogFar: 150, dark: 0.2 },
+  star:    { name: "Shooting Star", night: true, all: true, msg: "A huge shooting star just fell to the ground!", hint: "Follow the beam of light: a rare shiny egg waits where it landed. Get there before sunrise!",
+             sky: "#0e1430", bg: "#03050e", fog: "#0e1228", hemi: "#7a86c8", fallStar: true },
+  wind:    { name: "Wind Day", lands: ["Sky Islands"], len: [180, 280], msg: "A strong wind is blowing over the Sky Islands!", hint: "Gusts push you around. Fly WITH the wind to go super fast",
+             sky: "#9ccaf0", bg: "#9ccaf0", fog: "#b8dcf4", hemi: "#e8f4ff", parts: "wind", pc: "#ffffff", windy: true },
 };
 const EVS = { cur: null, t: 0, land: null, eggs: {}, amt: 0, here: 0, roll: 150, eggT: 20, wasNight: false, boltT: 4, metT: 1, bigT: 20 };
 const evC = h => new THREE.Color(h);
@@ -10318,19 +10334,20 @@ function epReset(i, any) {
   if (epMode === "rain") { epVel[k] = 2; epVel[k + 1] = -(26 + Math.random() * 8); epVel[k + 2] = 0.6; }
   if (epMode === "sand") { epPos[k + 1] = c.y + (Math.random() - 0.5) * 14; if (!any) epPos[k] = c.x - EP_R; epVel[k] = 22 + Math.random() * 10; epVel[k + 1] = (Math.random() - 0.5); epVel[k + 2] = (Math.random() - 0.5) * 3; }
   if (epMode === "motes") { epPos[k + 1] = c.y + (Math.random() - 0.5) * 16; epVel[k] = (Math.random() - 0.5) * 0.6; epVel[k + 1] = (Math.random() - 0.3) * 0.4; epVel[k + 2] = (Math.random() - 0.5) * 0.6; }
+  if (epMode === "wind") { const a = EVS.windA || 0, sp = 30 + Math.random() * 14; epPos[k + 1] = c.y + (Math.random() - 0.5) * 18; if (!any) { epPos[k] = c.x - Math.cos(a) * EP_R * 0.95; epPos[k + 2] = c.z - Math.sin(a) * EP_R * 0.95; } epVel[k] = Math.cos(a) * sp; epVel[k + 1] = (Math.random() - 0.5) * 0.6; epVel[k + 2] = Math.sin(a) * sp; }
   if (epMode === "leaves") { epVel[k] = 1.5 + Math.random(); epVel[k + 1] = -(1 + Math.random()); epVel[k + 2] = (Math.random() - 0.5); }
 }
 function epSet(mode, col) {
-  epMode = mode; const line = mode === "rain" || mode === "sand";
+  epMode = mode; const line = mode === "rain" || mode === "sand" || mode === "wind";
   epPts.visible = !!mode && !line; epLines.visible = !!mode && line;
   if (!mode) return;
   epPts.material.color.set(col); epLines.material.color.set(col);
-  epPts.material.size = mode === "snow" ? 0.3 : mode === "leaves" ? 0.45 : 0.22; epLines.material.opacity = mode === "rain" ? 0.45 : 0.55;
+  epPts.material.size = mode === "snow" ? 0.3 : mode === "leaves" ? 0.45 : 0.22; epLines.material.opacity = mode === "rain" ? 0.45 : mode === "wind" ? 0.6 : 0.55;
   for (let i = 0; i < EP_N; i++) epReset(i, true);
 }
 function epTick(dt, amt) {
   if (!epMode) return;
-  const n = Math.floor(EP_N * Math.min(1, amt)), line = epMode === "rain" || epMode === "sand", c = camera.position;
+  const n = Math.floor(EP_N * Math.min(1, amt) * (epMode === "wind" ? 0.45 : 1)), line = epMode === "rain" || epMode === "sand" || epMode === "wind", c = camera.position;
   epPts.material.opacity = Math.min(1, amt * 1.2); epLines.material.opacity = (epMode === "rain" ? 0.45 : 0.55) * Math.min(1, amt * 1.2);
   for (let i = 0; i < n; i++) {
     const k = i * 3; epPos[k] += epVel[k] * dt; epPos[k + 1] += epVel[k + 1] * dt; epPos[k + 2] += epVel[k + 2] * dt;
@@ -10383,7 +10400,9 @@ function startEvent(id, land, t) {
   EVS.cur = id; EVS.land = land !== undefined ? land : evPickLand(e); EVS.eggs = {};
   EVS.fox = id === "harvest" && Math.random() < 0.2 ? 40 + Math.random() * 150 : 0;   // the Autumn Spirit only comes on some Harvest Moons EVS.eggT = 15 + Math.random() * 15; EVS.bigT = 12;
   EVS.t = t !== undefined ? t : e.len ? (Array.isArray(e.len) ? e.len[0] + Math.random() * (e.len[1] - e.len[0]) : e.len) : Infinity;
+  if (id === "wind") EVS.windA = Math.random() * 6.283;
   epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a");
+  evNewStart(id);
   if (started) toast(e.msg, e.hint + (EVS.land && EVS.land !== landNow ? ` (in the ${EVS.land})` : ""));
   writeSave();
 }
@@ -10391,12 +10410,13 @@ function endEvent(quiet) {
   const e = EVT[EVS.cur]; if (!e) return;
   EVS.roll = Math.max(EVS.roll, 300);   // a quiet spell after every event
   if (!quiet && started) toast(e.night ? (e.name.includes("Moon") ? "The moon is back to normal" : "The meteor shower is over") : e.day ? "The sun is back!" : `The ${e.name.toLowerCase()} is over`, "Any event eggs you haven't found are still out there");
+  evNewEnd(quiet);
   EVS.cur = null; EVS.land = null; epSet(null);
   writeSave();
 }
 const evOn = id => EVS.cur === id;
 const evBold = () => (evOn("red") && isNight ? 1 : 0);                  // red moon: monsters are bolder
-const evShiny = () => isNight && (evOn("blue") ? "Blue Moon" : evOn("harvest") ? "Harvest Moon" : null);
+const evShiny = () => isNight && (evOn("blue") ? "Blue Moon" : evOn("harvest") ? "Harvest Moon" : evOn("aurora") ? "Aurora" : null);
 // Petra 2026-11-10: at most 5 event eggs lying in each land, and at most 2 of any one kind
 const EV_MAX_LAND = 5, EV_MAX_KIND = 2;
 function evRoom(land, kind) { const here = wild.filter(w => w.ev && w.land === land); return here.length < EV_MAX_LAND && here.filter(w => w.kind === kind).length < EV_MAX_KIND; }
@@ -10418,14 +10438,14 @@ function updateEvents(dt) {
     const e = EVT[EVS.cur];
     if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
     if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
-      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
+      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : r < 0.18 ? "star" : r < 0.21 ? "aurora" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
   }
   if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
   else if (hasDragon() && state !== "arena") {
     EVS.roll -= dt;
     if (EVS.roll <= 0) { EVS.roll = 90 + Math.random() * 60; const r = Math.random(), sunUp = dayTime > 0.08 && dayTime < 0.42;   // rare (Petra 2026-11-10): weather about once per 40 minutes of play
       if (!isNight && sunUp && r < 0.012) startEvent("eclipse");
-      else if (r < 0.06) startEvent(["sand", "blizzard", "storm", "fog"][Math.floor(Math.random() * 4)]); }
+      else if (r < 0.08) { const L = ["sand", "blizzard", "storm", "fog", "tide", "spore", "wind"].concat(sunUp ? ["heat"] : []); startEvent(L[Math.floor(Math.random() * L.length)]); } }
   }
   const e = EVT[EVS.cur];
   EVS.amt += ((e ? 1 : 0) - EVS.amt) * Math.min(1, dt * 0.5);
@@ -10461,6 +10481,7 @@ function updateEvents(dt) {
   } else { scene.fog.far = 420; scene.fog.near = 110; moonDisc.material.color.set("#dfe8ff"); moonDisc.scale.setScalar(60); sunDisc.material.opacity = 1; eclipseSun.visible = false; }
   if (EVS.cur !== "eclipse") { eclipseSun.visible = false; sunDisc.material.opacity = 1; }
   epTick(dt, e && e.parts || (e && e.leaves) ? k : 0);
+  evNewTick(dt, e, k);
   // lightning flashes and shooting stars
   if (e && e.bolts && k > 0.5) { EVS.boltT -= dt; if (EVS.boltT <= 0) { EVS.boltT = 4 + Math.random() * 6; const a = Math.random() * 6.283, r = 40 + Math.random() * 60, x = me.x + Math.cos(a) * r, z = me.z + Math.sin(a) * r; evBolt(new V(x, height(x, z), z)); } }
   if (e && e.meteors) { EVS.metT -= dt; if (EVS.metT <= 0) { EVS.metT = 0.3 + Math.random() * 1.2; evMeteor(null); } }
@@ -10484,8 +10505,119 @@ function updateEvents(dt) {
   if (e) {
     const left = isFinite(EVS.t) ? ` · ${Math.floor(EVS.t / 60)}:${String(Math.floor(EVS.t % 60)).padStart(2, "0")} left` : " · until sunrise";
     evEl.hidden = state === "arena";
-    evEl.innerHTML = `<b>${e.name}</b>${EVS.land ? ` in the ${EVS.land}` : ""}${left}<br><small>${e.hint}</small>`;
+    evEl.innerHTML = `<b>${e.name}</b>${EVS.land ? ` in the ${EVS.land}` : ""}${left}<br><small>${e.hint}${EVS.star ? `<br>The star fell in the ${EVS.star.land}, ${evEl.dataset.star || "?"} m away` : ""}</small>`;
   } else evEl.hidden = true;
+}
+
+// ================= Petra's six new events (2026-11-12): Aurora Night, Heat Wave, Low Tide, Spore Bloom, Shooting Star, Wind Day =================
+const evHere = id => evOn(id) && (EVT[id].all || EVS.land === landNow);
+// ---- what events do to monsters: Heat Wave = fire monsters stronger, Spore Bloom = monsters sleepy and slow ----
+const evMonFx = m => evOn("heat") && m.land === EVS.land ? { spd: 1.15, sense: 1, cd: 1.15, dmg: 1.3 } : evOn("spore") && m.land === EVS.land ? { spd: 0.5, sense: 0.55, cd: 0.55, dmg: 1 } : null;
+const evMonSpd = m => { const f = evMonFx(m); return f ? f.spd : 1; }, evMonSense = m => { const f = evMonFx(m); return f ? f.sense : 1; };
+const evMonCd = m => { const f = evMonFx(m); return f ? f.cd : 1; }, evMonDmg = m => { const f = m && evMonFx(m); return f ? f.dmg : 1; };
+// ---- what events do to your dragon: Heat Wave = fire dragons faster, Wind Day = fly with the wind to go fast ----
+function evPetSpeed() {
+  if (state !== "ride") return 1;
+  if (evHere("heat") && (HOME_LAND["Fire Mountain"].includes(pet.kind) || HOME_LAND.Desert.includes(pet.kind))) return 1.35;
+  if (evHere("wind") && pet.fly) { const c = Math.cos(pet.face - (EVS.windA || 0)); return c > 0 ? 1 + c * 0.7 : 1 + c * 0.25; }
+  return 1;
+}
+// ---- the aurora: glowing green and pink curtains high in the sky ----
+const evAurora = (function () {
+  const c = document.createElement("canvas"); c.width = 8; c.height = 128; const x = c.getContext("2d"), gr = x.createLinearGradient(0, 128, 0, 0);
+  gr.addColorStop(0, "rgba(80,255,170,0)"); gr.addColorStop(0.12, "rgba(80,255,170,0.9)"); gr.addColorStop(0.45, "rgba(120,255,200,0.5)"); gr.addColorStop(0.75, "rgba(220,110,255,0.35)"); gr.addColorStop(1, "rgba(255,120,220,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, 8, 128);
+  const tex = new THREE.CanvasTexture(c), g = new THREE.Group(), bands = [];
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.PlaneGeometry(700, 110 - i * 20, 60, 1), m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    m.frustumCulled = false; m.position.set(0, 20 * i, -260 - i * 70); g.add(m);
+    bands.push({ m, base: Float32Array.from(geo.attributes.position.array), ph: i * 2.1 });
+  }
+  g.visible = false; scene.add(g); g.userData.bands = bands; return g;
+})();
+// ---- Shooting Star: a beam of light where the star landed ----
+const evBeam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 2.2, 420, 16, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color("#bfe0ff").convertSRGBToLinear(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+evBeam.visible = false; scene.add(evBeam);
+// ---- Low Tide: shells, pearls and coins on the sand ----
+const evShells = [];
+const shellMats = ["#f4d8c8", "#f0b8a8", "#e8e0f4", "#ffe8b0"].map(h => new THREE.MeshStandardMaterial({ color: new THREE.Color(h).convertSRGBToLinear(), roughness: 0.4 }));
+const pearlMat = new THREE.MeshStandardMaterial({ color: new THREE.Color("#fff8f0").convertSRGBToLinear(), roughness: 0.1, metalness: 0.3, emissive: new THREE.Color("#403830") });
+const coinMat = new THREE.MeshStandardMaterial({ color: new THREE.Color("#ffc840").convertSRGBToLinear(), roughness: 0.25, metalness: 0.8, emissive: new THREE.Color("#402800") });
+function evShell(p) {
+  const r = Math.random(), g = new THREE.Group(), type = r < 0.12 ? "pearl" : r < 0.45 ? "coins" : "shell";
+  if (type === "pearl") { const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), pearlMat); s.position.y = 0.25; g.add(s); const o = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), shellMats[1]); o.scale.y = 0.4; g.add(o); }
+  else if (type === "coins") for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 14), coinMat); c.position.set((Math.random() - 0.5) * 0.4, 0.05 + i * 0.06, (Math.random() - 0.5) * 0.4); g.add(c); }
+  else { const s = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 9), shellMats[Math.floor(Math.random() * 4)]); s.rotation.z = Math.PI / 2; s.position.y = 0.2; g.add(s); }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: type === "coins" ? "#ffd060" : "#ffffff", transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.setScalar(1.6); glow.position.y = 0.3; g.add(glow);
+  g.position.copy(p); g.rotation.y = Math.random() * 6.28; scene.add(g);
+  evShells.push({ g, type, ph: Math.random() * 6 });
+}
+function evNewStart(id) {
+  EVS.extraT = 8 + Math.random() * 10; EVS.gustT = 4; EVS.starDone = false; EVS.gusted = false; EVS.stranded = 0;
+  if (id === "tide") { const land = EVS.land; for (let i = 0; i < 14; i++) { const p = wildSpot(land, false); if (p) evShell(p); } }
+  if (id === "star") {   // the star lands far away, in a land you're not in
+    const lands = WILD_LANDS.filter(l => l !== landNow && l !== "Crystal Caves" && l !== "Bone Caves");
+    for (let i = 0; i < 10 && !EVS.star; i++) {
+      const land = lands[Math.floor(Math.random() * lands.length)], p = wildSpot(land, false); if (!p) continue;
+      const r = Math.random(), w = addWild(randomKind(r < 0.65 ? "Rare" : r < 0.95 ? "Epic" : "Legendary") + "!", land, p); w.star = true;   // "!" = always hatches shiny
+      EVS.star = { w, land }; evBeam.position.set(p.x, p.y + 210, p.z); evMeteor(p.clone());
+    }
+  }
+}
+function evNewEnd(quiet) {
+  evShells.splice(0).forEach(s => scene.remove(s.g));
+  if (EVS.star) { const w = EVS.star.w, i = wild.indexOf(w);
+    if (i >= 0) { scene.remove(w.g); wild.splice(i, 1); if (!quiet && started) setTimeout(() => toast("The fallen star faded away...", "Nobody reached it in time"), 2500); }
+    EVS.star = null; }
+  evBeam.visible = false; evAurora.visible = false;
+  if (typeof SEA_MESH !== "undefined") SEA_MESH.position.y = 0;
+}
+function evNewTick(dt, e, k) {
+  const id = EVS.cur;
+  // Aurora Night: curtains over the Frost Peaks, extra ice dragon eggs, Auroran eggs glow
+  const aur = id === "aurora" && isNight && k > 0.01;
+  evAurora.visible = aur;
+  if (aur) {
+    evAurora.position.set(camera.position.x, camera.position.y + 150, camera.position.z); evAurora.rotation.y = 0.6;
+    evAurora.userData.bands.forEach(b => { const p = b.m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) { const x = b.base[i * 3]; p.setZ(i, Math.sin(x * 0.012 + T * 0.35 + b.ph) * 40 + Math.sin(x * 0.031 - T * 0.6) * 14); }
+      p.needsUpdate = true; b.m.material.opacity = k * (0.55 + 0.25 * Math.sin(T * 0.8 + b.ph)); });
+    if (hasDragon()) { EVS.extraT -= dt;
+      if (EVS.extraT <= 0) { EVS.extraT = 40 + Math.random() * 30;
+        if (wild.filter(w => w.land === "Frost Peaks" && !w.ev).length < WILD_PER_LAND + 3) { const p = wildSpot("Frost Peaks", false), L = HOME_LAND["Frost Peaks"];
+          if (p) { addWild(L[Math.floor(Math.random() * L.length)], "Frost Peaks", p); if (landNow === "Frost Peaks") toast("Something shimmers under the aurora...", "An ice dragon egg has appeared!"); } } } }
+    wild.forEach(w => { if (w.kind.startsWith("Auroran") && w.g.visible) { const u = w.g.userData; u.glow.scale.setScalar(4 + Math.sin(T * 3) * 1.2); u.glow.material.color.setHSL(0.38 + Math.sin(T * 0.7) * 0.2, 1, 0.6); u.sh.material.opacity = 0.35; } });
+  }
+  // Low Tide: the sea pulls back; shells, pearls and coins to pick up; a couple of stranded eggs
+  if (typeof SEA_MESH !== "undefined") SEA_MESH.position.y += ((id === "tide" && EVS.land === "Ocean" ? -1.1 * k : 0) - SEA_MESH.position.y) * Math.min(1, dt);
+  for (let i = evShells.length - 1; i >= 0; i--) {
+    const s = evShells[i]; s.g.children[s.g.children.length - 1].material.opacity = 0.35 + 0.25 * Math.sin(T * 3 + s.ph);
+    const who = state === "ride" ? pet : me;
+    if (Math.hypot(s.g.position.x - who.x, s.g.position.z - who.z) < (state === "ride" ? 3 : 1.8) && Math.abs(s.g.position.y - who.y) < 4) {
+      const got = s.type === "pearl" ? 40 : s.type === "coins" ? 10 + Math.floor(Math.random() * 15) : 3 + Math.floor(Math.random() * 6);
+      coins += got; showCoins(); burstAt(s.g.position.x, s.g.position.y + 0.4, s.g.position.z, s.type === "coins" ? "#ffd060" : "#ffffff");
+      toast(s.type === "pearl" ? "You found a pearl!" : s.type === "coins" ? "Washed-up coins!" : "A pretty shell!", `+${got} coins`);
+      scene.remove(s.g); evShells.splice(i, 1); writeSave();
+    }
+  }
+  if (id === "tide" && hasDragon() && EVS.stranded < 2) { EVS.extraT -= dt;
+    if (EVS.extraT <= 0) { EVS.extraT = 45 + Math.random() * 40; const land = EVS.land, p = wildSpot(land, false), L = HOME_LAND[land];
+      if (p) { addWild(L[Math.floor(Math.random() * L.length)], land, p); EVS.stranded++; if (landNow === land) toast("The sea left something behind...", "A stranded egg is lying on the sand!"); } } }
+  // Shooting Star: the beam shows where it landed until somebody picks the egg up
+  if (id === "star" && !EVS.star && !EVS.starDone) { endEvent(true); return; }   // after loading a save the star is gone
+  if (EVS.star) {
+    if (!wild.includes(EVS.star.w)) { EVS.star = null; EVS.starDone = true; evBeam.visible = false; toast("You reached the fallen star first!", "A rare SHINY egg is in your backpack"); EVS.t = Math.min(EVS.t, 20); }
+    else { evBeam.visible = hasDragon(); evBeam.material.opacity = 0.35 + 0.15 * Math.sin(T * 2);
+      if (e) evEl.dataset.star = Math.round(Math.hypot(evBeam.position.x - me.x, evBeam.position.z - me.z)); }
+  }
+  // Wind Day: the wind slowly turns; gusts shove you while you're riding up there
+  if (id === "wind") {
+    EVS.windA += dt * 0.02;
+    if (evHere("wind") && state === "ride" && !pet.knock) { EVS.gustT -= dt;
+      if (EVS.gustT <= 0) { EVS.gustT = 5 + Math.random() * 5; pet.knock = { x: Math.cos(EVS.windA) * 0.6, z: Math.sin(EVS.windA) * 0.6, t: 0.5, up: pet.fly ? 4 : 0 };
+        burstAt(pet.x, pet.y + 1.5, pet.z, "#ffffff"); if (!EVS.gusted) { EVS.gusted = true; toast("Whoosh! A gust of wind!", "Turn and fly the same way as the wind to go super fast"); } } }
+  }
 }
 
 // ================= Shady Shen, the sketchy merchant (Petra 2026-11-09, from the calculator game) =================
