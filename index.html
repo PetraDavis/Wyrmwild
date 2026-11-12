@@ -12445,6 +12445,7 @@ function mpMsg(o) {
     case "bye": break;
     case "s": { const p = MP.players.get(from); if (p) { p.st = o.s; p.seen = T; } break; }
     case "world": if (MP.role === "guest" && from === 0) mpWorld(o); break;
+    case "evwish": if (MP.role === "host" && EVT[o.id]) { if (EVS.cur) endEvent(true); startEvent(o.id); MP.wT = 0; toast(`${mpName(from)} made a wish at the shrine!`, ""); } break;
     case "chat": mpSay(mpName(from), mpEsc(String(o.text).slice(0, 200))); break;
     case "mon": mpMirrorList(from, o.l); break;
     case "hit": mpGotHit(from, o); break;
@@ -12462,6 +12463,10 @@ function mpMsg(o) {
 }
 
 // ---------- other players in your world ----------
+function shrineEvent(id) {   // a granted shrine wish: a guest asks the host's world to start it
+  if (mpGuest()) { mpSend({ t: "evwish", id }, 0); return; }
+  if (EVS.cur) endEvent(true); startEvent(id);
+}
 const mpGuest = () => typeof MP !== "undefined" && MP.role === "guest";
 function mpWorld(o) {   // a guest gets the host's time of day and event
   if (typeof o.d === "number") { let dd = o.d - dayTime; if (dd > 0.5) dd -= 1; if (dd < -0.5) dd += 1; if (Math.abs(dd) > 0.002) dayTime = ((o.d % 1) + 1) % 1; }
@@ -13770,7 +13775,7 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
       const [id, n, need] = w.ev;
       if (power < need) { msg = `The flame flickers. This egg isn't strong enough for <b>${n}</b>. The egg is kept.`; used = null; }
       else { const e = EVT[id], ok = e.night ? isNight : e.day ? !isNight : true;
-        if (ok) { if (EVS.cur) endEvent(true); startEvent(id); msg = `The shrine grants it. <b>${n}</b> is beginning over the land below.`; }
+        if (ok) { shrineEvent(id); msg = `The shrine grants it. <b>${n}</b> is beginning over the land below.`; }
         else { WARD.shPend = id; msg = `The shrine grants it. <b>${n}</b> will begin when ${e.night ? "night falls" : "the sun is up"}.`; } }
     } else {
       const ty = w.type || "n", small = ty.startsWith("small"), shiny = ty.endsWith("shiny"), col = shiny && SHINY_KINDS.includes(w.col) ? w.col : "";
@@ -13797,7 +13802,7 @@ const sparkM = new THREE.PointsMaterial({ size: 0.25, color: lin("#ffd27a"), tra
   function update(dt) {
     T += dt;
     if (lastDT !== null && dayTime < lastDT - 0.5) WARD.shDay = (WARD.shDay | 0) + 1; lastDT = dayTime;   // count the days for the one-wish-a-day rule
-    if (WARD.shPend && EVT[WARD.shPend]) { const e = EVT[WARD.shPend]; if (e.night ? isNight : e.day ? !isNight : true) { if (EVS.cur) endEvent(true); startEvent(WARD.shPend); WARD.shPend = null; writeSave(); } }
+    if (WARD.shPend && EVT[WARD.shPend]) { const e = EVT[WARD.shPend]; if (e.night ? isNight : e.day ? !isNight : true) { shrineEvent(WARD.shPend); WARD.shPend = null; writeSave(); } }
     root.visible = camera.position.y > 375;   // hidden: you can't see it from the normal Sky Islands, only once you fly up through the clouds
     cloudBank.visible = camera.position.y > 310;
     if (!root.visible) return;
