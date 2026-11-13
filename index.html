@@ -4165,7 +4165,7 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
     m.receiveShadow = true; m.castShadow = !top; return m;
   }
   const trunkM = new THREE.MeshLambertMaterial({ color: "#7a5a3a" });
-  const leafMs = ["#4f9a3c", "#6cb04a", "#f2a6c8", "#e98fb6", "#9fd36a"].map(c => new THREE.MeshLambertMaterial({ color: c }));
+  const leafMs = ["#4f9a3c", "#6cb04a", "#ff8fc4", "#f06aa8", "#9fd36a"].map((c, i) => new THREE.MeshLambertMaterial({ color: i === 2 || i === 3 ? new THREE.Color(c).convertSRGBToLinear() : c }));   // pinks converted so they show as clear bright pink, not washed-out white (Petra 2026-11-13)
   const crystalMs = ["#7fe3ff", "#c39bff", "#8affd0"].map(c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.7, roughness: 0.2, transparent: true, opacity: 0.88 }));
   const vineM = new THREE.MeshLambertMaterial({ color: "#3f7a34" }), stoneM = new THREE.MeshLambertMaterial({ color: "#d8d0c0" }), rockM = new THREE.MeshLambertMaterial({ color: "#8b7d70" });
   const trunkG = new THREE.CylinderGeometry(0.28, 0.42, 3, 7), leafG = new THREE.IcosahedronGeometry(1, 1), cryG = new THREE.OctahedronGeometry(1, 0);
@@ -4181,7 +4181,7 @@ function inSky(x, z, y) { return y > 85 && Math.hypot(x + 60, z - 90) < 150; }
     // trees (pink blossom trees are a sky thing)
     const nTrees = Math.round(s.r / (s.name ? 2.6 : 5));
     for (let i = 0; i < nTrees; i++) {
-      const p = spot(s, 0.8), k = 0.8 + srnd() * 0.6, lm = leafMs[Math.floor(srnd() * leafMs.length)];
+      const p = spot(s, 0.8), k = 0.8 + srnd() * 0.6, lr = srnd(), lm = s.name && lr < 0.6 ? leafMs[2 + (lr < 0.3 ? 0 : 1)] : leafMs[Math.floor(lr * leafMs.length)];   // Sky Haven: mostly pink blossom trees (Petra)
       add(trunkG, trunkM, p.x, p.y + 1.5 * k, p.z, k, k, k);
       add(leafG, lm, p.x, p.y + 3.6 * k, p.z, 1.9 * k, 1.5 * k, 1.9 * k);
       add(leafG, lm, p.x + 0.6 * k, p.y + 4.6 * k, p.z - 0.3 * k, 1.2 * k, 1.0 * k, 1.2 * k);
