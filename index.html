@@ -13768,7 +13768,7 @@ function updateMonsters(dt) {
     const m = mons[i], d = m.d;
     const far = Math.hypot(m.x - me.x, m.z - me.z);
     // tidy up: far away, or a night monster when the sun comes up and nobody is fighting it
-    if (far > 260 || (m.night && !isNight && !m.aggro && far > 60)) { removeMonster(m); continue; }
+    if ((far > 260 && !(d.wd && m.wd && m.wd.keep)) || (m.night && !isNight && !m.aggro && far > 60)) { removeMonster(m); continue; }   /* m.wd.keep: a host's wild dragon busy with a guest */
     if (m.inst.reach !== undefined) {   // the Vine Dangler's arms: spread when a dragon is near, wrap round it when it grabs
       m.inst.reach += ((m.aggro ? 1 : 0) - m.inst.reach) * Math.min(1, dt * 3);
       m.inst.hold += ((pet.held && pet.held.m === m ? 1 : 0) - m.inst.hold) * Math.min(1, dt * 5);
@@ -16015,6 +16015,11 @@ const WD_LAND_DAY = {}; WD_DAYS.forEach((ls, i) => ls.forEach(l => { WD_LAND_DAY
 const CB = { day: -1, lastDT: null, toastT: 0, pend: false };   // day = sunrises since the Shadow Wyrm was beaten (-1 = not beaten yet)
 const wdBack = land => CB.day >= (WD_LAND_DAY[land] || 99);
 const wdEggMul = land => wdBack(land) ? 1 / 1.5 : 1;   // eggs wait 1.5x less once a land's dragons are home
+/* multiplayer hooks (the host runs everyone's wild dragons; see "shared wild dragons" in MULTIPLAYER). Solo they are just you. */
+let WDF = null;                                                        /* the guest a host's wild dragon is busy with right now (null = you) */
+const wdP = () => WDF || pet;                                          /* that player's dragon: x, y, z, face, fly, kind, speed */
+let wdNearest = m => ({ d: Math.hypot(m.x - me.x, m.z - me.z), land: landNow });   /* the closest player and their land */
+let wdMpHost = () => false;                                            /* hosting a game with guests in it */
 // ---- moods (the doc's temperament tables; anything not listed gets its land's mood) ----
 const WD_LAND_MOOD = { "Green Valley": "friendly", "Deep Forest": "shy", "Fire Mountain": "aggressive", "Desert": "defensive", "Ocean": "friendly", "Coral Reef": "defensive",
   "Frost Peaks": "shy", "Sky Islands": "defensive", "Misty Swamp": "aggressive", "Autumn Woods": "shy", "Blightwood": "aggressive", "Hydra Valley": "aggressive", "Crystal Caves": "defensive", "Bone Caves": "aggressive" };
@@ -16058,7 +16063,7 @@ function wdRel(a, b) {   // "rival", "friend" or null
 }
 const wdArenaMul = (a, b) => wdRel(a, b) === "rival" ? 1.1 : 1;     // arena: +10% damage against a rival kind (pure grumpiness)
 function wdSafe(k) {   // would this wild kind leave the rider alone because of the dragon they're riding?
-  const p = pet.kind; if (!p) return false;
+  const p = wdP().kind; if (!p) return false;
   if (wdRel(p, k) === "friend") return true;                            // friends (and the same kind, and Lumora)
   return wdIsTop(p) && WD_HOME[p] === WD_HOME[k];                       // a land's top dragon
 }
@@ -16150,14 +16155,14 @@ const WD_MOVES = {   // how an angry wild dragon fights: claws up close, its own
   hurt(m, dmg) { wdProvoke(m); return [dmg, ""]; },
   post(m) { if (m.aggro) wdAnim(m, WD.dt, true); },
   kill(m) {   // beaten: it flies off, and never drops its egg
-    const w = m.wd; w.gone = 3.5; w.leaveA = Math.atan2(m.z - pet.z, m.x - pet.x);
+    const w = m.wd, P = wdP(); w.gone = 3.5; w.leaveA = Math.atan2(m.z - P.z, m.x - P.x);
     toast(`You beat the wild ${w.k}!`, `It flies off to lick its wounds. Wild dragons never drop their eggs · +${3 + 2 * m.lv} XP`); return true;
   },
 };
 function wdProvoke(m) {   // you hit it
   const w = m.wd; if (!w) return;
   if (WD_TURNS[w.k]) w.mood = WD_TURNS[w.k];
-  if (w.mood === "friendly") { w.leave = Math.max(w.leave || 0, 4); w.leaveA = Math.atan2(m.z - pet.z, m.x - pet.x); return; }   // friendly ones never fight: they fly off
+  if (w.mood === "friendly") { const P = wdP(); w.leave = Math.max(w.leave || 0, 4); w.leaveA = Math.atan2(m.z - P.z, m.x - P.x); return; }   // friendly ones never fight: they fly off
   w.prov = w.mood === "shy" ? 8 : 14; w.fight = null; w.hunt = null; w.prey = null; w.buddy = null;
 }
 // ---- spawning (only in your land, near you, a few at a time, only while the game runs smoothly) ----
@@ -16165,19 +16170,19 @@ const WD_W = { Junk: 6, Common: 5, Uncommon: 3, Rare: 2, Epic: 1, Champion: 1, L
 function wdPick(ks) { const tot = ks.reduce((a, k) => a + (WD_W[SP(k).rarity] || 1), 0); let r = Math.random() * tot; for (const k of ks) { r -= WD_W[SP(k).rarity] || 1; if (r <= 0) return k; } return ks[0]; }
 const wdLive = () => mons.filter(m => m.d.wd && !m.dead);
 const wdCap = () => SET.fast ? 3 : 5;
-function wdSpot(k, land) {
+function wdSpot(k, land, c = me) {   /* c: whose surroundings (you, or a guest in multiplayer) */
   const wet = WATER_KINDS.has(k) || k === "Medusel", fl = (wdSp(k).fly || 0) > 0, rr = Math.random;
   for (let i = 0; i < 8; i++) {
     let p = null;
     if (k === "Lumora") {   // glows on a hilltop near you
-      let best = null; for (let j = 0; j < 10; j++) { const a = rr() * 6.283, d = 40 + rr() * 80, x = me.x + Math.cos(a) * d, z = me.z + Math.sin(a) * d, y = groundAt(x, z, me.y + 40);
+      let best = null; for (let j = 0; j < 10; j++) { const a = rr() * 6.283, d = 40 + rr() * 80, x = c.x + Math.cos(a) * d, z = c.z + Math.sin(a) * d, y = groundAt(x, z, c.y + 40);
         if (waterTop(x, z) > -Infinity || caveRoof(x, z) > -Infinity || !wildOk(x, z)) continue; if (!best || y > best.y) best = new V(x, y, z); }
       p = best;
     } else if (wet && land === "Ocean") { const a = COAST.a + (rr() - 0.5) * 0.7, r = 140 + rr() * 70; p = new V(Math.cos(a) * r, WATER_Y - 0.15, Math.sin(a) * r); if (height(p.x, p.z) > WATER_Y - 1) p = null; }
     else if (wet && land === "Coral Reef") { p = waterSpotIn("Coral Reef"); if (p) p.y = WATER_Y - 0.15; }
     else p = wildSpot(land, false, k);
     if (!p) continue;
-    const d = Math.hypot(p.x - me.x, p.z - me.z); if (d < 35 || d > 140) continue;
+    const d = Math.hypot(p.x - c.x, p.z - c.z); if (d < 35 || d > 140) continue;
     if (fl && k !== "Lumora" && rr() < 0.35) { const roof = ceilingAt(p.x, p.z, p.y + 1); p.y = Math.min(p.y + 10 + rr() * 12, roof - 4); }   // some are already up in the air
     return p;
   }
@@ -16252,7 +16257,7 @@ function wdThink(m, dt, mid, pd, riding) {   // decisions, 5 times a second (sta
   // ---- should it attack the rider? ----
   let want = false;
   const flying = riding && pet.fly;
-  if (riding && !(ABL.hide > 0)) {   /* hiding abilities work on wild dragons too */
+  if (riding && !(ABL.hide > 0 && !WDF)) {   /* hiding abilities work on wild dragons too (yours, not a guest's) */
     if (w.prov > 0) { w.prov -= dt; want = true; }
     else if (!wdSafe(k)) {
       if (w.mood === "aggressive") {   // hunts riders in its patch, chases for a while, then gives up for a bit
@@ -16273,14 +16278,14 @@ function wdThink(m, dt, mid, pd, riding) {   // decisions, 5 times a second (sta
   if (!want && m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); m.bar.visible = false; if (w.mood === "aggressive") w.coolT = Math.max(w.coolT, 10); }
   if (m.aggro) return;
   // ---- calm ----
-  const far = Math.hypot(m.x - me.x, m.z - me.z);
-  if (far > 170 || (w.unseen > 25 && far > 60) || (k === "Lumora" ? !isNight : landNow !== w.at && far > 60)) { removeMonster(m); return; }   // only near you, in the land you're in
-  if (k === "Lumora" && isNight && Math.hypot(mid.x - m.x, mid.z - m.z) < 3.5 + m.rad && (riding || hasDragon())) { w.leave = 5; w.leaveA = Math.atan2(m.z - mid.z, m.x - mid.x); toast("Lumora flies off into the night", "It let you come really close first"); return; }
+  const nr = wdNearest(m), far = nr.d;
+  if (far > 170 || (w.unseen > 25 && far > 60) || (k === "Lumora" ? !isNight : nr.land !== w.at && far > 60)) { removeMonster(m); return; }   // only near you, in the land you're in
+  if (k === "Lumora" && isNight && Math.hypot(mid.x - m.x, mid.z - m.z) < 3.5 + m.rad && (riding || (WDF ? !!WDF.kind : hasDragon()))) { w.leave = 5; w.leaveA = Math.atan2(m.z - mid.z, m.x - mid.x); toast("Lumora flies off into the night", "It let you come really close first"); return; }
 }
 // ---- the brain: runs inside updateMonsters for each wild dragon; returns true when it moved itself (calm), false = fight like a monster ----
 function wdBrain(m, dt, mid, pd, riding) {
-  const w = m.wd, d = m.d, k = w.k;
-  wdLod(m, pd);
+  const w = m.wd, d = m.d, k = w.k, P = wdP();
+  wdLod(m, WDF ? WDF.hpd : pd);   /* detail and drawing go by how far it is from YOU */
   if (w.gone > 0 || w.leave > 0) { m.aggro = false; m.warn = 0; return wdFlyOff(m, dt); }
   if (m.inst.far && (WD.frame + m.inst.slot) % 3) { w.skip = (w.skip || 0) + dt; return true; }   // far away: think every 3rd frame
   dt += w.skip || 0; w.skip = 0;
@@ -16289,7 +16294,7 @@ function wdBrain(m, dt, mid, pd, riding) {
   if (!mons.includes(m)) return true;
   if (w.leave > 0) return wdFlyOff(m, dt);
   if (m.aggro) return false;   // the monster code chases and fights (claws + breath, red warning flash first)
-  const sp = d.speed, flying = riding && pet.fly;
+  const sp = d.speed, flying = riding && P.fly;
   if (w.fight) wdFightStep(m, dt);
   else if (w.split > 0) { w.split -= dt; const a = w.splitA; wdGo(m, m.x + Math.cos(a) * 10, w.fl ? m.y + 3 : null, m.z + Math.sin(a) * 10, sp, dt, w.fl); }
   else if (w.prey && mons.includes(w.prey.o) && w.prey.t > 0) { w.prey.t -= dt; const o = w.prey.o, a = Math.atan2(m.z - o.z, m.x - o.x); wdGo(m, m.x + Math.cos(a) * 10, null, m.z + Math.sin(a) * 10, sp, dt, w.fl && !w.wet); }
@@ -16302,9 +16307,9 @@ function wdBrain(m, dt, mid, pd, riding) {
   else if (w.mood === "friendly" && w.fl && flying && (w.along > 0 || (w.alongCd <= 0 && pd < 35))) {   // friendly: flies alongside you for a while
     if (w.along <= 0) { w.along = 18 + Math.random() * 10; w.side = Math.random() < 0.5 ? -1 : 1; if (pd < 60) toast(`A wild ${k} flies alongside you!`, "Friendly dragons like company"); }
     w.along -= dt; if (w.along <= 0) w.alongCd = 40;
-    const px = -Math.sin(pet.face) * w.side, pz = Math.cos(pet.face) * w.side, tx = pet.x + px * (6 + m.rad * 2) + Math.cos(pet.face) * 1.5, tz = pet.z + pz * (6 + m.rad * 2) + Math.sin(pet.face) * 1.5;
-    wdGo(m, tx, pet.y + 0.5, tz, Math.max(sp * 1.6, Math.abs(pet.speed) * 1.25), dt, true);
-    if (Math.hypot(tx - m.x, tz - m.z) < 3) m.face = angLerp(m.face, pet.face, Math.min(1, dt * 4));
+    const px = -Math.sin(P.face) * w.side, pz = Math.cos(P.face) * w.side, tx = P.x + px * (6 + m.rad * 2) + Math.cos(P.face) * 1.5, tz = P.z + pz * (6 + m.rad * 2) + Math.sin(P.face) * 1.5;
+    wdGo(m, tx, P.y + 0.5, tz, Math.max(sp * 1.6, Math.abs(P.speed || 0) * 1.25), dt, true);
+    if (Math.hypot(tx - m.x, tz - m.z) < 3) m.face = angLerp(m.face, P.face, Math.min(1, dt * 4));
   } else if (w.buddy && mons.includes(w.buddy) && !w.buddy.dead && (w.budT -= dt) > 0) {   // friends rest and fly together
     const b = w.buddy, bw = b.wd || {}; w.act = bw.act || "roam"; const a = Math.atan2(m.z - b.z, m.x - b.x), r = 4 + m.rad + b.rad;
     const tx = b.x + Math.cos(a) * r, tz = b.z + Math.sin(a) * r, air = b.y > wdFloor(b) + 1.5;
@@ -16383,7 +16388,7 @@ function updateWildDragons(dt) {
   if (WD.spawnT <= 0 && hasDragon() && state !== "arena" && !uiOpen && !(typeof bossNow === "function" && bossNow())) {
     WD.spawnT = live.length < 2 ? 2 : 4;
     const ok = WD.force || WD.fps >= 45;   // only spawn while the frame rate is good
-    if (ok && live.length < wdCap()) wdSpawn();
+    if (ok && (wdMpHost() ? live.filter(m => Math.hypot(m.x - me.x, m.z - me.z) < 170) : live).length < wdCap()) wdSpawn();
   }
   // wild dragons meeting each other, and your dragon's growl: checked twice a second (squared distances)
   for (const q in WD.pairT) if ((WD.pairT[q] -= dt) <= 0) delete WD.pairT[q];
@@ -17459,6 +17464,10 @@ function mpMsg(o) {
     case "mon": mpMirrorList(from, o.l); break;
     case "hit": mpGotHit(from, o); break;
     case "kill": mpGotKill(from, o); break;
+    case "wd": if (MP.role === "guest" && from === 0) wdMirList(o.l); break;
+    case "wda": if (MP.role === "guest" && from === 0) wdGotAtk(o); break;
+    case "wdkill": if (MP.role === "guest" && from === 0) wdGotKill(o); break;
+    case "wdfed": if (MP.role === "host") { const m = mons.find(q => q.nid === o.id && q.wd && !q.remote); if (m) m.wd.fed = true; } break;
     case "ask": mpGotAsk(from, o); break;
     case "askno": if (MP.ask && MP.ask.peer === from) MP.ask = null; toast(`${mpName(from)} said no`, o.why || ""); mpPanel(); break;
     case "dinfo": mpDuelInfo(from, o); break;
@@ -17582,7 +17591,7 @@ function mpMirrorsUpdate(dt) {
 // mirrors don't run monster brains here: take them out while the monster update runs
 const _updMons = updateMonsters;
 updateMonsters = function (dt) {
-  if (!MP.mirrors.size) return _updMons.call(this, dt);
+  if (!MP.mirrors.size && !(MP.wmir && MP.wmir.size)) return _updMons.call(this, dt);
   const keep = []; for (let i = mons.length - 1; i >= 0; i--) if (mons[i].remote) keep.push(mons.splice(i, 1)[0]);
   try { return _updMons.call(this, dt); } finally { mons.push(...keep); }
 };
@@ -17629,6 +17638,225 @@ function mpGotKill(from, o) {   // a monster I helped with was beaten: I get the
   const [d, crit] = breathDmg(st, (b.mult || 1) * (mult || 1));
   damageMon(m, d, crit, "breath", { burn: b.burn || 0, slow: b.slow || 0, blind: b.blind || 0 });
 }; })();
+
+// ---------- shared wild dragons (after the Shadow Wyrm; Petra 2026-11-14) ----------
+// Everyone sees the SAME wild dragons. The HOST's comeback decides which lands have them (a guest who never beat the Shadow
+// Wyrm still sees the host's), and the host's game runs them all: spawning (near every player, in that player's land),
+// moving, moods, rival fights and HP. 4 times a second the host sends each guest a short list of the ones near them:
+// [id, x, y, z, face, hp, flags, target], plus kind, level and max HP the first time (and again every 3 s).
+// Guests draw them gliding between updates, and send their hits to the host (the same "hit" message as monsters).
+// An angry wild dragon goes after whoever it is angry with: for a guest, the host works out the attack and sends the damage.
+// Whoever lands the last hit gets the XP (and coins). A guest's own wild dragons wait until they leave the game.
+MP.wmir = new Map(); MP.wdT = 0; MP.wdMeta = 0; MP.wdKnown = new Map(); MP.wdSpT = 3;
+const WD_NET_R = 230, WD_NET_MAX = 10;
+wdMpHost = () => MP.role === "host" && MP.players.size > 0;
+let wdGs = [], wdGsF = -1;
+function wdGuests() {   /* host: the other players, as the wild dragons see them (once a frame) */
+  if (wdGsF === WD.frame) return wdGs; wdGsF = WD.frame; wdGs = [];
+  for (const p of MP.players.values()) {
+    const s = p.st; if (!s || s.ar || T - (p.seen || 0) > 5) continue;
+    const sz = (s.k ? SP(s.k).size || 1 : 1) * (s.sc || 1), g = p.wdf || (p.wdf = { id: p.id });
+    if (g.st !== s) { const dt = T - (g.t || 0); g.speed = g.st && dt > 0 ? Math.min(60, Math.hypot(s.dx - g.st.dx, s.dz - g.st.dz) / dt) : 0; g.st = s; g.t = T; }
+    g.x = s.dx; g.y = s.dy + 1.4 * sz; g.z = s.dz; g.face = s.df; g.fly = !!s.fl; g.kind = s.k || null; g.r = !!(s.r && s.k); g.rad = 1.8 * sz;
+    g.mx = s.x; g.my = s.y; g.mz = s.z; g.land = s.land;
+    wdGs.push(g);
+  }
+  return wdGs;
+}
+wdNearest = function (m) {   /* the closest player (you or a guest) and the land they're in */
+  let d = Math.hypot(m.x - me.x, m.z - me.z), land = landNow;
+  if (wdMpHost()) for (const g of wdGuests()) { const e = Math.hypot(m.x - g.mx, m.z - g.mz); if (e < d) { d = e; land = g.land; } }
+  return { d, land };
+};
+function wdFocus(m, mid) {   /* host: who this wild dragon pays attention to (null = you): the one it's angry with, else the closest */
+  const w = m.wd, gs = wdGuests();
+  if (w.tgt != null && (w.ag || w.prov > 0)) { if (w.tgt === 0) return null; const g = gs.find(q => q.id === w.tgt); if (g) return g; }
+  let best = null, bd = Math.hypot(m.x - mid.x, m.z - mid.z);
+  for (const g of gs) { const d = Math.hypot(m.x - g.x, m.z - g.z); if (d < bd) { bd = d; best = g; } }
+  return best;
+}
+const _wdBrain = wdBrain, WDV = new V();
+wdBrain = function (m, dt, mid, pd, riding) {
+  const w = m.wd;
+  if (!wdMpHost()) { if (w.keep) w.keep = false; return _wdBrain.apply(this, arguments); }
+  const F = wdFocus(m, mid);
+  if (!F) { const r = _wdBrain.apply(this, arguments); w.keep = false; w.tgt = m.aggro ? 0 : null; w.ag = m.aggro; return r; }
+  m.aggro = !!w.ag; m.warn = w.wn || 0;   /* the monster loop just calmed it because YOU are far away: it's busy with a guest */
+  WDF = F; F.hpd = pd; mpQuiet = true;    /* no toasts on your screen about a guest's wild dragon */
+  let r = true;
+  try {
+    WDV.set(F.x, F.y, F.z); const fpd = Math.hypot(m.x - F.x, m.z - F.z);
+    if (fpd < 90) w.unseen = 0;            /* the guest can see it */
+    r = _wdBrain.call(this, m, dt, WDV, fpd, F.r);
+    if (!r && mons.includes(m)) r = wdChase(m, dt, F, fpd);
+  } finally { WDF = null; mpQuiet = false; }
+  w.keep = true; w.tgt = m.aggro ? F.id : null; w.ag = m.aggro; w.wn = m.warn;
+  return r;
+};
+function wdChase(m, dt, F, pd) {   /* host: an angry wild dragon goes after a guest (like the monster code does for you) */
+  const d = m.d, w = m.wd, d3 = Math.hypot(pd, m.y + m.tall * 0.5 - F.y);
+  if (!F.r || pd > 60 || Math.hypot(m.x - m.home.x, m.z - m.home.z) > (d.leash || 90)) { m.aggro = false; m.warn = 0; tint(m, null, 0); m.bar.visible = false; wdAnim(m, dt, false); return true; }
+  const want = Math.min(d.range * 0.7, 10), ty = w.fl ? F.y - m.tall * 0.4 : null;
+  if (pd > want && m.warn <= 0) wdGo(m, F.x, ty, F.z, d.speed, dt, w.fl);
+  else { wdGo(m, m.x, ty, m.z, 0, dt, w.fl); m.face = angLerp(m.face, Math.atan2(F.z - m.z, F.x - m.x), Math.min(1, dt * 6)); }
+  if (m.warn > 0) { m.warn -= dt; tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5); if (m.warn <= 0) { tint(m, null, 0); wdHitGuest(m, F); m.cd = 1.5 + Math.random() * 1.2; } }
+  else { m.cd -= dt; if (m.cd <= 0 && d3 < d.range + 4) m.warn = d.warn || 0.75; }
+  if (m.hitT > 0) { m.hitT -= dt; if (m.warn <= 0) tint(m, m.hitT > 0 ? WHITE : null, m.hitT > 0 ? 1.2 : 0); }
+  wdAnim(m, dt, true); m.bar.visible = F.hpd < 60;
+  return true;
+}
+function wdHitGuest(m, F) {   /* host: the attack lands on a guest's dragon; the guest's game does the rest (dodging, HP, fainting) */
+  const d3 = Math.hypot(m.x - F.x, m.z - F.z, m.y + m.tall * 0.5 - F.y); if (d3 > m.d.range + m.rad + F.rad + 8) return;   /* got away during the red flash */
+  const claw = d3 <= 3.2 + m.rad + F.rad, dmg = rollR(claw ? m.clawD : m.breathD);
+  if (Math.hypot(m.x - me.x, m.z - me.z) < 120) { if (claw) burstAt(F.x, F.y, F.z, "#ffffff"); else { const mo = mouth(m); spray(mo, new V(F.x - mo.x, F.y - mo.y, F.z - mo.z).normalize(), wdSp(m.wd.k).pal.glow, 22, 18, 3); } }
+  mpSend({ t: "wda", id: m.nid, d: dmg, c: claw ? 1 : 0 }, F.id);
+}
+function wdMpSpawn(dt) {   /* host: wild dragons come to the guests too, in the guest's land (the host's comeback decides which lands) */
+  if ((MP.wdSpT -= dt) > 0) return; MP.wdSpT = 3;
+  if (!(WD.force || WD.fps >= 45)) return;
+  const live = wdLive(); if (live.length >= (SET.fast ? 5 : 8)) return;
+  for (const g of wdGuests()) {
+    if (!g.kind) continue;   /* needs a dragon, like you */
+    if (g.land !== g.wl) { g.wl = g.land; if (wdBack(g.land)) wdWarm(g.land); }
+    if (live.filter(m => Math.hypot(m.x - g.mx, m.z - g.mz) < 170).length >= wdCap()) continue;
+    const k = wdChoose(g.land); if (!k) continue;
+    const p = wdSpot(k, g.land, { x: g.mx, y: g.my, z: g.mz }), m = p && wdSpawn(k, g.land, p); if (m) { m.wd.keep = true; return; }   /* one at a time (keep: it may be far from you) */
+  }
+}
+function wdMpSend(dt) {   /* host: 4 times a second, each guest gets the wild dragons near them */
+  if ((MP.wdT -= dt) > 0) return; MP.wdT = 0.25;
+  const meta = (MP.wdMeta -= 0.25) <= 0; if (meta) MP.wdMeta = 3;
+  const live = mons.filter(m => m.d.wd && m.wd && !m.remote && m.nid);
+  for (const p of MP.players.values()) {
+    const s = p.st; if (!s) continue;
+    let kn = MP.wdKnown.get(p.id); if (!kn || meta) MP.wdKnown.set(p.id, kn = new Set());
+    const l = [];
+    for (const m of live) {
+      if (Math.hypot(m.x - s.x, m.z - s.z) > WD_NET_R) continue;
+      const w = m.wd, fl = (m.aggro ? 1 : 0) | (m.warn > 0 ? 2 : 0) | (w.sit > 0.5 ? 4 : 0) | (m.dead || w.gone > 0 ? 8 : 0) | (w.leave > 0 ? 16 : 0) | (w.fight ? 32 : 0) | (w.fed ? 64 : 0);
+      const e = [m.nid, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10, Math.round(m.z * 10) / 10, Math.round(m.face * 100) / 100, Math.max(0, Math.round(m.hp)), fl, w.tgt == null || !m.aggro ? -1 : w.tgt];
+      if (!kn.has(m.nid)) { kn.add(m.nid); e.push(w.k, m.lv, m.max); }
+      l.push(e); if (l.length >= WD_NET_MAX) break;
+    }
+    if (l.length || p.wdHad) mpSend({ t: "wd", l }, p.id);
+    p.wdHad = l.length > 0;
+  }
+}
+// ---- guest side ----
+function wdMirList(list) {   /* guest: the host's wild dragons near me */
+  const seen = new Set();
+  for (const e of list || []) {
+    if (!Array.isArray(e)) continue;
+    const [id, x, y, z, f, hp, fl, tg, k, lv, max] = e; seen.add(id);
+    let m = MP.wmir.get(id);
+    if (!m) {
+      if (!k || !wdSp(k) || !(wdOk(wdSp(k)) || k === "Lumora") || Math.hypot(x - me.x, z - me.z) > WD_NET_R + 20) continue;
+      MP.mirroring = true; try { m = spawnMonster(wdDef(k), new V(x, y, z), Math.max(1, Math.min(99, lv | 0))); } finally { MP.mirroring = false; }
+      const kk = m.holder.scale.x; m.holder.scale.setScalar(1); m.tall /= kk; m.rad = Math.max(0.6, m.rad / kk);   /* the dragon keeps its own size (like wdSpawn) */
+      m.y = y; m.face = f; m.remote = { owner: 0, nid: id, wd: true }; m.max = Math.max(1, max | 0); m.hp = hp;
+      m.wd = { k, mood0: WD_mood(k), fed: false, leave: 0, gone: 0, wet: WATER_KINDS.has(k) || k === "Medusel", fl: (wdSp(k).fly || 0) > 0, act: "rest", sit: 0, lx: x, ly: y, lz: z, mir: true };
+      MP.wmir.set(id, m); monBar(m);
+    }
+    const w = m.wd; if (max) m.max = Math.max(1, max | 0);
+    const rt = performance.now() / 1000, ra = m.rt ? rt - m.rt : 0;   /* its speed between two updates, to glide ahead between them */
+    if (ra > 0.05 && ra < 1 && m.tx !== undefined) { m.vx = (x - m.tx) / ra; m.vy = (y - m.ty) / ra; m.vz = (z - m.tz) / ra; if (Math.hypot(m.vx, m.vz) > 60) m.vx = m.vy = m.vz = 0; } else m.vx = m.vy = m.vz = 0;
+    m.rt = rt; m.tx = x; m.ty = y; m.tz = z; m.tf = f; m.nfl = fl | 0;
+    w.act = fl & 4 ? "rest" : "roam"; w.leave = fl & 16 ? 1 : 0; w.gone = fl & 8 ? 1 : 0; if (fl & 64) w.fed = true;
+    m.dead = w.gone ? 0.001 : 0;
+    m.aggro = !!(fl & 1) && tg === MP.myId;   /* angry with ME (another player's fight isn't mine) */
+    if (m.aggro && !w.angry) { w.angry = true; toast(`The wild ${k || w.k} attacks!`, { aggressive: "It's hunting riders in its patch!", defensive: "You came too close. Back off!", shy: "You cornered it!" }[WD_mood(w.k)] || "Fight back or fly away!"); }
+    if (hp !== m.hp) { if (hp < m.hp && !(m.hitT > 0) && Math.hypot(m.x - me.x, m.z - me.z) < 80) burstAt(m.x, m.y + m.tall * 0.6, m.z, wdSp(w.k).pal.glow); m.hp = hp; monBar(m); }
+  }
+  for (const [id, m] of [...MP.wmir]) if (!seen.has(id)) wdMirDrop(m);
+}
+function wdMirDrop(m) { MP.wmir.delete(m.remote.nid); m.dead = 1; removeMonster(m); }
+function wdMirUpdate(dt) {   /* guest: glide each one toward where the host says it is, and animate it */
+  for (const m of MP.wmir.values()) {
+    const k = Math.min(1, dt * 10), a = Math.min(0.35, performance.now() / 1000 - m.rt);   /* where it should be by now */
+    m.x += (m.tx + m.vx * a - m.x) * k; m.y += (m.ty + m.vy * a - m.y) * k; m.z += (m.tz + m.vz * a - m.z) * k; m.face = mpLerpA(m.face, m.tf, k);
+    wdAnim(m, dt, !!(m.nfl & 33)); m.inst.update(T + m.t0, dt);
+    if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); }
+    else if (m.nfl & 2) tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5); else tint(m, null, 0);
+    m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+    const cd = Math.hypot(m.x - camera.position.x, m.z - camera.position.z); if (m.inst.dr) wdSetLod(m.inst.dr, cd > WD_LOD2 ? 2 : cd > WD_LOD1 ? 1 : 0);
+    m.bar.visible = !m.dead && (m.hp < m.max || !!(m.nfl & 33)) && Math.hypot(m.x - me.x, m.z - me.z) < 60;
+    if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
+  }
+}
+function wdGotAtk(o) {   /* guest: a host's wild dragon attacked me */
+  const m = MP.wmir.get(o.id); if (!m || state !== "ride" || !hasDragon()) return;
+  const mid = petMid(), d3 = Math.hypot(m.x - mid.x, m.z - mid.z, m.y + m.tall * 0.5 - mid.y);
+  if (d3 > m.d.range + m.rad + petRad() + 12) return;   /* already got away */
+  const k = m.wd.k, dmg = Math.max(1, Math.min(9999, o.d | 0));
+  if (o.c) burstAt(pet.x, pet.y + 1.4, pet.z, "#ffffff"); else { const mo = mouth(m); spray(mo, mid.clone().sub(mo).normalize(), wdSp(k).pal.glow, 22, 18, 3); }
+  m.d.atk = o.c ? "Claws" : breathOf(k).n || "Breath"; m.dmg = [dmg, dmg];
+  landed(m, 1, o.c ? `The wild ${k} slashes!` : "");
+}
+function wdGotKill(o) {   /* guest: I landed the last hit on a host's wild dragon, so the XP is mine */
+  const k = String(o.k || ""); if (!wdSp(k) || !hasDragon()) return;
+  const lv = Math.max(1, Math.min(80, o.lv | 0)), xp = 3 + 2 * lv; let c = lv >= 5 ? lv : 0;
+  if (SHN.curse > 0) { SHN.curse--; c = c ? c * 2 : 2; }
+  if (c) { coins += c; showCoins(); }
+  try { questKill({ kind: "Wild " + k, lv, land: "Wild", d: MONSTER[wdDef(k)] }); } catch (e) {}
+  const up = addXp(xp); if (up) pet.hp = petMaxHp();
+  toast(`You beat the wild ${k}!`, `It flies off to lick its wounds. Wild dragons never drop their eggs · +${xp} XP${c ? ` · +${c} coins` : ""}`);
+  petLabel("grown up"); writeSave();
+}
+// hitting a host's wild dragon: show it here, send it to the host
+const _dmgMonWd = damageMon;
+damageMon = function (m, dmg, crit, how, fx) {
+  if (!(m.remote && m.remote.wd)) return _dmgMonWd.apply(this, arguments);
+  if (m.dead) return;
+  m.hitT = 0.15; m.hp = Math.max(0, m.hp - dmg); monBar(m); m.bar.visible = true; fightT = 6;
+  burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
+  toast(`${how === "breath" ? breathOf(pet.kind).n : "Claw"}! ${crit ? "Critical hit! " : ""}${dmg}`, `${m.kind} · ${Math.max(0, m.hp)} / ${m.max} HP`);
+  mpSend({ t: "hit", id: m.remote.nid, dmg, crit: !!crit, how, fx: fx || null }, 0);
+};
+// host: a guest's hit on a wild dragon (the dragon turns on THEM), and who gets the XP
+WD.by = null;
+const _gotHitWd = mpGotHit;
+mpGotHit = function (from, o) {
+  const m = mons.find(q => q.nid === o.id && !q.remote && !q.dead);
+  if (!m || !m.d.wd || !m.wd) return _gotHitWd.apply(this, arguments);
+  WDF = wdGuests().find(g => g.id === from) || null; WD.by = from;
+  try { _gotHitWd.apply(this, arguments); } finally { WDF = null; WD.by = null; }
+  if (m.helpers) m.helpers.clear();
+  if (m.aggro && !m.dead && !m.wd.leave) { m.wd.tgt = from; m.wd.ag = true; }
+};
+const _killMonWd = killMon;
+killMon = function (m) {
+  if (!m.d.wd || m.remote || !mpOn()) return _killMonWd.apply(this, arguments);
+  if (m.helpers) m.helpers.clear();   /* wild dragons: only the one who beat it gets the XP */
+  if (WD.by == null) return _killMonWd.apply(this, arguments);   /* you beat it */
+  const by = WD.by;
+  m.dead = 0.001; m.warn = 0; tint(m, null, 0); m.bar.visible = false;
+  WD_MOVES.kill(m); burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080");
+  mpSend({ t: "wdkill", k: m.wd.k, lv: m.lv }, by);
+  if (Math.hypot(m.x - me.x, m.z - me.z) < 80) { const q = mpQuiet; mpQuiet = false; toast(`${mpName(by)} beat the wild ${m.wd.k}!`, "It flies off to lick its wounds"); mpQuiet = q; }
+};
+// feeding a host's wild dragon (the egg, if it trusts you, is yours)
+const _wdFeedT = wdFeedTarget;
+wdFeedTarget = function () {
+  if (!mpGuest()) return _wdFeedT.apply(this, arguments);
+  if (!(state === "grown" || state === "baby") || uiOpen || !FISH.basket.length) return null;
+  for (const m of MP.wmir.values()) if (!m.dead && !(m.nfl & 1) && !m.wd.leave && !m.wd.fed && Math.hypot(m.x - me.x, m.z - me.z) < 6 + m.rad && Math.abs(m.y - me.y) < 4) return m;
+  return null;
+};
+const _wdFeedA = wdFeedAct;
+wdFeedAct = function (roll) { const m = mpGuest() ? wdFeedTarget() : null, r = _wdFeedA.apply(this, arguments); if (r && m && m.remote) mpSend({ t: "wdfed", id: m.remote.nid }, 0); return r; };
+// a guest doesn't run wild dragons of their own; the host runs the guests' ones too
+const _updWD = updateWildDragons;
+updateWildDragons = function (dt) {
+  if (mpGuest()) { WD.frame++; for (const m of mons.filter(q => q.d.wd && !q.remote)) { m.dead = 0; removeMonster(m); } return; }
+  _updWD.apply(this, arguments);
+  if (wdMpHost() && CB.day >= 1 && started) wdMpSpawn(dt);
+};
+const _mpLeftWd = mpLeft;
+mpLeft = function (id) { MP.wdKnown.delete(id); return _mpLeftWd.apply(this, arguments); };
+const _mpTdWd = mpTeardown;
+mpTeardown = function () { const r = _mpTdWd.apply(this, arguments); for (const m of [...MP.wmir.values()]) wdMirDrop(m); MP.wdKnown.clear(); return r; };
+const _updMPWd = updateMP;
+updateMP = function (dt) { _updMPWd.apply(this, arguments); if (!mpOn()) return; if (MP.role === "host") wdMpSend(dt); else wdMirUpdate(dt); };
 
 // ---------- chat ----------
 const mpCss = document.createElement("style");
