@@ -150,7 +150,14 @@ body.home #where, body.home #arrow, body.home #keys, body.home #toast, body.home
 #menu .sec { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
 #menu .sec small { color: var(--muted); }
 #menu .sec.locked { opacity: 0.55; }
-#menu .good { color: #8aef8a; font-weight: 700; } #menu .bad { color: #ff9a8a; font-weight: 700; }
+#menu .good { color: #8aef8a; font-weight: 700; }
+#menu .brPick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; } #menu .brPick[hidden] { display: none; }
+#menu .brPick label { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+#menu .brPick select { font: 700 0.9rem var(--body); color: var(--ink); background: rgba(255,255,255,0.08); border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; min-width: 0; }
+#menu .brPick select option { background: #1b2230; color: var(--ink); }
+#menu .brChk { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-weight: 700; } #menu .brEgg img { display: block; width: 160px; height: 160px; margin: 0 auto; }
+#menu .brLean { height: 10px; border-radius: 99px; background: #c8542a; overflow: hidden; margin: 6px 0 2px; } #menu .brLean i { display: block; height: 100%; background: #3a6ad0; }
+@media (max-width: 520px) { #menu .brPick { grid-template-columns: 1fr; } } #menu .bad { color: #ff9a8a; font-weight: 700; }
 #menu button, #battle button {
   font: 800 0.95rem var(--body); padding: 8px 18px; border-radius: 999px; border: 0; background: var(--ember); color: #1b1208; cursor: pointer; flex: none;
 }
@@ -1101,6 +1108,7 @@ function orSkinTex() {   /* NEW Orchidra v4: the orchid-petal texture (made once
 function makeDragon(p, sp = {}) {
 const o = Object.assign({ len: 1, girth: 1, neck: 1, legLen: 1, legThick: 1, feet: 1, wings: "bat", wingScale: 1, tail: "flame",
   horns: "swept", back: "fin", frill: "frill", eyes: 1, pattern: "streaks", glow: 1, tusks: false, whiskers: false, mane: false, spots: null }, sp);
+if (o._ph) { const PH = o._ph; let ph = 0; Object.keys(PH).forEach(k => Object.defineProperty(o, k, { get: () => PH[k][ph], configurable: true, enumerable: true })); o._setPh = v => { ph = v; }; }   /* r17 breeding: build-phase flags */
 const NH = o.heads || 1, HSP = o.headSpread || 0.42;
 const rmSteps = [], rmSkinMats = [];   // NEW remodels: per-frame steps, and extra materials that take the remodel skin (see rmSkin)   // NEW: extra heads (hydras, Twinhead)
 // ---------- materials ----------
@@ -2569,7 +2577,7 @@ if (o.dunebun) {   // Dunebun (makeover 2026-11-14): a little hopping desert dra
   });
 }
 if (o.puffshroom) {   // Puffshroom: a big round red mushroom cap with cream spots and cream gills, and spores drifting out from under it
-  const cap = new THREE.Group(); cap.position.set(-0.12, 0.27, 0); cap.rotation.z = -0.22; cap.scale.setScalar(1.0); head.add(cap);
+  const cap = new THREE.Group(); cap.position.set(-0.12, 0.27, 0); cap.rotation.z = -0.22; cap.scale.setScalar(1.0); head.add(cap); if (o.capHatK) cap.scale.setScalar(o.capHatK);   /* r17 breeding: the mushroom worn as a hat */
   const capM = c5Mat(p.cap, { roughness: 0.55 }), spotM = c5Mat(p.capSpot, { roughness: 0.7 }), gc = document.createElement("canvas"); gc.width = gc.height = 256;
   { const x = gc.getContext("2d"); x.fillStyle = p.gills; x.fillRect(0, 0, 256, 256); x.strokeStyle = "rgba(150,120,90,0.55)"; x.lineWidth = 1.4; for (let a = 0; a < 140; a++) { const t = a / 140 * Math.PI * 2; x.beginPath(); x.moveTo(128 + Math.cos(t) * 30, 128 + Math.sin(t) * 30); x.lineTo(128 + Math.cos(t) * 128, 128 + Math.sin(t) * 128); x.stroke(); } }
   const gt = new THREE.CanvasTexture(gc); gt.encoding = THREE.sRGBEncoding;
@@ -2586,6 +2594,7 @@ if (o.puffshroom) {   // Puffshroom: a big round red mushroom cap with cream spo
   const spores = new THREE.Points(sg, new THREE.PointsMaterial({ color: new THREE.Color("#f4f0c0").convertSRGBToLinear(), size: 0.035, transparent: true, opacity: 0.75, depthWrite: false })); cap.add(spores);
   custom.ribbons.push({ update: t => { seeds.forEach(([a, r, ph], i) => { const k = (t * 0.25 + ph) % 1; pos[i * 3] = Math.cos(a + t * 0.3) * (r + k * 0.5); pos[i * 3 + 1] = -0.05 - k * 0.6 + Math.sin(t + i) * 0.03; pos[i * 3 + 2] = Math.sin(a + t * 0.3) * (r + k * 0.5); }); sg.attributes.position.needsUpdate = true; } });   // spores drift out from under the cap and sink
 }
+if (o.capHat === "jelly" && typeof breedBell === "function") breedBell(head, p, o.capHatK || 1);   /* r17 breeding: Medusel's jelly bell worn as the head piece (before the extra heads are copied, so every head gets one) */
 if (corona) { const tr = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.014, 8, 48), corona.userData.m); tr.position.x = 0.12; tr.rotation.y = Math.PI / 2; tailTip.add(tr); tr.add(corona.userData.dia); }   // Eclipsar's ring of light round its tail orb
 // places to hang accessories: they follow the body as it moves (x = forward, y = up, z = side)
 const neckSock = new THREE.Group(), chestSock = new THREE.Group(), backSock = new THREE.Group(), tailSock = new THREE.Group(); [neckSock, chestSock, backSock, tailSock].forEach(k => dragon.add(k));
@@ -2971,8 +2980,10 @@ function update(t, walk, flap, dt, bend = 0) {
   if (o.wings === "glide" || o.squirrelTail) glideStep(t, flap, dt);   // NEW Glidewhisk
   if (o.eternix && o._etx && o._etx.built) eterStep(t, dt);   // NEW Eternix: pearls, tail orb, Tun Shell
   if (o.swimLegs && !flap) legs.forEach((g, i) => { const sw = Math.sin(t * (3 + 5 * walk) + i * 1.7) * (0.12 + 0.3 * walk); g.rotation.z = (i < 2 ? -1.35 : -1.2) + sw; if (g.userData.knee) g.userData.knee.rotation.z = i < 2 ? 0.15 : 0.5; if (g.userData.ankle) g.userData.ankle.rotation.z = (i < 2 ? 0.9 : 0.6) - sw * 0.5; });   // NEW (2026-11-14): Driftfin swims level, legs tucked back and paddling
+  if (o._setPh) o._setPh(1);
   if (o.glim && o._gw && o._gw.built) glimStep(t, dt);   /* NEW Glimmerwick: lantern, motes, Flash Burst */
-  if (o.orchid && o._or && o._or.built) orchidStep(t, dt, walk, flap);   /* NEW Orchidra: arms, Blossom Ambush */
+  if (o.orchid && o._or && o._or.built) orchidStep(t, dt, walk, flap);
+  if (o._setPh) o._setPh(0);   /* NEW Orchidra: arms, Blossom Ambush */
   const tip = frames[0];
   flame.position.copy(tip.p);
   fl.forEach((c, i) => { const k = 1 + Math.sin(t * 13 + i * 2) * 0.12 + Math.sin(t * 7.3 + i) * 0.08; c.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k)); c.rotation.y = t * (1 + i); });
@@ -3884,7 +3895,7 @@ vec3 etBump(vec3 sp, vec3 sn, vec2 dH, float fd) { vec3 sx = dFdx(sp), sy = dFdy
   pm.customProgramCacheKey = () => "eternixSkin";   // shared by every Eternix (colours are uniforms, kept per material)
   E.pm = pm; E.U = U;
   const SKIN = new Set([M.body, M.top, M.belly, M.web, M.thigh, M.shin, M.sock, M.bone].filter(Boolean));
-  dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
+  if (o.bSkinOff) SKIN.clear(); dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
   spine.receiveShadow = false;   // like the head and legs (no self-shadow stripes)
   // ----- pearl parts (horns, pearls, tail orb, shell): the same sheen -----
   const pearlMat = (col, em, ei, extra) => { const m = new THREE.MeshStandardMaterial(Object.assign({ color: lin(col), roughness: 0.4, metalness: 0, emissive: lin(em), emissiveIntensity: ei }, extra || {}));
@@ -4135,14 +4146,16 @@ vec4 gwTri(vec3 q, vec3 n) { vec3 bw = pow(abs(n) + 1e-4, vec3(4.0)); bw /= bw.x
     pm.customProgramCacheKey = () => "glimSkin2_"; }
   G.pm = pm; G.U = U;
   const SKIN = new Set([M.body, M.top, M.belly, M.web, M.thigh, M.shin, M.sock].filter(Boolean));
-  dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
+  if (o.bSkinOff) SKIN.clear(); dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
   shells.forEach(s => s.piv.traverse(m => { if (m.isMesh) { m.material = pm; m.userData.gwShell = true; } }));
+  if (o.bSkinOff) shells.forEach(s => s.piv.traverse(m => { if (m.isMesh) m.material = M.body; }));   /* r17 breeding: the shells wear the other parent's skin */
   spine.receiveShadow = false;
   // feelers, claws: soft matte; nostrils off; a rounder head, wide gentle eyes
   M.horn.metalness = 0; M.horn.roughness = 0.6; M.horn.emissiveIntensity = 0;
   head.children.forEach(m => { if (m.isMesh && m.material === M.flame2) m.visible = false; });
   head.children[0].scale.set(1.3, 1.08, 1.08);
   head.children.forEach(m => { if (m.isMesh && m.material === M.eye) { if (m.children[0]) m.children[0].rotation.z = 0.2; if (m.children[1]) m.children[1].rotation.z = -0.2; } });
+  if (!o.glimWingOff) {   /* r17 breeding: these are Glimmerwick's own wings */
   // see-through wings with a gentle soap-film shimmer; veins a soft dark olive
   M.wing.transparent = true; M.wing.opacity = 0.42; M.wing.depthWrite = false; M.wing.roughness = 0.25; M.wing.metalness = 0;
   M.wing.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
@@ -4155,6 +4168,7 @@ vec4 gwTri(vec3 q, vec3 n) { vec3 bw = pow(abs(n) + 1e-4, vec3(4.0)); bw /= bw.x
       sh.fragmentShader = "uniform sampler2D gVT; uniform vec3 gVC; varying vec2 gWu;\n" + sh.fragmentShader.replace("#include <alphamap_fragment>", `#include <alphamap_fragment>
       { float vn = texture2D(gVT, gWu).r; diffuseColor.rgb = mix(diffuseColor.rgb, gVC, vn * 0.8); diffuseColor.a = mix(diffuseColor.a, 0.92, vn * 0.85); }`); };
     M.wing.customProgramCacheKey = () => "glimWingV"; }
+  }
   M.bone.color.copy(lin(p.top)).lerp(lin(p.horn), 0.4); M.bone.metalness = 0; M.bone.roughness = 0.6; M.bone.emissiveIntensity = 0;
   // ----- the lantern's light and halo at the tail end (shared glow texture) -----
   const glowTex = window.__gwTex || (window.__gwTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -4222,7 +4236,7 @@ function glimStep(t, dt) {
     G.ring.position.copy(bc); G.ring.rotation.x = Math.PI / 2; G.ring.scale.setScalar(0.6 + 5.5 * Math.sqrt(fp)); G.ringM.opacity = 0.85 * fk; }
   G.flashL.position.copy(at(0.07).p); G.flashL.intensity = 9 * fk;
 }
-if (o.glim) glimBuild();
+if (o._setPh) o._setPh(1); if (o.glim) glimBuild();
 // ----- NEW Orchidra (orchid mantis dragon, Petra 2026-11-14) -----
 function orx() { return o._or || (o._or = { built: false, rested: false, hide: 0, hk: 0, amb: 0, pin: 0, st: -1, lunge: 0 }); }
 function orPetalGeo(L, W, q) {   // a petal: x = length, z = width, y = the cupped side; uv.x = 0 at the base .. 1 at the edge, uv.y = -1 .. 1 across
@@ -4302,7 +4316,7 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
     pm.customProgramCacheKey = () => "orchidSkin4"; }
   E.pm = pm; E.U = U;
   const SKIN = new Set([M.body, M.top, M.belly, M.thigh, M.shin, M.sock].filter(Boolean));
-  dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
+  if (o.bSkinOff) SKIN.clear(); dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
   spine.receiveShadow = false;
   // ----- petals: white at the base, pink toward the edge, pink veins, a pink-gold shimmer on the rim -----
   const petalMat = (alpha) => { const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: alpha < 1 ? 0.5 : 0.75, metalness: 0, side: THREE.DoubleSide, transparent: alpha < 1, depthWrite: alpha >= 1, emissive: 0xffffff, emissiveIntensity: 1 });
@@ -4340,6 +4354,7 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
       m.customProgramCacheKey = () => "orchidPetal4" + (alpha < 1 ? "t" : "o"); } return m; };
   E.lobeM = petalMat(1); E.wingM = petalMat(0.42);
   E.spM = new THREE.MeshStandardMaterial({ color: lin(p.horn), roughness: 0.55, metalness: 0, emissive: lin(p.glow), emissiveIntensity: 0.08 });   // pink spines and claws
+  if (!o.bPartsOnly) {   /* r17 breeding: Orchidra's body parts (not when only its petal wings / tail are borrowed) */
   M.horn.color.copy(lin(p.horn)); M.horn.metalness = 0; M.horn.roughness = 0.55; M.horn.emissive = lin(p.glow); M.horn.emissiveIntensity = 0.06;
   // ----- the walking legs: petal lobes on the thighs, saw-teeth down the back edge -----
   const toothG = new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0), lobeG = orPetalGeo(0.3, 0.42, { bw: 0.3, cup: 0.22, curl: 0.12, NA: 18, NR: 7 });
@@ -4396,6 +4411,8 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
     if ((m.isMesh && m.material === M.eye) || m.isSprite) { m.position.y += 0.07; m.position.z *= 1.3; m.position.x -= 0.03; } });
   [1, -1].forEach(z => { const pts = [new V(0.2, 0.25, 0.07 * z), new V(0.32, 0.5, 0.12 * z), new V(0.26, 0.78, 0.2 * z), new V(0.06, 0.92, 0.28 * z), new V(-0.12, 0.86, 0.32 * z), new V(-0.17, 0.72, 0.3 * z), new V(-0.1, 0.64, 0.27 * z)];
     const f = staticTube(pts, [[0, 0.016], [0.6, 0.009], [1, 0.005]], E.spM, 40, 8); f.castShadow = false; head.add(f); });
+  }
+  if (!o.orWingOff && (!o.bPartsOnly || o.orPetalWings)) {   /* r17 breeding: petal wings */
   // ----- see-through petal wings on the bat wing's pivot -----
   wings.forEach(w => { const g = w.pivot.children[0]; if (!g) return; g.children.forEach(m => { m.visible = false; });
     [[new V(-0.55, 0.55, 1), 2.05, 0.82, 0.25], [new V(-1.15, 0.25, 0.95), 1.75, 1.1, -0.1], [new V(0.05, 0.75, 1), 1.35, 0.6, 0.45], [new V(-1.25, -0.15, 0.45), 1.15, 0.7, 0]].forEach(([d, L, W, tw]) => {
@@ -4403,6 +4420,8 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
       orOrient(m, d, new V(1, 0.4 + tw, -0.2)); m.castShadow = false; m.renderOrder = 3; g.add(m); });
     const hub = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), pm); g.add(hub); });
   M.trim.opacity = 0;
+  }
+  if (o.tail === "petalfan") {   /* r17 breeding: the petal-fan tail end */
   // ----- short tail with a petal fan (two rings, like an opening orchid) -----
   tailTip.children.slice().forEach(m => { if (m.isMesh) m.visible = false; });
   { const fg = orPetalGeo(0.55, 0.32, { cup: 0.25, curl: 0.18, tip: 0.1, NA: 16, NR: 7 }), ig = orPetalGeo(0.36, 0.24, { cup: 0.3, curl: 0.2, NA: 14, NR: 6 });
@@ -4411,6 +4430,8 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
     for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.55 + 0.2, d = new V(Math.cos(0.45), Math.sin(0.45) * Math.cos(a), Math.sin(0.45) * Math.sin(a)), m = new THREE.Mesh(ig, E.lobeM);
       orOrient(m, d, new V(0, -Math.sin(a), Math.cos(a))); m.position.x = 0.04; tailTip.add(m); }
     const c = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), E.spM); c.position.x = 0.06; tailTip.add(c); }
+  }
+  if (!o.bPartsOnly) {   /* r17 breeding */
   // ----- Blossom Ambush: little flowers that bloom round its feet, a pink-gold flash on the strike -----
   E.blooms = [];
   { const bg = orPetalGeo(0.16, 0.11, { cup: 0.35, curl: 0.25, NA: 12, NR: 5 }), cm = new THREE.SphereGeometry(0.035, 10, 8);
@@ -4423,6 +4444,8 @@ vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run
       x.fillStyle = "rgba(255,255,255,0.95)"; for (let i = 0; i < 8; i++) { x.save(); x.translate(64, 64); x.rotate(i / 8 * Math.PI * 2); x.beginPath(); x.moveTo(0, -6); x.lineTo(60, 0); x.lineTo(0, 6); x.fill(); x.restore(); }
       const t = new THREE.CanvasTexture(cv); t.rmShared = true; return t; })());   /* shared by every Orchidra and every palette: white, tinted per dragon */
     E.flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: mix(p.gold || p.glow, p.glow, 0.45).convertSRGBToLinear(), transparent: true, opacity: 0, depthWrite: false })); E.flash.visible = false; dragon.add(E.flash); }
+  }
+  if (!o.bPartsOnly)   /* r17 breeding: borrowed parts only: no arms to animate */
   E.built = true;
 }
 function orchidRest() {   // once, on the first frame: remember where every skin vertex sits (and which way it faces), in the dragon's own space
@@ -4470,7 +4493,7 @@ function orchidStep(t, dt, walk, flap) {
     a.cp.rotation.z = -0.55 + sway + s * 0.5; a.fp.rotation.z = 1.75 - sway * 0.5 - s * 1.7; a.tp.rotation.z = -2.85 + s * 2.45 * (1 - 0.7 * tibClose); });   /* praying: coxa forward, femur raised, tibia folded down against it */
   const lo = E.lunge * 0.3; dragon.position.x += lo - (E.lo || 0); E.lo = lo;   /* lunge forward, then back to where it stood */
 }
-if (o.orchid) orchidBuild();
+if (o.orchid) orchidBuild(); if (o._setPh) o._setPh(0); if (o._lamp && typeof breedLamp === "function") breedLamp(tailTip, p, R0(0.04));   /* r17 breeding: a firefly lantern where the glow skin is missing */
 sockets.head = head;
 api = { root: dragon, pal: p, update, seat, sockets, mats: M, sitPitch: 0.75, sitDrop: 0.5, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
 if (o.floatY || o.pitchZ || o.groundFeet) {   // NEW (2026-11-13): floaters hover and bob (Cloudlet, Driftfin), the seahorse stands upright, the jerboa stands up on its back legs with its feet on the ground
@@ -5167,7 +5190,7 @@ function addJelly(api, j, pal) {
     glowJ(m, { color: glow, rim: 0.9, wave: 0.55 }); m.needsUpdate = true; });
   // the bell hood: a see-through dome with a wavy frilled rim, sitting over the back of the head
   const bellM = new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.top).convertSRGBToLinear(), emissive: glow, emissiveIntensity: 0.45, transparent: true, opacity: 0.5, roughness: 0.15, side: THREE.DoubleSide, depthWrite: false });
-  const bell = new THREE.Group(); bell.position.set(-0.08, 0.1, 0); head.add(bell); const bellK = 1.45;
+  const bell = new THREE.Group(); bell.position.set(-0.08, 0.1, 0); head.add(bell); const bellK = 1.45; if (j.noBell) bell.visible = false;   /* r17 breeding: another parent's head piece */
   const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), bellM); dome.scale.set(1.15, 0.95, 1.05); bell.add(dome); glowJ(bellM, { color: glow, canals: 8, rim: 1.3 });
   const rimG = new THREE.TorusGeometry(0.44, 0.03, 8, 64), rp = rimG.attributes.position;
   for (let i = 0; i < rp.count; i++) { const x = rp.getX(i), y = rp.getY(i), a = Math.atan2(y, x); rp.setZ(i, rp.getZ(i) - 0.04 * (1 + Math.sin(a * 12))); }   // wavy frill
@@ -8629,12 +8652,16 @@ function makePerson(o) {
       home: P(H.c3), wander: 4, look: { shirt: "#7a3aa8", pants: "#3a2a4a", hair: "#3a8a5a", hairStyle: "bun", apron: "#d8c8e8" }, lines: [
       "Bubble, bubble! Oh, hello. Mind the cauldron.", "That green smoke is normal. Probably.", "I once made a potion that turned my hair green. I kept it.", "Healing Tonics are my bestseller. Monsters bite, you know.",
       "Strength Brew tastes like spicy pineapple. Dragons love it.", "Don't tell Old Nettle where I keep the frog jars.", "Every potion is brewed fresh! Well. Fresh-ish."] },
+    { name: "Grandpa Orrin", title: "Dragon Keeper", orrin: true, topics: [{ label: "Breed my dragons", fn: "breed" }, { label: "How does breeding work?", say: ["Body shape and markings come together from one parent. Colours, tail, horns, skin, shine, breath, wings and size: each from one parent or the other.", "If a part won't fit the body, it comes from the other parent. Never a missing horn or a floating wing, not in my nest.", "The baby's as rare as the rarer parent, or one step below. Its strength lands somewhere between the two.", "Bred dragons can be bred again. Their babies get stranger every time. I love it.", "Some dragons won't breed at all. Don't ask me why. Some things aren't meant for a nest.", "A dragon you don't want? Don't let it go free, it's never seen the wild. Shady Shen buys them. Don't tell him I sent you."] }],
+      home: new V(H.c4.door.x + Math.cos(H.c4.rot) * 0.6 + Math.sin(H.c4.rot) * 3.2, Y, H.c4.door.z - Math.sin(H.c4.rot) * 0.6 + Math.cos(H.c4.rot) * 3.2), wander: 2, slow: true,
+      look: { shirt: "#4f6b3a", pants: "#4a3e30", hair: "#e8e6e0", hairStyle: "short", beard: "#f2f0ea", glasses: true, apron: "#7a5a3a", hunch: true, skin: "#e8c4a0" }, lines: ["Easy now. Two dragons, one egg. Patience does the rest.", "Six hundred coins, and the nest is yours for the night.", "Each egg takes a bit from one parent, a bit from the other. Which bits? Even I can't tell.", "Some come out pretty. Some come out... interesting. All of them are loved.", "A Keeper's Blessing makes one part follow the parent you choose. Fifteen hundred coins. The rest is still luck.", "Let the parents rest a while after. They've earned a nap.", "Bring a friend's dragon, and I'll set two eggs: one for you, one for them.", "Shiny parents sometimes pass on their shine. Only sometimes.", "Biscuit there was my first egg. Sixty years ago. Still snores.", "Shh. Biscuit's dreaming. His tail twitches when he dreams about fish.", "My spectacles? On my nose. Always on my nose. Took me forty years to learn that.", "Every egg in this apron has a name already. I just don't tell the eggs."] },   /* DRAGON BREEDING: the old keeper (Petra 2026-11-14) */
   ];
   people.forEach((p, i) => {
     const m = makePerson(p.look); scene.add(m.g);
     const n = { ...p, ...m, x: p.home.x + (i % 3) - 1, z: p.home.z + 1, face: 0, target: null, wait: Math.random() * 3, walk: 0, deck: [], talks: 0, y: Y };
     m.g.position.set(n.x, Y, n.z); npcs.push(n);
   });
+  { const o = npcs.find(q => q.orrin); if (o) { orrinDress(o); orrinCorner(H.c4.door, H.c4.rot); } }   /* Grandpa Orrin: beard, spectacles, egg apron, staff; his nest and Biscuit */
 })();
 
 // ================= tamer (the player) =================
@@ -8729,10 +8756,12 @@ function tickEgg(m, t, rock) {
 
 // ================= game state =================
 const PYR = PAL.Normal;
-const SP = name => (name = String(name).replace(/[*!].*$/, ""), SPECIES.find(s => s.name === name)) || SPECIES.find(s => s.name === "Pyrrak");
+const BRED_SP = {};   /* bred dragons: "Bred#<seed>" -> species-like entry with .bred = recipe (DRAGON BREEDING) */
+const KN = k => (BRED_SP[k] ? BRED_SP[k].label : k);   /* a kind's name to show: a bred dragon shows "A x B" */
+const SP = name => (name = String(name).replace(/[*!].*$/, ""), BRED_SP[name] || SPECIES.find(s => s.name === name)) || SPECIES.find(s => s.name === "Pyrrak");
 // the first egg can be any normal kind, rarer kinds less often (no junk, no secret dragons)
 // weather / moon / eclipse dragons only come from their events, never from normal eggs
-const EVENT_KIND = s => !!(s.sp && s.sp.weather) || !!s.anomaly;   // anomalies (Vulpyre) only come from their own event
+const EVENT_KIND = s => !s.bred && (!!(s.sp && s.sp.weather) || !!s.anomaly);   /* bred eggs are never event eggs */   // anomalies (Vulpyre) only come from their own event
 const EGG_ODDS = { Common: 62, Uncommon: 27, Rare: 9, Epic: 1.2, Legendary: 0.25 };   // Petra 2026-11-09: Epic about 1 egg in 100, Legendary about 1 in 500
 // kinds that live in the land where the egg is found are more likely there (but Epics only a little, Legendaries not at all)
 const HOME_BOOST = { Common: 5, Uncommon: 5, Rare: 3, Epic: 1.5, Legendary: 1 };
@@ -8772,7 +8801,7 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
     ms.forEach(m => { if (seen.has(m) || m.vertexColors || !m.color || m.userData.lin) return; seen.add(m); m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); });
   });
 })();
-function buildDragon(kind, shiny, gear) { const s = SP(kind), pal = shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal; return withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {})), pal); }
+function buildDragon(kind, shiny, gear) { { const b = BRED_SP[String(kind).replace(/[*!].*$/, "")]; if (b) return buildFromRecipe(Object.assign({}, b.bred, { shiny: shiny && PAL[shiny] ? shiny : null }), gear ? { armor: armorOf(gear) } : null); }   /* a bred dragon: built from its recipe */ const s = SP(kind), pal = shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal; return withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {})), pal); }
 function withFur(s, api, pal) { try { const fl = typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]; if (fl) addFur(api, fl.tint && pal && pal !== s.pal ? Object.assign({}, fl, { tint: pal.side, tip: pal.belly }) : fl);   /* a shiny: fixed moss tints take its colours */ if (s.sp.jelly && typeof addJelly === "function") addJelly(api, s.sp.jelly, pal || s.pal); if (s.sp.seraph && typeof addSeraph === "function") addSeraph(api, s.sp.seraph, pal || s.pal); if (s.sp.cascade && typeof addCascade === "function") addCascade(api, s.sp.cascade, pal || s.pal); if (s.sp.ray && typeof addRay === "function") addRay(api, s.sp.ray, pal || s.pal); if (s.sp.hyb && typeof addHybrid === "function") addHybrid(api, s.sp.hyb, pal || s.pal); } catch (e) { console.warn("fur", e); } return api; }
 let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
@@ -8797,7 +8826,7 @@ const dots = n => "●".repeat(n) + "○".repeat(5 - n);
 const speedDots = () => `walk ${dots(SP(pet.kind).walk || speedOf())} · fly ${dots(SP(pet.kind).fly || speedOf())}`;
 // stats at the pet's level: level 1 values plus that species' growth for each level after
 function petStats() { const st = SP(pet.kind).stats, L = (pet.level || 1) - 1, G = pet.gear; return { hp: st.hp + st.grow.hp * L + gearAdd(G, "plate"), claw: st.claw.map(v => v + st.grow.claw * L + gearAdd(G, "claw")), breath: st.breath.map(v => v + st.grow.breath * L) }; }
-function petLabel(stage) { petEl.hidden = false; const s = petStats(); petEl.textContent = `${pet.name} the ${SP(pet.kind).rarity} ${pet.kind} · ${stage} · Lv ${pet.level || 1} (XP ${pet.xp || 0}/${(pet.level || 1) * 10}) · HP ${s.hp} · ${speedDots()}`; }
+function petLabel(stage) { petEl.hidden = false; const s = petStats(); petEl.textContent = `${pet.name} the ${SP(pet.kind).rarity} ${KN(pet.kind)} · ${stage} · Lv ${pet.level || 1} (XP ${pet.xp || 0}/${(pet.level || 1) * 10}) · HP ${s.hp} · ${speedDots()}`; }
 
 // ================= input =================
 const keys = {};
@@ -8869,12 +8898,14 @@ function writeSave() {
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
-    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, big: !!pet.big, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
+    coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, bred: bredOf(pet.kind), rest: pet.rest || 0, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, big: !!pet.big, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(), req: reqSave(),
+    bred: bredSaveMap(), breedSt: breedSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
 function applySave(d) {
+  bredLoad(d);   /* bred recipes first: the bag, pen and partner may hold bred kinds */
   eggSpot.set(d.egg.x, d.egg.y, d.egg.z); egg.position.copy(eggSpot).add(new V(0, 0.5, 0)); beam.position.copy(eggSpot).add(new V(0, 30, 0));
   me.x = d.me.x; me.y = d.me.y; me.z = d.me.z;
   Object.assign(seen, d.seen || {});
@@ -8894,15 +8925,15 @@ function applySave(d) {
   if (d.req) reqLoad(d.req);
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
-  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => SPECIES.some(s => s.name === k.replace(/[*!].*$/, ""))));
-  if (Array.isArray(d.pen)) pen.push(...d.pen.filter(p => p && SPECIES.some(s => s.name === p.kind)));
+  if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => typeof k === "string" && (SPECIES.some(s => s.name === k.replace(/[*!].*$/, "")) || !!BRED_SP[k.replace(/[*!].*$/, "")])));
+  if (Array.isArray(d.pen)) pen.push(...d.pen.filter(p => p && (SPECIES.some(s => s.name === p.kind) || !!BRED_SP[p.kind])));
   if (d.arena) { arena.entries = d.arena.entries || 0; [0, 1, 2, 3].forEach(k => { arena.won[k] = !!(d.arena.won || [])[k]; arena.owed[k] = !!(d.arena.owed || [])[k]; }); }
   showCoins();
   if (d.stage === "carry") { state = "carry"; beam.visible = false; goal("Carry the egg home to your nest"); }
   if (d.stage === "baby" || d.stage === "grown") {
     egg.visible = false; beam.visible = false; dragon.root.visible = true;
     pet.gear = d.pet.gear || null; pet.acc = d.pet.acc || null; pet.small = !!d.pet.small; pet.big = !!d.pet.big; setKind(d.pet.kind || "Pyrrak", d.pet.shiny);
-    Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z });
+    Object.assign(pet, { name: d.pet.name, kind: SP(d.pet.kind || "Pyrrak").name, level: d.pet.level || 1, xp: d.pet.xp || 0, age: d.pet.age, scale: d.pet.scale, x: d.pet.x, y: d.pet.y, z: d.pet.z }); pet.rest = +d.pet.rest || 0;
     state = d.stage; petLabel(state === "baby" ? (pet.small ? "small" : "baby") : "grown up");
     goal(state === "baby" ? (pet.small ? `${pet.name} is a small dragon. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`) : seen.Village ? `Explore with ${pet.name}. Press R to ride` : `Ride ${pet.name} to the village (follow the arrow)`);
   }
@@ -8944,7 +8975,7 @@ showTip();
 // the partner dragon from the current slot (or a Pyrrak before you have one) circles behind the title
 let tDr = null, tKey = "", tA = 0;
 function titleDragon() {
-  const d = loadSave(SLOT), p = d && d.pet && d.pet.kind && (d.stage === "baby" || d.stage === "grown") && SPECIES.some(s => s.name === d.pet.kind) ? d.pet : null;
+  const d = loadSave(SLOT), p = d && d.pet && d.pet.kind && (d.stage === "baby" || d.stage === "grown") && (SPECIES.some(s => s.name === d.pet.kind) || bredLoadOne(d.pet)) ? d.pet : null;
   const key = p ? [p.kind, p.shiny, JSON.stringify(p.gear), JSON.stringify(p.acc), p.small].join("|") : "none";
   if (tDr && key === tKey) return; tKey = key;
   if (tDr) scene.remove(tDr.root);
@@ -8975,7 +9006,7 @@ function slotInfo(n) {
   const d = loadSave(n); if (!d) return null;
   const has = d.pet && d.pet.name && (d.stage === "baby" || d.stage === "grown");
   const n2 = (d.pen || []).length + (has ? 1 : 0);
-  return { line: has ? `${d.pet.name} · Lv ${d.pet.level || 1} ${d.pet.kind}` : d.stage === "carry" ? "Carrying an egg home" : "Looking for the first egg",
+  return { line: has ? `${d.pet.name} · Lv ${d.pet.level || 1} ${d.pet.bred && d.pet.bred.kind ? String(d.pet.bred.kind).replace(/[<>&"]/g, "") : d.pet.kind}` : d.stage === "carry" ? "Carrying an egg home" : "Looking for the first egg",
     sub: `${d.coins || 0} coins · ${n2} dragon${n2 === 1 ? "" : "s"}` };
 }
 function refreshHome() {
@@ -9108,7 +9139,7 @@ function hazelPet() {
   if (o.emberWings) a.push("those glowing cracks in its wings let the heat out. Like a little chimney!");
   if (s.land) a.push(`dragons from ${s.land} often share tricks like that. Same home, same problems!`);
   if (!a.length) return null;
-  return `Ooh, your ${k}! ` + a[Math.floor(Math.random() * a.length)].replace(/^./, c => c.toUpperCase());
+  return `Ooh, your ${KN(k)}! ` + a[Math.floor(Math.random() * a.length)].replace(/^./, c => c.toUpperCase());
 }
 // ----- Hazel gets excited about Legendary, Champion and Secret dragons (Petra 2026-11-13). She never NAMES the secret ones: she doesn't know they exist -----
 const HAZEL_WOW = {
@@ -9135,7 +9166,7 @@ function hazelStats() {
   const s = SP(pet.kind);
   if (s.rarity === "Secret") return "I... can't measure it. My tools just spin around. I'm sorry. I don't think anyone can.";
   const st = petStats(), lv = pet.level || 1, a = abOf(pet.kind), a2 = abOf(pet.kind, true);
-  let t = `Your ${pet.kind} is a level ${lv} ${s.rarity}. It has ${Math.min(petHp(), st.hp)} out of ${st.hp} HP. Its claws hit for ${st.claw[0]} to ${st.claw[1]}, and its breath for ${st.breath[0]} to ${st.breath[1]}. Walk speed ${s.walk || speedOf()}, fly speed ${s.fly || speedOf()}, out of 5.`;
+  let t = `Your ${KN(pet.kind)} is a level ${lv} ${s.rarity}. It has ${Math.min(petHp(), st.hp)} out of ${st.hp} HP. Its claws hit for ${st.claw[0]} to ${st.claw[1]}, and its breath for ${st.breath[0]} to ${st.breath[1]}. Walk speed ${s.walk || speedOf()}, fly speed ${s.fly || speedOf()}, out of 5.`;
   if (pet.small) t += " It's a little one, so it can't fight yet. Give it time!";
   else if (a) t += lv >= AB_UNLOCK ? ` It knows its own move, ${a.n}: press 5 while riding.` : ` Its own special move unlocks at level ${AB_UNLOCK}. Keep going!`;
   if (!pet.small && a2) t += lv >= AB2_UNLOCK ? (a2.passive ? ` And its second gift, ${a2.n}, is always on.` : ` And its second move, ${a2.n}: press 6!`) : ` Dragons this rare learn a second move at level ${AB2_UNLOCK}.`;
@@ -9182,6 +9213,7 @@ function npcDialog(n, say) {
     else if (a === "topic") {
       const t = tps[i];
       if (t.fn === "books") return bookShelf(n);
+      if (t.fn === "breed") return breedMenu(n);
       if (t.fn === "wdTalk") return npcDialog(n, wdTalk(n));
       if (t.fn === "quests") return questBoard();
       if (t.fn === "forge") return forgeMenu(n);
@@ -9260,8 +9292,8 @@ nameInput.addEventListener("keyup", e => e.stopPropagation());
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   // a little secret for this update (Petra 2026-11-10): name it "epic" and it turns into an Epic dragon, then you name it again
-  if (n.toLowerCase() === "epic" && TIER[SP(pet.kind).rarity] < TIER.Epic) { epicPick(); return; }
-  pet.name = n.charAt(0).toUpperCase() + n.slice(1);
+  if (n.toLowerCase() === "epic" && !BRED_SP[pet.kind] && TIER[SP(pet.kind).rarity] < TIER.Epic) { epicPick(); return; }
+  pet.name = n.charAt(0).toUpperCase() + n.slice(1); if (BRED_SP[pet.kind]) BRED_SP[pet.kind].bred.name = pet.name;
   nameBox.hidden = true; state = "baby"; pet.age = 0; lockMouse(); egg.userData.fromBag = false; setTimeout(writeSave, 0);
   petLabel(pet.small ? "small" : "baby");
   goal(pet.small ? `${pet.name} is a small dragon and will always be little. Swap dragons at your nest` : `Walk around with ${pet.name} so it can grow`);
@@ -9398,15 +9430,15 @@ function frameBody() {
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
       pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false; pet.big = !pet.small && isNight && evOn("super");
-      const evS = evShiny(), sh = evS || (typeof pet.shinyNext === "string" && SHINY_KINDS.includes(pet.shinyNext) ? pet.shinyNext : pet.shinyNext || Math.random() < 1 / 50 ? rollShiny() : null); pet.shinyNext = false;   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
+      const evS = BRED_SP[eggKind] ? null : evShiny(), sh = BRED_SP[eggKind] ? (BRED_SP[eggKind].bred.shiny || null) : evS || (typeof pet.shinyNext === "string" && SHINY_KINDS.includes(pet.shinyNext) ? pet.shinyNext : pet.shinyNext || Math.random() < 1 / 50 ? rollShiny() : null); pet.shinyNext = false;   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
       setKind(eggKind, sh); pet.level = 1; pet.xp = 0; dragon.root.visible = true; if (!DEX.includes(eggKind)) DEX.push(eggKind);
-      if (evS) toast(`It's a ${pet.shiny} shiny ${eggKind}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
-      else if (sh) toast(`A SHINY! A ${sh} ${eggKind}!`, "Only 1 egg in 50 hatches shiny. Lucky you!");
-      else if (pet.big) toast(`A Super Moon ${eggKind}!`, "It hatched under the Super Moon, so it will grow up extra big");
-      else if (pet.small) toast(`It's a tiny ${eggKind}!`, "Small dragons stay little forever. Too small to ride, but so cute");
-      else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${eggKind}!`, SP(eggKind).home);
+      if (evS) toast(`It's a ${pet.shiny} shiny ${KN(eggKind)}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
+      else if (sh) toast(`A SHINY! A ${sh} ${KN(eggKind)}!`, "Only 1 egg in 50 hatches shiny. Lucky you!");
+      else if (pet.big) toast(`A Super Moon ${KN(eggKind)}!`, "It hatched under the Super Moon, so it will grow up extra big");
+      else if (pet.small) toast(`It's a tiny ${KN(eggKind)}!`, "Small dragons stay little forever. Too small to ride, but so cute");
+      else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${KN(eggKind)}!`, SP(eggKind).home);
     }
-    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${eggKind}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
+    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${KN(eggKind)}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
     prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : wdFeedTarget() ? `Press <kbd>E</kbd> to feed a fish to the wild ${wdFeedTarget().wd.k}` : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
@@ -9538,6 +9570,7 @@ function frameBody() {
   updateWild(dt);
   updateMonsters(dt);
   updateShen(dt);
+  breedTick(dt);
   updateQuest(dt);
   animDragonAcc(dragon, T);
   updateLava(dt);
@@ -9745,10 +9778,10 @@ function pressKey(code) {
 }
 function bars() {
   const me = run.me, f = run.foe;
-  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${pet.kind} · Speed ${me.speed}`;
+  $("bMeName").textContent = `${pet.name} · Lv ${pet.level}`; $("bMeKind").textContent = `${SP(pet.kind).rarity} ${KN(pet.kind)} · Speed ${me.speed}`;
   $("bMeHp").style.width = Math.max(0, me.hp / me.max * 100) + "%"; $("bMeNum").textContent = `${Math.max(0, me.hp)} / ${me.max} HP`;
   $("bFoeName").textContent = `${shownName(foe)} · Lv ${foe.l}`;
-  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${foe.k} · Speed ${f.speed}`;
+  $("bFoeKind").textContent = `${f.shiny ? f.shiny + " " : ""}${SP(foe.k).rarity} ${KN(foe.k)} · Speed ${f.speed}`;
   $("bFoeHp").style.width = Math.max(0, f.hp / f.max * 100) + "%"; $("bFoeNum").textContent = `${Math.max(0, f.hp)} / ${f.max} HP`;
   $("bRound").textContent = run.sec < 0 ? "Practice" : `Section ${run.sec + 1} · fight ${run.i + 1} of ${TAMERS[run.sec].length} · won ${run.earned} coins`;
 }
@@ -9991,14 +10024,14 @@ function arenaCamera(dt) {
 
 // ================= the nest: hatch backpack eggs and swap dragons from the pen =================
 function nestMenu() {
-  const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${pet.kind} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${pet.kind}` : " (still a baby)"}`;
-  const eggs = bag.map((k, i) => `<div class="sec"><div><b>${k.includes("*") ? "Small" : k === "Dustmite" || k.includes("!") ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "")} egg</b><br><small>${k.includes("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
+  const cur = state === "grown" ? `${pet.name} the ${pet.shiny ? pet.shiny + " " : ""}${KN(pet.kind)} (Lv ${pet.level})` : `${pet.name}${pet.small ? ` the small ${pet.shiny ? pet.shiny + " " : ""}${KN(pet.kind)}` : " (still a baby)"}`;
+  const eggs = bag.map((k, i) => BRED_SP[k] ? bredEggRow(k, i) : `<div class="sec"><div><b>${k.includes("*") ? "Small" : k === "Dustmite" || k.includes("!") ? "Shiny" : TIER[SP(k).rarity] >= 6 ? "???" : SP(k).rarity + (EVENT_KIND(SP(k)) ? " event" : "")} egg</b><br><small>${k.includes("*") ? "A tiny egg. The baby inside will stay small forever" : TIER[SP(k).rarity] >= 6 ? (k === "Petralith" ? "Heavy as a boulder and strangely warm. Nobody knows what's inside" : "Dark and strangely cold. Nobody knows what's inside") : k === "Crestwyrm" ? "The champion's prize" : "Hatch it to see what's inside"}</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`).join("") || "<p><small>No eggs in your backpack.</small></p>";
   const st = petStats(), sp = SP(pet.kind);
   const stats = `<div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div>
     <div><span>Level</span><b>${pet.level || 1}</b><small>XP ${pet.xp || 0}/${xpNeed()}</small></div><div><span>Walk</span><b class="dots">${dots(sp.walk || speedOf())}</b></div><div><span>Fly</span><b class="dots">${sp.fly ? dots(sp.fly) : "can't fly"}</b></div></div>
-    <p><small>${sp.rarity} ${pet.kind} · home: ${sp.land || sp.home}</small></p>`;
+    <p><small>${sp.rarity} ${KN(pet.kind)} · home: ${sp.land || sp.home}</small></p>`;
   const penStat = d => { const s = statsAt(d.kind, d.level || 1), c = gearAdd(d.gear, "claw"); return `HP ${s.hp + gearAdd(d.gear, "plate")} · Claw ${s.claw[0] + c}-${s.claw[1] + c} · Breath ${s.breath[0]}-${s.breath[1]}`; };
-  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${SP(d.kind).rarity} ${d.kind} · Lv ${d.level}<br><small>${penStat(d)}</small></div><span><button data-act="swap" data-i="${i}">Take out</button> <button data-act="free" data-i="${i}" title="Let it go free">Let go</button></span></div>`).join("") || "<p><small>The pen is empty.</small></p>";
+  const pens = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${SP(d.kind).rarity} ${KN(d.kind)} · Lv ${d.level}<br><small>${penStat(d)}${bredPenNote(d)}</small></div><span><button data-act="swap" data-i="${i}">Take out</button> <button data-act="free" data-i="${i}" title="Let it go free">Let go</button></span></div>`).join("") || "<p><small>The pen is empty.</small></p>";
   openMenu("Your nest", `<p>With you: <b>${cur}</b>${state === "baby" && !pet.small ? ". Wait until it grows up before you swap or hatch." : ""}</p>${stats}
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
     <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
@@ -10032,7 +10065,7 @@ function dropEggMenu(i) {
 // letting a dragon go free (Petra 2026-11-10): it flies off into the wild for good
 function freeMenu(i) {
   const d = pen[i]; if (!d) return nestMenu();
-  openMenu("Let it go free?", `<p>Let <b>${d.name}</b> the ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${d.kind} (Lv ${d.level || 1}) go free?</p>
+  openMenu("Let it go free?", `<p>Let <b>${d.name}</b> the ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${KN(d.kind)} (Lv ${d.level || 1}) go free?</p>
     <p><small>It will fly off to live in the wild. You can't get it back${d.acc && Object.keys(d.acc).length ? ", and its accessories go back in your wardrobe" : ""}.</small></p>
     <div class="sec"><div><b>Yes, let it go</b></div><button data-act="yes">Let go</button></div><div class="sec"><div><b>No, keep it</b></div><button data-act="no">Keep</button></div>`, () => nestMenu());
   menuAct = a => {
@@ -10040,14 +10073,15 @@ function freeMenu(i) {
     closeMenu();
   };
 }
-function toPen() { pen.push({ name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small, big: !!pet.big }); }
+function toPen() { pen.push({ name: pet.name, kind: pet.kind, bred: bredOf(pet.kind), rest: pet.rest || 0, shiny: pet.shiny || null, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, small: !!pet.small, big: !!pet.big }); }
 function takeOut(d) {
+  pet.rest = d.rest || 0;   /* a resting parent stays resting */
   pet.gear = d.gear || null; pet.acc = d.acc || null; pet.small = !!d.small; pet.big = !!d.big; setKind(d.kind, d.shiny); Object.assign(pet, { name: d.name, level: d.level, xp: d.xp, scale: pet.small ? 0.45 : pet.big ? 1.3 : 1 });
   pet.x = me.x + 2; pet.z = me.z + 2; pet.y = height(pet.x, pet.z); dragon.root.visible = true; state = pet.small ? "baby" : "grown";
   petLabel(pet.small ? "small" : "grown up"); toast(`${pet.name} is back!`, "The other dragon rests in the pen"); showCoins(); writeSave();
 }
 function hatchEgg(kind) {
-  pet.gear = null; pet.acc = null; pet.smallNext = kind.includes("*"); pet.shinyNext = kind.includes("!") ? (kind.split("!")[1] || true) : false; kind = kind.replace(/[*!].*$/, "");
+  pet.gear = null; pet.acc = null; pet.rest = 0; pet.smallNext = kind.includes("*"); pet.shinyNext = kind.includes("!") ? (kind.split("!")[1] || true) : false; kind = kind.replace(/[*!].*$/, "");
   setEggKind(kind); dragon.root.visible = false; egg.visible = true; scene.attach(egg);
   egg.position.set(0, nestGroup.position.y + 0.75, 0); egg.rotation.set(0, 0, 0); eggLight.intensity = 1.5;
   egg.userData.fromBag = true; state = "hatching"; hatchT = 0; goal("Watch the egg..."); showCoins();
@@ -14700,7 +14734,7 @@ const BREATH = {
   Crestrunner: { n: "Sprint Spark",     t: "bolt", k: 2, mult: 1.2 },
   Twinhead:    { n: "Double Blast",     t: "cone", ang: 0.8, burn: 1, slow: 3, mult: 1.35, col: "#ffb070" },
 };
-const breathOf = kind => BREATH[kind] || { n: "Breath", t: "cone" };
+const breathOf = kind => BREATH[kind] || (BRED_SP[kind] && (BREATH[BRED_SP[kind].bred.parts.ability] || { n: BRED_SP[kind].bred.ability.breath, t: "cone" })) || { n: "Breath", t: "cone" };
 const BRT = { fx: [], shots: [], clouds: [], stars: [], target: null };
 
 // ---- auto-aim: the closest living monster in front of you (or right next to you) ----
@@ -15427,8 +15461,8 @@ function shenShop(say, free) {
   }).join("");
   const glim = SHN.glim ? `<div class="sec"><div><b>Your Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : "";
   openMenu("Shady Shen", `<p class="who">A hooded stranger with yellow eyes</p><p class="say">${say}</p>
-    ${free ? `<p class="good">Psst... you didn't tell the officer about me. Pick one thing. Free.</p>` : `<p>You have <b>${coins}</b> coins.</p>`}${glim}${rows}`, () => { toast("Shady Shen", pickOf(SAY.bye)); lockMouse(); });
-  menuAct = (a, i) => { if (a === "glim") return glimMenu(); if (a === "buy") shenBuy(i, free); };
+    ${free ? `<p class="good">Psst... you didn't tell the officer about me. Pick one thing. Free.</p>` : `<p>You have <b>${coins}</b> coins.</p>`}${glim}${rows}${breedSellRows()}`, () => { toast("Shady Shen", pickOf(SAY.bye)); lockMouse(); });
+  menuAct = (a, i) => { if (a === "sellb") return breedSell(i); if (a === "glim") return glimMenu(); if (a === "buy") shenBuy(i, free); };
 }
 function shenBuy(i, free) {
   const [n, p0] = shenList()[i], p = free ? 0 : p0;
@@ -15694,7 +15728,7 @@ function forgeMenu(n, msg) {
     return `<div class="sec"><div><b>${G.label}</b> · now: ${cur}<br><small>${nx <= 4 ? `Next: ${METALS[nx].name}, ${G.what(G.add[nx])}` : "Starsteel. Nothing better in all the lands"}</small></div>${btn}</div>`;
   };
   openMenu("Hamm's Forge", `<p class="who">Blacksmith</p><p class="say">${msg || HAMM.hi[Math.floor(Math.random() * HAMM.hi.length)]}</p>
-    <p>For <b>${pet.name}</b> the ${pet.kind}. You have <b>${coins}</b> coins.</p>${row("claw")}${row("plate")}
+    <p>For <b>${pet.name}</b> the ${KN(pet.kind)}. You have <b>${coins}</b> coins.</p>${row("claw")}${row("plate")}
     <p><small>Metals: Copper, Iron, Steel, Starsteel. Each one replaces the last. The gear stays with this dragon, even in the pen.</small></p>`, () => lockMouse());
   menuAct = (a, i) => {
     if (a !== "forge") return;
@@ -17015,7 +17049,7 @@ const SKILL = {
 };
 const SKILL_OF_LAND = { "Fire Mountain": "Burn", "Frost Peaks": "Freeze", "Sky Islands": "Gust", "Ocean": "Wash", "Green Valley": "Grow", "Misty Swamp": "Wash", "Coral Reef": "Wash", "Autumn Woods": "Grow", "Blightwood": "Burn", "Hydra Valley": "Grow" };
 const SKILL_KIND = { Glidewhisk: "Gust", Prismclaw: "Smash", Stingdrift: "Wash", Cascadra: "Wash", Cloudlet: "Wash", Driftfin: "Wash", Glintling: "Smash", Dunebun: "Smash", Puffshroom: "Grow", Cinderpup: "Burn", Velvette: "Gust", Seraphage: "Wash", Rosalind: "Grow", Valkyra: "Gust", Stonewyrm: "Smash", Bergdrake: "Smash", Starwyrm: "Burn", Scarlune: "Burn", Voltwing: "Gust", Sirocco: "Gust", Whiteout: "Freeze", Wispwyrm: "Wash", Vulpyre: "Burn", Emberleaf: "Burn", Twinhead: "Burn", Thunderhydra: "Gust", Burrowdrake: "Smash", Hedgewyrm: "Smash" };
-const skillOf = kind => { if (!kind) return null; if (SKILL_KIND[kind]) return SKILL_KIND[kind]; const s = SP(kind); return SKILL_OF_LAND[s.land] || "Smash"; };
+const skillOf = kind => { if (!kind) return null; if (BRED_SP[kind]) kind = BRED_SP[kind].bred.parts.ability; if (SKILL_KIND[kind]) return SKILL_KIND[kind]; const s = SP(kind); return SKILL_OF_LAND[s.land] || "Smash"; };
 const SKL = { spots: null, open: [], msgT: 0, near: null };
 const skSpots = [];
 function skMake(type) {   // the thing in the way, sitting over a chest
@@ -17602,6 +17636,10 @@ function mpMsg(o) {
     case "dmove": mpDuelMove(from, o); break;
     case "dres": mpDuelPlay(o); break;
     case "dquit": if (MP.duel && MP.duel.peer === from) mpDuelEnd(MP.duel.me, `${mpName(from)} gave up. You win!`); break;
+    case "brask": breedGotAsk(from, o); break;   /* DRAGON BREEDING with a friend */
+    case "bryes": breedGotYes(from, o); break;
+    case "brno": if (BR_ASK && BR_ASK.peer === from) BR_ASK = null; toast(`${mpEsc(mpName(from))} said no`, brEsc(String(o.why || "").slice(0, 60))); break;
+    case "bregg": breedGotEgg(from, o); break;
     case "toff": mpTradeOffer(from, o); break;
     case "tready": mpTradeReady(from, o); break;
     case "tclose": if (MP.trade && MP.trade.peer === from) { MP.trade = null; toast("Trade closed", `${mpName(from)} closed the trade`); mpPanel(); } break;
@@ -17627,7 +17665,7 @@ function mpMyState() {
   const r = state === "ride";
   return { x: +me.x.toFixed(2), y: +me.y.toFixed(2), z: +me.z.toFixed(2), f: +me.face.toFixed(2), r: r ? 1 : 0,
     dx: +pet.x.toFixed(2), dy: +pet.y.toFixed(2), dz: +pet.z.toFixed(2), df: +pet.face.toFixed(2), fl: pet.fly ? 1 : 0, b: +(pet.bank || 0).toFixed(2), p: +(pet.pitch || 0).toFixed(2),
-    k: hasDragon() && state !== "name" ? pet.kind : null, sh: pet.shiny || null, sc: +(pet.scale || 1).toFixed(2), n: pet.name || "", lv: pet.level || 1, land: landNow, ar: state === "arena" ? 1 : 0, sit: pet.sitK > 0.5 ? 1 : 0 };
+    k: hasDragon() && state !== "name" ? pet.kind : null, sh: pet.shiny || null, sc: +(pet.scale || 1).toFixed(2), n: pet.name || "", lv: pet.level || 1, land: landNow, ar: state === "arena" ? 1 : 0, sit: pet.sitK > 0.5 ? 1 : 0, kb: BRED_SP[pet.kind] && (MP.kbN = ((MP.kbN || 0) + 1) % 20) === 1 ? bredWire(pet.kind) : undefined };
 }
 function mpLabel(text, col) {
   const c = document.createElement("canvas"); c.width = 512; c.height = 72; const x = c.getContext("2d");
@@ -17644,7 +17682,7 @@ function mpAvMake(p) {
 function mpAvDrop(a) { scene.remove(a.t.g); if (a.d) scene.remove(a.d.root); scene.remove(a.label); a.label.material.map.dispose(); }
 const mpLerpA = (a, b, k) => a + ((((b - a + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * k;
 function mpAvUpdate(p, dt) {
-  const s = p.st; if (!s) return;
+  const s = p.st; if (!s) return; if (s.kb && s.k) bredRemote(s.k, s.kb);
   const a = p.av || (p.av = mpAvMake(p));
   const vis = Math.hypot(s.x - me.x, s.z - me.z) < 420 && !s.ar;
   a.t.g.visible = vis; a.label.visible = vis; if (a.d) a.d.root.visible = vis && !!s.k;
@@ -17654,9 +17692,9 @@ function mpAvUpdate(p, dt) {
   a.x += (s.x - a.x) * k; a.y += (s.y - a.y) * k; a.z += (s.z - a.z) * k; a.f = mpLerpA(a.f, s.f, k);
   a.dx += (s.dx - a.dx) * k; a.dy += (s.dy - a.dy) * k; a.dz += (s.dz - a.dz) * k; a.df = mpLerpA(a.df, s.df, k);
   // their dragon: rebuilt when they swap kinds
-  const dk = s.k ? s.k + "|" + (s.sh || "") : "";
-  if (dk !== a.dk) { if (a.d) scene.remove(a.d.root); a.d = s.k ? buildDragon(s.k, s.sh) : null; if (a.d) scene.add(a.d.root); a.dk = dk; }
-  const lk = `${p.name}${s.k ? ` · ${s.n} (Lv ${s.lv} ${s.k})` : ""}`; if (lk !== a.lk) { scene.remove(a.label); a.label.material.map.dispose(); a.label = mpLabel(lk, a.col); a.lk = lk; }
+  const dk = s.k && (!/^Bred#/.test(s.k) || BRED_SP[s.k]) ? s.k + "|" + (s.sh || "") : "";   /* a bred dragon waits for its recipe */
+  if (dk !== a.dk) { if (a.d) scene.remove(a.d.root); a.d = dk ? buildDragon(s.k, s.sh) : null; if (a.d) scene.add(a.d.root); a.dk = dk; }
+  const lk = `${p.name}${s.k ? ` · ${s.n} (Lv ${s.lv} ${KN(s.k)})` : ""}`; if (lk !== a.lk) { scene.remove(a.label); a.label.material.map.dispose(); a.label = mpLabel(lk, a.col); a.lk = lk; }
   if (a.d) {
     const sz = (SP(s.k).size || 1) * (s.sc || 1), moving = Math.hypot(s.dx - a.dx, s.dz - a.dz) > 0.05;
     a.d.root.position.set(a.dx, a.dy, a.dz); a.d.root.rotation.set(s.r ? s.b : 0, -a.df, s.r ? s.p : (s.sit ? (a.d.sitPitch || 0.38) : 0), "YXZ"); a.d.root.scale.setScalar(sz); a.d.sit = s.sit ? 1 : 0;
@@ -18192,13 +18230,13 @@ function mpDuelStart(peer, role) {
   if (!menuEl.hidden) closeMenu();
   const st = petStats();
   MP.duel = { peer, me: role, foe: role === "a" ? "b" : "a", info: null, moves: {}, guard: {}, over: false, tired: { a: false, b: false } };
-  mpSend({ t: "dinfo", kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, name: pet.name, hp: st.hp, claw: st.claw, breath: st.breath, speed: speedOf() }, peer);
+  mpSend({ t: "dinfo", kind: pet.kind, bred: bredWire(pet.kind), shiny: pet.shiny || null, level: pet.level || 1, name: pet.name, hp: st.hp, claw: st.claw, breath: st.breath, speed: speedOf() }, peer);
   if (MP.pendingInfo) { const o = MP.pendingInfo; MP.pendingInfo = null; mpDuelInfo(peer, o); }
 }
 function mpDuelInfo(from, o) {
   if (!MP.duel) { MP.pendingInfo = Object.assign({}, o, { from }); return; }
   if (MP.duel.peer !== from || MP.duel.info) return;
-  if (!SPECIES.some(s => s.name === o.kind)) return;
+  if (o.bred) bredRemote(o.kind, o.bred); if (!SPECIES.some(s => s.name === o.kind) && !BRED_SP[o.kind]) return;
   MP.duel.info = o; const D = MP.duel;
   run = { sec: -1, i: 0, earned: 0, xp: 0, duel: true };
   foe = { n: mpName(from), k: o.kind, l: Math.max(1, o.level | 0), i: [], r: ["", "", ""] };
@@ -18213,7 +18251,7 @@ function mpDuelInfo(from, o) {
   run.foe = { hp: Math.max(1, Math.min(9999, o.hp | 0)), max: Math.max(1, Math.min(9999, o.hp | 0)), claw: arr(o.claw), breath: arr(o.breath), speed: Math.max(1, Math.min(5, o.speed | 0)), tired: false, guard: false, shiny: o.shiny || null };
   bars(); mpDuelBars();
   toast(`Duel with ${foe.n}!`, "It's just for fun: nobody loses anything");
-  mpDuelMenu(`${foe.n} sends out ${o.name} the ${o.kind}! What will ${pet.name} do?`);
+  mpDuelMenu(`${foe.n} sends out ${mpEsc(o.name)} the ${KN(o.kind)}! What will ${pet.name} do?`);
 }
 MP.pendingInfo = null;
 function mpDuelBars() { if (run && run.duel) $("bRound").textContent = `Duel with ${foe.n} · just for fun`; }
@@ -18248,7 +18286,7 @@ async function mpDuelPlay(o) {
   const side = w => w === D.me ? "me" : "foe";
   for (const e of o.ev) {
     const who = side(e.w), other = who === "me" ? "foe" : "me", A = run[who], Df = run[other];
-    const aName = who === "me" ? pet.name : `${foe.n}'s ${foe.k}`, dName = who === "me" ? `${foe.n}'s ${foe.k}` : pet.name;
+    const aName = who === "me" ? pet.name : `${foe.n}'s ${KN(foe.k)}`, dName = who === "me" ? `${foe.n}'s ${KN(foe.k)}` : pet.name;
     if (e.m === "guard") { A.tired = false; say(`${aName} braces itself and catches its breath.`); await sleep(700); continue; }
     A.tired = e.m === "breath"; fx[who].lunge = 1; await sleep(320);
     if (e.miss) { say(`${aName} ${e.m === "breath" ? "breathes" : "swipes"}... and misses!`); await sleep(800); continue; }
@@ -18260,7 +18298,7 @@ async function mpDuelPlay(o) {
     if (Df.hp <= 0) break;
   }
   if (!MP.duel || MP.duel.over) return;
-  if (run.foe.hp <= 0) return mpDuelEnd(D.me, `<b>You won the duel!</b> ${pet.name} beat ${foe.n}'s ${foe.k}.`);
+  if (run.foe.hp <= 0) return mpDuelEnd(D.me, `<b>You won the duel!</b> ${pet.name} beat ${foe.n}'s ${KN(foe.k)}.`);
   if (run.me.hp <= 0) return mpDuelEnd(D.foe, `<b>${foe.n} won the duel.</b> Good fight! (Duels don't hurt your dragon.)`);
   mpDuelMenu(`What will ${pet.name} do?`);
 }
@@ -18277,21 +18315,21 @@ function mpDuelEnd(winner, msg) {
 // Both pick what to give (a dragon from the pen, an egg from the backpack, or nothing), both press Ready, and they swap.
 function mpTradeStart(peer) { MP.trade = { peer, mine: null, theirs: null, myReady: false, theirReady: false }; mpPanel(true); }
 const mpItemName = it => !it ? "nothing" : it.egg ? `${it.egg.includes("*") ? "a small" : "an"} ${TIER[SP(it.egg.replace(/[*!].*$/, "")).rarity] >= 6 ? "??? egg" : SP(it.egg.replace(/[*!].*$/, "")).rarity + " egg"}`
-  : `${mpEsc(it.d.name)} (${it.d.shiny ? it.d.shiny + " " : ""}${it.d.small ? "small " : ""}${it.d.kind}, Lv ${it.d.level || 1})`;
+  : `${mpEsc(it.d.name)} (${it.d.shiny ? it.d.shiny + " " : ""}${it.d.small ? "small " : ""}${KN(it.d.kind)}, Lv ${it.d.level || 1})`;
 function mpTradePick(kind, i) {
   const T_ = MP.trade; if (!T_) return;
   let it = null;
   if (kind === "pen" && pen[i]) it = { d: Object.assign({}, pen[i]), i, from: "pen" };
   if (kind === "bag" && bag[i] !== undefined) it = { egg: bag[i], i, from: "bag" };
   T_.mine = it; T_.myReady = false; T_.theirReady = false;
-  mpSend({ t: "toff", item: it ? (it.egg ? { egg: it.egg } : { d: it.d }) : null }, T_.peer); mpPanel(true);
+  mpSend({ t: "toff", item: it ? (it.egg ? { egg: it.egg, rec: bredWire(it.egg) } : { d: it.d }) : null }, T_.peer); mpPanel(true);
 }
-function mpTradeOffer(from, o) {
+function mpTradeOffer(from, o) { bredTradeIn(o);
   const T_ = MP.trade; if (!T_ || T_.peer !== from) return;
   let it = null;
-  if (o.item && typeof o.item.egg === "string" && SPECIES.some(s => s.name === o.item.egg.replace(/[*!].*$/, ""))) it = { egg: o.item.egg };
-  else if (o.item && o.item.d && SPECIES.some(s => s.name === o.item.d.kind)) { const d = o.item.d;
-    it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small, big: !!d.big } }; }
+  if (o.item && typeof o.item.egg === "string" && (SPECIES.some(s => s.name === o.item.egg.replace(/[*!].*$/, "")) || !!BRED_SP[o.item.egg.replace(/[*!].*$/, "")])) it = { egg: o.item.egg };
+  else if (o.item && o.item.d && (SPECIES.some(s => s.name === o.item.d.kind) || !!BRED_SP[o.item.d.kind])) { const d = o.item.d;
+    it = { d: { name: String(d.name || d.kind).slice(0, 14), kind: d.kind, shiny: d.shiny && PAL[d.shiny] ? d.shiny : null, level: Math.max(1, Math.min(200, d.level | 0)), xp: Math.max(0, d.xp | 0), gear: d.gear || null, acc: d.acc || null, small: !!d.small, big: !!d.big, bred: bredOf(d.kind) } }; }
   T_.theirs = it; T_.myReady = T_.theirReady = false; mpPanel(true);
 }
 function mpTradeRoom() {   // can I take what they offer?
@@ -18728,7 +18766,7 @@ const AB2 = {
 };
 const AB_UNLOCK = 50, AB2_UNLOCK = 75;
 const AB_CD = { Junk: 15, Common: 20, Uncommon: 25, Rare: 30, Epic: 35, Champion: 40, Legendary: 40, Secret: 40 };
-const abOf = (kind, two) => (two ? AB2 : AB)[kind] || null;
+const abOf = (kind, two) => (two ? AB2 : AB)[kind] || (BRED_SP[kind] && (two ? AB2 : AB)[BRED_SP[kind].bred.parts.ability]) || null;
 const abHas = two => !pet.small && hasDragon() && (pet.level || 1) >= (two ? AB2_UNLOCK : AB_UNLOCK) && !!abOf(pet.kind, two);
 const abCd = a => a.cd || AB_CD[SP(pet.kind).rarity] || 30;
 
@@ -19526,6 +19564,469 @@ if (SET.fast) setTimeout(applyFast, 0);
 { const q = Object.keys(RM_DRAW).filter(k => !RM_TEX[k]), idle = window.requestIdleCallback ? (f, o) => window.requestIdleCallback(f, o) : f => setTimeout(() => f({ timeRemaining: () => 0, didTimeout: true }), 120);
   const step = dl => { let n = 0; while (q.length && (dl.timeRemaining() > 4 || (dl.didTimeout && !n))) { const k = q.shift(); n++; if (!RM_TEX[k]) try { rmTex(k); } catch (e) { console.warn("skin", k, e); } } if (q.length) idle(step, { timeout: 1500 }); };   /* a busy page: still one kind each time the wait runs out */
   idle(step, { timeout: 1500 }); }
+/* ================= DRAGON BREEDING (Petra 2026-11-14; from the approved preview r17) =================
+   Pure data: breedRecipe(a, b, rnd, opts) -> recipe (saveable JSON, part sources are species names)
+              buildFromRecipe(recipe)      -> dragon api (makeDragon + fur + jelly/seraph/cascade), like buildDragon() in the game
+   a / b: { kind: "Pyrrak", shiny: null|"Gold"|... }  or  { bred: <recipe>, name: "Sparky", shiny }   (bred babies can be bred again) */
+const BREED = {
+  PRICE: 600, BLESS_PRICE: 1500,
+  NO_BREED: [],   /* Petra: every dragon can be bred now */
+  PARTS: ["body", "palette", "tail", "horns", "skin", "shimmer", "ability", "wings", "size"],
+  LABEL: { body: "Body shape & markings", palette: "Colours", tail: "Tail end", horns: "Horns", skin: "Skin / texture", shimmer: "Shimmer (shine)", ability: "Breath & ability", wings: "Wing shape", size: "Size" },
+  RANKS: ["Junk", "Common", "Uncommon", "Rare", "Epic", "Champion", "Legendary", "Secret"],
+  /* per-species flags: what can never leave its body */
+  SKIN_WITH_BODY: ["Medusel", "Seraphage", "Ribcrawler", "Puffshroom", "Cascadra", "Wraithwing", "Glintling", "Cloudlet", "Stingdrift", "Prismclaw", "Driftfin", "Eternix", "Plumewyrm", "Raydrift"],
+  WINGS_WITH_BODY: ["Raydrift", "Glidewhisk", "Seraphage", "Medusel", "Stingdrift", "Plumewyrm", "Cascadra", "Spikehorn", "Prismclaw", "Driftfin", "Cloudlet"],
+  /* SHIMMER ("shine", Petra): a colour-shifting sheen laid on top of any texture; its own part. Not the same as a shiny. */
+  SHIMMER: { Thrumwing: { type: "rainbow", k: 0.5 }, Eternix: { type: "pearl", col: "#7ac8ff", k: 0.7 }, Pearlhorn: { type: "pearl", col: "#fff2fa", k: 0.8 }, Prismwing: { type: "irid", k: 0.5 },
+    Deepcrown: { type: "irid", k: 0.45 }, Dawnwing: { type: "irid", k: 0.3 }, Skyrune: { type: "irid", k: 0.3 }, Scarabyx: { type: "irid", k: 0.4 } },
+  /* unusual tails (fox tails, red-panda ring tail, peacock train) pass to any NORMAL body; unusual bodies (TAIL_WITH_BODY + these) never take one */
+  UNUSUAL_TAIL: ["Vulpyre", "Kindlepaw", "Glimmerwick"],   /* Petra: the peacock train only ever sits on a Plumewyrm body (TAIL_WITH_BODY) */ UNUSUAL_BODY: ["Spikehorn", "Eternix"],
+  BODY_KEEPS_TAIL: ["Plumewyrm"],   /* its rump is built for the train: as a BODY it keeps its own train (the train itself still passes to other bodies) */
+  HORNS_WITH_BODY: ["Lunaria", "Velvette", "Glimmerwick"],
+  CAP_HORNS: ["Medusel", "Puffshroom"],
+  SKIN_ONLY_OWN: ["Glimmerwick", "Orchidra"],   /* their skins are built by their own body code: they can't go on another body, but their body can wear another skin */   /* moth antennae are part of the head */
+  TAIL_WITH_BODY: ["Plumewyrm", "Glidewhisk", "Medusel", "Seraphage", "Stingdrift", "Cascadra", "Driftfin", "Prismclaw", "Raydrift"],
+  /* sp keys per part; everything not listed belongs to the body pick (body plan, markings, special body parts) */
+  KEYS: {
+    tail: ["tail", "tailShape", "orbGlow", "foxTails", "ringTail", "glowTips"],
+    horns: ["horns", "antlerScale", "antlerGlow", "hornGlow", "crystalTip"],
+    skin: ["rm", "rmSkin", "rmLook", "rmScale", "rmFaint", "rmFx", "rmKeepFur", "rmKeepBone", "ghost", "shimmer"],
+    wings: ["wings", "wingScale", "flapSpeed", "glassWings", "wingStars", "emberWings", "rainbow", "skyRun", "puff"],
+    ability: ["zap", "weather", "aura", "corona"],
+    size: ["size"]
+  },
+  BREATH: Object.fromEntries(Object.keys(BREATH).map(k => [k, BREATH[k].n])), AB: Object.fromEntries(Object.keys(AB).map(k => [k, AB[k].n]))
+};
+SPECIES.forEach(s => { s.skinWithBody = BREED.SKIN_WITH_BODY.includes(s.name); s.wingsWithBody = BREED.WINGS_WITH_BODY.includes(s.name); s.tailWithBody = BREED.TAIL_WITH_BODY.includes(s.name); s.hornsWithBody = BREED.HORNS_WITH_BODY.includes(s.name); s.noBreed = BREED.NO_BREED.includes(s.name) || s.rarity === "Boss" || !!s.boss; });   /* the bosses are monsters, not breedable dragons */
+const SPB = n => SPECIES.find(s => s.name === n);
+function breedRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/* a parent's genes: which species each part comes from, plus rarity / stats / shiny */
+function breedGenes(par) {
+  if (par.bred) { const r = par.bred; return { parts: Object.assign({}, r.parts), rarity: r.rarity, stats: r.stats, shiny: par.shiny !== undefined ? par.shiny : r.shiny, name: par.name || r.name || "(" + r.kind + ")", gen: r.gen || 1 }; }
+  const s = SPB(par.kind); if (!s || s.noBreed) throw new Error("can't breed " + par.kind);
+  const parts = {}; BREED.PARTS.forEach(k => parts[k] = s.name);
+  return { parts, rarity: s.rarity, stats: Object.assign({ walk: s.walk, fly: s.fly }, s.stats), shiny: par.shiny || null, name: s.name, gen: 0 };
+}
+/* the mixing rules that keep every mix sensible; returns notes. Idempotent: buildFromRecipe runs it again. */
+/* Fallback rule: a part that doesn't fit the chosen body is taken from the OTHER parent instead; if that doesn't fit either, the body's own.
+   So there is never a missing or floating part. Idempotent: buildFromRecipe runs it again (without G it falls back to the body's own). */
+const BREED_BOUND = { skin: ["skinWithBody", "skin"], tail: ["tailWithBody", "tail"], horns: ["hornsWithBody", "antennae"], wings: ["wingsWithBody", "wings"] };
+function breedFits(part, k, body) { const f = BREED_BOUND[part][0]; if (k === body) return true; if (part === "horns" && BREED.CAP_HORNS.includes(k)) return true;   /* a cap is worn like a hat, so it fits any head, even next to antennae or a moth face */ if (SPB(body)[f] || SPB(k)[f]) return false; if (part === "tail" && BREED.BODY_KEEPS_TAIL.includes(body)) return false; if (part === "skin" && BREED.SKIN_ONLY_OWN.includes(k)) return false;
+  return !(part === "tail" && BREED.UNUSUAL_TAIL.includes(k) && (SPB(body).tailWithBody || BREED.UNUSUAL_BODY.includes(body))); }
+function breedResolve(P, from, notes = [], G = null) {
+  Object.keys(BREED_BOUND).forEach(part => {
+    if (breedFits(part, P[part], P.body)) return;
+    const what = BREED_BOUND[part][1], was = P[part], B = SPB(P.body)[BREED_BOUND[part][0]];
+    const ow = from[part] === "a" ? "b" : "a", alt = G && G[ow] ? G[ow].parts[part] : null;
+    const why = part === "skin" && BREED.SKIN_ONLY_OWN.includes(was) ? `${was}'s skin only grows on a ${was} body` : part === "tail" && BREED.BODY_KEEPS_TAIL.includes(P.body) ? `${P.body}'s body is built round its own tail` : part === "tail" && BREED.UNUSUAL_TAIL.includes(was) && !B ? `${P.body}'s body can't carry ${was}'s unusual tail` : B ? `${P.body}'s ${what} ${what === "skin" ? "is" : "are"} part of its body` : `${was}'s ${what} only fit${what === "skin" ? "s" : ""} a ${was} body`;
+    if (alt && alt !== P.body && breedFits(part, alt, P.body)) { P[part] = alt; from[part] = ow; notes.push(`${why}, so the ${BREED.LABEL[part].toLowerCase()} came from the other parent (${alt})`); }
+    else { P[part] = P.body; from[part] = from.body; notes.push(`${why}, so the ${BREED.LABEL[part].toLowerCase()} came with the body (${P.body})`); }
+  });
+  return notes;
+}
+function breedRecipe(a, b, rnd, opts = {}) {
+  const G = { a: breedGenes(a), b: breedGenes(b) };
+  const roll = {}; BREED.PARTS.forEach(k => roll[k] = rnd() < 0.5 ? "a" : "b");   /* always 8 rolls: the same seed gives the same baby */
+  const from = Object.assign({}, roll);
+  const lock = opts.lock && BREED.PARTS.includes(opts.lock.part) && (opts.lock.from === "a" || opts.lock.from === "b") ? { part: opts.lock.part, from: opts.lock.from } : null;
+  if (!lock || (lock.part !== "wings" && lock.part !== "size")) from.size = from.wings;   /* wings and size are one pick... */
+  if (lock) from[lock.part] = lock.from;                                                  /* ...unless the Keeper's Blessing locks one of them */
+  const parts = {}; BREED.PARTS.forEach(k => parts[k] = G[from[k]].parts[k]);
+  const notes = breedResolve(parts, from, [], G);
+  if (lock && from[lock.part] !== lock.from) notes.push(`The blessing couldn't hold: ${notes[notes.length - 1] || ""}`);
+  /* rarity: the rarer parent's, or one step below (Champion is skipped when stepping down) */
+  const R = BREED.RANKS, top = Math.max(R.indexOf(G.a.rarity), R.indexOf(G.b.rarity));
+  let rk = top; if (rnd() < 0.5 && top > 1) { rk = top - 1; if (R[rk] === "Champion") rk--; }
+  /* stats: each number somewhere between the two parents */
+  const mix = (x, y) => Math.round(x + (y - x) * (0.25 + 0.5 * rnd()));
+  const sa = G.a.stats, sb = G.b.stats;
+  const stats = { hp: mix(sa.hp, sb.hp), claw: [mix(sa.claw[0], sb.claw[0]), mix(sa.claw[1], sb.claw[1])], breath: [mix(sa.breath[0], sb.breath[0]), mix(sa.breath[1], sb.breath[1])],
+    grow: { hp: mix(sa.grow.hp, sb.grow.hp), claw: mix(sa.grow.claw, sb.grow.claw), breath: mix(sa.grow.breath, sb.grow.breath) } };
+  stats.claw[1] = Math.max(stats.claw[0], stats.claw[1]); stats.breath[1] = Math.max(stats.breath[0], stats.breath[1]);
+  const W = SPB(parts.wings).sp, Bsp = SPB(parts.body).sp;
+  stats.walk = SPB(parts.body).walk; stats.fly = (W.wings === "none" && !W.skyRun && !Bsp.swimFly) ? 0 : Math.max(1, SPB(parts.wings).fly || 0);
+  /* shiny: a small chance for each shiny parent */
+  const sh = [G.a.shiny, G.b.shiny].filter(Boolean), r1 = rnd(), r2 = rnd();
+  const shiny = sh.length && r1 < 0.08 * sh.length ? sh[Math.floor(r2 * sh.length)] : null;
+  return { v: 1, kind: `${G.a.name} x ${G.b.name}`, name: null, seed: opts.seed ?? null, gen: Math.max(G.a.gen, G.b.gen) + 1,
+    parents: [a, b].map((p, i) => ({ name: G["ab"[i]].name, kind: p.kind || null, shiny: G["ab"[i]].shiny || null, bred: !!p.bred })),
+    parts, from, rarity: R[rk], stats, shiny, lock, notes, ability: { breath: breedBreathName(parts.ability), move: (BREED.AB[parts.ability] || "?") } };
+}
+function breedBreathName(k) { return BREED.BREATH[k] || String(SPB(k).br || "").split(":")[0] || "Fire Breath"; }
+/* sp + palette + fur for a recipe (no THREE objects): what buildFromRecipe feeds to makeDragon */
+function breedSpec(rec) {
+  const P = Object.assign({}, rec.parts); breedResolve(P, {});
+  const S = k => SPB(P[k]).sp, sp = {}, owned = new Set(Object.values(BREED.KEYS).flat());
+  Object.keys(S("body")).forEach(k => { if (!owned.has(k)) sp[k] = S("body")[k]; });
+  ["tail", "horns", "skin", "wings", "ability", "size"].forEach(part => BREED.KEYS[part].forEach(k => { if (S(part)[k] !== undefined) sp[k] = S(part)[k]; }));
+  if (P.skin !== P.body || P.wings !== P.body) { if (sp.rm && !sp.rmSkin) sp.rmSkin = sp.rm; delete sp.rm; }   /* a remodel's extra parts only on its own whole dragon; elsewhere just its skin */
+  if (P.tail !== P.body && sp.foxTails) sp.tailLen = S("tail").tailLen;   /* fox / ring tails replace the dragon tail (the spine rounds off at the rump); the peacock train keeps the body's own tail length and trails from its end, like on Plumewyrm (Petra) */
+  else if ((S("body").tailLen ?? 1) < 0.3 && P.tail !== P.body && S("tail").tailLen != null) sp.tailLen = Math.max(0.6, S("tail").tailLen);   /* a stub-tailed body (peacock rump...) grows the other parent's tail */
+  if (P.shimmer !== P.skin && BREED.SHIMMER[P.skin] && sp.rmLook) sp.rmLook = Object.assign({}, sp.rmLook, { irid: 0 });   /* the texture parent's own shine stays behind */
+  /* the PR #78 dragons: their body code builds parts that belong to other picks; o._ph tells makeDragon which ones to build */
+  { const ph = {}, SB = S("body"), bodyGlim = !!SB.glim, bodyOr = !!SB.orchid; delete sp.glim; delete sp.orchid;
+    const glimTail = P.tail !== P.body && !!S("tail").glim, orW = P.wings !== P.body && !!S("wings").orchid, orT = P.tail !== P.body && !!S("tail").orchid;
+    if (bodyGlim) { const own = P.tail === P.body; ph.glim = [own, true]; if (!own) sp.tailLen = S("tail").tailLen ?? 1;
+      if (P.skin !== P.body) { sp.bSkinOff = true; if (own) sp._lamp = true; } if (P.wings !== P.body) sp.glimWingOff = true; }
+    else if (glimTail) { ph.glim = [true, false]; sp._lamp = true; sp.tailLen = S("tail").tailLen; }   /* the firefly abdomen replaces the whole tail */
+    if (bodyOr) { ph.orchid = [true, true]; if (P.wings !== P.body) sp.orWingOff = true; if (P.skin !== P.body) sp.bSkinOff = true; }
+    else if (orW || orT) { ph.orchid = [false, true]; sp.bPartsOnly = true; sp.bSkinOff = true; if (orW) sp.orPetalWings = true; if (bodyGlim && P.skin === P.body && P.tail === P.body) sp._lamp = true; }
+    if (Object.keys(ph).length) sp._ph = ph; }
+  /* head caps: Puffshroom's mushroom and Medusel's jelly bell are its head piece (horns pick); worn like a hat in the baby's colours, on every head */
+  { const HP = S("horns"), BP = S("body");
+    if (P.horns !== P.body) { delete sp.puffshroom; delete sp.capHat;
+      if (BP.jelly) sp.jelly = Object.assign({}, sp.jelly, { noBell: true });
+      if (HP.puffshroom) { sp.puffshroom = true; sp.horns = "none"; sp.capHatK = 1; }
+      else if (HP.jelly) { sp.capHat = "jelly"; sp.horns = "none"; sp.capHatK = 1; }
+      if (sp.capHatK && (BP.heads || 1) > 2) sp.capHatK = 0.8; } }   /* many heads close together: slightly smaller hats so they don't bump */
+  sp.tier = TIER[rec.rarity];
+  if (rec.shiny === "Harvest Moon") sp.leaves = true;
+  const size = SPB(P.size).size || S("size").size || 1;
+  /* palette: the colour parent's whole palette, mapped onto every colour slot the mixed parts use (same mapping as a shiny) */
+  const PB = SPB(P.palette).pal, union = {};
+  [...new Set([P.skin, P.tail, P.horns, P.wings, P.palette, P.body])].forEach(k => Object.assign(union, SPB(k).pal));
+  const fake = { name: "Bred-mix", rarity: rec.rarity, pal: union, sp };
+  SPECIES.push(fake); PAL["Bred-colours"] = PB;
+  let pal;
+  try { pal = shinyPal("Bred-mix", "Bred-colours"); Object.keys(pal).forEach(k => { if (!(k in union)) delete pal[k]; });   /* only the colour slots the mixed parts really use (shinyPal also fills fin / wingTip / shell... which would repaint e.g. fin wings) */
+    Object.assign(pal, PB); if (rec.shiny && PAL[rec.shiny]) { fake.pal = pal; pal = shinyPal("Bred-mix", rec.shiny); } }
+  finally { SPECIES.pop(); delete PAL["Bred-colours"]; }
+  pal.metal = Math.min(pal.metal || 0, 0.03);   /* Petra: not too shiny, metalness ~0 */
+  let fur = FUR_LOOKS[P.skin] || null;   /* fur length / look follows the texture parent */
+  if (fur && P.shimmer !== P.skin && BREED.SHIMMER[P.skin]) { fur = Object.assign({}, fur); delete fur.irid2; delete fur.iridK; delete fur.iridRainbow; delete fur.pearlSheen; }
+  let tailFur = null;   /* fox / ring tails are fluffy whatever the skin: their fur comes from the tail parent */
+  if (sp.foxTails && FUR_LOOKS[P.tail] && !FUR_LOOKS[P.tail].noFur) { const TF = FUR_LOOKS[P.tail];
+    if (fur && !fur.noFur) fur = Object.assign({}, fur, { parts: Object.assign({}, fur.parts, { foxTails: true }), partLen: Object.assign({}, fur.partLen, { foxTails: (TF.partLen || {}).foxTails || 1.8 }) });
+    else if (P.tail !== P.skin) tailFur = Object.assign({}, TF, { skin: undefined, noFur: false, hideClumps: false, parts: { body: false, neck: false, tail: false, legs: false, paws: false, head: false, wings: false, foxTails: true } }); }
+  if (fur && (P.palette !== P.skin || rec.shiny)) fur = Object.assign({}, fur, fur.tint ? { tint: pal.side } : {}, fur.tip ? { tip: pal.belly } : {});
+  return { sp, pal, fur, tailFur, size, P, shimmer: P.shimmer !== P.skin ? BREED.SHIMMER[P.shimmer] || null : null };   /* same parent as the texture: its own shine is already in it */
+}
+function buildFromRecipe(rec, extra) {   /* extra: the game's armour (gear) */
+  const { sp, pal, fur, tailFur, shimmer } = breedSpec(rec);
+  const api = makeDragon(pal, extra ? Object.assign({}, sp, extra) : sp);
+  if (fur) addFur(api, fur);
+  if (tailFur) addFur(api, tailFur);
+  if (sp.jelly) addJelly(api, sp.jelly, pal); if (sp.seraph) addSeraph(api, sp.seraph, pal); if (sp.cascade) addCascade(api, sp.cascade, pal); if (sp.ray && typeof addRay === "function") addRay(api, sp.ray, pal);
+  if (sp.hyb && typeof addHybrid === "function") { try { addHybrid(api, sp.hyb, pal); } catch (e) { console.warn("hybrid", e); } }   /* a hybrid body keeps its two-land adaptations */
+  if (shimmer) breedShimmer(api, shimmer);
+  return api;
+}
+/* Medusel's bell as a hat on another dragon's head: see-through jelly dome, glowing frilled rim, fringe threads and rim dots, in the baby's colours */
+function breedBell(head, p, k) {
+  const C = c => new THREE.Color(c).convertSRGBToLinear(), glow = C(p.glow || p.eye || "#9fe8ff"), eye = C(p.eye || p.glow || "#ffffff");
+  const bellM = new THREE.MeshStandardMaterial({ color: C(p.top), emissive: glow, emissiveIntensity: 0.45, transparent: true, opacity: 0.5, roughness: 0.15, metalness: 0, side: THREE.DoubleSide, depthWrite: false });
+  const bell = new THREE.Group(); bell.position.set(-0.06, 0.2, 0); bell.rotation.z = -0.15; bell.scale.set(1.5 * (k || 1), 1.05 * (k || 1), 1.5 * (k || 1)); head.add(bell);   /* a wide-brimmed hat: a broad, low bell whose rim stands well out past the head all round (Petra) */
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), bellM); dome.scale.set(1.15, 0.8, 1.05); bell.add(dome);
+  if (typeof glowJ === "function") glowJ(bellM, { color: glow, canals: 8, rim: 1.3 });
+  const rimG = new THREE.TorusGeometry(0.44, 0.03, 8, 64), rp = rimG.attributes.position;
+  for (let i = 0; i < rp.count; i++) { const a = Math.atan2(rp.getY(i), rp.getX(i)); rp.setZ(i, rp.getZ(i) - 0.04 * (1 + Math.sin(a * 12))); }
+  rimG.computeVertexNormals();
+  const rim = new THREE.Mesh(rimG, new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85 })); rim.rotation.x = Math.PI / 2; rim.scale.set(1.15, 1.05, 1); bell.add(rim);
+  const inner = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 12), new THREE.MeshBasicMaterial({ color: eye, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })); inner.position.y = 0.2; inner.scale.set(1.3, 0.6, 1.3); bell.add(inner);
+  const frM = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }), frG = new THREE.CylinderGeometry(0.004, 0.001, 0.2, 4, 1, true); frG.translate(0, -0.1, 0);
+  for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2, f = new THREE.Mesh(frG, frM); f.position.set(Math.cos(a) * 0.5, -0.03, Math.sin(a) * 0.46); bell.add(f); }
+  const dotM = new THREE.MeshBasicMaterial({ color: eye }), dotG = new THREE.SphereGeometry(0.018, 6, 4);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, d = new THREE.Mesh(dotG, dotM); d.position.set(Math.cos(a) * 0.5, -0.02, Math.sin(a) * 0.47); bell.add(d); }
+  return bell;
+}
+/* the shimmer: a view-angle colour shift added to every opaque standard material, on top of its texture (chained after any shader it already has) */
+function breedShimmer(api, S) {
+  const f3 = c => { const k = new THREE.Color(c).convertSRGBToLinear(); return `vec3(${k.r.toFixed(3)}, ${k.g.toFixed(3)}, ${k.b.toFixed(3)})`; }, K = ((S.k || 0.5) * 0.9).toFixed(2);
+  const ic = S.type === "rainbow" ? "0.5 + 0.5 * cos(6.2832 * (clamp(fr * 1.5 + nn.y * 0.25 - 0.15, 0.0, 1.0) * 1.4 + 0.12 * (vViewPosition.x + vViewPosition.y) + vec3(0.0, 0.33, 0.67)))"
+    : S.type === "pearl" ? `mix(vec3(1.0), ${f3(S.col || "#ffffff")}, 0.65) * (0.55 + 0.45 * cos(6.2832 * (fr * 1.2 + nn.y * 0.2 + vec3(0.0, 0.2, 0.4))))`
+    : "(0.5 + 0.5 * cos(6.2832 * (fr * 0.9 + nn.y * 0.3 + vec3(0.25, 0.45, 0.62)))) * vec3(0.7, 1.0, 0.5)";
+  const code = `\n  { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv)); totalEmissiveRadiance += (${ic}) * (0.03 + 0.35 * fr * fr) * ${K}; }`;
+  const seen = new Set();
+  api.root.traverse(m => { const q = m.isMesh && m.material; if (!q || Array.isArray(q) || !q.isMeshStandardMaterial || q.transparent || seen.has(q) || q.userData.bShim) return; seen.add(q); q.userData.bShim = 1;
+    const prev = q.onBeforeCompile && q.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? q.onBeforeCompile : null, pk = q.customProgramCacheKey.bind(q);
+    q.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>" + code); };
+    q.customProgramCacheKey = () => pk() + "|bshim|" + S.type + K + (S.col || ""); q.needsUpdate = true; });
+}
+/* a firefly lantern on the tail end, for a Glimmerwick abdomen whose own glow skin isn't there (other body, or other skin) */
+function breedLamp(tailTip, p, r) {
+  if (!tailTip) return; const c = new THREE.Color(p.glow || "#d4ff4a").convertSRGBToLinear(), R = Math.max(0.08, Math.min(0.3, (r || 0.15) * 0.95));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(R, 18, 14), new THREE.MeshStandardMaterial({ color: c.clone().multiplyScalar(0.6), emissive: c, emissiveIntensity: 1.3, roughness: 0.5, metalness: 0 }));
+  m.scale.set(1.25, 1, 1); m.position.x = -R * 0.2; tailTip.add(m);
+  const t = window.__bLampTex || (window.__bLampTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,255,255,0.9)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(cv); })());
+  const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, color: c, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending })); h.scale.setScalar(R * 6); m.add(h);
+}
+/* ================= DRAGON BREEDING in the game (Petra 2026-11-14): Grandpa Orrin, bred eggs, saves, Shen, multiplayer ================= */
+/* A bred dragon's kind is a key "Bred#<seed>"; its recipe lives in BRED_SP[key].bred (a species-like entry, so every SP(kind) lookup works). */
+/* Saves: d.bred = { key: recipe } for every bred kind in the bag / pen / partner; pet.bred and pen[i].bred keep a copy; d.breedSt = { clock }. */
+const BREED_ST = { clock: 0 };   /* play time in seconds: parents rest 30 minutes of it after breeding */
+const BREED_REST = 1800;
+const brEsc = t => String(t == null ? "" : t).replace(/[<>&"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c]);
+function bredClean(r) {   /* a recipe from a save, a trade or a friend: only real parts, numbers in range, plain text */
+  if (!r || typeof r !== "object" || !r.parts || typeof r.parts !== "object") return null;
+  const parts = {}; for (const k of BREED.PARTS) { const s = SPB(r.parts[k]); if (!s || s.noBreed) return null; parts[k] = s.name; }
+  const from = {}; BREED.PARTS.forEach(k => { from[k] = r.from && r.from[k] === "b" ? "b" : "a"; });
+  const num = (v, lo, hi, d) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : d;
+  const pair = (a, d) => Array.isArray(a) && a.length === 2 ? [num(a[0], 1, 999, d[0]), num(a[1], 1, 999, d[1])] : d.slice();
+  const txt = (v, n) => String(v == null ? "" : v).replace(/[<>&"]/g, "").slice(0, n);
+  const st = r.stats || {}, gr = st.grow || {};
+  const stats = { hp: num(st.hp, 1, 9999, 20), claw: pair(st.claw, [3, 5]), breath: pair(st.breath, [3, 5]),
+    grow: { hp: num(gr.hp, 0, 30, 6), claw: num(gr.claw, 0, 15, 2), breath: num(gr.breath, 0, 15, 2) }, walk: num(st.walk, 1, 5, 3), fly: num(st.fly, 0, 5, 3) };
+  stats.claw[1] = Math.max(stats.claw[0], stats.claw[1]); stats.breath[1] = Math.max(stats.breath[0], stats.breath[1]);
+  const lock = r.lock && BREED.PARTS.includes(r.lock.part) && (r.lock.from === "a" || r.lock.from === "b") ? { part: r.lock.part, from: r.lock.from } : null;
+  return { v: 1, kind: txt(r.kind, 60) || parts.body + " x " + parts.palette, name: r.name ? txt(r.name, 14) : null, seed: num(r.seed, 0, 4294967295, 0), gen: num(r.gen, 1, 999, 1),
+    parents: (Array.isArray(r.parents) ? r.parents.slice(0, 2) : []).map(p => ({ name: txt(p && p.name, 40), kind: p && p.kind ? txt(p.kind, 30) : null, shiny: p && p.shiny && PAL[p.shiny] ? p.shiny : null, bred: !!(p && p.bred) })),
+    parts, from, rarity: BREED.RANKS.includes(r.rarity) ? r.rarity : "Common", stats, shiny: r.shiny && PAL[r.shiny] ? r.shiny : null, lock,
+    notes: Array.isArray(r.notes) ? r.notes.slice(0, 12).map(t => txt(t, 300)) : [], ability: { breath: breedBreathName(parts.ability), move: BREED.AB[parts.ability] || "?" } };
+}
+function bredReg(rec, key) {   /* register a recipe under its key; returns the key it got (a clash with a different recipe gets a new key), or null */
+  rec = bredClean(rec); if (!rec) return null;
+  key = String(key || "Bred#" + (rec.seed || Math.floor(Math.random() * 1e9))).replace(/[^A-Za-z0-9#-]/g, "").slice(0, 24);
+  if (!/^Bred#/.test(key)) key = "Bred#" + key.replace(/#/g, "");
+  const same = (a, b) => JSON.stringify(a.parts) === JSON.stringify(b.parts) && a.kind === b.kind && a.shiny === b.shiny;
+  while (BRED_SP[key] && !same(BRED_SP[key].bred, rec)) key += "b";
+  if (BRED_SP[key]) { if (rec.name && !BRED_SP[key].bred.name) BRED_SP[key].bred.name = rec.name; return key; }
+  let spec; try { spec = breedSpec(rec); } catch (e) { console.warn("bred", e); return null; }
+  const body = SPB(rec.parts.body);
+  BRED_SP[key] = { name: key, label: rec.kind, bred: rec, rarity: rec.rarity, stats: rec.stats, walk: rec.stats.walk, fly: rec.stats.fly,
+    speed: Math.max(1, Math.round((rec.stats.walk + (rec.stats.fly || rec.stats.walk)) / 2)), size: spec.size || 1, pal: spec.pal, sp: spec.sp,
+    land: undefined, bodyLand: body.land, home: "Bred by Grandpa Orrin", ad: [], br: breedBreathName(rec.parts.ability) };
+  return key;
+}
+const bredOf = k => BRED_SP[k] ? BRED_SP[k].bred : undefined;
+function bredTradeIn(o) {   /* a trade offer: register the bred recipe that comes with it (a clash gets a new key) */
+  const it = o && o.item; if (!it) return;
+  if (typeof it.egg === "string" && it.rec && /^Bred#/.test(it.egg)) { const nk = bredReg(it.rec, it.egg.replace(/[*!].*$/, "")); if (nk) it.egg = nk; }
+  if (it.d && it.d.bred && typeof it.d.kind === "string" && /^Bred#/.test(it.d.kind)) { const nk = bredReg(it.d.bred, it.d.kind); if (nk) it.d.kind = nk; }
+}
+const bredWire = k => { const r = bredOf(String(k || "").replace(/[*!].*$/, "")); return r ? Object.assign({}, r, { notes: [] }) : undefined; };
+function bredRemote(k, rec) { if (typeof k === "string" && /^Bred#/.test(k) && !BRED_SP[k] && rec) bredReg(rec, k); }
+function bredLoadOne(p) { if (p && p.kind && BRED_SP[p.kind]) return true; if (p && p.bred && typeof p.kind === "string") return bredReg(p.bred, p.kind) === p.kind; return false; }
+function bredLoad(d) {   /* applySave: register every saved recipe before the bag / pen / partner are read */
+  if (!d) return;
+  if (d.breedSt && Number.isFinite(+d.breedSt.clock)) BREED_ST.clock = Math.max(0, +d.breedSt.clock);
+  if (d.bred && typeof d.bred === "object") Object.keys(d.bred).forEach(k => bredReg(d.bred[k], k));
+  if (d.pet) bredLoadOne(d.pet);
+  (Array.isArray(d.pen) ? d.pen : []).forEach(p => bredLoadOne(p));
+}
+function bredSaveMap() {   /* only the bred kinds still in use */
+  const o = {}, add = k => { k = String(k || "").replace(/[*!].*$/, ""); if (BRED_SP[k]) o[k] = BRED_SP[k].bred; };
+  bag.forEach(add); pen.forEach(d => add(d.kind)); if (pet.kind) add(pet.kind); add(eggKind);
+  return o;
+}
+const breedSave = () => ({ clock: Math.round(BREED_ST.clock) });
+function breedTick(dt) { if (started && dt > 0 && dt < 1) BREED_ST.clock += dt; }
+const restLeft = d => Math.max(0, ((d && d.rest) || 0) - BREED_ST.clock);
+const restTxt = s => s > 90 ? Math.ceil(s / 60) + " min" : Math.ceil(s) + " s";
+function breedOk(k) { if (BRED_SP[k]) return true; const s = SPECIES.find(q => q.name === k); return !!s && !s.noBreed; }
+const bredPenNote = d => (BRED_SP[d.kind] ? " · bred" : "") + (restLeft(d) > 0 ? ` · resting (${restTxt(restLeft(d))})` : "");
+function bredEggRow(k, i) {
+  const r = BRED_SP[k].bred;
+  return `<div class="sec"><div><b>${r.rarity} bred egg</b><br><small>From Grandpa Orrin: a ${brEsc(r.kind)} egg${r.shiny ? " that sparkles a little" : ""}. Hatch it to meet the baby</small></div><span><button data-act="hatch" data-i="${i}">Hatch</button> <button data-act="drop" data-i="${i}" title="Get rid of this egg">Leave</button></span></div>`;
+}
+
+/* ---------- the egg's picture (drawn once per egg) ---------- */
+let BR_RT = null, BR_SC = null, BR_CAM = null; const BR_PIC = {};
+function breedEggPic(key) {
+  if (BR_PIC[key]) return BR_PIC[key];
+  const W = 192, H = 192, s = SP(key), lin = c => new THREE.Color(c).convertSRGBToLinear();
+  try {
+    if (!BR_RT) {
+      BR_RT = new THREE.WebGLRenderTarget(W, H); BR_RT.texture.encoding = THREE.sRGBEncoding; BR_SC = new THREE.Scene(); BR_CAM = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+      BR_SC.add(new THREE.HemisphereLight(lin("#ffffff"), lin("#5a4a3a"), 1.1)); const d = new THREE.DirectionalLight(lin("#fff2dc"), 1.1); d.position.set(3, 6, 5); BR_SC.add(d);
+      BR_CAM.position.set(0.5, 0.35, 2.7); BR_CAM.lookAt(0, 0, 0);
+    }
+    const e = makeEgg(s.pal, s.rarity, false); e.rotation.y = 0.6; BR_SC.add(e); e.updateMatrixWorld(true);
+    const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(BR_RT); renderer.clear(); renderer.render(BR_SC, BR_CAM); renderer.setRenderTarget(null); renderer.setClearColor(cc, ca);
+    const px = new Uint8Array(W * H * 4); renderer.readRenderTargetPixels(BR_RT, 0, 0, W, H, px);
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d"), img = g.createImageData(W, H);
+    for (let y = 0; y < H; y++) img.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    g.putImageData(img, 0, 0);
+    BR_SC.remove(e); e.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { ["map", "emissiveMap"].forEach(sl => { if (o.material[sl] && o.material[sl] !== (typeof dotTex === "function" ? dotTex() : null)) o.material[sl].dispose(); }); o.material.dispose(); } });
+    return (BR_PIC[key] = cv.toDataURL());
+  } catch (e) { console.warn("egg picture", e); return ""; }
+}
+
+/* ---------- Grandpa Orrin's breeding menu ---------- */
+const ORRIN_SAY = ["Easy now. Two dragons, one egg. Patience does the rest.", "Six hundred coins, and the nest is yours for the night.",
+  "Each egg takes a bit from one parent, a bit from the other. Which bits? Even I can't tell.", "Some come out pretty. Some come out... interesting. All of them are loved.",
+  "A Keeper's Blessing makes one part follow the parent you choose. Fifteen hundred coins. The rest is still luck.", "Let the parents rest a while after. They've earned a nap.",
+  "Bring a friend's dragon, and I'll set two eggs: one for you, one for them.", "Shiny parents sometimes pass on their shine. Only sometimes.", "Biscuit there was my first egg. Sixty years ago. Still snores."];
+const ORRIN_DONE = ["There we are. Warm as toast. Keep it close.", "A fine egg. I've a good feeling about this one. I always do.", "Mind the shell, it's thinner than it looks. Hatch it at your nest.", "Biscuit sniffed it. That's his seal of approval."];
+const ORRIN_RULES = ["Body shape and markings come together from one parent. Colours, tail, horns, skin, shine, breath, wings and size: each from one parent or the other.",
+  "If a part won't fit the body, it comes from the other parent. Never a missing horn or a floating wing, not in my nest.",
+  "The baby's as rare as the rarer parent, or one step below. Its strength lands somewhere between the two.",
+  "Bred dragons can be bred again. Their babies get stranger every time. I love it.",
+  "Some dragons won't breed at all. Don't ask me why. Some things aren't meant for a nest.",
+  "A dragon you don't want? Don't let it go free, it's never seen the wild. Shady Shen buys them. Don't tell him I sent you."];
+let BR_UI = { a: "", b: "", bless: false, part: "body", from: "a" }, BR_ASK = null, BR_IN = null, BR_WAIT = null, BR_NPC = null;
+function breedCands() {
+  const L = [];
+  if (state === "grown" && !pet.small && breedOk(pet.kind)) L.push({ id: "me", name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, rest: pet.rest || 0 });
+  pen.forEach((d, i) => { if (!d.small && breedOk(d.kind)) L.push({ id: "p" + i, name: d.name, kind: d.kind, shiny: d.shiny || null, level: d.level || 1, rest: d.rest || 0, d }); });
+  return L;
+}
+const breedPar = c => BRED_SP[c.kind] ? { bred: BRED_SP[c.kind].bred, name: c.name, shiny: c.shiny || null } : { kind: c.kind, shiny: c.shiny || null };
+function breedRestSet(c) { if (c.id === "me") pet.rest = BREED_ST.clock + BREED_REST; else if (c.d) c.d.rest = BREED_ST.clock + BREED_REST; }
+function breedSeed() { for (let i = 0; i < 50; i++) { const s = (Math.random() * 1e9 >>> 0) || 1; if (!BRED_SP["Bred#" + s] && !BRED_SP["Bred#" + (s + 1)]) return s; } return (Date.now() % 1e9) || 1; }
+function breedFriends() {
+  if (typeof MP === "undefined" || !mpOn()) return [];
+  return [...MP.players.values()].filter(p => p.st && p.st.k && !p.st.ar && Math.hypot(p.st.x - me.x, p.st.z - me.z) < 30);
+}
+function breedMenu(n, msg) {
+  if (n) BR_NPC = n;
+  const C = breedCands(), cost = 600 + (BR_UI.bless ? 1500 : 0);
+  const opt = (c, sel) => { const r = restLeft(c); return `<option value="${c.id}"${c.id === sel ? " selected" : ""}${r > 0 ? " disabled" : ""}>${brEsc(c.name)} · ${c.shiny ? c.shiny + " " : ""}${brEsc(KN(c.kind))} · Lv ${c.level}${c.id === "me" ? " (with you)" : ""}${r > 0 ? " · resting " + restTxt(r) : ""}</option>`; };
+  const free = C.filter(c => restLeft(c) <= 0);
+  if (!C.some(c => c.id === BR_UI.a && restLeft(c) <= 0)) BR_UI.a = (free[0] || {}).id || "";
+  if (!C.some(c => c.id === BR_UI.b && restLeft(c) <= 0) || BR_UI.b === BR_UI.a) BR_UI.b = (free.find(c => c.id !== BR_UI.a) || {}).id || "";
+  const parts = BREED.PARTS.map(k => `<option value="${k}"${k === BR_UI.part ? " selected" : ""}>${BREED.LABEL[k]}</option>`).join("");
+  const fr = breedFriends();
+  const body = C.length < 2 ? `<p>You need two grown-up dragons for breeding: the one with you and one from your pen, or two from your pen. Small dragons and babies can't breed.</p>`
+    : `<div class="brPick"><label>First parent<select id="brA">${C.map(c => opt(c, BR_UI.a)).join("")}</select></label>
+      <label>Second parent<select id="brB">${C.map(c => opt(c, BR_UI.b)).join("")}</select></label></div>
+      <label class="brChk"><input type="checkbox" id="brBless"${BR_UI.bless ? " checked" : ""}> Keeper's Blessing (+1500 coins): one part follows the parent you pick</label>
+      <div class="brPick" id="brBlessRow"${BR_UI.bless ? "" : " hidden"}><label>Lock this part<select id="brPart">${parts}</select></label>
+      <label>From<select id="brFrom"><option value="a"${BR_UI.from === "a" ? " selected" : ""}>the first parent</option><option value="b"${BR_UI.from === "b" ? " selected" : ""}>the second parent</option></select></label></div>`;
+  openMenu("Grandpa Orrin", `<p class="who">Dragon keeper</p><p class="say">“${msg || ORRIN_SAY[Math.floor(Math.random() * ORRIN_SAY.length)]}”</p>
+    <p>You have <b>${coins}</b> coins. Backpack ${bag.length}/${BAG_MAX}.</p>${body}
+    <div class="choices">${C.length >= 2 ? `<button data-act="breed" id="brGo">Breed (${cost} coins)</button>` : ""}
+    ${C.length >= 1 ? fr.map(p => `<button data-act="friend" data-i="${p.id}">Breed the first parent with ${brEsc(p.name)}'s ${brEsc(p.st.n || "dragon")} (2 eggs, one each)</button>`).join("") : ""}
+    <button data-act="bye">Goodbye</button></div>
+    <p><small>The egg goes in your backpack; hatch it at your nest. Both parents stay yours and rest for 30 minutes after.</small></p>`, () => lockMouse());
+  const sync = () => { const a = $("brA"), b = $("brB"), bl = $("brBless"); if (a) BR_UI.a = a.value; if (b) BR_UI.b = b.value; if (bl) { BR_UI.bless = bl.checked; $("brBlessRow").hidden = !bl.checked; }
+    if ($("brPart")) { BR_UI.part = $("brPart").value; BR_UI.from = $("brFrom").value; } if ($("brGo")) $("brGo").textContent = `Breed (${600 + (BR_UI.bless ? 1500 : 0)} coins)`; };
+  ["brA", "brB", "brBless", "brPart", "brFrom"].forEach(id => { const el = $(id); if (el) el.onchange = sync; });
+  menuAct = (a, i) => { sync(); if (a === "breed") breedGo(); if (a === "friend") breedAskFriend(i); if (a === "bye") closeMenu(); if (a === "again") breedMenu(); };
+}
+function breedCheck(A, B, cost) {
+  if (!A || (B !== null && !B)) return "Pick two dragons first.";
+  if (B && A.id === B.id) return "Two different dragons, please. Even I can't breed a dragon with itself.";
+  if (restLeft(A) > 0 || (B && restLeft(B) > 0)) return "That one's still resting. Give it a little while.";
+  if (coins < cost) return `That's ${cost} coins. Come back when your pockets are heavier.`;
+  if (bag.length >= BAG_MAX) return "Your backpack's full. Make room for the egg first.";
+  return "";
+}
+function breedGo() {
+  const C = breedCands(), A = C.find(c => c.id === BR_UI.a), B = C.find(c => c.id === BR_UI.b) || false, cost = 600 + (BR_UI.bless ? 1500 : 0);
+  const why = breedCheck(A, B, cost); if (why) return breedMenu(null, why);
+  const seed = breedSeed(), opts = { seed }; if (BR_UI.bless) opts.lock = { part: BR_UI.part, from: BR_UI.from };
+  let rec, key; try { rec = breedRecipe(breedPar(A), breedPar(B), breedRng(seed), opts); key = bredReg(rec, "Bred#" + seed); } catch (e) { console.warn("breed", e); }
+  if (!key) return breedMenu(null, "Hm. These two won't take to each other. Try another pair.");
+  coins -= cost; bag.push(key); breedRestSet(A); breedRestSet(B); showCoins(); writeSave();
+  breedResult(key);
+}
+function breedResult(key, extra) {
+  const r = BRED_SP[key].bred, st = r.stats, pic = breedEggPic(key), na = BREED.PARTS.filter(k => r.from[k] === "a").length, pa = Math.round(100 * na / BREED.PARTS.length), pn = [r.parents[0].name, r.parents[1].name];
+  const tag = f => `<b style="display:inline-block;min-width:1.4em;text-align:center;border-radius:6px;font-size:0.72rem;padding:0 4px;color:#fff;background:${f === "a" ? "#3a6ad0" : "#c8542a"}">${f === "a" ? "1" : "2"}</b>`;
+  openMenu("Grandpa Orrin", `<p class="who">A new egg!</p><p class="say">“${ORRIN_DONE[Math.floor(Math.random() * ORRIN_DONE.length)]}”</p>
+    <div class="brEgg"><img src="${pic}" alt="The new egg"></div>
+    <p><b>${brEsc(r.kind)}</b> · ${r.rarity}${r.shiny ? ` · <b class="good">${r.shiny} shiny!</b>` : ""} · generation ${r.gen}</p>
+    <div class="brLean"><i style="width:${pa}%"></i></div><p><small>${pa === 50 ? "An even mix of both parents" : `Takes more after ${brEsc(pn[pa > 50 ? 0 : 1])} (${pa > 50 ? pa : 100 - pa}%)`}</small></p>
+    <div class="statbox"><div><span>HP</span><b>${st.hp}</b></div><div><span>Claw</span><b>${st.claw[0]}-${st.claw[1]}</b></div><div><span>Breath</span><b>${st.breath[0]}-${st.breath[1]}</b></div></div>
+    <p><small>Walk ${dots(st.walk)} · Fly ${st.fly ? dots(st.fly) : "can't fly"} · Breath: <b>${brEsc(r.ability.breath)}</b> · Ability: <b>${brEsc(r.ability.move)}</b></small></p>
+    <table class="guide"><tbody>${BREED.PARTS.map(k => `<tr><td>${BREED.LABEL[k]}</td><td>${tag(r.from[k])} ${brEsc(r.parts[k])}${r.lock && r.lock.part === k ? ' <b class="good">blessed</b>' : ""}</td></tr>`).join("")}</tbody></table>
+    ${r.notes.length ? `<p><small>${r.notes.map(brEsc).join(". ")}.</small></p>` : ""}${extra || ""}
+    <p class="good">The egg is in your backpack. Hatch it at your nest and give the baby a name!</p>
+    <div class="choices"><button data-act="again">Breed again</button><button data-act="bye">Goodbye</button></div>`, () => lockMouse());
+  menuAct = a => { if (a === "again") breedMenu(); if (a === "bye") closeMenu(); };
+}
+
+/* ---------- multiplayer: your dragon with a friend's partner dragon, two sibling eggs (one each) ---------- */
+function breedAskFriend(id) {
+  const C = breedCands(), A = C.find(c => c.id === BR_UI.a), p = MP.players.get(id);
+  const why = breedCheck(A, null, 600); if (why) return breedMenu(null, why);
+  if (!p || !p.st || !p.st.k || Math.hypot(p.st.x - me.x, p.st.z - me.z) > 30) return breedMenu(null, "Your friend needs to be right here with their dragon.");
+  BR_ASK = { peer: id, a: A.id, t: T }; mpSend({ t: "brask", name: A.name, kind: A.kind, sh: A.shiny || null, bred: bredWire(A.kind), lv: A.level }, id);
+  openMenu("Grandpa Orrin", `<p class="say">“Let's ask your friend, then.”</p><p>Waiting for ${brEsc(mpName(id))} to say yes...</p><div class="choices"><button data-act="bye">Close</button></div>`, () => lockMouse());
+  menuAct = a => { if (a === "bye") closeMenu(); };
+}
+function breedGotAsk(from, o) {
+  if (o.bred) bredRemote(o.kind, o.bred);
+  const busy = !menuEl.hidden || uiOpen || MP.duel || MP.trade || state !== "grown";
+  const why = busy ? "They're busy right now" : pet.small || !breedOk(pet.kind) ? "Their dragon can't breed" : restLeft(pet) > 0 ? "Their dragon is resting" : bag.length >= BAG_MAX ? "Their backpack is full" : "";
+  if (why) { mpSend({ t: "brno", why }, from); return; }
+  BR_IN = { from };
+  openMenu("Breed with a friend?", `<p class="say">${brEsc(mpName(from))} wants to breed their ${brEsc(String(o.name || "dragon").slice(0, 14))} the ${brEsc(KN(o.kind))} with your ${brEsc(pet.name)}.</p>
+    <p>Grandpa Orrin will set two eggs: one for you, one for them. They pay. ${brEsc(pet.name)} rests for 30 minutes after.</p>
+    <div class="choices"><button data-act="yes">Yes, let's breed!</button><button data-act="no">No thanks</button></div>`, () => { if (BR_IN) { mpSend({ t: "brno", why: "Maybe later" }, BR_IN.from); BR_IN = null; } lockMouse(); });
+  menuAct = a => {
+    if (a === "yes" && BR_IN) { BR_IN = null; BR_WAIT = { from, until: T + 90 }; mpSend({ t: "bryes", name: pet.name, kind: pet.kind, sh: pet.shiny || null, bred: bredWire(pet.kind), lv: pet.level || 1 }, from); closeMenu(); toast("You said yes!", "Your egg is on its way"); }
+    if (a === "no") closeMenu();
+  };
+}
+function breedGotYes(from, o) {
+  const q = BR_ASK; BR_ASK = null; if (!q || q.peer !== from) return;
+  if (o.bred) bredRemote(o.kind, o.bred);
+  const C = breedCands(), A = C.find(c => c.id === q.a), why = breedCheck(A, null, 600);
+  const okB = typeof o.kind === "string" && breedOk(o.kind) && (BRED_SP[o.kind] || SPECIES.some(s => s.name === o.kind));
+  if (why || !okB) { mpSend({ t: "brno", why: "The breeding didn't work out" }, from); toast("Breeding called off", why || "Their dragon can't breed"); return; }
+  const shB = o.sh && PAL[o.sh] ? o.sh : null, B = BRED_SP[o.kind] ? { bred: BRED_SP[o.kind].bred, name: String(o.name || "").replace(/[<>&"]/g, "").slice(0, 14) || undefined, shiny: shB } : { kind: o.kind, shiny: shB };
+  const seed = breedSeed(); let key, sib;
+  try { key = bredReg(breedRecipe(breedPar(A), B, breedRng(seed), { seed }), "Bred#" + seed); sib = breedRecipe(breedPar(A), B, breedRng(seed + 1), { seed: seed + 1 }); } catch (e) { console.warn("breed", e); }
+  if (!key || !sib) { mpSend({ t: "brno", why: "The breeding didn't work out" }, from); return; }
+  coins -= 600; bag.push(key); breedRestSet(A); showCoins(); writeSave();
+  mpSend({ t: "bregg", rec: Object.assign({}, sib, { notes: [] }), key: "Bred#" + (seed + 1) }, from);
+  mpSay(null, `You and ${brEsc(mpName(from))} bred your dragons: two eggs!`);
+  breedResult(key, `<p class="good">${brEsc(mpName(from))} got the other egg: a ${brEsc(sib.kind)}, ${sib.rarity}${sib.shiny ? ", " + sib.shiny + " shiny" : ""}.</p>`);
+}
+function breedGotEgg(from, o) {
+  const w = BR_WAIT; if (!w || w.from !== from || T > w.until) return; BR_WAIT = null;
+  const key = bredReg(o.rec, o.key); if (!key) return;
+  pet.rest = BREED_ST.clock + BREED_REST;
+  if (bag.length < BAG_MAX) { bag.push(key); toast(`An egg from ${mpName(from)}!`, `A ${BRED_SP[key].label} egg. It's in your backpack`); }
+  else toast("Your backpack was full", "Grandpa Orrin keeps no eggs. The egg was lost");
+  mpSay(null, `${brEsc(mpName(from))} bred their dragon with yours. Your egg: ${brEsc(BRED_SP[key].label)}.`);
+  showCoins(); writeSave();
+}
+
+/* ---------- Shady Shen buys bred dragons from your pen: 100-300 coins by rarity and level, a bit more for a shiny, never more than 300 ---------- */
+const breedSellPrice = d => Math.max(100, Math.min(300, ({ Junk: 100, Common: 110, Uncommon: 130, Rare: 160, Epic: 200, Champion: 220, Legendary: 240, Secret: 250 }[SP(d.kind).rarity] || 120) + Math.min(40, (d.level || 1) - 1) + (d.shiny ? 30 : 0)));
+function breedSellRows() {
+  const L = pen.map((d, i) => [d, i]).filter(([d]) => BRED_SP[d.kind]); if (!L.length) return "";
+  return `<h4>Got any one-of-a-kind dragons?</h4>` + L.map(([d, i]) => `<div class="sec"><div><b>${brEsc(d.name)}</b> · ${d.shiny ? d.shiny + " " : ""}${brEsc(KN(d.kind))} · Lv ${d.level || 1}<br><small>From your pen. Shen offers ${breedSellPrice(d)} coins</small></div><button data-act="sellb" data-i="${i}">Sell</button></div>`).join("");
+}
+function breedSell(i) {
+  const d = pen[i]; if (!d || !BRED_SP[d.kind]) return shenShop("Hm? Which one?", false);
+  const p = breedSellPrice(d); pen.splice(i, 1); coins += p; showCoins(); writeSave();
+  shenShop(`Heh. ${brEsc(d.name)}... very rare. One of a kind. ${p} coins, take it or leave it. You took it. No take-backs.`, false);
+}
+
+/* ---------- Grandpa Orrin's corner in the village: his straw nest, eggs, and old Biscuit snoring beside it ---------- */
+function orrinDress(n) {   /* long white beard, spectacles, egg apron, walnut staff, moss-green coat (makePerson does the basics) */
+  const lin = c => new THREE.Color(c).convertSRGBToLinear(), M = c => { const m = new THREE.MeshLambertMaterial({ color: lin(c) }); m.userData.lin = true; return m; };
+  const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  const beard = M("#f2f0ea");
+  add(new THREE.ConeGeometry(0.15, 0.55, 12), beard, 0.17, -0.36, 0, n.head).rotation.z = Math.PI + 0.25;   /* the long beard, tucked into the coat */
+  add(new THREE.SphereGeometry(0.06, 8, 6), beard, 0.2, -0.06, 0.07, n.head); add(new THREE.SphereGeometry(0.06, 8, 6), beard, 0.2, -0.06, -0.07, n.head);   /* moustache */
+  const egg = M("#f4ead8"), egg2 = M("#cfe6c8"), egg3 = M("#f0d6b0");
+  [[0.36, 1.2, 0.12, egg], [0.36, 1.2, -0.1, egg2], [0.36, 0.98, 0.02, egg3]].forEach(([x, y, z, m]) => add(new THREE.SphereGeometry(0.055, 8, 6), m, x, y, z, n.body).scale.y = 1.3);   /* eggs peeking out of the apron pockets */
+  const staff = new THREE.Group(); staff.position.set(0.32, 0.0, 0.52); staff.rotation.z = -0.08; n.g.add(staff);
+  const walnut = M("#5c3b22"); add(new THREE.CylinderGeometry(0.035, 0.045, 1.75, 7), walnut, 0, 0.88, 0, staff);
+  const crook = add(new THREE.TorusGeometry(0.11, 0.035, 6, 12, Math.PI * 1.2), walnut, -0.08, 1.78, 0, staff); crook.rotation.z = -0.3;
+}
+function orrinCorner(home, rot) {   /* the straw nest and Biscuit (an ancient, faded old dragon, curled up and snoring) */
+  const lin = c => new THREE.Color(c).convertSRGBToLinear(), M = c => { const m = new THREE.MeshLambertMaterial({ color: lin(c) }); m.userData.lin = true; return m; };
+  const g = new THREE.Group(), fx = Math.cos(rot), fz = -Math.sin(rot); g.position.set(home.x + fx * 2.8 + Math.sin(rot) * 2.6, home.y, home.z + fz * 2.8 + Math.cos(rot) * 2.6); scene.add(g);
+  const straw = M("#d8b860"), nest = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.28, 8, 18), straw); nest.rotation.x = Math.PI / 2; nest.position.y = 0.2; nest.scale.z = 0.7; nest.receiveShadow = nest.castShadow = true; g.add(nest);
+  const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.8, 0.12, 16), M("#c8a450")); bed.position.y = 0.08; g.add(bed);
+  [["#f4ead8", 0.15, 0.1], ["#bfe0f0", -0.2, 0.05], ["#f0c8d8", 0.02, -0.25]].forEach(([c, x, z]) => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), new THREE.MeshStandardMaterial({ color: lin(c), roughness: 0.6, metalness: 0 })); e.material.userData.lin = true; e.scale.y = 1.3; e.position.set(x, 0.33, z); e.castShadow = true; g.add(e); });
+  blockers.push({ x: g.position.x, z: g.position.z, r: 1.0, y: home.y });
+  const base = SPECIES.find(q => q.name === "Pyrrak"), pal = { top: "#8a7a6a", side: "#a08e7a", belly: "#cbbfa8", glow: "#e8b070", horn: "#e6dccb", wing: "#7a6a5a", eye: "#f0c070", metal: 0 };
+  const bis = makeDragon(pal, Object.assign({}, base.sp, { tier: 0 }));
+  bis.root.scale.setScalar(0.62); bis.root.position.set(g.position.x + fx * 1.0 + Math.sin(rot) * 1.9, home.y, g.position.z + fz * 1.0 + Math.cos(rot) * 1.9); bis.root.rotation.y = rot + 2.4; scene.add(bis.root);
+  blockers.push({ x: bis.root.position.x, z: bis.root.position.z, r: 1.0, y: home.y });
+  bis.sit = 1; for (let k = 0; k < 120; k++) bis.update(0, 0, 0, 0.016);
+  /* a slow "z" drifting up now and then */
+  const zc = document.createElement("canvas"); zc.width = zc.height = 64; { const x = zc.getContext("2d"); x.fillStyle = "#ffffff"; x.font = "bold 46px Georgia"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("z", 32, 34); }
+  const zt = new THREE.CanvasTexture(zc), zs = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: zt, color: lin("#e8e4ff"), transparent: true, opacity: 0, depthWrite: false })); scene.add(s); return s; });
+  let last = 0;
+  skyAnims.push(t => {
+    const near = Math.hypot(bis.root.position.x - me.x, bis.root.position.z - me.z) < 90; bis.root.visible = near; zs.forEach(s => { s.visible = near; });
+    if (!near) return;
+    const dt = Math.min(0.05, Math.max(0.001, t - last)); last = t; bis.sit = 1; bis.update(t * 0.35, 0, 0, dt * 0.35);   /* old and slow: everything at a third of the speed */
+    bis.root.scale.setScalar(0.62 * (1 + 0.025 * Math.sin(t * 1.3)));   /* snoring: the big slow breaths */
+    zs.forEach((s, i) => { const k = (t * 0.22 + i / 3) % 1; s.position.set(bis.root.position.x + 0.3 * Math.sin(t + i), home.y + 1.3 + k * 1.6, bis.root.position.z + 0.2 * k); s.scale.setScalar(0.25 + k * 0.35); s.material.opacity = Math.sin(k * Math.PI) * 0.8; });
+  });
+  return { g, biscuit: bis };
+}
+
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 window.__ww.debugComeback = (n, o) => wdDebug(n, o);   /* hidden test hook: "Shadow Wyrm beaten, day n" */
 frame();
