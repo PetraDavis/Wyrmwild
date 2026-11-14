@@ -3522,7 +3522,7 @@ if (M.wingV) {   // CAVE: veined wings: the wing colours, plus glowing branching
 }
 if (o.heartbeat) { const hf = at(0.66); chestLight = new THREE.PointLight(new THREE.Color(p.glow).convertSRGBToLinear(), 0.3, 3, 2); chestLight.position.copy(hf.p).addScaledVector(hf.n, -hf.r * 1.3); dragon.add(chestLight); }
 if (_ember) { const ck = _ember.userData.cracks; _ember.copy(M.wing); _ember.emissiveMap = ck; _ember.emissive = new THREE.Color(p.glow).convertSRGBToLinear(); if (o.emberWings === "strong") { _ember.emissiveIntensity = 1.6; _ember.map = null; _ember.color.set(mix(p.wing, "#000000", 0.35)).convertSRGBToLinear(); } else _ember.emissiveIntensity = 0.7; }   // dark sooty skin so the glowing veins show
-if (o.rm === "fern") {   // NEW Fernling remodel (Petra 2026-11-14, redone): the WINGS are fern fronds (no plants growing on the body)
+if (o.rm === "fern" || o.rmWing === "fern") {   // NEW Fernling remodel (Petra 2026-11-14, redone): the WINGS are fern fronds (no plants growing on the body)
   const FR = fernFrondTex(p), WP = new V(0, 1.0, 0.95), EP = new V(-0.2, 0.6, 0.5);   /* wrist and elbow of the "leaf" wing (see wing()) */
   const LT = [new V(-0.45, 1.3, 1.85), new V(-1.1, 1.0, 2.05), new V(-1.7, 0.4, 1.5)];
   const nW = new V().crossVectors(LT[2].clone().sub(WP), LT[0].clone().sub(WP)).normalize();   /* the wing's "up" */
@@ -3543,6 +3543,7 @@ if (o.rm === "fern") {   // NEW Fernling remodel (Petra 2026-11-14, redone): the
       const rb = staticTube(cp, [[0, 0.032], [0.6, 0.016], [1, 0.004]], M.bone, 20, 6); rb.castShadow = true; grp.add(rb);   /* the frond's rib: same leaf-scale skin as the body */
       sway.push({ grp, k, ax: nW.clone() }); }); });
   rmSteps.push(t => sway.forEach(S => S.grp.quaternion.setFromAxisAngle(S.ax, 0.035 * Math.sin(t * 1.6 + S.k * 1.3))));   /* the fronds stir a little */
+  if (o.rm === "fern")   /* breeding: fern wings alone keep the other parent's nostrils */
   { const nm = new THREE.MeshStandardMaterial({ color: rmLin("#" + new THREE.Color(p.side).lerp(new THREE.Color(p.top), 0.6).getHexString()), roughness: 0.7 }); head.children.forEach(m => { if (m.isMesh && m.material === M.flame2 && m.geometry.parameters && m.geometry.parameters.radius < 0.03) m.material = nm; }); }   /* nostrils: soft dark dimples, not glowing dots */
 }
 if (o.rm === "smold") {   // NEW Smoldedrake remodel (Petra 2026-11-14): smouldering ember spots (no cracks), smoke wisps from the nostrils, cinder spines, a smoking coal tail tip, smouldering wing edges
@@ -3674,6 +3675,13 @@ if (o.rmSkin === "stone" && o.secret === "petralith") orbit.forEach(m => { if (m
 if (o.rmSkin === "char") {   // NEW charcoal skin (Petra 2026-11-14): the wings lose their crack-like veins and armour; sooty skin with a smouldering ember edge, in its own colours
   if (o.rm !== "smold") { const WT = smoldWingTex(p); [M.wing, M.wingV].forEach(m => { if (!m) return; Object.assign(m, { map: WT.t, emissiveMap: WT.te, roughness: 0.9, metalness: 0, emissiveIntensity: o.charWingGlow || 0.7 }); m.color.setRGB(1, 1, 1); m.emissive.copy(rmLin(p.flame || p.glow)); m.needsUpdate = true; }); }
   if (o.coalBelly) { M.belly.emissive.copy(rmLin(p.glow)); M.belly.emissiveIntensity = 0.5 * o.coalBelly; }   /* Cinderpup: the coal belly still glows through (rmSkin blacked out the emissive) */
+}
+if (o.rmWing && o.rmWing !== o.rm) {   /* breeding (Petra 2026-11-14): a remodel's wing look passes with the WINGS pick, on any body, in the baby's colours */
+  const RW = o.rmWing, W0 = m => { m.color.setRGB(1, 1, 1); m.needsUpdate = true; }, FR = (m, c, k, key) => { const pk = m.customProgramCacheKey.bind(m); rmFresnel(m, c, k, key); const nk = m.customProgramCacheKey; m.customProgramCacheKey = () => nk() + "|" + pk(); };   /* keeps a shader the body already put on its wings (own cache key) */
+  if (RW === "smold") { const WT = smoldWingTex(p); Object.assign(M.wing, { map: WT.t, emissiveMap: WT.te, roughness: 0.85, metalness: 0, emissiveIntensity: 0.9 }); M.wing.emissive.copy(rmLin(p.glow)); W0(M.wing); }
+  if (RW === "gill") { const WT = gillWingTex(p), shimC = "#" + new THREE.Color(p.fin || p.glow).lerp(new THREE.Color(p.glow), 0.4).getHexString(); Object.assign(M.wing, { map: WT.t, emissiveMap: WT.te, transparent: true, depthWrite: false, opacity: 1, roughness: 0.3, metalness: 0, emissiveIntensity: 0.4 }); M.wing.emissive.copy(rmLin(p.glow)); FR(M.wing, shimC, 0.45, "gillWing"); W0(M.wing); }
+  if (RW === "glac") { const WT = glacWingTex(p); Object.assign(M.wing, { map: WT.t, emissiveMap: WT.te, transparent: true, depthWrite: false, opacity: 1, roughness: 0.25, metalness: 0, emissiveIntensity: 0.45 }); M.wing.emissive.copy(rmLin(p.glow)); FR(M.wing, p.glow, 0.4, "glacWing"); W0(M.wing); }
+  if (RW === "stone") { Object.assign(M.wing, { map: stoneWingTex(p), roughness: 0.9, metalness: 0, emissiveMap: null, emissiveIntensity: 0 }); W0(M.wing); }
 }
 if (o.rmSkin && o.skeleton) rmSkinMats.push(M.rib, M.skull);   /* NEW skins update 3: a bare skeleton (Ribcrawler): its bones take the skin */
 if (o.skeleton) {
@@ -19661,6 +19669,7 @@ function breedSpec(rec) {
   Object.keys(S("body")).forEach(k => { if (!owned.has(k)) sp[k] = S("body")[k]; });
   ["tail", "horns", "skin", "wings", "ability", "size"].forEach(part => BREED.KEYS[part].forEach(k => { if (S(part)[k] !== undefined) sp[k] = S(part)[k]; }));
   if (P.skin !== P.body || P.wings !== P.body) { if (sp.rm && !sp.rmSkin) sp.rmSkin = sp.rm; delete sp.rm; }   /* a remodel's extra parts only on its own whole dragon; elsewhere just its skin */
+  { const WR = S("wings").rm; if (WR && sp.rm !== WR) sp.rmWing = WR; }   /* Petra: a remodel's WING look (fern fronds, ember edge, fin, ice, lichen) passes with the wings pick, on any body */
   if (P.tail !== P.body && sp.foxTails) sp.tailLen = S("tail").tailLen;   /* fox / ring tails replace the dragon tail (the spine rounds off at the rump); the peacock train keeps the body's own tail length and trails from its end, like on Plumewyrm (Petra) */
   else if ((S("body").tailLen ?? 1) < 0.3 && P.tail !== P.body && S("tail").tailLen != null) sp.tailLen = Math.max(0.6, S("tail").tailLen);   /* a stub-tailed body (peacock rump...) grows the other parent's tail */
   if (P.shimmer !== P.skin && BREED.SHIMMER[P.skin] && sp.rmLook) sp.rmLook = Object.assign({}, sp.rmLook, { irid: 0 });   /* the texture parent's own shine stays behind */
