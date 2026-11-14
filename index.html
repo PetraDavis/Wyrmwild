@@ -9136,7 +9136,8 @@ function updateNpcs(dt) {
   }
 }
 $("nameOk").onclick = finishName;
-nameInput.addEventListener("keydown", e => { if (e.key === "Enter") finishName(); });
+nameInput.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") finishName(); });   // letters typed into the name never trigger game keys (T chat, B book, F skill, A/D dodge...)
+nameInput.addEventListener("keyup", e => e.stopPropagation());
 function finishName() {
   const n = nameInput.value.trim().replace(/[^A-Za-z '-]/g, "").slice(0, 12) || "Ember";
   // a little secret for this update (Petra 2026-11-10): name it "epic" and it turns into an Epic dragon, then you name it again
@@ -17896,6 +17897,7 @@ async function mpAct(a, i) {
 }
 addEventListener("keydown", e => {
   if (e.repeat || !started) return;
+  const tg = e.target; if (tg && (tg.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;   // typing a name or a chat line: T and P are just letters (Petra: T opened chat while naming a dragon)
   if (e.code === "KeyP" && (!uiOpen || $("menuTitle").textContent === "Multiplayer") && state !== "arena") { if (!menuEl.hidden) closeMenu(); else mpPanel(true); }
   if (e.code === "KeyT" && !uiOpen && mpOn()) { e.preventDefault(); mpChatOpen(); }
 });
