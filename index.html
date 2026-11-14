@@ -13887,7 +13887,7 @@ function updateMonsters(dt) {
     const m = mons[i], d = m.d;
     const far = Math.hypot(m.x - me.x, m.z - me.z);
     // tidy up: far away, or a night monster when the sun comes up and nobody is fighting it
-    if ((far > 260 && !(d.wd && m.wd && m.wd.keep)) || (m.night && !isNight && !m.aggro && far > 60)) { removeMonster(m); continue; }   /* m.wd.keep: a host's wild dragon busy with a guest */
+    if ((far > 260 && !(d.wd && m.wd && m.wd.keep) && !m.bkeep) || (m.night && !isNight && !m.aggro && far > 60)) { removeMonster(m); continue; }   /* m.wd.keep: a host's wild dragon busy with a guest */
     if (m.inst.reach !== undefined) {   // the Vine Dangler's arms: spread when a dragon is near, wrap round it when it grabs
       m.inst.reach += ((m.aggro ? 1 : 0) - m.inst.reach) * Math.min(1, dt * 3);
       m.inst.hold += ((pet.held && pet.held.m === m ? 1 : 0) - m.inst.hold) * Math.min(1, dt * 5);
@@ -13903,6 +13903,7 @@ function updateMonsters(dt) {
       continue;
     }
     const pd = Math.hypot(m.x - mid.x, m.z - mid.z), dy = mid.y - m.y;
+    if (d.boss && bossMpHook(m, dt, mid, pd, riding)) continue;   /* multiplayer: the host's boss is busy with a guest */
     let sense = (isNight ? 34 : 26) + (m.hurt > 0 ? 30 : 0) + evBold() * 16;   // red moon: bolder
     sense *= evMonSense(m) * abSense(m);                                                          // spore bloom: sleepy
     if (d.disguise && !m.aggro) sense = m.hurt > 0 ? sense : 9;                       // it's just a rock... until you come close
@@ -16036,6 +16037,7 @@ MONSTER["Shadow Wyrm"] = { land: "Boss", boss: true, fly: 7, lv: [30, 30], hp: 4
 });
 const BOSS = { dd: 0, ddT: 240, sw: false, swT: 0, end: false };
 const bossNow = () => mons.find(m => m.d.boss && !m.dead);
+let bossMpHook = () => false;   /* multiplayer (host): a boss chasing a guest runs here instead of the monster code */
 const ownsEpic = () => [{ kind: pet.kind, small: pet.small }, ...pen].some(d => d.kind && !d.small && (TIER[SP(d.kind).rarity] || 0) >= 4);
 function spawnBoss(kind, dist, up) {
   const a = pet.face + Math.PI + (Math.random() - 0.5) * 1.5, x = pet.x + Math.cos(a) * dist, z = pet.z + Math.sin(a) * dist;
@@ -16132,8 +16134,10 @@ const WD_DAYS = [["Green Valley", "Deep Forest"], ["Fire Mountain", "Desert"], [
   ["Misty Swamp", "Hydra Valley", "Blightwood"], ["Crystal Caves", "Sky Islands"], ["Bone Caves"]];   // Sky Islands includes the hidden sky shrine
 const WD_LAND_DAY = {}; WD_DAYS.forEach((ls, i) => ls.forEach(l => { WD_LAND_DAY[l] = i + 1; }));
 const CB = { day: -1, lastDT: null, toastT: 0, pend: false };   // day = sunrises since the Shadow Wyrm was beaten (-1 = not beaten yet)
-const wdBack = land => CB.day >= (WD_LAND_DAY[land] || 99);
-const wdEggMul = land => wdBack(land) ? 1 / 1.5 : 1;   // eggs wait 1.5x less once a land's dragons are home
+let wdDayMp = () => CB.day;                                            /* multiplayer: the furthest-along player's day (solo: yours) */
+const wdDay = () => wdDayMp();                                         /* the shared world's comeback day */
+const wdBack = land => wdDay() >= (WD_LAND_DAY[land] || 99);
+const wdEggMul = land => CB.day >= (WD_LAND_DAY[land] || 99) ? 1 / 1.5 : 1;   /* eggs wait 1.5x less once a land's dragons are home (your own save's progress) */
 /* multiplayer hooks (the host runs everyone's wild dragons; see "shared wild dragons" in MULTIPLAYER). Solo they are just you. */
 let WDF = null;                                                        /* the guest a host's wild dragon is busy with right now (null = you) */
 const wdP = () => WDF || pet;                                          /* that player's dragon: x, y, z, face, fly, kind, speed */
@@ -16325,7 +16329,7 @@ function wdSpawn(k, land, p) {   // k, land, p are optional (tests)
   return m;
 }
 function wdChoose(land) {
-  if (CB.day >= 7 && isNight && !wdLive().some(m => m.wd.k === "Lumora") && land !== "Crystal Caves" && land !== "Bone Caves" && land !== "Village" && Math.random() < 0.3) return "Lumora";
+  if (wdDay() >= 7 && isNight && !wdLive().some(m => m.wd.k === "Lumora") && land !== "Crystal Caves" && land !== "Bone Caves" && land !== "Village" && Math.random() < 0.3) return "Lumora";
   if (!wdBack(land) || !(WD_POOL[land] || []).length) return null;
   if (Math.random() < 0.2) {   // now and then a visitor from a neighbouring land (that's how rivals and friends meet)
     const near = Object.keys(WD_POOL).filter(l => l !== land && wdBack(l) && (wdPair(WD_RIVAL_LANDS, l, land) || wdPair(WD_FRIEND_LANDS, l, land)));
@@ -16484,7 +16488,7 @@ function wdFightStep(m, dt) {
 function updateWildDragons(dt) {
   WD.frame++; WD.dt = dt;
   { const now = performance.now(), rd = WD.now ? (now - WD.now) / 1000 : 0; WD.now = now; if (rd > 0) WD.fps += (1 / rd - WD.fps) * Math.min(1, rd * 1.5); }   // smoothed real frame rate (dt is capped, so not from dt)
-  if (CB.day < 1 || !started) return;
+  if (wdDay() < 1 || !started) return;
   const live = wdLive();
   // on screen or not: a real frustum test (where the camera was last frame)
   if (!WD.fr) { WD.fr = new THREE.Frustum(); WD.pm = new THREE.Matrix4(); WD.sph = new THREE.Sphere(); }
@@ -16539,7 +16543,7 @@ function updateWildDragons(dt) {
 // ---- feeding: give a wild dragon a fish from your basket; sometimes it trusts you with an egg ----
 const WD_FEED = { friendly: 0.25, shy: 0.15, defensive: 0.12, aggressive: 0.08 };
 function wdFeedTarget() {
-  if (!(state === "grown" || state === "baby") || uiOpen || !FISH.basket.length || CB.day < 1) return null;
+  if (!(state === "grown" || state === "baby") || uiOpen || !FISH.basket.length || wdDay() < 1) return null;
   return mons.find(m => m.d.wd && !m.dead && m.wd && !m.aggro && !m.wd.leave && !m.wd.gone && !m.wd.fed && Math.hypot(m.x - me.x, m.z - me.z) < 6 + m.rad && Math.abs(m.y - me.y) < 4) || null;
 }
 function wdFeedAct(roll) {
@@ -17586,6 +17590,11 @@ function mpMsg(o) {
     case "wd": if (MP.role === "guest" && from === 0) wdMirList(o.l); break;
     case "wda": if (MP.role === "guest" && from === 0) wdGotAtk(o); break;
     case "wdkill": if (MP.role === "guest" && from === 0) wdGotKill(o); break;
+    case "cb": if (MP.role === "host") { const p = MP.players.get(from); if (p) p.cb = Math.max(-1, Math.min(99, o.d | 0)); } break;
+    case "bossreq": if (MP.role === "host") bossMpReq(from, String(o.k || "")); break;
+    case "boss": if (MP.role === "guest" && from === 0) bossMir(o.b); break;
+    case "bossatk": if (MP.role === "guest" && from === 0) bossGotAtk(o); break;
+    case "bosswin": if (MP.role === "guest" && from === 0) bossGotWin(o); break;
     case "wdfed": if (MP.role === "host") { const m = mons.find(q => q.nid === o.id && q.wd && !q.remote); if (m) m.wd.fed = true; } break;
     case "ask": mpGotAsk(from, o); break;
     case "askno": if (MP.ask && MP.ask.peer === from) MP.ask = null; toast(`${mpName(from)} said no`, o.why || ""); mpPanel(); break;
@@ -17710,7 +17719,7 @@ function mpMirrorsUpdate(dt) {
 // mirrors don't run monster brains here: take them out while the monster update runs
 const _updMons = updateMonsters;
 updateMonsters = function (dt) {
-  if (!MP.mirrors.size && !(MP.wmir && MP.wmir.size)) return _updMons.call(this, dt);
+  if (!MP.mirrors.size && !(MP.wmir && MP.wmir.size) && !MP.bmir) return _updMons.call(this, dt);
   const keep = []; for (let i = mons.length - 1; i >= 0; i--) if (mons[i].remote) keep.push(mons.splice(i, 1)[0]);
   try { return _updMons.call(this, dt); } finally { mons.push(...keep); }
 };
@@ -17924,7 +17933,8 @@ function wdGotKill(o) {   /* guest: I landed the last hit on a host's wild drago
 // hitting a host's wild dragon: show it here, send it to the host
 const _dmgMonWd = damageMon;
 damageMon = function (m, dmg, crit, how, fx) {
-  if (!(m.remote && m.remote.wd)) return _dmgMonWd.apply(this, arguments);
+  if (m.d.boss && !m.remote && MP.role === "host") (m.bpart || (m.bpart = new Set())).add(WD.by != null ? WD.by : 0);   /* who fought the boss */
+  if (!(m.remote && (m.remote.wd || m.remote.boss))) return _dmgMonWd.apply(this, arguments);
   if (m.dead) return;
   m.hitT = 0.15; m.hp = Math.max(0, m.hp - dmg); monBar(m); m.bar.visible = true; fightT = 6;
   burstAt(m.x, m.y + m.tall * 0.6, m.z, how === "breath" ? SP(pet.kind).pal.glow : "#ffffff");
@@ -17936,6 +17946,7 @@ WD.by = null;
 const _gotHitWd = mpGotHit;
 mpGotHit = function (from, o) {
   const m = mons.find(q => q.nid === o.id && !q.remote && !q.dead);
+  if (m && m.d.boss) { WD.by = from; (m.bpart || (m.bpart = new Set())).add(from); try { _gotHitWd.apply(this, arguments); } finally { WD.by = null; } if (m.helpers) m.helpers.clear(); return; }   /* a guest hit the boss */
   if (!m || !m.d.wd || !m.wd) return _gotHitWd.apply(this, arguments);
   WDF = wdGuests().find(g => g.id === from) || null; WD.by = from;
   try { _gotHitWd.apply(this, arguments); } finally { WDF = null; WD.by = null; }
@@ -17944,6 +17955,7 @@ mpGotHit = function (from, o) {
 };
 const _killMonWd = killMon;
 killMon = function (m) {
+  if (m.d.boss && !m.remote && MP.role === "host") return bossMpKill(m);   /* everyone who took part gets the win */
   if (!m.d.wd || m.remote || !mpOn()) return _killMonWd.apply(this, arguments);
   if (m.helpers) m.helpers.clear();   /* wild dragons: only the one who beat it gets the XP */
   if (WD.by == null) return _killMonWd.apply(this, arguments);   /* you beat it */
@@ -17968,7 +17980,8 @@ const _updWD = updateWildDragons;
 updateWildDragons = function (dt) {
   if (mpGuest()) { WD.frame++; for (const m of mons.filter(q => q.d.wd && !q.remote)) { m.dead = 0; removeMonster(m); } return; }
   _updWD.apply(this, arguments);
-  if (wdMpHost() && CB.day >= 1 && started) wdMpSpawn(dt);
+  if (wdMpHost() && wdDay() >= 1 && started) wdMpSpawn(dt);
+  if (MP.role === "host" && wdDay() < 1) for (const m of mons.filter(q => q.d.wd && !q.remote)) { m.dead = 0; removeMonster(m); }   /* the guest who was furthest along left */
 };
 const _mpLeftWd = mpLeft;
 mpLeft = function (id) { MP.wdKnown.delete(id); return _mpLeftWd.apply(this, arguments); };
@@ -17976,6 +17989,147 @@ const _mpTdWd = mpTeardown;
 mpTeardown = function () { const r = _mpTdWd.apply(this, arguments); for (const m of [...MP.wmir.values()]) wdMirDrop(m); MP.wdKnown.clear(); return r; };
 const _updMPWd = updateMP;
 updateMP = function (dt) { _updMPWd.apply(this, arguments); if (!mpOn()) return; if (MP.role === "host") wdMpSend(dt); else wdMirUpdate(dt); };
+
+// ---------- furthest along wins, and shared bosses (Petra 2026-11-14) ----------
+// The shared world's comeback day is the furthest-along player's: guests send theirs ("cb") when they join and when it
+// changes, and the host uses the biggest. Nobody's own save changes; it only decides which lands have wild dragons.
+// Bosses are shared like the wild dragons: there is one at a time and the host's game runs it. A guest's own boss rules
+// (night, riding, an Epic for the Dread Drake, the Sky Islands for the Shadow Wyrm, its timers) still decide WHEN it
+// comes: the guest asks ("bossreq") and the host brings it in next to that guest. 4 times a second everyone gets
+// [id, kind, level, x, y, z, face, hp, max, flags, target]. It hunts the nearest rider (and sticks with them); for a
+// guest, the host flashes the warning and the guest's game does the attack itself. When it's beaten, EVERY player who hit
+// it or was within 60 m gets the win in their own save (Dread Drake: coins and, the first time, its egg; Shadow Wyrm: THE END).
+MP.cbSent = null; MP.cbT = 0; MP.bmir = null; MP.bT = 0; MP.bHad = false; MP.bossReqT = -99;
+wdDayMp = function () {
+  let d = CB.day;
+  if (MP.role === "host") for (const p of MP.players.values()) if (typeof p.cb === "number") d = Math.max(d, p.cb);
+  return d;
+};
+function bossSpawnNear(kind, F) {   /* host: a boss arrives behind a guest's dragon (like spawnBoss does for you) */
+  const dist = kind === "Shadow Wyrm" ? 60 : 55, up = kind === "Shadow Wyrm" ? 20 : 14;
+  const a = F.face + Math.PI + (Math.random() - 0.5) * 1.5, x = F.x + Math.cos(a) * dist, z = F.z + Math.sin(a) * dist;
+  const m = spawnMonster(kind, new V(x, Math.max(groundAt(x, z, F.y + 30), WATER_Y) + up, z), MONSTER[kind].lv[0]);
+  m.aggro = true; m.face = Math.atan2(F.z - z, F.x - x); m.btgt = F.id; m.btT = 1; m.bkeep = true; return m;
+}
+function bossMpReq(from, k) {   /* host: a guest's boss rules say it's time */
+  if (!MONSTER[k] || !MONSTER[k].boss || bossNow()) return;
+  const F = wdGuests().find(g => g.id === from); if (!F || !F.r) return;
+  bossSpawnNear(k, F);
+  if (Math.hypot(F.mx - me.x, F.mz - me.z) < 200) toast(k === "Shadow Wyrm" ? "The sky goes dark..." : "A huge shadow blots out the stars...", `THE ${k.toUpperCase()}! It's after ${mpName(from)}!`);
+}
+function bossPick(m, mid, pd, riding) {   /* host: who the boss hunts: the rider it's after, else the nearest rider, else the nearest player */
+  const c = []; if (riding && pd < 145) c.push([0, pd]);
+  const gs = wdGuests(); for (const g of gs) { const d = Math.hypot(m.x - g.x, m.z - g.z); if (g.r && d < 145) c.push([g.id, d]); }
+  if (c.some(q => q[0] === m.btgt)) return m.btgt;
+  if (c.length) return c.sort((a, b) => a[1] - b[1])[0][0];
+  let best = 0, bd = pd; for (const g of gs) { const d = Math.hypot(m.x - g.x, m.z - g.z); if (d < bd) { bd = d; best = g.id; } }
+  return best;
+}
+bossMpHook = function (m, dt, mid, pd, riding) {
+  if (!wdMpHost() || m.remote) { m.bkeep = false; return false; }
+  if ((m.btT = (m.btT || 0) - dt) <= 0) { m.btT = 1; m.btgt = bossPick(m, mid, pd, riding); }
+  const F = m.btgt ? wdGuests().find(g => g.id === m.btgt) : null;
+  if (!F) { m.btgt = 0; m.bkeep = false; return false; }   /* you (or nobody near): the normal monster code */
+  m.bkeep = true;
+  const d = m.d, fpd = Math.hypot(m.x - F.x, m.z - F.z), d3 = Math.hypot(fpd, m.y + m.tall * 0.5 - F.y);
+  if (fpd > 260 && Math.hypot(m.x - me.x, m.z - me.z) > 260) { BOSS.won = true; removeMonster(m); return true; }   /* it lost their trail (no "lost YOUR trail" toast here) */
+  m.aggro = F.r;
+  if (m.aggro) {
+    const want = Math.min(d.range * 0.7, 10), ty = F.y - m.tall * 0.4;
+    if (fpd > want) moveMon(m, F.x, ty, F.z, d.speed, dt);
+    else { moveMon(m, m.x, ty, m.z, 0, dt); m.face = angLerp(m.face, Math.atan2(F.z - m.z, F.x - m.x), Math.min(1, dt * 6)); }
+    if (m.warn > 0) { m.warn -= dt; tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5); if (m.warn <= 0) { tint(m, null, 0); mpSend({ t: "bossatk", id: m.nid }, F.id); m.cd = 1.5 + Math.random() * 1.2; } }
+    else { m.cd -= dt; if (m.cd <= 0 && d3 < d.range + 4) m.warn = d.warn || 0.75; }
+  } else { m.warn = 0; moveMon(m, m.x, null, m.z, 0, dt); }
+  if (m.hitT > 0) { m.hitT -= dt; if (m.warn <= 0) tint(m, m.hitT > 0 ? WHITE : null, m.hitT > 0 ? 1.2 : 0); }
+  m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+  m.bar.visible = pd < 120; if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
+  return true;
+};
+function bossMpKill(m) {   /* host: the boss is beaten. Everyone who hit it or was close by gets the win in their own save */
+  if (m.helpers) m.helpers.clear();
+  const P = new Set(m.bpart || []); if (WD.by != null) P.add(WD.by);
+  if (Math.min(Math.hypot(m.x - me.x, m.z - me.z), Math.hypot(m.x - pet.x, m.z - pet.z)) < 60) P.add(0);
+  for (const g of wdGuests()) if (Math.min(Math.hypot(m.x - g.x, m.z - g.z), Math.hypot(m.x - g.mx, m.z - g.mz)) < 60) P.add(g.id);
+  for (const id of P) if (id !== 0) mpSend({ t: "bosswin", k: m.kind, x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z) }, id);
+  const names = [...P].filter(id => id !== 0).map(mpName), q = mpQuiet; mpQuiet = false;
+  try {
+    if (P.has(0)) { const r = _killMonWd.call(this, m); if (names.length) mpSay(null, `You beat the ${mpEsc(m.kind)} together with ${mpEsc(names.join(" and "))}!`); return r; }
+    m.dead = 0.001; m.warn = 0; tint(m, null, 0); m.bar.visible = false; BOSS.won = true; burstAt(m.x, m.y + m.tall * 0.5, m.z, "#ffe080");
+    toast(`${names.join(" and ") || "Someone"} beat the ${m.kind}!`, "You weren't close enough to share the win this time");
+  } finally { mpQuiet = q; }
+}
+// ---- guest side ----
+function bossGotWin(o) {   /* guest: I took part in beating the host's boss: the win goes in MY save, like beating it alone */
+  const k = String(o.k || ""); if (!MONSTER[k] || !MONSTER[k].boss || !hasDragon()) return;
+  const lv = MONSTER[k].lv[0], m = { kind: k, d: MONSTER[k], lv, land: "Boss", x: +o.x || pet.x, y: +o.y || pet.y, z: +o.z || pet.z };
+  const xp = 3 + 2 * lv; let c = lv;
+  if (SHN.curse > 0) { SHN.curse--; c *= 2; }
+  coins += c; showCoins();
+  const own = MOVES[k].kill(m);
+  try { questKill(m); } catch (e) {}
+  const up = addXp(xp); if (up) pet.hp = petMaxHp();
+  if (!up && !own) toast(`You beat the ${k}!`, `+${xp} XP · +${c} coins`);
+  burstAt(m.x, m.y, m.z, "#ffe080"); petLabel("grown up"); writeSave();
+}
+function bossMir(b) {   /* guest: the host's boss, if there is one near me */
+  const old = MP.bmir;
+  if (!b) { if (old) { MP.bmir = null; old.dead = 1; removeMonster(old); } return; }
+  const [id, k, lv, x, y, z, f, hp, max, fl, tg] = b;
+  if (old && old.remote.nid !== id) { MP.bmir = null; old.dead = 1; removeMonster(old); }
+  let m = MP.bmir;
+  if (!m) { if (!MONSTER[k] || !MONSTER[k].boss) return;
+    MP.mirroring = true; try { m = spawnMonster(k, new V(x, y, z), lv | 0 || MONSTER[k].lv[0]); } finally { MP.mirroring = false; }
+    m.y = y; m.face = f; m.remote = { owner: 0, nid: id, boss: true }; MP.bmir = m; m.vx = m.vy = m.vz = 0; m.rt = performance.now() / 1000; m.tx = x; m.ty = y; m.tz = z;
+    if (T - MP.bossReqT > 5) toast(`THE ${k.toUpperCase()}!`, tg === MP.myId ? "It's coming for you!" : "It's hunting in the sky nearby"); }
+  const rt = performance.now() / 1000, ra = rt - m.rt;
+  if (ra > 0.05 && ra < 1) { m.vx = (x - m.tx) / ra; m.vy = (y - m.ty) / ra; m.vz = (z - m.tz) / ra; if (Math.hypot(m.vx, m.vz) > 80) m.vx = m.vy = m.vz = 0; } else m.vx = m.vy = m.vz = 0;
+  m.rt = rt; m.tx = x; m.ty = y; m.tz = z; m.tf = f; m.nfl = fl | 0; m.aggro = !!(fl & 1) && tg === MP.myId;
+  if (max) m.max = max; if (hp !== m.hp) { m.hp = hp; monBar(m); }
+}
+function bossMirUpdate(dt) {
+  const m = MP.bmir; if (!m) return;
+  const k = Math.min(1, dt * 10), a = Math.min(0.35, performance.now() / 1000 - m.rt);
+  m.x += (m.tx + m.vx * a - m.x) * k; m.y += (m.ty + m.vy * a - m.y) * k; m.z += (m.tz + m.vz * a - m.z) * k; m.face = mpLerpA(m.face, m.tf, k);
+  m.inst.update(T + m.t0, dt);
+  if (m.hitT > 0) { m.hitT -= dt; tint(m, WHITE, 1.2); if (m.hitT <= 0) tint(m, null, 0); } else if (m.nfl & 2) tint(m, RED, 0.7 + Math.sin(T * 30) * 0.5); else tint(m, null, 0);
+  m.holder.position.set(m.x, m.y, m.z); m.holder.rotation.y = -m.face;
+  m.bar.visible = Math.hypot(m.x - me.x, m.z - me.z) < 120; if (m.bar.visible) m.bar.position.set(m.x, m.y + m.tall + 1.1, m.z);
+}
+function bossGotAtk(o) {   /* guest: the host's boss attacks me: my game plays its real move (shadow fire, roar, pounce...) */
+  const m = MP.bmir; if (!m || m.remote.nid !== o.id || state !== "ride") return;
+  monAttack(m);
+}
+// a guest doesn't bring bosses into their own world: they ask the host
+const _spawnBossMp = spawnBoss;
+spawnBoss = function (kind) { if (!mpGuest()) return _spawnBossMp.apply(this, arguments); MP.bossReqT = T; mpSend({ t: "bossreq", k: kind }, 0); return null; };
+const _updBossMp = updateBosses;
+updateBosses = function (dt) {
+  if (mpGuest()) {
+    for (const m of mons.filter(q => q.d.boss && !q.remote)) { m.dead = 1; removeMonster(m); }   /* my own boss waits until I leave */
+    if (T - MP.bossReqT < 3 && !bossNow()) { BOSS.was = null; BOSS.won = false; return; }   /* asked: waiting for the host's boss to show up */
+  }
+  return _updBossMp.apply(this, arguments);
+};
+function bossMpSend(dt) {   /* host: the boss to every guest near it, 4 times a second */
+  if ((MP.bT -= dt) > 0) return; MP.bT = 0.25;
+  const m = bossNow();
+  for (const p of MP.players.values()) {
+    const s = p.st; if (!s) continue;
+    const near = m && Math.hypot(m.x - s.x, m.z - s.z) < 400;
+    if (!near && !p.bHad) continue;
+    p.bHad = !!near;
+    mpSend({ t: "boss", b: near ? [m.nid, m.kind, m.lv, Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10, Math.round(m.z * 10) / 10, Math.round(m.face * 100) / 100, Math.max(0, Math.round(m.hp)), m.max, (m.aggro ? 1 : 0) | (m.warn > 0 ? 2 : 0), m.btgt == null ? 0 : m.btgt] : null }, p.id);
+  }
+}
+const _mpTdBoss = mpTeardown;
+mpTeardown = function () { const r = _mpTdBoss.apply(this, arguments); bossMir(null); MP.cbSent = null; return r; };
+const _updMPBoss = updateMP;
+updateMP = function (dt) {
+  _updMPBoss.apply(this, arguments); if (!mpOn()) return;
+  if (MP.role === "host") bossMpSend(dt);
+  else { bossMirUpdate(dt); if (CB.day !== MP.cbSent || (MP.cbT -= dt) <= 0) { MP.cbSent = CB.day; MP.cbT = 10; mpSend({ t: "cb", d: CB.day }, 0); } }   /* my comeback day, for the furthest-along rule */
+};
 
 // ---------- chat ----------
 const mpCss = document.createElement("style");
