@@ -13873,10 +13873,12 @@ function bossLoad(d) { BOSS.dd = d.dd || 0; BOSS.sw = !!d.sw; wdLoad(d.cb); }
 // Rivals fight each other for a few seconds and split up; friends rest and fly together; Seraphage hunts Medusel.
 // Riding a dragon keeps its friend kinds from attacking you, and riding a land's top dragon keeps that land's dragons off you
 // (dragons only: monsters still attack). Once a land's dragons are back its eggs turn up about 1.5x as often.
-// Keeping it fast: at most 6 wild dragons (3 in Fast mode), only in your land and near you; each kind's model is built once
-// and reused; they animate every frame only up close (35 m) or in a fight, less often further out or off screen; far ones (80 m+)
-// think every 3rd frame and cast no shadow; fur only on near ones (45 m); new ones only
-// spawn while the frame rate is OK. SECRET RULE: secret dragons, bosses and event dragons never appear wild, and no line names them.
+// Keeping it fast: at most 5 wild dragons (3 in Fast mode), only in your land and near you, and the farthest leaves if the frame
+// rate drops. Each kind's model is built once (ahead of time, one at a time) and reused, sharing its textures with the first one.
+// Detail by distance: past 50 m the small parts and fur are not drawn, past 100 m only body, wings and tail. Off screen they leave
+// the scene (no drawing, no animation, no matrix updates). Decisions run 5x a second, rival/friend checks twice a second; they
+// animate every frame only up close or in a fight; far ones (80 m+) cast no shadow. New ones only spawn while it runs well.
+// SECRET RULE: secret dragons, bosses and event dragons never appear wild, and no line names them.
 const WD_DAYS = [["Green Valley", "Deep Forest"], ["Fire Mountain", "Desert"], ["Ocean", "Coral Reef"], ["Frost Peaks", "Autumn Woods"],
   ["Misty Swamp", "Hydra Valley", "Blightwood"], ["Crystal Caves", "Sky Islands"], ["Bone Caves"]];   // Sky Islands includes the hidden sky shrine
 const WD_LAND_DAY = {}; WD_DAYS.forEach((ls, i) => ls.forEach(l => { WD_LAND_DAY[l] = i + 1; }));
@@ -13930,7 +13932,8 @@ function wdSafe(k) {   // would this wild kind leave the rider alone because of 
   return wdIsTop(p) && WD_HOME[p] === WD_HOME[k];                       // a land's top dragon
 }
 // ---- the monster entry for each wild kind ----
-const WD = { pool: {}, poolN: 0, fps: 60, spawnT: 4, frame: 0, dt: 0.016, growlT: 0, pairT: {}, fights: 0, force: false, slot: 0, log: [] };
+const WD = { pool: {}, poolN: 0, fps: 60, spawnT: 4, frame: 0, dt: 0.016, growlT: 0, pairT: {}, fights: 0, force: false, slot: 0, log: [], ref: {}, warm: [], warmT: 0, scanT: 0, slowT: 0, dropT: 0, land: null, builds: 0, shared: 0, dropped: 0 };
+const WD_POOL_MAX = 8, WD_LOD1 = 50, WD_LOD2 = 100;
 const wdSp = k => SPECIES.find(s => s.name === k);
 function wdDef(k) {
   const key = "Wild " + k; if (MONSTER[key]) return key;
@@ -13944,16 +13947,52 @@ function wdDef(k) {
 function wdMake(k) {   // a model from the pool, or a new one (built once per kind, then reused)
   const pl = WD.pool[k]; let dr = pl && pl.length ? pl.pop() : null;
   if (dr) WD.poolN--;
-  else { dr = buildDragon(k); dr.root.traverse(o => { if (o.isLight) o.visible = false; });
-    dr._cast = []; dr.root.traverse(o => { if (o.isMesh && o.castShadow) dr._cast.push(o); }); dr._far = false; dr._fur = true; }
+  else dr = wdBuild(k);
   const g = new THREE.Group(), sc = wdSp(k).size || 1; dr.root.scale.setScalar(sc); dr.root.position.set(0, 0, 0); dr.root.rotation.set(0, 0, 0); dr.root.visible = true; g.add(dr.root);
   const inst = { g, dr, k, sc, walk: 0, flap: 0, acc: 0, far: false, every: 1, slot: WD.slot++,
-    update(t, dt) { inst.acc += dt; if ((WD.frame + inst.slot) % inst.every) return; dr.update(t, inst.walk, inst.flap, Math.min(0.1, inst.acc), 0); inst.acc = 0; } };
+    update(t, dt) { inst.acc += dt; if (inst.off || (WD.frame + inst.slot) % inst.every) return;   /* off screen: no animation at all */ dr.update(t, inst.walk, inst.flap, Math.min(0.1, inst.acc), 0); inst.acc = 0; } };
   return inst;
+}
+function wdBuild(k) {   // build a model once: lights off, shadow casters noted, LOD part lists, textures shared with the first model of this kind
+  const dr = buildDragon(k); WD.builds++;
+  dr.root.traverse(o => { if (o.isLight) o.visible = false; });
+  dr._cast = []; dr.root.traverse(o => { if (o.isMesh && o.castShadow) dr._cast.push(o); }); dr._far = false; dr._fur = true; dr._lod = 0;
+  // LOD: sizes of the drawn parts. Past 50 m the small ones (claws, teeth, spikes, eyes, feelers, motes, sprites) go;
+  // past 100 m only the 8 biggest stay (body, wings, tail, neck). Hidden parts move to layer 31, which nothing draws,
+  // so the dragon's own code can keep changing .visible without fighting the LOD.
+  dr.root.updateMatrixWorld(true); const parts = [], ws = new THREE.Vector3();
+  dr.root.traverse(o => { if (!(o.isMesh || o.isPoints || o.isSprite || o.isLine)) return; let r = 0.3;
+    if (o.geometry) { if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); o.getWorldScale(ws); r = o.geometry.boundingSphere.radius * Math.max(ws.x, ws.y, ws.z); } parts.push([o, r]); });
+  parts.sort((a, b) => b[1] - a[1]);
+  const keep = new Set(parts.filter(p => p[0].isMesh && !(p[0].userData && p[0].userData.furShell)).slice(0, 8).map(p => p[0]));
+  dr._lod1 = parts.filter(([o, r]) => r < 0.2 || o.isPoints || o.isSprite || o.isLine || (o.userData && o.userData.furShell)).map(p => p[0]);
+  dr._lod2 = parts.filter(([o]) => !keep.has(o)).map(p => p[0]);
+  // textures: a second wild dragon of the same kind and colours reuses the first one's skin, glow and eye pictures (no new uploads)
+  const mats = []; dr.root.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { if (!mats.includes(mt)) mats.push(mt); }); });
+  const ref = WD.ref[k];
+  if (!ref) WD.ref[k] = mats;
+  else if (ref.length === mats.length) {
+    const swap = new Map();
+    mats.forEach((mt, i) => { const rm = ref[i]; if (rm.type !== mt.type) return;
+      for (const sl of ["map", "emissiveMap", "bumpMap", "normalMap", "roughnessMap", "metalnessMap", "alphaMap", "aoMap"]) { const a = mt[sl], b = rm[sl];
+        if (a && b && a !== b && a.image && b.image && a.image.width === b.image.width && a.image.height === b.image.height) { mt[sl] = b; swap.set(a, b); } } });
+    swap.forEach((b, a) => a.dispose()); WD.shared += swap.size;
+  }
+  return dr;
+}
+function wdSetLod(dr, lv) {
+  if (lv === dr._lod) return; dr._lod = lv;
+  dr._lod2.forEach(o => o.layers.set(0)); dr._lod1.forEach(o => o.layers.set(0));
+  (lv === 1 ? dr._lod1 : lv === 2 ? dr._lod2 : []).forEach(o => o.layers.set(31));
+}
+function wdWarm(land) {   // queue a few of a land's kinds to be built ahead of time, one at a time (no mid-flight hitches)
+  const ks = (WD_POOL[land] || []).slice().sort((a, b) => (WD_W[SP(b).rarity] || 1) - (WD_W[SP(a).rarity] || 1)).slice(0, 6);
+  ks.forEach(k => { if (!(WD.pool[k] && WD.pool[k].length) && !WD.warm.includes(k)) WD.warm.push(k); });
 }
 function wdRelease(m) {   // from removeMonster: keep the model for next time instead of throwing it away
   tint(m, null, 0); const dr = m.inst.dr; m.holder.remove(dr.root);
-  if (WD.poolN >= 8) {   // pool full: drop the oldest model of another kind
+  if (m.wd && m.wd.off) { m.wd.off = false; m.inst.off = false; }
+  if (WD.poolN >= WD_POOL_MAX) {   // pool full: drop the oldest model of another kind
     const ks = Object.keys(WD.pool).filter(q => WD.pool[q].length), q = ks.find(x => x !== m.inst.k) || ks[0];
     if (q) { const old = WD.pool[q].shift(); WD.poolN--; old.root.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   }
@@ -13987,7 +14026,7 @@ function wdProvoke(m) {   // you hit it
 const WD_W = { Junk: 6, Common: 5, Uncommon: 3, Rare: 2, Epic: 1, Champion: 1, Legendary: 0.5 };
 function wdPick(ks) { const tot = ks.reduce((a, k) => a + (WD_W[SP(k).rarity] || 1), 0); let r = Math.random() * tot; for (const k of ks) { r -= WD_W[SP(k).rarity] || 1; if (r <= 0) return k; } return ks[0]; }
 const wdLive = () => mons.filter(m => m.d.wd && !m.dead);
-const wdCap = () => SET.fast ? 3 : 6;
+const wdCap = () => SET.fast ? 3 : 5;
 function wdSpot(k, land) {
   const wet = WATER_KINDS.has(k) || k === "Medusel", fl = (wdSp(k).fly || 0) > 0, rr = Math.random;
   for (let i = 0; i < 8; i++) {
@@ -14030,10 +14069,15 @@ function wdChoose(land) {
     const near = Object.keys(WD_POOL).filter(l => l !== land && wdBack(l) && (wdPair(WD_RIVAL_LANDS, l, land) || wdPair(WD_FRIEND_LANDS, l, land)));
     if (near.length) return wdPick(WD_POOL[near[Math.floor(Math.random() * near.length)]]);
   }
-  return wdPick(WD_POOL[land]);
+  const ks = WD_POOL[land], built = ks.filter(k => WD.pool[k] && WD.pool[k].length);
+  return wdPick(built.length && Math.random() < 0.7 ? built : ks);   // mostly kinds that are already built
 }
 // ---- moving and animating ----
-function wdFloor(m) { const g = groundAt(m.x, m.z, m.y + 2); return m.wd.wet && waterTop(m.x, m.z) > -Infinity ? Math.max(g, WATER_Y - 0.15) : g; }
+function wdFloor(m) {   // ground (or water) under it; cached until it moves half a metre
+  const w = m.wd || {}; if (w.fv !== undefined && Math.abs(m.x - w.fx) + Math.abs(m.z - w.fz) < 0.5 && Math.abs(m.y - w.fy) < 1) return w.fv;
+  const g = groundAt(m.x, m.z, m.y + 2), v = w.wet && waterTop(m.x, m.z) > -Infinity ? Math.max(g, WATER_Y - 0.15) : g;
+  if (m.wd) { w.fx = m.x; w.fz = m.z; w.fy = m.y; w.fv = v; } return v;
+}
 function wdGo(m, tx, ty, tz, sp, dt, fly) {   // walk / swim / fly toward a point
   const dx = tx - m.x, dz = tz - m.z, dist = Math.hypot(dx, dz);
   if (dist > 0.3 && sp > 0) { const st = Math.min(dist, sp * dt); m.x += dx / dist * st; m.z += dz / dist * st; m.face = angLerp(m.face, Math.atan2(dz, dx), Math.min(1, dt * 4)); }
@@ -14055,17 +14099,16 @@ function wdAnim(m, dt, fighting) {
 function wdLod(m, pd) {   // animation rate by distance (and off screen); far: no shadow; fur only close up
   const dr = m.inst.dr, far = pd > 80, fur = pd < 45, w = m.wd;
   m.inst.far = far && !m.aggro;
-  m.inst.every = m.aggro || w.fight || pd < 35 ? 1 : w.unseen > 0.5 ? 4 : far ? 3 : 2;
+  m.inst.every = m.aggro || w.fight || pd < 35 ? 1 : far ? 3 : 2;
+  const off = !w.onScr && pd > 30 && !m.aggro && !w.fight && !w.gone && !w.leave;   // off screen: out of the scene (no drawing, no matrix updates, no animation)
+  if (off !== !!w.off) { w.off = off; m.inst.off = off; if (off) scene.remove(m.holder); else scene.add(m.holder); }
+  const cd = Math.hypot(m.x - camera.position.x, m.z - camera.position.z);   // detail by distance from the camera
+  wdSetLod(dr, m.aggro || w.fight ? (cd > WD_LOD2 ? 1 : 0) : cd > WD_LOD2 ? 2 : cd > WD_LOD1 ? 1 : 0);
   if (far !== dr._far) { dr._far = far; dr._cast.forEach(o => { o.castShadow = !far; }); }
   if (dr.fur && dr.fur.setEnabled && fur !== dr._fur) { dr._fur = fur; dr.fur.setEnabled(fur); }
 }
-// ---- the brain: runs inside updateMonsters for each wild dragon; returns true when it moved itself (calm), false = fight like a monster ----
-function wdBrain(m, dt, mid, pd, riding) {
-  const w = m.wd, d = m.d, k = w.k;
-  wdLod(m, pd);
-  if (w.gone > 0 || w.leave > 0) { m.aggro = false; m.warn = 0; return wdFlyOff(m, dt); }
-  if (m.inst.far && (WD.frame + m.inst.slot) % 3) { w.skip = (w.skip || 0) + dt; return true; }   // far away: think every 3rd frame
-  dt += w.skip || 0; w.skip = 0;
+function wdThink(m, dt, mid, pd, riding) {   // decisions, 5 times a second (staggered): attack or not, leave, vanish
+  const w = m.wd, k = w.k;
   w.coolT -= dt; w.alongCd -= dt;
   if (!m.aggro && m.hp < m.max) m.hp = Math.min(m.max, m.hp + dt * m.max / 90);   // heals slowly when calm
   // ---- should it attack the rider? ----
@@ -14090,12 +14133,25 @@ function wdBrain(m, dt, mid, pd, riding) {
     if (!w.angry) { w.angry = true; toast(`The wild ${k} attacks!`, { aggressive: "It's hunting riders in its patch!", defensive: "You came too close. Back off!", shy: "You cornered it!" }[w.mood] || "Fight back or fly away!"); }
   }
   if (!want && m.aggro) { m.aggro = false; m.warn = 0; tint(m, null, 0); m.bar.visible = false; if (w.mood === "aggressive") w.coolT = Math.max(w.coolT, 10); }
-  if (m.aggro) return false;   // the monster code chases and fights (claws + breath, red warning flash first)
+  if (m.aggro) return;
   // ---- calm ----
   const far = Math.hypot(m.x - me.x, m.z - me.z);
-  if (far > 170 || (w.unseen > 25 && far > 60) || (k === "Lumora" ? !isNight : landNow !== w.at && far > 60)) { removeMonster(m); return true; }   // only near you, in the land you're in
-  if (k === "Lumora" && isNight && Math.hypot(mid.x - m.x, mid.z - m.z) < 3.5 + m.rad && (riding || hasDragon())) { w.leave = 5; w.leaveA = Math.atan2(m.z - mid.z, m.x - mid.x); toast("Lumora flies off into the night", "It let you come really close first"); return wdFlyOff(m, dt); }
-  const sp = d.speed;
+  if (far > 170 || (w.unseen > 25 && far > 60) || (k === "Lumora" ? !isNight : landNow !== w.at && far > 60)) { removeMonster(m); return; }   // only near you, in the land you're in
+  if (k === "Lumora" && isNight && Math.hypot(mid.x - m.x, mid.z - m.z) < 3.5 + m.rad && (riding || hasDragon())) { w.leave = 5; w.leaveA = Math.atan2(m.z - mid.z, m.x - mid.x); toast("Lumora flies off into the night", "It let you come really close first"); return; }
+}
+// ---- the brain: runs inside updateMonsters for each wild dragon; returns true when it moved itself (calm), false = fight like a monster ----
+function wdBrain(m, dt, mid, pd, riding) {
+  const w = m.wd, d = m.d, k = w.k;
+  wdLod(m, pd);
+  if (w.gone > 0 || w.leave > 0) { m.aggro = false; m.warn = 0; return wdFlyOff(m, dt); }
+  if (m.inst.far && (WD.frame + m.inst.slot) % 3) { w.skip = (w.skip || 0) + dt; return true; }   // far away: think every 3rd frame
+  dt += w.skip || 0; w.skip = 0;
+  w.tAcc = (w.tAcc || 0) + dt;
+  if ((w.thinkT = (w.thinkT === undefined ? Math.random() * 0.2 : w.thinkT) - dt) <= 0 || m.aggro !== !!w.wasAggro) { w.thinkT = 0.2; const t = w.tAcc; w.tAcc = 0; wdThink(m, t, mid, pd, riding); w.wasAggro = m.aggro; }
+  if (!mons.includes(m)) return true;
+  if (w.leave > 0) return wdFlyOff(m, dt);
+  if (m.aggro) return false;   // the monster code chases and fights (claws + breath, red warning flash first)
+  const sp = d.speed, flying = riding && pet.fly;
   if (w.fight) wdFightStep(m, dt);
   else if (w.split > 0) { w.split -= dt; const a = w.splitA; wdGo(m, m.x + Math.cos(a) * 10, w.fl ? m.y + 3 : null, m.z + Math.sin(a) * 10, sp, dt, w.fl); }
   else if (w.prey && mons.includes(w.prey.o) && w.prey.t > 0) { w.prey.t -= dt; const o = w.prey.o, a = Math.atan2(m.z - o.z, m.x - o.x); wdGo(m, m.x + Math.cos(a) * 10, null, m.z + Math.sin(a) * 10, sp, dt, w.fl && !w.wet); }
@@ -14168,37 +14224,52 @@ function updateWildDragons(dt) {
   { const now = performance.now(), rd = WD.now ? (now - WD.now) / 1000 : 0; WD.now = now; if (rd > 0) WD.fps += (1 / rd - WD.fps) * Math.min(1, rd * 1.5); }   // smoothed real frame rate (dt is capped, so not from dt)
   if (CB.day < 1 || !started) return;
   const live = wdLive();
-  // out of sight for a while (behind the camera) -> they may vanish
-  const cf = new V(); camera.getWorldDirection(cf);
-  live.forEach(m => { const dx = m.x - camera.position.x, dy = m.y - camera.position.y, dz = m.z - camera.position.z, l = Math.hypot(dx, dy, dz) || 1;
-    m.wd.unseen = (dx * cf.x + dy * cf.y + dz * cf.z) / l < 0.45 ? m.wd.unseen + dt : 0; });
+  // on screen or not: a real frustum test (where the camera was last frame)
+  if (!WD.fr) { WD.fr = new THREE.Frustum(); WD.pm = new THREE.Matrix4(); WD.sph = new THREE.Sphere(); }
+  camera.updateMatrixWorld(); WD.pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); WD.fr.setFromProjectionMatrix(WD.pm);
+  live.forEach(m => { WD.sph.center.set(m.x, m.y + m.tall * 0.5, m.z); WD.sph.radius = m.tall + m.rad + 1.5; const on = WD.fr.intersectsSphere(WD.sph); m.wd.onScr = on; m.wd.unseen = on ? 0 : m.wd.unseen + dt; });
+  // keep it smooth: if the real frame rate stays under ~38 fps, the farthest calm wild dragon leaves (never one you're fighting)
+  WD.slowT = WD.fps < 38 && !WD.force ? WD.slowT + dt : 0; WD.dropT -= dt;
+  if (WD.slowT > 2 && WD.dropT <= 0) {
+    const calm = live.filter(m => !m.aggro && !m.wd.fight && !m.wd.gone && !m.wd.leave).sort((p, q) => Math.hypot(q.x - me.x, q.z - me.z) - Math.hypot(p.x - me.x, p.z - me.z));
+    if (calm.length) { removeMonster(calm[0]); WD.dropped++; } WD.dropT = 4;
+  }
+  // build a few of this land's kinds ahead of time, one every 0.4 s while nothing is going on
+  if (landNow !== WD.land) { WD.land = landNow; if (wdBack(landNow)) wdWarm(landNow); }
+  if (WD.warm.length && (WD.warmT -= dt) <= 0 && WD.poolN < WD_POOL_MAX && (WD.force || WD.fps >= 45) && !fightNow() && state !== "arena") {
+    WD.warmT = 0.4; const k = WD.warm.shift();
+    if (!(WD.pool[k] && WD.pool[k].length)) { const dr = wdBuild(k); (WD.pool[k] = WD.pool[k] || []).push(dr); WD.poolN++; }
+  }
   // spawn
   WD.spawnT -= dt;
   if (WD.spawnT <= 0 && hasDragon() && state !== "arena" && !uiOpen && !(typeof bossNow === "function" && bossNow())) {
     WD.spawnT = live.length < 2 ? 2 : 4;
-    const ok = WD.force || WD.fps >= 30;   // only spawn while the frame rate is OK
+    const ok = WD.force || WD.fps >= 45;   // only spawn while the frame rate is good
     if (ok && live.length < wdCap()) wdSpawn();
   }
-  // wild dragons meeting each other
+  // wild dragons meeting each other, and your dragon's growl: checked twice a second (squared distances)
   for (const q in WD.pairT) if ((WD.pairT[q] -= dt) <= 0) delete WD.pairT[q];
+  WD.growlT -= dt;
+  if ((WD.scanT -= dt) > 0) return;
+  WD.scanT = 0.5;
   for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
     const a = live[i], b = live[j], A = a.wd, B = b.wd; if (a.aggro || b.aggro || A.leave || B.leave || A.gone || B.gone) continue;
-    const dd = Math.hypot(a.x - b.x, a.z - b.z), key = [A.k, B.k].sort().join("|") + (a.home.x | 0); if (dd > 40 || WD.pairT[key]) continue;
+    const dx = a.x - b.x, dz = a.z - b.z, d2 = dx * dx + dz * dz; if (d2 > 1600) continue;
+    const key = [A.k, B.k].sort().join("|") + (a.home.x | 0); if (WD.pairT[key]) continue;
     if (WD_HUNTS[A.k] === B.k || WD_HUNTS[B.k] === A.k) {   // hunter and prey
       const h = WD_HUNTS[A.k] === B.k ? a : b, p = h === a ? b : a; h.wd.hunt = { o: p, t: 9 }; p.wd.prey = { o: h, t: 9 }; WD.pairT[key] = 50;
       if (Math.hypot(h.x - me.x, h.z - me.z) < 80) toast(`The wild ${h.wd.k} is hunting a ${p.wd.k}!`, `The ${p.wd.k} flees`); continue;
     }
     const rel = wdRel(A.k, B.k);
-    if (rel === "rival" && !A.fight && !B.fight && dd < 30) {
+    if (rel === "rival" && !A.fight && !B.fight && d2 < 900) {
       A.fight = { o: b, t: 6 + Math.random() * 2, ang: 0, hit: 0.6 }; B.fight = { o: a, t: A.fight.t, ang: Math.PI, hit: 1.2 }; A.buddy = B.buddy = null; WD.pairT[key] = 60; WD.fights++;
       if (Math.hypot(a.x - me.x, a.z - me.z) < 90) toast(`Rivals! A wild ${A.k} and a wild ${B.k} snarl and fight!`, "They'll split up in a moment");
     } else if (rel === "friend" && A.k !== B.k && !A.buddy && !B.buddy && !A.fight && !B.fight) { B.buddy = a; B.budT = 40 + Math.random() * 30; WD.pairT[key] = 90; }
   }
-  // your own dragon growls at rival kinds (and relaxes near friend kinds)
-  WD.growlT -= dt;
   if (WD.growlT <= 0 && pet.kind && dragon.root.visible && (state === "ride" || state === "grown")) {
-    const near = live.find(m => !m.wd.gone && Math.hypot(m.x - pet.x, m.z - pet.z) < 28 && wdRel(pet.kind, m.wd.k) === "rival");
-    const pal = !near && live.find(m => Math.hypot(m.x - pet.x, m.z - pet.z) < 18 && wdRel(pet.kind, m.wd.k) === "friend" && m.wd.k !== pet.kind);
+    const d2 = m => (m.x - pet.x) ** 2 + (m.z - pet.z) ** 2;
+    const near = live.find(m => !m.wd.gone && d2(m) < 784 && wdRel(pet.kind, m.wd.k) === "rival");
+    const pal = !near && live.find(m => d2(m) < 324 && wdRel(pet.kind, m.wd.k) === "friend" && m.wd.k !== pet.kind);
     if (near) { WD.growlT = 35; WD.growled = near.wd.k; toast(`${pet.name} growls at the wild ${near.wd.k}!`, "Rival kinds don't get along"); burstAt(pet.x, pet.y + 1.6, pet.z, "#ff7a4a"); }
     else if (pal) { WD.growlT = 45; toast(`${pet.name} relaxes`, `The wild ${pal.wd.k} is a friend`); }
   }
@@ -14230,7 +14301,7 @@ function wdMorning(n) {
 }
 function updateComeback(dt) {
   if (!started) return;
-  if (CB.lastDT !== null && dayTime < CB.lastDT - 0.5 && BOSS.sw && CB.day >= 0) { CB.day++; if (CB.day <= 7) CB.pend = true; writeSave(); }   // sunrise
+  if (CB.lastDT !== null && dayTime < CB.lastDT - 0.5 && BOSS.sw && CB.day >= 0) { CB.day++; if (CB.day <= 7) CB.pend = true; if (wdBack(landNow)) wdWarm(landNow); writeSave(); }   // sunrise (and build this land's kinds ahead of time)
   CB.lastDT = dayTime;
   if (CB.pend && !isNight) { CB.pend = false; CB.toastT = 3.6; }   // wait for the "A new day" toast, then name the lands
   if (CB.toastT > 0 && (CB.toastT -= dt) <= 0) wdMorning(CB.day);
@@ -14284,7 +14355,7 @@ function wdTopics() {
 // ---- hidden test hook: window.__ww.debugComeback(day) = "Shadow Wyrm beaten, day N" (no visible cheat) ----
 function wdDebug(n, o) {
   BOSS.dd = Math.max(1, BOSS.dd); BOSS.sw = true; CB.day = Math.max(0, n | 0); CB.lastDT = dayTime; wdTopics();
-  mons.filter(m => m.d.wd).forEach(m => { m.dead = 0; removeMonster(m); }); WD.force = !!(o && o.force); WD.spawnT = 0.5;
+  mons.filter(m => m.d.wd).forEach(m => { m.dead = 0; removeMonster(m); }); WD.force = !!(o && o.force); WD.spawnT = 0.5; WD.land = null;
   return { day: CB.day, back: Object.keys(WD_LAND_DAY).filter(wdBack) };
 }
 
