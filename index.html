@@ -1004,6 +1004,100 @@ function bnMat(m, col, dark, glow) {
   };
   m.customProgramCacheKey = () => "bnBone"; m.needsUpdate = true; return m;
 }
+/* ===== NEW (Petra 2026-11-14, skin textures v2): tileable noise helpers for canvas skin textures. Shared by every new dragon on the page, made once ===== */
+const gwNz = window.__wwNz || (window.__wwNz = (() => {
+  const hs = (i, j, s) => { let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263) ^ Math.imul((s | 0) + 7, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const md = (a, P) => ((a % P) + P) % P;
+  const vn = (x, y, P, s) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), x0 = md(xi, P), x1 = md(xi + 1, P), y0 = md(yi, P), y1 = md(yi + 1, P);
+    const a = hs(x0, y0, s), b = hs(x1, y0, s), c = hs(x0, y1, s), d = hs(x1, y1, s); return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy; };   /* value noise that repeats every P lattice steps */
+  const fbm = (x, y, P, s, oct) => { let t = 0, a = 0.5, n = 0; for (let k = 0; k < oct; k++) { t += a * vn(x, y, P, s + k * 13); n += a; x *= 2; y *= 2; P *= 2; a *= 0.5; } return t / n; };
+  const W = [0, 0, 0];   /* cell noise that repeats every P cells: W = [nearest distance, second distance, hash of the nearest cell] */
+  const wor = (x, y, P, s, jit) => { const xi = Math.floor(x), yi = Math.floor(y); let d1 = 9, d2 = 9, hh = 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const cx = xi + di, cy = yi + dj, mx = md(cx, P), my = md(cy, P);
+      const px = cx + 0.5 + (hs(mx, my, s) - 0.5) * jit, py = cy + 0.5 + (hs(mx, my, s + 1) - 0.5) * jit, d = Math.hypot(x - px, y - py);
+      if (d < d1) { d2 = d1; d1 = d; hh = hs(mx, my, s + 2); } else if (d < d2) d2 = d; }
+    W[0] = d1; W[1] = d2; W[2] = hh; return W; };
+  const tex = (N, fn) => { const c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d"), img = x.createImageData(N, N), D = img.data, o = [0, 0, 0];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { fn(i / N, j / N, o); const k = (j * N + i) * 4; D[k] = o[0] * 255; D[k + 1] = o[1] * 255; D[k + 2] = o[2] * 255; D[k + 3] = 255; }
+    x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.rmShared = true; return t; };   /* R, G, B masks (data, not colour: no sRGB); shared: never disposed */
+  const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  return { hs, md, vn, fbm, wor, tex, sst };
+})());
+function gwSkinTex() {   /* NEW Glimmerwick v2: shell pits / soft scales / lantern cells (made once, shared) */
+  if (window.__gwSkinTex) return window.__gwSkinTex;
+  const Z = gwNz, PC = 56, SC = 36, SR = 40, RR = 0.8;
+  return (window.__gwSkinTex = Z.tex(512, (u, v, o) => {
+    /* R: pitted shell: small round soft pits in loose rows, fine grain between */
+    const py = v * PC, ry = Math.floor(py); let pit = 0;
+    for (let dr = -1; dr <= 1; dr++) { const r = ry + dr, off = (Z.md(r, PC) % 2) * 0.5, px = u * PC - off, cx0 = Math.floor(px);
+      for (let dc = -1; dc <= 1; dc++) { const c = cx0 + dc, mc = Z.md(c, PC), mr = Z.md(r, PC), h = Z.hs(mc, mr, 5);
+        const cx = c + 0.5 + (Z.hs(mc, mr, 6) - 0.5) * 0.25, cy = r + 0.5 + (Z.hs(mc, mr, 7) - 0.5) * 0.25, d = Math.hypot(px - cx, py - cy), rad = 0.24 + 0.1 * h;
+        pit = Math.max(pit, (1 - Z.sst(rad * 0.25, rad, d)) * (0.7 + 0.3 * h)); } }
+    const grain = Z.fbm(u * 64, v * 64, 64, 11, 2), swell = Z.fbm(u * 6, v * 6, 6, 17, 3);
+    o[0] = 0.62 - 0.36 * pit + 0.1 * (grain - 0.5) + 0.12 * (swell - 0.5);
+    /* G: small soft scales overlapping like roof tiles (the one whose centre lies furthest along +u sits on top) */
+    const sy = v * SR, sr = Math.floor(sy), asp = SC / SR; let best = -9, sh = 0.5;
+    for (let dr = -1; dr <= 1; dr++) { const r = sr + dr, off = (Z.md(r, SR) % 2) * 0.5, sx = u * SC - off, sc0 = Math.floor(sx);
+      for (let dc = -1; dc <= 2; dc++) { const c = sc0 + dc, mc = Z.md(c, SC), mr = Z.md(r, SR);
+        const cx = c + 0.5 + (Z.hs(mc, mr, 21) - 0.5) * 0.12, cy = r + 0.5 + (Z.hs(mc, mr, 22) - 0.5) * 0.12, dx = sx - cx, dy = (sy - cy) / asp, d = Math.hypot(dx * 0.9, dy);
+        if (d < RR && cx > best) { best = cx; const k = d / RR; sh = (0.45 + 0.55 * (1 - k * k)) * (0.9 + 0.1 * Z.hs(mc, mr, 23)) - 0.06 * Z.sst(0.7, 1, k) * (dx < 0 ? 1 : 0.3); } } }
+    o[1] = Math.max(0, Math.min(1, sh + 0.06 * (grain - 0.5)));
+    /* B: soft lantern cells: round glowing blobs that melt into each other (no walls, no lines) */
+    const W = Z.wor(u * 14, v * 14, 14, 31, 0.6);
+    o[2] = 0.25 + 0.75 * Math.exp(-Math.pow(W[0] / 0.5, 2)) * (0.75 + 0.25 * W[2]);
+  }));
+}
+function gwVeinTex() {   /* NEW Glimmerwick v2: a fine vein network for the see-through wings, in wing space (u along the edge, v out from the shoulder). Made once, shared */
+  if (window.__gwVeinTex) return window.__gwVeinTex;
+  const S = 512, c = document.createElement("canvas"); c.width = c.height = S; const x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, S, S);
+  let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const NS = 34, spokes = [];
+  for (let i = 0; i <= NS; i++) { const u0 = i / NS, pts = []; for (let k = 0; k <= 16; k++) { const v = k / 16; pts.push([(u0 + (rnd() - 0.5) * 0.008 + Math.sin(v * 5 + i) * 0.004) * S, (1 - v) * S]); } spokes.push(pts); }   /* canvas y is flipped (v = 0 at the bottom) */
+  x.strokeStyle = "#fff"; x.lineCap = "round";
+  spokes.forEach((pts, i) => { for (let k = 0; k < 16; k++) { x.lineWidth = (i % 3 === 0 ? 3.2 : 1.9) * (1 - 0.55 * k / 16); x.globalAlpha = i % 3 === 0 ? 1 : 0.8; x.beginPath(); x.moveTo(pts[k][0], pts[k][1]); x.lineTo(pts[k + 1][0], pts[k + 1][1]); x.stroke(); } });
+  for (let i = 0; i < NS; i++) for (let k = 1; k < 16; k++) { if (rnd() < 0.35) continue; const a = spokes[i][k], b = spokes[i + 1][Math.min(16, k + (rnd() < 0.5 ? 0 : 1))], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + (rnd() - 0.5) * 8];   /* cross veins: little cells like a real insect wing */
+    x.lineWidth = 1.1; x.globalAlpha = 0.75; x.beginPath(); x.moveTo(a[0], a[1]); x.quadraticCurveTo(m[0], m[1], b[0], b[1]); x.stroke(); }
+  x.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 4; t.rmShared = true; return (window.__gwVeinTex = t);
+}
+/* ===== NEW (Petra 2026-11-14, skin textures v2): tileable noise helpers for canvas skin textures. Shared by every new dragon on the page, made once ===== */
+const orNz = window.__wwNz || (window.__wwNz = (() => {
+  const hs = (i, j, s) => { let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263) ^ Math.imul((s | 0) + 7, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const md = (a, P) => ((a % P) + P) % P;
+  const vn = (x, y, P, s) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), x0 = md(xi, P), x1 = md(xi + 1, P), y0 = md(yi, P), y1 = md(yi + 1, P);
+    const a = hs(x0, y0, s), b = hs(x1, y0, s), c = hs(x0, y1, s), d = hs(x1, y1, s); return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy; };   /* value noise that repeats every P lattice steps */
+  const fbm = (x, y, P, s, oct) => { let t = 0, a = 0.5, n = 0; for (let k = 0; k < oct; k++) { t += a * vn(x, y, P, s + k * 13); n += a; x *= 2; y *= 2; P *= 2; a *= 0.5; } return t / n; };
+  const W = [0, 0, 0];   /* cell noise that repeats every P cells: W = [nearest distance, second distance, hash of the nearest cell] */
+  const wor = (x, y, P, s, jit) => { const xi = Math.floor(x), yi = Math.floor(y); let d1 = 9, d2 = 9, hh = 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const cx = xi + di, cy = yi + dj, mx = md(cx, P), my = md(cy, P);
+      const px = cx + 0.5 + (hs(mx, my, s) - 0.5) * jit, py = cy + 0.5 + (hs(mx, my, s + 1) - 0.5) * jit, d = Math.hypot(x - px, y - py);
+      if (d < d1) { d2 = d1; d1 = d; hh = hs(mx, my, s + 2); } else if (d < d2) d2 = d; }
+    W[0] = d1; W[1] = d2; W[2] = hh; return W; };
+  const tex = (N, fn) => { const c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d"), img = x.createImageData(N, N), D = img.data, o = [0, 0, 0];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { fn(i / N, j / N, o); const k = (j * N + i) * 4; D[k] = o[0] * 255; D[k + 1] = o[1] * 255; D[k + 2] = o[2] * 255; D[k + 3] = 255; }
+    x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.rmShared = true; return t; };   /* R, G, B masks (data, not colour: no sRGB); shared: never disposed */
+  const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  return { hs, md, vn, fbm, wor, tex, sst };
+})());
+function orSkinTex() {   /* NEW Orchidra v4: the orchid-petal texture (made once, shared) */
+  if (window.__orSkinTex) return window.__orSkinTex;
+  const Z = orNz, NV = 30, NF = 90;
+  return (window.__orSkinTex = Z.tex(512, (u, v, o) => {
+    const w = (Z.fbm(u * 3, v * 3, 3, 5, 3) - 0.5) * 0.07 + (Z.vn(u * 9, v * 2, 9, 9) - 0.5) * 0.012;   /* veins wander gently, never straight lines */
+    const ph = (v + w) * NV, id = Z.md(Math.floor(ph), NV), d = Math.abs(ph - Math.floor(ph) - 0.5);
+    const str = 0.35 + 0.65 * Z.vn(u * 5 + id * 1.37, id, 5, 21);   /* each vein fades and comes back along its length */
+    const vein = str * Math.exp(-Math.pow(d / 0.2, 2));
+    const pf = (v + w * 1.3 + 0.37) * NF, df = Math.abs(pf - Math.floor(pf) - 0.5), fine = (0.4 + 0.6 * Z.vn(u * 11 + Math.floor(pf) * 0.71, 3, 11, 31)) * Math.exp(-Math.pow(df / 0.17, 2));   /* finer veins between */
+    const W1 = Z.wor(u * 110, v * 110, 110, 41, 0.75), pap = Math.max(0, 1 - Math.pow(W1[0] / 0.62, 2));   /* velvet: tiny soft papillae */
+    const W2 = Z.wor(u * 16, v * 16, 16, 57, 0.85), on = W2[2] < 0.42 ? 1 : 0, rr = 0.14 + 0.22 * Z.hs(Math.floor(W2[2] * 1e6), 1, 3);
+    const speck = on * (1 - Z.sst(rr * 0.4, rr, W2[0]));   /* little soft blush speckles */
+    const fleck = Z.sst(0.6, 0.78, Z.fbm(u * 6, v * 6, 6, 77, 3)) * 0.55;   /* soft blush flecks */
+    const lo = Z.fbm(u * 8, v * 8, 8, 91, 3);
+    o[0] = 0.5 + 0.22 * str * Math.exp(-Math.pow(d / 0.3, 2)) + 0.05 * fine + 0.05 * (pap - 0.4) + 0.1 * (lo - 0.5);
+    o[1] = Math.min(1, vein + 0.45 * fine);
+    o[2] = Math.max(speck, fleck);
+  }));
+}
 function makeDragon(p, sp = {}) {
 const o = Object.assign({ len: 1, girth: 1, neck: 1, legLen: 1, legThick: 1, feet: 1, wings: "bat", wingScale: 1, tail: "flame",
   horns: "swept", back: "fin", frill: "frill", eyes: 1, pattern: "streaks", glow: 1, tusks: false, whiskers: false, mane: false, spots: null }, sp);
@@ -1232,19 +1326,34 @@ const BASE = [[-3.3, 0.3, 0], [-2.45, 0.55, 0], [-1.55, 0.95, 0], [-0.62, 1.38, 
 if (o.glaucus) [[-2.85, 0.66], [-2.2, 0.68], [-1.5, 0.71], [-0.8, 0.74], [-0.1, 0.76], [0.6, 0.77], [1.2, 0.775], [1.65, 0.78], [2.02, 0.79]].forEach(([x, y], k) => { BASE[k][0] = x; BASE[k][1] = y; BASE[k][2] = 0; });   // NEW Stingdrift: a long, level sea-slug body
 const GLR = o.glaucus ? knots([[0, 0.012], [0.08, 0.04], [0.2, 0.085], [0.32, 0.11], [0.44, 0.145], [0.56, 0.17], [0.68, 0.188], [0.78, 0.19], [0.88, 0.175], [0.95, 0.165], [1, 0.16]]) : null;   // tapers to a fine point at the tail
 var slugStep = null, slugApi = null, slugWalk = 0;
+if (o.glim) [[-1.8, -0.52], [-1.3, -0.27], [-0.7, -0.1]].forEach(([dx, dy], k) => { BASE[k][0] = BASE[3][0] + dx; BASE[k][1] = BASE[3][1] + dy; });   /* NEW Glimmerwick v3: the abdomen goes straight out behind the hips, its lantern end curling slightly down */
+if (o.orchid) {   // NEW Orchidra: reared-up mantis spine (the level one is kept for flight)
+  const lv = BASE.map(q => q.slice()), L0 = lift;
+  const rr = [[lv[0][0] + 0.3, 1.02 + L0], [lv[1][0] + 0.08, 0.66 + L0], [lv[2][0], 0.8 + L0], [lv[3][0], 1.1 + L0], [0.25, 1.34 + L0],
+              [0.9, 1.62 + L0], [1.12, 2.25 + L0], [1.24, 2.8 + L0], [1.5, 3.02 + L0]];
+  o._orB = { lv, rr }; rr.forEach((q, k) => { BASE[k][0] = q[0]; BASE[k][1] = q[1]; });
+}
 const R0b = knots([[0, 0.02], [0.1, 0.07], [0.22, 0.16], [0.33, 0.32], [0.42, 0.46], [0.52, 0.53],
                   [0.62, 0.47], [0.7, 0.33], [0.78, 0.23], [0.9, 0.2], [1, 0.23]]);
 const gBump = s => 1 + (o.girth - 1) * Math.max(0, Math.sin(Math.min(1, Math.max(0, (s - 0.2) / 0.55)) * Math.PI));
 // tail shapes (Petra: tails were all the same): thick = heavy all the way, blunt end; whip = thin and fast-tapering; normal / curl / droop keep the usual taper
 const TS = o.tailShape || "normal";
 const tailK = s => s >= 0.42 ? 1 : TS === "thick" ? 1 + 0.75 * (1 - s / 0.42) : TS === "whip" ? 0.5 + 0.5 * Math.pow(s / 0.42, 0.7) : 1;
-const R0 = s => o.glaucus ? GLR(s) : Math.max(R0b(s) * gBump(s) * (o.thin || 1) * tailK(s), TS === "thick" && s < 0.42 ? 0.075 * (o.thin || 1) : TS === "grip" && s < 0.2 ? (0.045 + 0.02 * s / 0.2) * (o.thin || 1) : 0);
+const R0 = s => o.glim && s < 0.46 ? gwAbd(s) : o.glaucus ? GLR(s) : Math.max(R0b(s) * gBump(s) * (o.thin || 1) * tailK(s), TS === "thick" && s < 0.42 ? 0.075 * (o.thin || 1) : TS === "grip" && s < 0.2 ? (0.045 + 0.02 * s / 0.2) * (o.thin || 1) : 0);
+function gwAbd(s) {   /* NEW Glimmerwick v3: plump segmented firefly abdomen (s < 0.46), rounded end, blends into the hips */
+  const v = s / 0.4, q = v * 7, th = o.thin || 1, Rh = R0b(0.42) * gBump(0.42) * th;
+  const cap = Math.pow(Math.sin(Math.PI / 2 * Math.min(1, v / 0.66)), 0.55), bulge = 0.92 + 0.06 * Math.sin(Math.PI * Math.min(1, v));
+  const fade = Math.min(1, Math.max(0, (q - 4.6) / 1.6)), ring = 1 - 0.065 * (1 - fade * fade * (3 - 2 * fade)) * Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * q), 2);
+  const a = Rh * cap * bulge * ring, e = Math.min(1, Math.max(0, (s - 0.36) / 0.1)), w = e * e * (3 - 2 * e);
+  return a + (R0b(s) * gBump(s) * th - a) * w;
+}
 let breath = 1;
-const rad = s => R0(s) * (s > 0.33 && s < 0.68 ? breath : 1) * (o.segRidge ? prismSeg(s) : 1);
+const rad = s => R0(s) * (o.glim ? 1 + (breath - 1) * Math.max(0, Math.sin(Math.min(1, Math.max(0, (s - 0.3) / 0.42)) * Math.PI)) : (s > 0.33 && s < 0.68 ? breath : 1)) * (o.segRidge ? prismSeg(s) : 1);
 let glideK = 0;   // NEW Glidewhisk: 0 = standing, 1 = gliding with its skin flaps spread
 const BEND = [1.1, 0.7, 0.32, 0.06, 0, 0.06, 0.28, 0.6, 0.95];
 function spinePts(t, bend = 0) {
-  const amp = [0.55, 0.32, 0.12, 0.02];
+  if (o._orB) { const B = o._orB, fk = (o._or && o._or.fk) || 0; BASE.forEach((q, k) => { q[0] = B.rr[k][0] + (B.lv[k][0] - B.rr[k][0]) * fk; q[1] = B.rr[k][1] + (B.lv[k][1] - B.rr[k][1]) * fk; }); }   /* NEW Orchidra: reared up standing, level in flight */
+  const amp = [0.55, 0.32, 0.12, 0.02]; if (o.glim) { amp[0] = 0.3; amp[1] = 0.19; amp[2] = 0.08; }   /* Glimmerwick v3: a gentler sway for the short plump abdomen */
   const pts = BASE.map(([x, y, z], k) => {
     const v = new V(x, y, z);
     if (hoverK > 0.01 && k < 3 && !o.foxTails && !o.jelly && !o.glaucus) { const piv = BASE[3], a = hoverK * [1.15, 0.8, 0.38][k], dx = v.x - piv[0], dy = v.y - piv[1], c = Math.cos(a), sn = Math.sin(a); v.x = piv[0] + dx * c - dy * sn; v.y = piv[1] + dx * sn + dy * c; }   // hovering: the tail hangs down (Petra liked this first curve best)
@@ -1255,7 +1364,8 @@ function spinePts(t, bend = 0) {
     if (o.peacock && k < 3) { v.x = BASE[3][0] - [0.12, 0.08, 0.04][k]; v.y = BASE[3][1] - 0.02; v.z = BASE[3][2]; }   // Plumewyrm (Petra): no dragon tail at all, the spine rounds off at the rump (the train is its tail)
     if (TS === "curl" && k < 2 && !o.foxTails && !o.jelly) { v.y += k ? 0.35 : 1.05; v.x += k ? 0.05 : 0.45; }     // the tip curls up
     if (o.squirrelTail && k < 3 && !o.foxTails && !o.jelly) { const c = 1 - glideK; v.y += [1.15, 0.6, 0.18][k] * c + [0.12, 0.06, 0.02][k] * glideK; v.x += [0.3, 0.08, 0][k] * c; }   // NEW Glidewhisk
-    if (TS === "droop" && k < 3 && !o.foxTails && !o.jelly) v.y -= [0.35, 0.18, 0.05][k];                       // hangs low
+    if (TS === "droop" && k < 3 && !o.foxTails && !o.jelly) v.y -= [0.35, 0.18, 0.05][k];
+    if (o.glim && k < 3 && o._gw && o._gw.flash > 0) v.y += Math.sin(Math.min(1, (1.6 - o._gw.flash) / 0.25) * Math.PI / 2) * Math.min(1, o._gw.flash / 0.7) * [0.32, 0.16, 0.05][k];   /* Glimmerwick v3: Flash Burst lifts the lantern */                       // hangs low
     if (k < 4 && hoverK < 0.5 && sitV < 0.5) v.y = Math.max(v.y, [0.42, 0.44, 0.5, 0.6][k]);                        // Petra: the tail never sinks into the ground
     if (k >= 6) { const w = (k - 5) / 3; v.y += Math.sin(t * 0.9) * 0.07 * w + look.pitch * 0.45 * w * idleK; v.z += Math.sin(t * 0.45) * 0.16 * w; const a = -look.yaw * 0.75 * idleK * (0.4 + 0.6 * w), px = BASE[5][0], dx = v.x - px, dz = v.z - BASE[5][2], c = Math.cos(a), sn = Math.sin(a); v.x = px + dx * c - dz * sn; v.z = BASE[5][2] + dx * sn + dz * c; }   // Petra: the NECK swings round to look, and the head goes with it
     if (o.glaucus) { if (k < 4) v.z *= 0.45; v.y += 0.035 * Math.sin(t * 1.3 - k * 0.55); v.z += slugWalk * 0.13 * Math.sin(t * 4.5 - k * 1.1) * (k < 7 ? 1 : 0.3); }   // Stingdrift: rides the swell
@@ -1267,6 +1377,7 @@ function spinePts(t, bend = 0) {
       if (k < 4) { const pv = BASE[3], a = kk * [2.5, 2.0, 1.3, 0.5][k], dx = v.x - pv[0], dz = v.z - pv[2], c = Math.cos(a), sn = Math.sin(a); v.x = pv[0] + dx * c - dz * sn; v.z = pv[2] + dx * sn + dz * c; v.y += (pv[1] - 0.25 - v.y) * kk * 0.7; }
       if (k >= 6) { const pv = BASE[5], a = -kk * 0.75 * (k - 5) / 3, dx = v.x - pv[0], dy = v.y - pv[1], c = Math.cos(a), sn = Math.sin(a); v.x = pv[0] + dx * c - dy * sn; v.y = pv[1] + dx * sn + dy * c; }
     }
+    if (o._orB && o._or) v.z += (o._or.sw || 0) * [0, 0, 0, 0.1, 0.3, 0.55, 0.85, 1, 1][k];   /* NEW Orchidra: the front half rocks side to side like a leaf in the wind */
     v.z += BEND[bk] * bend; if (k < 4) v.x -= Math.abs(bend) * BEND[bk] * 0.25; else if (k > 5) v.x -= Math.abs(bend) * BEND[k] * 0.15;
     return v;
   });
@@ -1457,6 +1568,14 @@ const hindR = [[0, 0.37], [0.25, 0.3], [0.45, 0.17], [0.75, 0.115], [1, 0.095]];
 const frontR = [[0, 0.3], [0.3, 0.22], [0.5, 0.15], [0.8, 0.11], [1, 0.09]];
 // legs sit just under the sides of the body, however wide or thin the body is
 const zH = 0.5 * R0(0.4), zF = 0.44 * R0(0.635);
+if (o.orchid) {   // NEW Orchidra (Petra 2026-11-14): long thin mantis legs, knee out to the side, the shin angled down to a small foot
+  const _leg0 = leg, ORL = (o._orLegs = []);
+  const orR = [[0, 0.17], [0.1, 0.095], [0.27, 0.115], [0.44, 0.07], [0.5, 0.062], [0.62, 0.05], [0.85, 0.042], [1, 0.04]];   /* spindle thigh, thin shin */
+  leg = (s, zOff, pts, radii, toeLen) => { const z = zOff > 0 ? 1 : -1, hindL = s < 0.5, L = hindL ? LH : LF;
+    const P = hindL ? [[-0.04, 0.07, 0], [-0.16, 0.0, z * 0.34], [-0.36, -0.12 * L, z * 0.72], [-0.64, -0.56 * L, z * 0.94], [-0.88, -L, z * 1.06]]   /* back pair: long, angled back, knee high */
+                    : [[0.02, 0.07, 0], [0.14, 0.03, z * 0.34], [0.32, -0.06 * L, z * 0.7], [0.52, -0.52 * L, z * 0.92], [0.64, -L, z * 1.0]];   /* front pair: knee raised and well bent */
+    _leg0(s, zOff, P, orR, 0.17); ORL.push({ g: legs[legs.length - 1], P: P.map(q => new V(...q)), z, hindL }); };
+}
 leg(0.4, zH, hind(1), hindR, 0.27);
 leg(0.4, -zH, hind(-1), hindR, 0.27);
 leg(0.635, zF, front(1), frontR, 0.23);
@@ -2852,6 +2971,8 @@ function update(t, walk, flap, dt, bend = 0) {
   if (o.wings === "glide" || o.squirrelTail) glideStep(t, flap, dt);   // NEW Glidewhisk
   if (o.eternix && o._etx && o._etx.built) eterStep(t, dt);   // NEW Eternix: pearls, tail orb, Tun Shell
   if (o.swimLegs && !flap) legs.forEach((g, i) => { const sw = Math.sin(t * (3 + 5 * walk) + i * 1.7) * (0.12 + 0.3 * walk); g.rotation.z = (i < 2 ? -1.35 : -1.2) + sw; if (g.userData.knee) g.userData.knee.rotation.z = i < 2 ? 0.15 : 0.5; if (g.userData.ankle) g.userData.ankle.rotation.z = (i < 2 ? 0.9 : 0.6) - sw * 0.5; });   // NEW (2026-11-14): Driftfin swims level, legs tucked back and paddling
+  if (o.glim && o._gw && o._gw.built) glimStep(t, dt);   /* NEW Glimmerwick: lantern, motes, Flash Burst */
+  if (o.orchid && o._or && o._or.built) orchidStep(t, dt, walk, flap);   /* NEW Orchidra: arms, Blossom Ambush */
   const tip = frames[0];
   flame.position.copy(tip.p);
   fl.forEach((c, i) => { const k = 1 + Math.sin(t * 13 + i * 2) * 0.12 + Math.sin(t * 7.3 + i) * 0.08; c.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k)); c.rotation.y = t * (1 + i); });
@@ -3940,6 +4061,416 @@ if (o.bone) {   /* NEW (Petra 2026-11-14): real bone on every bone part (sp.bone
   dragon.traverse(m => { if (!m.isMesh || !m.material) return; const q = m.material; if (q.userData && q.userData.bnBone && !cols.has(q)) cols.set(q, [mix3(skull, p.horn, 0.25), 1]); if (cols.has(q)) bnGeo(m, S); });
   cols.forEach(([c, gk], q) => bnMat(q, c, dk(c), gk));
 }
+// ----- NEW Glimmerwick (firefly dragon, Petra 2026-11-14) -----
+function gwx() { return o._gw || (o._gw = { built: false, rested: false, flash: 0, night: 0 }); }
+function glimBuild() {
+  const G = gwx(), lin = c => new THREE.Color(c).convertSRGBToLinear();
+  const U = { gT: { value: 0 }, gPulse: { value: 0.5 }, gLamp: { value: 1 }, gBS: { value: 0.0005 }, gC0: { value: 0.865 }, gC1: { value: 0.985 },
+    gTop: { value: lin(p.top) }, gSide: { value: lin(p.side) }, gLow: { value: lin(p.belly) }, gGlow: { value: lin(p.glow) }, gCol: { value: lin(p.collar || p.glow) }, gRimC: { value: lin(p.shellRim || p.belly) }, gRB: { value: 0.02 } };
+  const NOISE = `float gwHs(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float gwN(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(gwHs(i), gwHs(i + vec3(1.0, 0.0, 0.0)), f.x), mix(gwHs(i + vec3(0.0, 1.0, 0.0)), gwHs(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(gwHs(i + vec3(0.0, 0.0, 1.0)), gwHs(i + vec3(1.0, 0.0, 1.0)), f.x), mix(gwHs(i + vec3(0.0, 1.0, 1.0)), gwHs(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z); }
+vec3 gwBump(vec3 sp, vec3 sn, vec2 dH, float fd) { vec3 sx = dFdx(sp), sy = dFdy(sp), r1 = cross(sy, sn), r2 = cross(sn, sx); float det = dot(sx, r1) * fd;
+  return normalize(abs(det) * sn - sign(det) * (dH.x * r1 + dH.y * r2)); }
+`;
+  // ----- the skin (body, head, legs and the shell wing covers) -----
+  const pm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.62, metalness: 0, side: THREE.DoubleSide });
+  pm.extensions = { derivatives: true };
+  pm.onBeforeCompile = sh => { Object.assign(sh.uniforms, U);
+    sh.vertexShader = "attribute vec3 gwRest; attribute vec3 gwRestN; attribute float gwK; attribute float gwS; attribute float gwE; varying vec3 gP; varying vec3 gN; varying float gK; varying float gS; varying float gE;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n gP = gwRest; gN = gwRestN; gK = gwK; gS = gwS; gE = gwE;");
+    sh.fragmentShader = "uniform float gT, gPulse, gLamp, gBS, gC0, gC1, gRB; uniform vec3 gTop, gSide, gLow, gGlow, gCol, gRimC; varying vec3 gP; varying vec3 gN; varying float gK; varying float gS; varying float gE;\n" + NOISE + sh.fragmentShader
+      .replace("void main() {", "void main() {\n float gH = 0.0, gL = 0.0, gSh = 1.0, gRg = 0.0;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+      { vec3 P = gP; float up = normalize(gN).y;
+        vec3 c = mix(gSide, gTop, smoothstep(-0.3, 0.45, up));
+        c = mix(c, gLow, smoothstep(-0.15, -0.7, up));   /* the same rule on body, head, legs and shells: dark olive on top, khaki underneath */
+        vec3 Q = P * 42.0; float aa = 1.0 - smoothstep(0.3, 0.75, length(fwidth(Q)));   /* fine detail fades out where it gets tiny on screen */
+        float n1 = gwN(Q), n2 = gwN(Q * 2.2 + 3.0), n0 = gwN(P * 4.0 + 1.0);
+        float dimp = smoothstep(0.64, 0.9, n1);   /* shallow, soft beetle-shell dimples */
+        c *= 1.0 - 0.045 * dimp * aa;
+        c = mix(c, c * vec3(1.1, 1.08, 0.86), 0.45 * n0);   /* a soft warm drift, so it never looks like plastic */
+        float bh = (1.0 - dimp) * 0.6 + n0 * 0.4;
+        if (gK > 0.5 && gK < 1.5) {
+          float mid = 0.5 * (gC0 + gC1), hw = 0.5 * (gC1 - gC0);
+          float col = smoothstep(gC0, gC0 + 0.025, gS) * (1.0 - smoothstep(gC1 - 0.025, gC1, gS));
+          float spot = smoothstep(0.55, 0.92, up) * (1.0 - smoothstep(0.25, 0.75, abs(gS - mid) / hw));
+          c = mix(c, gCol * (0.92 + 0.12 * n0), col * (1.0 - 0.7 * spot));   /* the warm orange collar, a soft dark spot on top */
+          float aq = gS / 0.4 * 7.0, gr = pow(0.5 + 0.5 * cos(6.2832 * aq), 4.0) * (1.0 - smoothstep(4.6, 6.2, aq)) * smoothstep(0.4, 0.8, aq);   /* v3: soft ring grooves between the firefly abdomen's segments (the same rings as the shape) */
+          float lb = 0.5 * smoothstep(-0.2, -0.6, up) * smoothstep(0.44, 0.49, gS) * (1.0 - smoothstep(0.58, 0.63, gS));   /* v3: a smaller, softer belly lantern */
+          float lt = 1.0 - smoothstep(2.9, 3.1, aq);   /* v3: the last three abdomen segments are the lantern */
+          gL = max(lb, lt);
+          c *= 1.0 - 0.14 * gr * (1.0 - lt);
+          float seg = 0.72 + 0.28 * (1.0 - gr);   /* soft lantern segments */
+          c = mix(c, mix(gGlow, vec3(1.0, 1.0, 0.82), 0.1) * (0.35 + 0.65 * smoothstep(-0.5, 2.0, aq) * (1.0 - lt) + 0.3 * lt) * seg, gL);   /* v3: a deeper yellow-green body colour under the glow, so it never washes out to white */
+          gL *= seg; gRg = gr;
+        }
+        if (gK > 2.5) c = mix(c, gRimC, gE * 0.6);   /* a soft warm rim round the shell wing covers */
+        diffuseColor.rgb = c; gH = bh * aa * (1.0 - gL); gSh = 1.0 - gL; }`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+      normal = gwBump(-vViewPosition, normal, vec2(dFdx(gH), dFdy(gH)) * gBS - vec2(dFdx(gRg), dFdy(gRg)) * gRB, faceDirection);`)
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+        float tp = smoothstep(-0.2, 0.6, normalize(gN).y);
+        totalEmissiveRadiance += gGlow * gL * gLamp * (0.55 + 0.45 * gPulse) * (0.5 + 0.5 * (1.0 - fr)) + mix(mix(vec3(0.5, 0.62, 0.14), vec3(0.16, 0.5, 0.4), gwN(gP * 3.0)), gGlow, 0.25) * (0.02 + fr * fr * 0.16) * tp * gSh; }   /* a faint olive-gold-teal sheen on the back, never metal */`);
+  };
+  pm.customProgramCacheKey = () => "glimSkin";
+  { const prevS = pm.onBeforeCompile;   /* NEW v2 (Petra: texture it better): pitted shell on the back, small soft scales on flanks, head and legs, soft lantern cells */
+    U.gTex = { value: gwSkinTex() }; U.gTS = { value: 1.0 }; U.gTB = { value: 0.0035 };
+    pm.onBeforeCompile = sh => { prevS(sh);
+      sh.fragmentShader = `uniform sampler2D gTex; uniform float gTS, gTB;
+vec4 gwTri(vec3 q, vec3 n) { vec3 bw = pow(abs(n) + 1e-4, vec3(4.0)); bw /= bw.x + bw.y + bw.z; return texture2D(gTex, q.zy) * bw.x + texture2D(gTex, q.xz) * bw.y + texture2D(gTex, q.xy) * bw.z; }
+` + sh.fragmentShader.replace("void main() {", "void main() {\n vec2 gDH = vec2(0.0);")
+        .replace("c = mix(c, c * vec3(1.1, 1.08, 0.86), 0.45 * n0);", `c = mix(c, c * vec3(1.1, 1.08, 0.86), 0.45 * n0);
+        vec3 gq = P * gTS + vec3(0.21, 0.43, 0.67), gn = normalize(gN); vec4 gX = gwTri(gq, gn), gXx = gwTri(gq + dFdx(gq), gn), gXy = gwTri(gq + dFdy(gq), gn);
+        float pitK = gK > 2.5 ? 1.0 : (gK > 0.5 && gK < 1.5 ? smoothstep(0.3, 0.75, up) : 0.0);   /* pitted shell on the covers and the top of the back, soft scales everywhere else */
+        float hS = mix(gX.g, gX.r, pitK);
+        gDH = vec2(mix(gXx.g, gXx.r, pitK) - hS, mix(gXy.g, gXy.r, pitK) - hS) * gTB;
+        c *= mix(0.84 + 0.28 * gX.g, 0.86 + 0.24 * gX.r, pitK);   /* scale centres catch the light, pits sit a little darker */`)
+        .replace("gL *= seg;", `gL *= seg;
+          c = mix(c, c * (0.8 + 0.3 * gX.b), clamp(gL, 0.0, 1.0)); gL *= 0.78 + 0.32 * gX.b;   /* soft glowing cells inside the lantern */`)
+        .replace("gH = bh * aa * (1.0 - gL);", "gH = bh * aa * (1.0 - gL); gDH *= 1.0 - clamp(gL, 0.0, 1.0);")
+        .replace("vec2(dFdx(gH), dFdy(gH)) * gBS", "(gDH + 0.2 * vec2(dFdx(gH), dFdy(gH)) * gBS)");
+    };
+    pm.customProgramCacheKey = () => "glimSkin2_"; }
+  G.pm = pm; G.U = U;
+  const SKIN = new Set([M.body, M.top, M.belly, M.web, M.thigh, M.shin, M.sock].filter(Boolean));
+  dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
+  shells.forEach(s => s.piv.traverse(m => { if (m.isMesh) { m.material = pm; m.userData.gwShell = true; } }));
+  spine.receiveShadow = false;
+  // feelers, claws: soft matte; nostrils off; a rounder head, wide gentle eyes
+  M.horn.metalness = 0; M.horn.roughness = 0.6; M.horn.emissiveIntensity = 0;
+  head.children.forEach(m => { if (m.isMesh && m.material === M.flame2) m.visible = false; });
+  head.children[0].scale.set(1.3, 1.08, 1.08);
+  head.children.forEach(m => { if (m.isMesh && m.material === M.eye) { if (m.children[0]) m.children[0].rotation.z = 0.2; if (m.children[1]) m.children[1].rotation.z = -0.2; } });
+  // see-through wings with a gentle soap-film shimmer; veins a soft dark olive
+  M.wing.transparent = true; M.wing.opacity = 0.42; M.wing.depthWrite = false; M.wing.roughness = 0.25; M.wing.metalness = 0;
+  M.wing.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv)); float h = fr * 1.6 + vViewPosition.x * 0.3 + vViewPosition.y * 0.25;
+        totalEmissiveRadiance += (0.55 + 0.45 * cos(6.2832 * (h + vec3(0.0, 0.33, 0.67)))) * (0.04 + 0.22 * fr); }`); };
+  M.wing.customProgramCacheKey = () => "glimWing"; M.wing.needsUpdate = true;
+  { const prevW = M.wing.onBeforeCompile, VT = gwVeinTex(), VC = lin(p.top).lerp(lin(p.horn), 0.4);   /* NEW v2: a fine vein network on the see-through wings */
+    M.wing.onBeforeCompile = sh => { prevW(sh); sh.uniforms.gVT = { value: VT }; sh.uniforms.gVC = { value: VC };
+      sh.vertexShader = "varying vec2 gWu;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n gWu = uv;");
+      sh.fragmentShader = "uniform sampler2D gVT; uniform vec3 gVC; varying vec2 gWu;\n" + sh.fragmentShader.replace("#include <alphamap_fragment>", `#include <alphamap_fragment>
+      { float vn = texture2D(gVT, gWu).r; diffuseColor.rgb = mix(diffuseColor.rgb, gVC, vn * 0.8); diffuseColor.a = mix(diffuseColor.a, 0.92, vn * 0.85); }`); };
+    M.wing.customProgramCacheKey = () => "glimWingV"; }
+  M.bone.color.copy(lin(p.top)).lerp(lin(p.horn), 0.4); M.bone.metalness = 0; M.bone.roughness = 0.6; M.bone.emissiveIntensity = 0;
+  // ----- the lantern's light and halo at the tail end (shared glow texture) -----
+  const glowTex = window.__gwTex || (window.__gwTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.3, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.rmShared = true; return t; })());
+  G.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: lin(p.glow), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending })); G.halo.position.x = -0.2; G.halo.scale.setScalar(0.9); tailTip.add(G.halo);   /* v3: in the middle of the lantern end */
+  G.lamp = new THREE.PointLight(lin(p.glow), 0.5, 3.2, 2); G.lamp.position.set(-0.2, -0.12, 0); tailTip.add(G.lamp);
+  // ----- night motes: little glowing specks that drift and blink -----
+  const MN = 22, mg = new THREE.BufferGeometry(), ma = new Float32Array(MN * 3), mc = new Float32Array(MN * 3); G.mS = [];
+  for (let i = 0; i < MN; i++) G.mS.push([Math.random() * 6.28, 0.9 + Math.random() * 1.4, Math.random() * 6.28, -1.6 + Math.random() * 3.6, 0.3 + Math.random() * 0.6, 0.7 + Math.random() * 1.6]);
+  mg.setAttribute("position", new THREE.BufferAttribute(ma, 3)); mg.setAttribute("color", new THREE.BufferAttribute(mc, 3));
+  G.motes = new THREE.Points(mg, new THREE.PointsMaterial({ size: 0.2, map: glowTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  G.motes.frustumCulled = false; G.moteC = lin(p.glow).lerp(new THREE.Color(1, 1, 0.8), 0.25); dragon.add(G.motes);
+  // ----- Flash Burst: a blinding pulse of light that swells out and fades -----
+  G.burst = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: lin(p.glow).lerp(new THREE.Color(1, 1, 1), 0.55), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); G.burst.visible = false; G.burst.renderOrder = 9; dragon.add(G.burst);
+  G.ringM = new THREE.MeshBasicMaterial({ color: lin(p.glow).lerp(new THREE.Color(1, 1, 1), 0.3), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  G.ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.022, 8, 72), G.ringM); G.ring.visible = false; dragon.add(G.ring);
+  G.flashL = new THREE.PointLight(lin(p.glow).lerp(new THREE.Color(1, 1, 1), 0.5), 0, 14, 2); dragon.add(G.flashL);
+  G.built = true;
+}
+function glimRest() {   // once, on the first frame: remember where every skin vertex sits (and which way it faces), in the dragon's own space
+  const G = o._gw; dragon.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(dragon.matrixWorld).invert(), mm = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new V(), seen = new Set();
+  const headSet = new Set(); head.traverse(m => headSet.add(m));
+  dragon.traverse(m => { if (!m.isMesh || m.material !== G.pm) return;
+    if (seen.has(m.geometry)) m.geometry = m.geometry.clone(); seen.add(m.geometry);
+    const g = m.geometry, P = g.attributes.position, N = g.attributes.normal, UV = g.attributes.uv, n = P.count;
+    const R = new Float32Array(n * 3), RN = new Float32Array(n * 3), Kk = new Float32Array(n), Ss = new Float32Array(n), Ee = new Float32Array(n);
+    mm.multiplyMatrices(inv, m.matrixWorld); nm.getNormalMatrix(mm);
+    const kind = headSet.has(m) ? 0 : m === spine ? 1 : m.userData.gwShell ? 3 : 2;
+    for (let i = 0; i < n; i++) { v.fromBufferAttribute(P, i).applyMatrix4(mm); R.set([v.x, v.y, v.z], i * 3); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); RN.set([v.x, v.y, v.z], i * 3); Kk[i] = kind;
+      Ss[i] = kind === 1 && UV ? UV.getX(i) : -1;
+      if (kind === 3 && UV) { const u = UV.getX(i), w = UV.getY(i); Ee[i] = Math.max(Math.pow(1 - Math.min(1, w / 0.075), 1.5), 0.55 * Math.pow(1 - Math.min(1, Math.min(u, 1 - u) / 0.03), 1.5)); } }
+    g.setAttribute("gwRest", new THREE.BufferAttribute(R, 3)); g.setAttribute("gwRestN", new THREE.BufferAttribute(RN, 3)); g.setAttribute("gwK", new THREE.BufferAttribute(Kk, 1));
+    g.setAttribute("gwS", new THREE.BufferAttribute(Ss, 1)); g.setAttribute("gwE", new THREE.BufferAttribute(Ee, 1)); });
+  G.rested = true;
+}
+function glimNormals() {   /* v3: the spine tube's normals follow its changing radius (the rounded lantern end, the soft ring segments), fading out by the hips */
+  const Nn = spine.geometry.attributes.normal.array;
+  for (let i = 0; i <= SEGS; i++) { const s = i / SEGS; if (s > 0.5) break;
+    const e = Math.min(1, Math.max(0, (s - 0.38) / 0.12)), w = 1 - e * e * (3 - 2 * e), a = frames[Math.max(0, i - 1)], b = frames[Math.min(SEGS, i + 1)];
+    const sl = (b.r - a.r) / Math.max(1e-4, a.p.distanceTo(b.p)) * w, T = frames[i].T;
+    for (let j = 0; j <= RAD; j++) { const k = (i * (RAD + 1) + j) * 3, nx = Nn[k] - T.x * sl, ny = Nn[k + 1] - T.y * sl, nz = Nn[k + 2] - T.z * sl, l = Math.hypot(nx, ny, nz) || 1; Nn[k] = nx / l; Nn[k + 1] = ny / l; Nn[k + 2] = nz / l; } }
+  spine.geometry.attributes.normal.needsUpdate = true;
+}
+function glimStep(t, dt) {
+  const G = o._gw;
+  glimNormals();
+  if (!G.rested) glimRest();
+  G.night += (((() => { try { return isNight ? 1 : 0; } catch (e) { return 0; } })()) - G.night) * Math.min(1, dt * 3);
+  G.flash = Math.max(0, G.flash - dt);
+  const fp = G.flash > 0 ? 1 - G.flash / 1.6 : 1, fk = G.flash > 0 ? Math.min(1, fp / 0.06) * Math.pow(1 - fp, 1.6) : 0;   /* fast flare, slow fade */
+  const pulse = 0.5 + 0.5 * Math.sin(t * 1.25);   /* slow, like breathing */
+  G.U.gT.value = t; G.U.gPulse.value = pulse; G.U.gLamp.value = (0.8 + 0.8 * G.night) * (1 + 5 * fk);
+  G.halo.material.opacity = (0.3 + 0.25 * pulse) * (1 + 0.9 * G.night) + 0.6 * fk; G.halo.scale.setScalar(0.75 + 0.25 * pulse + 0.5 * G.night);
+  G.lamp.intensity = (0.35 + 0.3 * pulse) * (1 + 1.6 * G.night) + 3 * fk;
+  // night motes drift slowly and blink one by one
+  const c = at(0.5).p, A = G.motes.geometry.attributes.position, C = G.motes.geometry.attributes.color, vis = 0.25 + 0.75 * G.night;
+  G.mS.forEach(([a0, r, ph, dx, sp, bl], i) => { const an = a0 + t * sp * 0.35;
+    A.setXYZ(i, c.x + dx + Math.sin(an * 1.3) * 0.25, c.y + 0.2 + Math.sin(t * sp + ph) * 0.55, Math.cos(an) * r);
+    const k = vis * Math.pow(0.5 + 0.5 * Math.sin(t * bl + ph * 3), 3); C.setXYZ(i, G.moteC.r * k, G.moteC.g * k, G.moteC.b * k); });
+  A.needsUpdate = true; C.needsUpdate = true;
+  // Flash Burst
+  G.burst.visible = G.ring.visible = fk > 0.002;
+  if (G.burst.visible) { const bc = at(0.07).p;   /* v3: the burst swells out from the lantern end */ G.burst.position.copy(bc); G.burst.scale.setScalar(1.5 + 9 * Math.sqrt(fp)); G.burst.material.opacity = Math.min(1, 1.3 * fk);
+    G.ring.position.copy(bc); G.ring.rotation.x = Math.PI / 2; G.ring.scale.setScalar(0.6 + 5.5 * Math.sqrt(fp)); G.ringM.opacity = 0.85 * fk; }
+  G.flashL.position.copy(at(0.07).p); G.flashL.intensity = 9 * fk;
+}
+if (o.glim) glimBuild();
+// ----- NEW Orchidra (orchid mantis dragon, Petra 2026-11-14) -----
+function orx() { return o._or || (o._or = { built: false, rested: false, hide: 0, hk: 0, amb: 0, pin: 0, st: -1, lunge: 0 }); }
+function orPetalGeo(L, W, q) {   // a petal: x = length, z = width, y = the cupped side; uv.x = 0 at the base .. 1 at the edge, uv.y = -1 .. 1 across
+  q = q || {}; const NA = q.NA || 20, NR = q.NR || 8, pos = [], uv = [], ix = [];
+  for (let i = 0; i <= NA; i++) { const a = -1 + 2 * i / NA, ps = a * Math.PI * 0.985;
+    let ex = L / 2 + L / 2 * Math.cos(ps); const ez = W / 2 * Math.sin(ps);
+    ex *= 1 + (q.tip || 0) * Math.pow(Math.max(0, Math.cos(ps)), 6);
+    if (q.heart) ex -= q.heart * L * Math.exp(-Math.pow(a * 7, 2));
+    for (let r = 0; r <= NR; r++) { const u = r / NR, bz = a * (q.bw || 0) / 2, x = ex * u, zz = bz + (ez - bz) * u, zn = zz / (Math.max(W, q.bw || 0) / 2 || 1);
+      pos.push(x, (q.cup || 0) * L * zn * zn * u + (q.curl || 0) * L * u * u, zz); uv.push(u, a); } }
+  for (let i = 0; i < NA; i++) for (let r = 0; r < NR; r++) { const a = i * (NR + 1) + r, b = a + NR + 1; ix.push(a, b, a + 1, a + 1, b, b + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(ix); g.computeVertexNormals(); return g;
+}
+function orOrient(m, X, Zh) { X = X.clone().normalize(); const Z = Zh.clone().addScaledVector(X, -Zh.dot(X)).normalize(), Y = new V().crossVectors(Z, X); m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)); }
+function orchidBuild() {
+  const E = orx(), lin = c => new THREE.Color(c).convertSRGBToLinear(), V3 = THREE.Vector3;
+  const U = { oT: { value: 0 }, oHide: { value: 0 }, oBS: { value: 0.0007 },
+    oSkin: { value: lin(p.skin || p.side) }, oRose: { value: lin(p.rose || p.top) }, oBelly: { value: lin(p.belly) }, oBlush: { value: lin(p.blush || p.glow) },
+    oPetal: { value: lin(p.petal || p.belly) }, oVein: { value: lin(p.vein || p.horn) }, oGlow: { value: lin(p.glow) }, oGold: { value: lin(p.gold || p.horn) },
+    oYb: { value: 0 }, oTx: { value: -1 } };
+  const NOISE = `float orHs(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float orN(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(orHs(i), orHs(i + vec3(1.0, 0.0, 0.0)), f.x), mix(orHs(i + vec3(0.0, 1.0, 0.0)), orHs(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(orHs(i + vec3(0.0, 0.0, 1.0)), orHs(i + vec3(1.0, 0.0, 1.0)), f.x), mix(orHs(i + vec3(0.0, 1.0, 1.0)), orHs(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z); }
+vec3 orBump(vec3 sp, vec3 sn, vec2 dH, float fd) { vec3 sx = dFdx(sp), sy = dFdy(sp), r1 = cross(sy, sn), r2 = cross(sn, sx); float det = dot(sx, r1) * fd;
+  return normalize(abs(det) * sn - sign(det) * (dH.x * r1 + dH.y * r2)); }
+`;
+  const UNI = "uniform float oT, oHide, oBS, oYb, oTx; uniform vec3 oSkin, oRose, oBelly, oBlush, oPetal, oVein, oGlow, oGold;\n";
+  // ----- the skin: velvety white petal, rosy on top, blushing pink toward the edges -----
+  const pm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, emissive: lin(p.blush || p.glow), emissiveIntensity: 1 });
+  pm.extensions = { derivatives: true };
+  pm.onBeforeCompile = sh => { Object.assign(sh.uniforms, U);
+    sh.vertexShader = "attribute vec3 orRest; attribute vec3 orRestN; varying vec3 oP; varying vec3 oN;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n oP = orRest; oN = orRestN;");
+    sh.fragmentShader = UNI + "varying vec3 oP; varying vec3 oN;\n" + NOISE + sh.fragmentShader
+      .replace("void main() {", "void main() {\n float orH = 0.0;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+      { vec3 P = oP, Nr = normalize(oN);
+        float up = smoothstep(0.15, 0.85, Nr.y), under = smoothstep(-0.15, -0.8, Nr.y);
+        vec3 c = mix(oSkin, oRose, up); c = mix(c, oBelly, under * 0.7);   /* rosy back, soft white flanks and belly */
+        float ext = max(smoothstep(oYb, oYb - 1.0, P.y), smoothstep(oTx, oTx - 1.4, P.x));   /* the edges: lower legs and the tail end */
+        c = mix(c, oBlush, ext * 0.6);
+        c = mix(c, oBlush, smoothstep(0.55, 0.85, orN(P * 2.2 + 4.0)) * 0.18);   /* soft pink flushes, like a real petal */
+        vec3 Q = vec3(P.x * 3.0, P.y * 34.0, P.z * 34.0);   /* fine petal streaks running along the body (velvet, not cracks) */
+        float aa = 1.0 - smoothstep(0.3, 0.9, length(fwidth(Q)));   /* fade fine detail out where it gets too small on screen */
+        float vein = smoothstep(0.62, 0.9, orN(Q + orN(P * 3.0) * 2.0)) * aa;
+        c = mix(c, oBlush, vein * 0.2);   /* the streaks are a little pinker, never dark */
+        float gk = 1.0 - smoothstep(0.3, 0.8, length(fwidth(P * 40.0)));
+        c *= 1.0 + (orN(P * 40.0) - 0.5) * 0.035 * gk;   /* velvet grain */
+        c = mix(c, mix(oPetal, oBlush, 0.3 + 0.4 * smoothstep(0.4, 0.7, orN(P * 3.0 + 9.0))), oHide * 0.7);   /* hiding: it turns petal-pink, blotched like a flower */
+        diffuseColor.rgb = c; diffuseColor.a *= 1.0 - 0.3 * oHide;
+        orH = vein; }`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+      normal = orBump(-vViewPosition, normal, vec2(dFdx(orH), dFdy(orH)) * oBS, faceDirection);`)
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+        totalEmissiveRadiance = oBlush * (0.03 + 0.28 * pow(fr, 2.5));   /* soft pink velvet sheen at the rim */
+        totalEmissiveRadiance += mix(oGlow, oGold, 0.5 + 0.5 * sin(fr * 7.0 + oT * 1.3)) * pow(fr, 5.0) * 0.12; }`);
+  };
+  pm.customProgramCacheKey = () => "orchidSkin";
+  { const prevS = pm.onBeforeCompile;   /* NEW v4 (Petra: texture it better): the orchid-petal texture on body, head, legs and arms alike */
+    U.oTex = { value: orSkinTex() }; U.oTS = { value: 1.1 }; U.oBS.value = 0.005; pm.roughness = 0.82;
+    pm.onBeforeCompile = sh => { prevS(sh);
+      sh.vertexShader = "attribute vec3 orRestT; varying vec3 oTg;\n" + sh.vertexShader.replace("oP = orRest; oN = orRestN;", "oP = orRest; oN = orRestN; oTg = orRestT;");
+      sh.fragmentShader = `uniform sampler2D oTex; uniform float oTS; varying vec3 oTg;
+vec4 orTx(vec3 q, vec3 n, vec3 t) {   /* three planes; vy turns the veins to run up and down on upright parts (neck, legs) */
+  vec3 bw = pow(abs(n) + 1e-4, vec3(4.0)); bw /= bw.x + bw.y + bw.z; float vy = smoothstep(0.55, 0.8, abs(t.y));
+  vec4 a = texture2D(oTex, mix(q.zy, q.yz, vy)), b = texture2D(oTex, q.xz), c = texture2D(oTex, mix(q.xy, q.yx, vy));
+  return a * bw.x + b * bw.y + c * bw.z; }
+` + sh.fragmentShader.replace("diffuseColor.rgb = c;", `{ vec3 oq = P * oTS + vec3(0.37, 0.11, 0.73), otg = normalize(oTg + vec3(1e-4, 0.0, 0.0)); vec4 oX = orTx(oq, Nr, otg);
+          orDH = vec2(orTx(oq + dFdx(oq), Nr, otg).r - oX.r, orTx(oq + dFdy(oq), Nr, otg).r - oX.r);   /* smooth bump straight from the texture */
+          c = mix(c, oBlush, oX.g * 0.55);   /* fine parallel veins, a little pinker (never dark) */
+          c = mix(c, mix(oBlush, oRose, 0.35), oX.b * (0.38 + 0.25 * up));   /* soft blush speckles and flecks */
+          c *= 0.9 + 0.2 * oX.r;   /* velvet shading */
+          orH = oX.r; }
+        diffuseColor.rgb = c;`).replace("void main() {", "void main() {\n vec2 orDH = vec2(0.0);").replace("vec2(dFdx(orH), dFdy(orH)) * oBS", "orDH * oBS");
+    };
+    pm.customProgramCacheKey = () => "orchidSkin4"; }
+  E.pm = pm; E.U = U;
+  const SKIN = new Set([M.body, M.top, M.belly, M.thigh, M.shin, M.sock].filter(Boolean));
+  dragon.traverse(m => { if (m.isMesh && SKIN.has(m.material)) m.material = pm; });
+  spine.receiveShadow = false;
+  // ----- petals: white at the base, pink toward the edge, pink veins, a pink-gold shimmer on the rim -----
+  const petalMat = (alpha) => { const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: alpha < 1 ? 0.5 : 0.75, metalness: 0, side: THREE.DoubleSide, transparent: alpha < 1, depthWrite: alpha >= 1, emissive: 0xffffff, emissiveIntensity: 1 });
+    m.extensions = { derivatives: true };
+    m.onBeforeCompile = sh => { Object.assign(sh.uniforms, U, { oA: { value: alpha }, oW: { value: lin(alpha < 1 ? (p.petalW || p.wing) : (p.petal || p.belly)) } });
+      sh.vertexShader = "varying vec2 oUv;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n oUv = uv;");
+      sh.fragmentShader = UNI + "uniform float oA; uniform vec3 oW; varying vec2 oUv;\n" + NOISE + sh.fragmentShader
+        .replace("#include <color_fragment>", `#include <color_fragment>
+        { float u = oUv.x, a = oUv.y, NV = 9.0;
+          float ph = a * NV * 3.14159 + (orN(vec3(u * 3.0, a * 3.0, 1.7)) - 0.5) * 1.6;
+          float fw = fwidth(a * NV);
+          float veins = pow(abs(cos(ph)), 30.0) * (1.0 - smoothstep(0.12, 0.45, fw)) * smoothstep(0.02, 0.2, u);
+          float mid = exp(-pow(a * 10.0, 2.0)) * smoothstep(0.0, 0.1, u) * (1.0 - u * 0.6);
+          float edge = smoothstep(0.45, 1.0, u);
+          vec3 c = mix(oW, oBlush, edge * edge * 0.9);
+          c = mix(c, oVein, clamp(veins * 0.5 + mid * 0.45, 0.0, 1.0) * (0.35 + 0.65 * edge));
+          c *= 1.0 + (orN(vec3(u * 40.0, a * 30.0, 0.0)) - 0.5) * 0.05;   /* velvet */
+          diffuseColor.rgb = c;
+          diffuseColor.a = oA >= 1.0 ? 1.0 : clamp(oA + 0.3 * clamp(veins + mid + edge * edge, 0.0, 1.0), 0.0, 1.0); }`)
+        .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+        { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv)), u = oUv.x;
+          float rim = smoothstep(0.78, 1.0, u);
+          vec3 sh = mix(oGlow, oGold, 0.5 + 0.5 * sin(fr * 6.0 + oUv.y * 3.0 + oT * 1.6));
+          totalEmissiveRadiance = sh * rim * (0.16 + 0.55 * fr) * (1.0 + 1.6 * oHide) + oW * 0.04 * (1.0 + 2.0 * oHide); }`);
+    };
+    m.customProgramCacheKey = () => "orchidPetal" + (alpha < 1 ? "t" : "o");
+    { const prevP = m.onBeforeCompile;   /* NEW v4: petal veins + velvet from the shared petal texture */
+      m.onBeforeCompile = sh => { prevP(sh); sh.uniforms.oTex = { value: orSkinTex() };
+        sh.fragmentShader = "uniform sampler2D oTex;\n" + sh.fragmentShader.replace("void main() {", "void main() {\n float oWv = 0.0;").replace("diffuseColor.rgb = c;", `{ vec4 oX = texture2D(oTex, vec2(u * 1.1 + 0.2, a * 0.42 + 0.5));
+            c = mix(c, mix(oVein, oBlush, 0.4), oX.g * (0.22 + 0.3 * edge));   /* fine petal veins, stronger toward the edge */
+            c = mix(c, mix(oBlush, oRose, 0.35), oX.b * 0.3 * (0.4 + 0.6 * edge));
+            c *= 0.92 + 0.16 * oX.r; oWv = oX.g; }
+          diffuseColor.rgb = c;`).replace("#include <alphamap_fragment>", "#include <alphamap_fragment>\n        if (oA < 1.0) diffuseColor.a = clamp(diffuseColor.a + 0.18 * oWv, 0.0, 1.0);");
+      };
+      m.customProgramCacheKey = () => "orchidPetal4" + (alpha < 1 ? "t" : "o"); } return m; };
+  E.lobeM = petalMat(1); E.wingM = petalMat(0.42);
+  E.spM = new THREE.MeshStandardMaterial({ color: lin(p.horn), roughness: 0.55, metalness: 0, emissive: lin(p.glow), emissiveIntensity: 0.08 });   // pink spines and claws
+  M.horn.color.copy(lin(p.horn)); M.horn.metalness = 0; M.horn.roughness = 0.55; M.horn.emissive = lin(p.glow); M.horn.emissiveIntensity = 0.06;
+  // ----- the walking legs: petal lobes on the thighs, saw-teeth down the back edge -----
+  const toothG = new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0), lobeG = orPetalGeo(0.3, 0.42, { bw: 0.3, cup: 0.22, curl: 0.12, NA: 18, NR: 7 });
+  const tooth = (parent, at, dir, along, h, r) => { const c = new THREE.Mesh(toothG, E.spM); c.position.copy(at); c.scale.set(r, h, r); c.quaternion.setFromUnitVectors(UP, dir.clone().addScaledVector(along, 0.45).normalize()); c.castShadow = true; parent.add(c); };
+  (o._orLegs || []).forEach(L => { const { g, P, z, hindL } = L, knee = g.userData.knee, kp = P[2];
+    const thigh = new THREE.CatmullRomCurve3(P.slice(0, 3)), shin = new THREE.CatmullRomCurve3(P.slice(2));
+    const back = (crv, t, down) => { const d = crv.getTangent(t), b = new V(-1, -down, 0); return b.addScaledVector(d, -b.dot(d)).normalize(); };
+    const R0l = t => 0.07 * (1 - 0.35 * t);
+    for (let i = 0; i < 8; i++) { const t = 0.3 + i * 0.085, q = thigh.getPoint(t), d = thigh.getTangent(t), b = back(thigh, t, 1.1); tooth(g, q.clone().addScaledVector(b, R0l(t) * 0.8), b, d, i % 2 ? 0.06 : 0.1, 0.015); }
+    for (let i = 0; i < 11; i++) { const t = 0.1 + i * 0.075, q = shin.getPoint(t), d = shin.getTangent(t), b = back(shin, t, 0.2); tooth(knee, q.clone().sub(kp).addScaledVector(b, 0.032 * (1 - 0.2 * t)), b, d, i % 2 ? 0.05 : 0.08, 0.012); }
+    const kn = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), pm); kn.scale.setScalar(g.userData.kR * 1.35); knee.add(kn);   // a clear knee knob
+    // the petal lobe: attached along the top-outer side of the thigh, flaring out, up and back like a flower petal
+    const t0 = 0.55, q = thigh.getPoint(t0), d = thigh.getTangent(t0), out = new V(-0.55, 0.65, 0.55 * z).addScaledVector(d, -new V(-0.55, 0.65, 0.55 * z).dot(d)).normalize();
+    const lobe = new THREE.Mesh(lobeG, E.lobeM); lobe.position.copy(q).addScaledVector(out, 0.03); orOrient(lobe, out, d); lobe.scale.set(hindL ? 1.5 : 1.3, 1.3, hindL ? 1.25 : 1.1); lobe.castShadow = true; g.add(lobe);
+  });
+  // ----- the grabbing forelegs: coxa, spiny femur, spiny tibia with a hooked claw, folded under the chest -----
+  E.armSock = new THREE.Group(); dragon.add(E.armSock); E.arms = [];
+  const fr0 = at(0.72).r;
+  [1, -1].forEach(z => {
+    const root = new THREE.Group(); root.position.set(fr0 * 0.45, -fr0 * 0.15, z * fr0 * 0.95); root.rotation.y = z * 0.04;   /* v3: rooted at the sides of the chest, clear space between the arms */ E.armSock.add(root);
+    const seg = (parent, len, rr) => { const m = staticTube([new V(0, 0, 0), new V(len * 0.5, 0, 0), new V(len, 0, 0)], rr, pm, 16, 12); parent.add(m); return m; };
+    const ball = (parent, r, x) => { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), pm); b.position.x = x; parent.add(b); };
+    const LC = 0.38, LF2 = 0.9, LT = 0.74;   /* v3 (Petra): long forelegs, as long as the front body */
+    const cp = new THREE.Group(); root.add(cp); seg(cp, LC, [[0, 0.08], [0.6, 0.064], [1, 0.055]]); ball(cp, 0.08, 0);
+    const fp = new THREE.Group(); fp.position.x = LC; cp.add(fp); ball(fp, 0.06, 0); seg(fp, LF2, [[0, 0.055], [0.3, 0.085], [0.75, 0.062], [1, 0.045]]);
+    for (let i = 0; i < 15; i++) { const x = 0.2 + i * 0.045, r = x < 0.5 ? 0.08 : 0.064; tooth(fp, new V(x, -r * 0.85, 0), new V(0, -1, 0), new V(1, 0, 0), i % 2 ? 0.055 : 0.095, 0.013); }   // femur: long and short spines along the inner edge
+    [0.08, 0.15].forEach((x, i) => tooth(fp, new V(x, -0.065, 0), new V(0, -1, 0.35 * z * (i ? -1 : 1)), new V(1, 0, 0), 0.11, 0.014));   // two big grabbing spines near the base
+    const tp = new THREE.Group(); tp.position.x = LF2; fp.add(tp); ball(tp, 0.048, 0); seg(tp, LT, [[0, 0.045], [0.7, 0.034], [1, 0.025]]);
+    for (let i = 0; i < 16; i++) tooth(tp, new V(0.06 + i * 0.04, -0.032, 0), new V(0, -1, 0), new V(1, 0, 0), i % 2 ? 0.03 : 0.05, 0.009);   // tibia: fine saw-teeth on the inner edge
+    const claw = staticTube([new V(LT - 0.02, 0, 0), new V(LT + 0.07, -0.01, 0), new V(LT + 0.12, -0.06, 0), new V(LT + 0.12, -0.11, 0)], [[0, 0.024], [1, 0.003]], E.spM, 12, 8); tp.add(claw);   // the hooked claw
+    root.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    E.arms.push({ root, cp, fp, tp, z });
+  });
+  // ----- head: small and triangular, big soft green eyes at the top corners, thin curled feelers -----
+  head.children.forEach(m => { if (m.isMesh && m.material === M.flame2) m.visible = false; });   // no glowing nostrils
+  { const key = "e" + p.eye, cache = (window.__orEyeTex = window.__orEyeTex || {});   /* big soft green eyes, green from every side (one texture per palette, shared) */
+    if (!cache[key]) { const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const x = cv.getContext("2d");
+      x.fillStyle = "#" + mix(p.eye, "#0a1a10", 0.45).getHexString(); x.fillRect(0, 0, 256, 128);
+      const gg = x.createRadialGradient(128, 64, 4, 128, 64, 120); gg.addColorStop(0, "#" + mix(p.eye, "#ffffff", 0.25).getHexString()); gg.addColorStop(0.45, p.eye); gg.addColorStop(1, "#" + mix(p.eye, "#0a1a10", 0.45).getHexString());
+      x.fillStyle = gg; x.fillRect(0, 0, 256, 128);
+      x.fillStyle = "#14081a"; x.beginPath(); x.ellipse(128, 64, 5, 30, 0, 0, Math.PI * 2); x.fill();   /* a soft slit pupil (always reptile slits) */
+      x.fillStyle = "rgba(255,255,255,0.12)"; for (let i = 0; i < 9; i++) for (let j = 0; j < 5; j++) { x.beginPath(); x.arc(20 + i * 28 + (j % 2) * 14, 14 + j * 25, 9, 0, Math.PI * 2); x.fill(); }   /* faint mantis facets */
+      const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.rmShared = true; cache[key] = t; }
+    M.eye.map = M.eye.emissiveMap = cache[key]; M.eye.emissiveIntensity = 0.5; M.eye.roughness = 0.3; M.eye.needsUpdate = true; }
+  const hc = head.children; hc[0].scale.set(0.95, 0.92, 1.2); hc[0].position.set(-0.04, 0.05, 0);   // a wide crown: the top of the triangle
+  [1, 2, 3, 4].forEach(i => { if (hc[i]) hc[i].visible = false; }); if (hc[5]) { hc[5].scale.set(1.0, 0.7, 0.72); hc[5].position.set(0.0, -0.12, 0); }
+  { const sn2 = staticTube([new V(0.05, 0.0, 0), new V(0.22, -0.06, 0), new V(0.37, -0.13, 0)], [[0, 0.21], [0.5, 0.15], [1, 0.095]], pm, 20, 18, 0.8, 0.85); head.add(sn2);   // a short wedge snout narrowing to a small muzzle
+    const tp = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 12), pm); tp.scale.set(1.0, 0.85, 0.8); tp.position.set(0.37, -0.13, 0); head.add(tp);
+    const jw = staticTube([new V(0.02, -0.14, 0), new V(0.2, -0.18, 0), new V(0.34, -0.2, 0)], [[0, 0.15], [0.6, 0.1], [1, 0.06]], pm, 16, 14, 0.72, 0.7); head.add(jw);
+  }
+  head.children.forEach(m => { const ud = (m.geometry && m.geometry.userData) || {};
+    if (m.isMesh && ud.radial === 10 && ud.segs === 12) m.visible = false;   // no brow ridges: soft open face
+    if (m.isMesh && m.material === M.eye) { m.rotation.y *= 1.6; if (m.children[0]) m.children[0].rotation.z = 0.3; if (m.children[1]) m.children[1].rotation.z = -0.25; }   // lids drawn back: big, wide, soft eyes
+    if ((m.isMesh && m.material === M.eye) || m.isSprite) { m.position.y += 0.07; m.position.z *= 1.3; m.position.x -= 0.03; } });
+  [1, -1].forEach(z => { const pts = [new V(0.2, 0.25, 0.07 * z), new V(0.32, 0.5, 0.12 * z), new V(0.26, 0.78, 0.2 * z), new V(0.06, 0.92, 0.28 * z), new V(-0.12, 0.86, 0.32 * z), new V(-0.17, 0.72, 0.3 * z), new V(-0.1, 0.64, 0.27 * z)];
+    const f = staticTube(pts, [[0, 0.016], [0.6, 0.009], [1, 0.005]], E.spM, 40, 8); f.castShadow = false; head.add(f); });
+  // ----- see-through petal wings on the bat wing's pivot -----
+  wings.forEach(w => { const g = w.pivot.children[0]; if (!g) return; g.children.forEach(m => { m.visible = false; });
+    [[new V(-0.55, 0.55, 1), 2.05, 0.82, 0.25], [new V(-1.15, 0.25, 0.95), 1.75, 1.1, -0.1], [new V(0.05, 0.75, 1), 1.35, 0.6, 0.45], [new V(-1.25, -0.15, 0.45), 1.15, 0.7, 0]].forEach(([d, L, W, tw]) => {
+      const pg = orPetalGeo(L, W, { cup: 0.12, curl: -0.06, tip: 0.12, NA: 24, NR: 10 }), m = new THREE.Mesh(pg, E.wingM);
+      orOrient(m, d, new V(1, 0.4 + tw, -0.2)); m.castShadow = false; m.renderOrder = 3; g.add(m); });
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), pm); g.add(hub); });
+  M.trim.opacity = 0;
+  // ----- short tail with a petal fan (two rings, like an opening orchid) -----
+  tailTip.children.slice().forEach(m => { if (m.isMesh) m.visible = false; });
+  { const fg = orPetalGeo(0.55, 0.32, { cup: 0.25, curl: 0.18, tip: 0.1, NA: 16, NR: 7 }), ig = orPetalGeo(0.36, 0.24, { cup: 0.3, curl: 0.2, NA: 14, NR: 6 });
+    for (let i = 0; i < 7; i++) { const a = (i - 3) * 0.42, d = new V(Math.cos(0.75), Math.sin(0.75) * Math.cos(a), Math.sin(0.75) * Math.sin(a)), m = new THREE.Mesh(fg, E.lobeM);
+      orOrient(m, d, new V(0, -Math.sin(a), Math.cos(a))); m.position.x = 0.02; m.castShadow = true; tailTip.add(m); }
+    for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.55 + 0.2, d = new V(Math.cos(0.45), Math.sin(0.45) * Math.cos(a), Math.sin(0.45) * Math.sin(a)), m = new THREE.Mesh(ig, E.lobeM);
+      orOrient(m, d, new V(0, -Math.sin(a), Math.cos(a))); m.position.x = 0.04; tailTip.add(m); }
+    const c = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), E.spM); c.position.x = 0.06; tailTip.add(c); }
+  // ----- Blossom Ambush: little flowers that bloom round its feet, a pink-gold flash on the strike -----
+  E.blooms = [];
+  { const bg = orPetalGeo(0.16, 0.11, { cup: 0.35, curl: 0.25, NA: 12, NR: 5 }), cm = new THREE.SphereGeometry(0.035, 10, 8);
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2 + 0.3, rr = 1.05 + (k % 3) * 0.32, b = new THREE.Group(); b.position.set(Math.cos(a) * rr * 1.25 - 0.1, 0.02, Math.sin(a) * rr);
+      for (let i = 0; i < 5; i++) { const pa = i / 5 * Math.PI * 2, m = new THREE.Mesh(bg, E.lobeM); orOrient(m, new V(Math.cos(pa), 0.55, Math.sin(pa)), new V(-Math.sin(pa), 0, Math.cos(pa))); b.add(m); }
+      const c = new THREE.Mesh(cm, E.spM); c.position.y = 0.03; b.add(c); b.visible = false; b.userData.ph = k * 0.37; b.userData.sz = 2.0; dragon.add(b); E.blooms.push(b); }
+    for (let k = 0; k < 6; k++) { const b = E.blooms[k].clone(); b.userData = { ph: 0.2 + k * 0.3, sz: 2.6, back: 0.36 + k * 0.05, side: (k % 2 ? 1 : -1) * 0.35 }; dragon.add(b); E.blooms.push(b); } }   /* and a few on its back, like flowers growing out of it */
+  { const tex = window.__orFlashTex || (window.__orFlashTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 128; const x = cv.getContext("2d"), gg = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gg.addColorStop(0, "rgba(255,255,255,1)"); gg.addColorStop(0.3, "rgba(255,255,255,0.5)"); gg.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gg; x.fillRect(0, 0, 128, 128);
+      x.fillStyle = "rgba(255,255,255,0.95)"; for (let i = 0; i < 8; i++) { x.save(); x.translate(64, 64); x.rotate(i / 8 * Math.PI * 2); x.beginPath(); x.moveTo(0, -6); x.lineTo(60, 0); x.lineTo(0, 6); x.fill(); x.restore(); }
+      const t = new THREE.CanvasTexture(cv); t.rmShared = true; return t; })());   /* shared by every Orchidra and every palette: white, tinted per dragon */
+    E.flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: mix(p.gold || p.glow, p.glow, 0.45).convertSRGBToLinear(), transparent: true, opacity: 0, depthWrite: false })); E.flash.visible = false; dragon.add(E.flash); }
+  E.built = true;
+}
+function orchidRest() {   // once, on the first frame: remember where every skin vertex sits (and which way it faces), in the dragon's own space
+  const E = o._or; dragon.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(dragon.matrixWorld).invert(), mm = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new V(), seen = new Set();
+  dragon.traverse(m => { if (!m.isMesh || m.material !== E.pm) return;
+    if (seen.has(m.geometry)) m.geometry = m.geometry.clone(); seen.add(m.geometry);
+    const g = m.geometry, P = g.attributes.position, N = g.attributes.normal, R = new Float32Array(P.count * 3), RN = new Float32Array(P.count * 3);
+    mm.multiplyMatrices(inv, m.matrixWorld); nm.getNormalMatrix(mm);
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(mm); R.set([v.x, v.y, v.z], i * 3); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); RN.set([v.x, v.y, v.z], i * 3); }
+    { const UVa = g.attributes.uv, Tg = new Float32Array(P.count * 3), ix = g.index ? g.index.array : null, nT = ix ? ix.length : P.count;   /* NEW v4: orRestT */
+      if (UVa) for (let f = 0; f + 2 < nT; f += 3) { const a = ix ? ix[f] : f, b = ix ? ix[f + 1] : f + 1, c = ix ? ix[f + 2] : f + 2;
+        const du1 = UVa.getX(b) - UVa.getX(a), dv1 = UVa.getY(b) - UVa.getY(a), du2 = UVa.getX(c) - UVa.getX(a), dv2 = UVa.getY(c) - UVa.getY(a), rd = du1 * dv2 - du2 * dv1; if (Math.abs(rd) < 1e-12) continue;
+        for (let q = 0; q < 3; q++) { const t = ((R[b * 3 + q] - R[a * 3 + q]) * dv2 - (R[c * 3 + q] - R[a * 3 + q]) * dv1) / rd; Tg[a * 3 + q] += t; Tg[b * 3 + q] += t; Tg[c * 3 + q] += t; } }
+      for (let i = 0; i < P.count; i++) { const l = Math.hypot(Tg[i * 3], Tg[i * 3 + 1], Tg[i * 3 + 2]); if (l > 1e-9) { Tg[i * 3] /= l; Tg[i * 3 + 1] /= l; Tg[i * 3 + 2] /= l; } else Tg[i * 3] = 1; }
+      g.setAttribute("orRestT", new THREE.BufferAttribute(Tg, 3)); }
+    g.setAttribute("orRest", new THREE.BufferAttribute(R, 3)); g.setAttribute("orRestN", new THREE.BufferAttribute(RN, 3)); });
+  const fb = at(0.5); E.U.oYb.value = fb.p.y - fb.r * 0.9; E.U.oTx.value = at(0.3).p.x;
+  E.rested = true;
+}
+function orchidStep(t, dt, walk, flap) {
+  const E = o._or; if (!E.rested) orchidRest();
+  E.U.oT.value = t;
+  E.fk = (E.fk || 0) + ((flap ? 1 : 0) - (E.fk || 0)) * Math.min(1, dt * 2.5);   /* in flight it levels out */
+  E.sw = (Math.sin(t * 1.7) * 0.6 + Math.sin(t * 0.73 + 1.3) * 0.4) * 0.075 * (1 - E.fk) * (1 - (E.hk || 0)) * (1 - 0.7 * walk);   /* the leaf-in-the-wind sway (still while hiding) */
+  head.rotateZ(-0.22 * (1 - E.fk));   /* head up, looking forward and a little down */
+  // the grabbing arms ride the chest
+  const f = at(0.72); E.armSock.position.copy(f.p); E.armSock.quaternion.identity();   /* level frame: x forward, y up */
+  // Blossom Ambush: hide (still, fading, petals open, flowers bloom), then the strike
+  if (E.amb > 0) { E.amb -= dt; if (E.amb <= 0) { E.amb = 0; E.st = 0; } }
+  const tgt = E.amb > 0 || E.pin ? 1 : 0; E.hide += (tgt - E.hide) * Math.min(1, dt * (tgt ? 2.2 : 9)); const k = E.hk = E.hide * E.hide * (3 - 2 * E.hide);
+  E.U.oHide.value = k; E.pm.transparent = k > 0.01; E.pm.depthWrite = true;
+  wings.forEach(w => { w.pivot.rotation.x += (w.zs * -0.75 - w.pivot.rotation.x) * k; });   // the petal wings rise and open like a bloom
+  if (k > 0.01) legs.forEach(g => { g.rotation.z *= 1 - k; });   // perfectly still
+  E.blooms.forEach(b => { const u = b.userData, s = Math.max(0, Math.min(1, k * 1.6 - u.ph * 0.25)); b.visible = s > 0.01; b.scale.setScalar(u.sz * s * (1 + 0.04 * Math.sin(t * 2 + u.ph * 5)));
+    if (u.back && b.visible) { const fb = at(u.back); b.position.copy(fb.p).addScaledVector(fb.n, fb.r * 0.85).addScaledVector(fb.side, fb.r * u.side); b.quaternion.setFromUnitVectors(UP, fb.n.clone().addScaledVector(fb.side, u.side).normalize()); } else b.rotation.y = u.ph * 3 + s * 0.6; });
+  M.eye.emissiveIntensity = 0.5 * (1 - 0.8 * k); head.children.forEach(m => { if (m.isSprite) { if (m.userData.op0 == null) m.userData.op0 = m.material.opacity; m.material.opacity = m.userData.op0 * (1 - 0.85 * k); } });   /* the eyes dim */
+  // arm pose: folded and praying, with a small sway; the strike snaps them out and back
+  let s = 0; if (E.freeze != null) E.st = E.freeze; if (E.st >= 0) { E.st += dt;   /* E.freeze: debug, holds one moment of the strike */ const q = E.st; s = q < 0.09 ? q / 0.09 : q < 0.24 ? 1 : q < 0.6 ? 1 - (q - 0.24) / 0.36 : 0; s = s * s * (3 - 2 * s); if (q >= 0.6) E.st = -1;
+    E.flash.visible = q < 0.5; if (E.flash.visible) { const a = E.arms[0], tipW = a.tp.localToWorld(new V(0.8, -0.05, 0)), tipD = dragon.worldToLocal(tipW); E.flash.position.copy(tipD).add(new V(0.15, 0, -tipD.z));
+      E.flash.material.opacity = Math.max(0, 1 - q / 0.5) * Math.min(1, q / 0.06); E.flash.scale.setScalar(0.5 + q * 2.2); } } else E.flash.visible = false;
+  E.lunge += ((E.st >= 0 ? s : 0) - E.lunge) * Math.min(1, dt * 20);
+  const sway = Math.sin(t * 1.3) * 0.05 * (1 - k);
+  E.arms.forEach((a, i) => { const tibClose = E.st > 0.2 ? 1 : 0;   /* the tibia snaps shut first: the grab */
+    a.cp.rotation.z = -0.55 + sway + s * 0.5; a.fp.rotation.z = 1.75 - sway * 0.5 - s * 1.7; a.tp.rotation.z = -2.85 + s * 2.45 * (1 - 0.7 * tibClose); });   /* praying: coxa forward, femur raised, tibia folded down against it */
+  const lo = E.lunge * 0.3; dragon.position.x += lo - (E.lo || 0); E.lo = lo;   /* lunge forward, then back to where it stood */
+}
+if (o.orchid) orchidBuild();
 sockets.head = head;
 api = { root: dragon, pal: p, update, seat, sockets, mats: M, sitPitch: 0.75, sitDrop: 0.5, spikes: backParts.filter(m => !m.userData.mane), wings, shells, sit: 0 };   // sit: 0..1, set by the game
 if (o.floatY || o.pitchZ || o.groundFeet) {   // NEW (2026-11-13): floaters hover and bob (Cloudlet, Driftfin), the seahorse stands upright, the jerboa stands up on its back legs with its feet on the ground
@@ -3957,6 +4488,8 @@ if (spkC) api.eyeSquirt = () => spkC.fire();   // Spikehorn: Eye Squirt (red spr
 if (peaTrain) { api.fan = 0; api.fanTarget = 0; api.setFan = v => { api.fanTarget = v ? 1 : 0; }; }   // Plumewyrm: spread / fold the train
 if (slugApi) slugApi(api);
 if (o.eternix && o._etx) { const E = o._etx; api.eternix = E; api.tunPlay = (sec = 3) => { E.hold = sec; }; api.setTun = v => { E.pin = v ? 1 : 0; }; }   // Eternix: Tun Shell
+if (o.glim && o._gw) { const Gw = o._gw; api.glim = Gw; api.flashPlay = () => { Gw.flash = 1.6; }; }   /* Glimmerwick: Flash Burst */
+if (o.orchid && o._or) { const E = o._or; api.orchid = E; api.ambushPlay = (sec = 6) => { E.amb = sec; }; api.setHide = v => { E.pin = v ? 1 : 0; }; api.strike = () => { E.st = 0; }; }   /* Orchidra: Blossom Ambush */
 return api;   // spikes: so a saddle or cape can hide the ones it covers
 }
 
@@ -5129,6 +5662,261 @@ function addSeraph(api, o, pal) {
 }
 
 // ---------- CASCADRA: living waterfall dragon (Petra 2026-11-13) ----------
+
+// ---------- RAYDRIFT: manta ray dragon (Petra 2026-11-14) ----------
+let RAY_N = 0;
+const RAY_TEX = {};   // canvas textures shared by every Raydrift (they do not depend on the palette)
+function rayGlowTex() {
+  if (RAY_TEX.glow) return RAY_TEX.glow;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.3, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); t.rmShared = true; return (RAY_TEX.glow = t);
+}
+/* ===== NEW (Petra 2026-11-14, skin textures v2): tileable noise helpers for canvas skin textures. Shared by every new dragon on the page, made once ===== */
+const rayNz = window.__wwNz || (window.__wwNz = (() => {
+  const hs = (i, j, s) => { let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263) ^ Math.imul((s | 0) + 7, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const md = (a, P) => ((a % P) + P) % P;
+  const vn = (x, y, P, s) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), x0 = md(xi, P), x1 = md(xi + 1, P), y0 = md(yi, P), y1 = md(yi + 1, P);
+    const a = hs(x0, y0, s), b = hs(x1, y0, s), c = hs(x0, y1, s), d = hs(x1, y1, s); return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy; };   /* value noise that repeats every P lattice steps */
+  const fbm = (x, y, P, s, oct) => { let t = 0, a = 0.5, n = 0; for (let k = 0; k < oct; k++) { t += a * vn(x, y, P, s + k * 13); n += a; x *= 2; y *= 2; P *= 2; a *= 0.5; } return t / n; };
+  const W = [0, 0, 0];   /* cell noise that repeats every P cells: W = [nearest distance, second distance, hash of the nearest cell] */
+  const wor = (x, y, P, s, jit) => { const xi = Math.floor(x), yi = Math.floor(y); let d1 = 9, d2 = 9, hh = 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const cx = xi + di, cy = yi + dj, mx = md(cx, P), my = md(cy, P);
+      const px = cx + 0.5 + (hs(mx, my, s) - 0.5) * jit, py = cy + 0.5 + (hs(mx, my, s + 1) - 0.5) * jit, d = Math.hypot(x - px, y - py);
+      if (d < d1) { d2 = d1; d1 = d; hh = hs(mx, my, s + 2); } else if (d < d2) d2 = d; }
+    W[0] = d1; W[1] = d2; W[2] = hh; return W; };
+  const tex = (N, fn) => { const c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d"), img = x.createImageData(N, N), D = img.data, o = [0, 0, 0];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { fn(i / N, j / N, o); const k = (j * N + i) * 4; D[k] = o[0] * 255; D[k + 1] = o[1] * 255; D[k + 2] = o[2] * 255; D[k + 3] = 255; }
+    x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.rmShared = true; return t; };   /* R, G, B masks (data, not colour: no sRGB); shared: never disposed */
+  const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  return { hs, md, vn, fbm, wor, tex, sst };
+})());
+function raySkinTex() {   /* NEW Raydrift v2: the manta skin texture (made once, shared) */
+  if (RAY_TEX.skin) return RAY_TEX.skin;
+  const Z = rayNz;
+  return (RAY_TEX.skin = Z.tex(512, (u, v, o) => {
+    const W1 = Z.wor(u * 128, v * 128, 128, 13, 0.8), den = Math.max(0, 1 - Math.pow(W1[0] / 0.58, 2)) * (0.6 + 0.4 * W1[2]);   /* tiny soft dermal bumps */
+    const lea = Z.fbm(u * 20, v * 20, 20, 29, 3), lea2 = Z.fbm(u * 7 + 3, v * 7, 7, 37, 2);   /* fine smooth leathery relief (soft noise, no lines) */
+    const mot = Z.sst(0.47, 0.72, Z.fbm(u * 4, v * 4, 4, 53, 4));   /* soft cloudy mottling */
+    const W2 = Z.wor(u * 64, v * 64, 64, 71, 0.9), pore = (W2[2] < 0.45 ? 1 : 0) * (1 - Z.sst(0.07, 0.19, W2[0]));   /* faint belly pores */
+    o[0] = 0.5 + 0.2 * (den - 0.3) + 0.22 * (lea - 0.5) + 0.12 * (lea2 - 0.5) - 0.12 * pore;
+    o[1] = mot; o[2] = pore;
+  }));
+}
+function addRay(api, o, pal) {
+  const root = api.root, V3 = THREE.Vector3, lin = c => new THREE.Color(c).convertSRGBToLinear();
+  root.children.forEach(c => { c.visible = false; });   // the base dragon is still built (other code expects it) but never shown
+  const W = o.span || 2.5, NZ = 120, NC = 34, NR = NC * 2, BASEY = 0.95;
+  const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // ----- planform: a = 0 on the midline, 1 at the wing tip -----
+  const xl = a => 1.0 - 0.22 * sst(0.07, 0.17, a) - (a > 0.15 ? 1.6 * Math.pow((a - 0.15) / 0.85, 1.25) - 0.22 * Math.sin(Math.PI * (a - 0.15) / 0.85) : 0) - 0.25 * Math.pow(a, 8);   // leading edge: broad head, then the fins sweep back to pointed tips
+  const chord = a => Math.max(0.012, 1.95 * Math.pow(1 - a, 0.9) * (1 + 0.25 * a));
+  const thick = a => 0.27 * (1 - sst(0.04, 0.4, a)) + 0.06 * Math.pow(1 - a, 1.2) + 0.012;   // thick body disc, thin fins
+  const prof = c => { const cc = Math.pow(c, 0.85); return Math.sqrt(Math.max(0, 4 * cc * (1 - cc))); };   // rounded front and back edges
+  const topY = (x, z) => { const a = Math.min(1, Math.abs(z) / W), c = Math.min(1, Math.max(0, (xl(a) - x) / chord(a))); return 0.8 * thick(a) * prof(c); };
+  const botY = (x, z) => { const a = Math.min(1, Math.abs(z) / W), c = Math.min(1, Math.max(0, (xl(a) - x) / chord(a))); return -0.42 * thick(a) * prof(c); };
+  const E = { ph: 0, amp: 0.16, om: 1.2, gT: 0, gLen: 5, gK: 0, night: 0 };
+  const wave = (a, x) => E.amp * Math.pow(a, 1.6) * Math.sin(E.ph + 1.35 * (x - 1.0)) + 0.12 * E.amp * Math.pow(a, 3) * Math.sin(2 * E.ph + 2.1 * (x - 1.0) + 0.7) + E.gK * 0.16 * Math.pow(a, 1.5);
+  // ----- the skin material (shared by every part) -----
+  const U = { rT: { value: 0 }, rW: { value: W }, rBS: { value: 0.0022 }, rNight: { value: 0 },
+    rTop: { value: lin(pal.top) }, rSide: { value: lin(pal.side) }, rBelly: { value: lin(pal.belly) }, rGlow: { value: lin(pal.glow) }, rStar: { value: lin(pal.star || pal.glow) } };
+  const NOISE = `float rHs(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float rH2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float rN(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(rHs(i), rHs(i + vec3(1.0, 0.0, 0.0)), f.x), mix(rHs(i + vec3(0.0, 1.0, 0.0)), rHs(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(rHs(i + vec3(0.0, 0.0, 1.0)), rHs(i + vec3(1.0, 0.0, 1.0)), f.x), mix(rHs(i + vec3(0.0, 1.0, 1.0)), rHs(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z); }
+float rDots(vec2 g, float dens, float rmin, float rmax) { vec2 ci = floor(g), fp = fract(g); float st = 0.0;
+  for (int yy = -1; yy <= 1; yy++) for (int xx = -1; xx <= 1; xx++) { vec2 o2 = vec2(float(xx), float(yy)), cell = ci + o2;
+    float h = rH2(cell); vec2 pt = o2 + vec2(rH2(cell + 3.1), rH2(cell + 7.7)) * 0.8 + 0.1; float r = rmin + (rmax - rmin) * rH2(cell + 1.3);
+    st = max(st, (1.0 - smoothstep(r * 0.3, r, length(fp - pt))) * step(1.0 - dens, h) * (0.55 + 0.45 * rH2(cell + 9.2))); }
+  return st; }
+vec3 rBump(vec3 sp, vec3 sn, vec2 dH, float fd) { vec3 sx = dFdx(sp), sy = dFdy(sp), r1 = cross(sy, sn), r2 = cross(sn, sx); float det = dot(sx, r1) * fd;
+  return normalize(abs(det) * sn - sign(det) * (dH.x * r1 + dH.y * r2)); }
+`;
+  const skin = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.35, side: THREE.FrontSide });
+  skin.extensions = { derivatives: true };
+  skin.onBeforeCompile = sh => { Object.assign(sh.uniforms, U);
+    sh.vertexShader = "attribute vec3 rP; attribute float rE; varying vec3 vRP; varying float vRE;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vRP = rP; vRE = rE;");
+    sh.fragmentShader = "uniform float rT, rW, rBS, rNight; uniform vec3 rTop, rSide, rBelly, rGlow, rStar; varying vec3 vRP; varying float vRE;\n" + NOISE + sh.fragmentShader
+      .replace("void main() {", "void main() {\n float rHh = 0.0; vec3 rEm = vec3(0.0); float rTopK = 0.0;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+      { vec2 P = vRP.xy; float top = smoothstep(-0.45, 0.45, vRP.z), a = clamp(abs(P.y) / rW, 0.0, 1.0); rTopK = top;
+        float n1 = rN(vec3(P * 2.6, 1.7)), n2 = rN(vec3(P * 11.0, 4.1)), n3 = rN(vec3(P * 23.0, 8.3));
+        float aa = 1.0 - smoothstep(0.35, 0.9, length(fwidth(P * 9.0)));   /* fade fine detail where it gets tiny on screen: no glitter */
+        vec3 back = mix(rTop, rSide, 0.3 * n1 + 0.18 * smoothstep(0.35, 1.0, a));   /* deep navy, softly clouded, a touch lighter out on the fins */
+        float st = rDots(P * 6.5, 0.5, 0.07, 0.16) + 0.6 * rDots(P * 15.0 + 3.0, 0.45, 0.06, 0.14) * aa;   /* the starry speckle: soft dots in two sizes */
+        st = clamp(st, 0.0, 1.0);
+        back = mix(back, rStar, st * 0.5);
+        vec3 bel = rBelly * (0.97 + 0.03 * n1);
+        bel = mix(bel, mix(rBelly, rSide, 0.55), (1.0 - smoothstep(0.02, 0.2, vRE)) * smoothstep(0.12, 0.3, a));   /* soft navy margin round the white belly */
+        float gl = 0.0; for (int k = 0; k < 5; k++) { float gx = 0.5 - 0.075 * float(k); gl = max(gl, (1.0 - smoothstep(0.004, 0.011, abs(P.x - gx))) * smoothstep(0.2, 0.23, abs(P.y)) * (1.0 - smoothstep(0.37, 0.4, abs(P.y)))); }
+        bel = mix(bel, bel * vec3(0.62, 0.68, 0.78), gl * aa * 0.8);   /* five gill slits under the head */
+        vec3 c = mix(bel, back, top);
+        float wm = smoothstep(0.13, 0.3, a);
+        float line = smoothstep(0.026, 0.034, vRE) * (1.0 - smoothstep(0.04, 0.05, vRE)), edge = 1.0 - smoothstep(0.0, 0.016, vRE);
+        float pulse = 0.85 + 0.15 * sin(rT * 1.4 - a * 5.0 - P.x * 2.0);
+        float rim = clamp(line * (0.3 + 0.7 * top) + edge * 0.55, 0.0, 1.0) * wm;
+        c = mix(c, rGlow, rim * 0.4);
+        rEm = rGlow * rim * pulse * (0.7 + 0.6 * rNight) + c * (1.0 - top) * 0.22 * (1.0 - rNight) + rStar * st * top * (0.07 + 0.12 * rNight);
+        diffuseColor.rgb = c;
+        rHh = (n2 * 0.65 + n3 * 0.35) * aa * (1.0 - rim); }`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+      normal = rBump(-vViewPosition, normal, vec2(dFdx(rHh), dFdy(rHh)) * rBS, faceDirection);`)
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      { vec3 nn = normalize(normal), vv = normalize(vViewPosition); float fr = 1.0 - abs(dot(nn, vv));
+        totalEmissiveRadiance += rEm + mix(rGlow, vec3(1.0), 0.5) * fr * fr * fr * (0.05 + 0.07 * rTopK);   /* a gentle wet sheen, never metal */ }`);
+  };
+  skin.customProgramCacheKey = () => "raySkin";
+  { const prevS = skin.onBeforeCompile;   /* NEW v2 (Petra: texture it better): real manta skin on every part */
+    U.rTex = { value: raySkinTex() }; U.rTS = { value: 1.25 }; U.rTB = { value: 0.004 };
+    skin.onBeforeCompile = sh => { prevS(sh);
+      sh.fragmentShader = "uniform sampler2D rTex; uniform float rTS, rTB;\n" + sh.fragmentShader.replace("void main() {", "void main() {\n vec2 rDH = vec2(0.0);")
+        .replace("float st = rDots(P * 6.5", `vec2 rq = P * rTS + vec2(0.31, 0.57); vec4 rX = texture2D(rTex, rq);
+        rDH = vec2(texture2D(rTex, rq + dFdx(rq)).r - rX.r, texture2D(rTex, rq + dFdy(rq)).r - rX.r) * rTB;   /* bump straight from the texture */
+        back = mix(back, mix(back, rSide, 0.55) * 1.12, rX.g * 0.6);   /* soft lighter mottling on the navy */
+        back *= 0.84 + 0.32 * rX.r;   /* the leathery relief catches the light */
+        float st = rDots(P * 6.5`)
+        .replace("float gl = 0.0; for", `bel *= (1.0 - 0.13 * rX.b) * (0.97 + 0.06 * rX.r);   /* smooth white belly, faint pores */
+        rDH *= mix(0.45, 1.0, top);   /* a smoother belly than back */
+        float gl = 0.0; for`)
+        .replace("vec2(dFdx(rHh), dFdy(rHh)) * rBS", "(rDH + 0.25 * vec2(dFdx(rHh), dFdy(rHh)) * rBS)");
+    };
+    skin.customProgramCacheKey = () => "raySkin2_"; }
+  // give any extra mesh the skin attributes: side(+1 navy top, -1 white belly), edge distance (big = no rim)
+  const dress = (geo, sideFn, mat) => { const P = geo.attributes.position, N = geo.attributes.normal, rp = new Float32Array(P.count * 3), re = new Float32Array(P.count), v = new V3(), n = new V3();
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); n.fromBufferAttribute(N, i); rp[i * 3] = v.x; rp[i * 3 + 1] = v.z; rp[i * 3 + 2] = sideFn(v, n); re[i] = 1; }
+    geo.setAttribute("rP", new THREE.BufferAttribute(rp, 3)); geo.setAttribute("rE", new THREE.BufferAttribute(re, 1)); return geo; };
+  const G = new THREE.Group(); G.position.y = BASEY; root.add(G);   // the whole manta (moves for the glide)
+  // ----- the disc + wing-fins: one closed surface -----
+  const NV = (NZ + 1) * NR, geo = new THREE.BufferGeometry(), pos = new Float32Array(NV * 3), rp = new Float32Array(NV * 3), re = new Float32Array(NV), cs = [], idx = [];
+  for (let j = 0; j <= NC; j++) cs.push(0.5 - 0.5 * Math.cos(Math.PI * j / NC));
+  const cOf = j => j <= NC ? cs[j] : cs[NR - j];
+  for (let i = 0; i <= NZ; i++) { const q = -1 + 2 * i / NZ, a = Math.abs(q), z = q * W, L = xl(a), C = chord(a);
+    for (let j = 0; j < NR; j++) { const k = i * NR + j, c = cOf(j); rp[k * 3] = L - c * C; rp[k * 3 + 1] = z; rp[k * 3 + 2] = j === 0 || j === NC ? 0 : j < NC ? 1 : -1; re[k] = Math.min(c, 1 - c) * C + (a > 0.97 ? 0 : 0); } }
+  for (let i = 0; i < NZ; i++) for (let j = 0; j < NR; j++) { const a0 = i * NR + j, b0 = i * NR + (j + 1) % NR, a1 = a0 + NR, b1 = b0 + NR; idx.push(a0, a1, b0, b0, a1, b1); }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(NV * 3), 3));
+  geo.setAttribute("rP", new THREE.BufferAttribute(rp, 3)); geo.setAttribute("rE", new THREE.BufferAttribute(re, 1)); geo.setIndex(idx);
+  const disc = new THREE.Mesh(geo, skin); disc.castShadow = true; disc.receiveShadow = false; disc.frustumCulled = false; G.add(disc);
+  function shapeDisc() {
+    for (let i = 0; i <= NZ; i++) { const q = -1 + 2 * i / NZ, a = Math.abs(q), z = q * W, T = thick(a);
+      for (let j = 0; j < NR; j++) { const k = i * NR + j, x = rp[k * 3], c = cOf(j), f = prof(c), y = wave(a, x) + (j <= NC ? 0.8 : -0.42) * T * f;
+        pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z; } }
+    geo.attributes.position.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+  }
+  shapeDisc();
+  { const n = geo.attributes.normal, k = (NZ / 2) * NR + Math.round(NC / 2); if (n.getY(k) < 0) { for (let t = 0; t < idx.length; t += 3) { const s = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = s; } geo.setIndex(idx); shapeDisc(); } }   // make sure the faces point outward
+  // ----- parts that ride on the disc (each follows the wave where it sits) -----
+  const riders = [];
+  const ride = (x, z) => { const g = new THREE.Group(); G.add(g); riders.push({ g, x, a: Math.min(1, Math.abs(z) / W) }); return g; };
+  const hornM = new THREE.MeshStandardMaterial({ color: lin(pal.horn).lerp(lin(pal.side), 0.55), roughness: 0.45, metalness: 0, emissive: lin(pal.glow), emissiveIntensity: 0.06 });
+  const headG = ride(0.85, 0.13 * W);
+  // two curled cephalic head fins: flat paddles that roll up into scrolls (navy outside, white inside)
+  const ceph = [];
+  [1, -1].forEach(z => { const pts = [], N = 9;
+    for (let i = 0; i <= N; i++) { const t = i / N, ang = Math.max(0, t - 0.35) / 0.65 * 3.4, r = 0.11 * (1 - 0.5 * t);   /* reach forward, then roll down and back in a tight scroll */
+      pts.push(new V3(0.9 + 0.3 * Math.min(t, 0.35) / 0.35 + Math.sin(ang) * r, 0.0 - (1 - Math.cos(ang)) * r, (0.27 + 0.03 * t) * z)); }
+    const m = staticTube(pts, [[0, 0.075], [0.45, 0.06], [0.85, 0.04], [1, 0.02]], skin, 28, 14, 0.38, 1.15);
+    dress(m.geometry, (v, n) => Math.max(0.05, Math.min(1, n.z * z * 2.5 + 0.7)), skin);   /* inner face a soft pale navy, not stark white */ m.castShadow = true; headG.add(m); ceph.push(m); });
+  const rayUnroll = (m, L, C, dx = 0) => { const g = m.geometry, A = g.attributes.rP, UV = g.attributes.uv; if (!A || !UV) return; const x0 = A.getX(0), y0 = A.getY(0);   /* NEW v2 */
+    for (let i = 0; i < A.count; i++) A.setXY(i, x0 + dx - UV.getX(i) * L, y0 + (UV.getY(i) - 0.5) * C); A.needsUpdate = true; };
+  ceph.forEach(m => rayUnroll(m, 0.62, 0.42));
+  // the mouth: a wide, dark slit right across the front of the head, between the head fins
+  const mouthM = new THREE.MeshStandardMaterial({ color: lin(pal.top).multiplyScalar(0.35), roughness: 0.6, metalness: 0 });
+  { const pts = []; for (let i = 0; i <= 8; i++) { const zz = -0.22 + 0.44 * i / 8; pts.push(new V3(1.0 - 0.06 * (zz / 0.22) ** 2 + 0.006, -0.03, zz)); } headG.add(staticTube(pts, [[0, 0.008], [0.08, 0.017], [0.92, 0.017], [1, 0.008]], mouthM, 24, 8, 1, 0.8)); }
+  // calm, wide-set eyes on the sides of the head, with soft lowered lids
+  const eyeMat = api.mats.eye;
+  [1, -1].forEach(z => { const ez = 0.335 * z, ex = 0.8, ey = (topY(ex, ez) + botY(ex, ez)) * 0.5 + 0.03, er = 0.068;
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(er, 28, 18), eyeMat); ball.position.set(ex, ey, ez); ball.rotation.y = z > 0 ? -1.15 : 1.15; ball.scale.set(1, 0.92, 0.9); headG.add(ball);
+    const lidU = new THREE.Mesh(dress(new THREE.SphereGeometry(er * 1.14, 24, 10, 0, Math.PI * 2, 0, 1.25), () => 1), skin); lidU.rotation.z = -0.05; ball.add(lidU);   /* a heavy, sleepy upper lid: a calm look */
+    const lidL = new THREE.Mesh(dress(new THREE.SphereGeometry(er * 1.1, 24, 8, 0, Math.PI * 2, Math.PI - 0.6, 0.6), () => 1), skin); ball.add(lidL);
+    const bump = new THREE.Mesh(dress(new THREE.SphereGeometry(0.1, 20, 14), () => 1), skin); bump.scale.set(1.3, 0.6, 0.75); bump.position.set(ex - 0.06, ey + 0.035, ez * 0.93); headG.add(bump); });   // soft brow round each eye
+  // the dragon hint: two small swept-back horns behind the eyes, and a short row of soft nubs down the back
+  [1, -1].forEach(z => { const b = new V3(0.6, topY(0.6, 0.2 * z) - 0.02, 0.2 * z);
+    headG.add(staticTube([b, new V3(0.52, b.y + 0.07, 0.23 * z), new V3(0.43, b.y + 0.11, 0.26 * z), new V3(0.35, b.y + 0.12, 0.28 * z)], [[0, 0.035], [0.6, 0.02], [1, 0.004]], hornM, 18, 10)); });
+  const nubG = dress(new THREE.SphereGeometry(1, 16, 10), () => 1);
+  [0.42, 0.24, 0.06, -0.12, -0.3, -0.48].forEach((x, i) => { const g = ride(x, 0), m = new THREE.Mesh(nubG, skin), r = 0.04 - i * 0.004; m.position.set(x, topY(x, 0) - r * 0.25, 0); m.scale.set(r * 1.7, r, r * 0.9); m.castShadow = true; g.add(m); });
+  // small dorsal fin at the base of the tail, like a real manta
+  { const s = new THREE.Shape(); s.moveTo(0, 0); s.lineTo(0.3, 0); s.quadraticCurveTo(0.12, 0.05, -0.04, 0.17); s.quadraticCurveTo(0.0, 0.07, 0, 0);
+    const fg = dress(new THREE.ShapeGeometry(s, 8), () => 1); const g = ride(-0.75, 0), f = new THREE.Mesh(fg, skin.clone()); f.material.side = THREE.DoubleSide; f.material.onBeforeCompile = skin.onBeforeCompile; f.material.customProgramCacheKey = () => "raySkinD";
+    f.rotation.y = Math.PI; f.position.set(-0.6, topY(-0.6, 0) - 0.03, 0); g.add(f); }
+  // four little legs tucked flat under the belly (only for landing): white like the belly, tiny pale claws
+  [[0.32, 0.3, 1], [0.32, -0.3, 1], [-0.5, 0.26, 0.85], [-0.5, -0.26, 0.85]].forEach(([x, z, k]) => { const g = ride(x, z), by = botY(x, z) + 0.02;
+    const pts = [new V3(x, by, z), new V3(x - 0.13 * k, by - 0.035, z * 1.05), new V3(x - 0.26 * k, by - 0.03, z * 1.1)];
+    const lg = staticTube(pts, [[0, 0.06 * k], [0.6, 0.045 * k], [1, 0.035 * k]], skin, 14, 12, 1, 0.45); dress(lg.geometry, () => -1); rayUnroll(lg, 0.3, 0.3, x > 0 ? -0.42 : 0);   /* (front legs moved off the gill slits) */ g.add(lg);
+    const paw = new THREE.Mesh(dress(new THREE.SphereGeometry(0.045 * k, 14, 10), () => -1), skin); paw.scale.set(1.3, 0.55, 1.1); paw.position.copy(pts[2]); g.add(paw);
+    [-1, 0, 1].forEach(t => { const cl = new THREE.Mesh(new THREE.ConeGeometry(0.009 * k, 0.04 * k, 6), hornM); cl.rotation.z = Math.PI / 2; cl.position.set(pts[2].x - 0.055 * k, pts[2].y - 0.005, pts[2].z + t * 0.022 * k); g.add(cl); }); });
+  // ----- the long thin whip tail with a small glowing tip -----
+  const TSEG = 48, tailGeo = makeTube(TSEG, 10), TP = []; for (let i = 0; i <= TSEG; i++) TP.push(new V3());
+  { const n = (TSEG + 1) * 11, a = new Float32Array(n * 3), e = new Float32Array(n).fill(1); for (let i = 0; i <= TSEG; i++) for (let j = 0; j <= 10; j++) { const k = i * 11 + j; a[k * 3] = -0.8 - 2.7 * i / TSEG; a[k * 3 + 1] = 0; a[k * 3 + 2] = 0.55 + 0.45 * Math.sin(j / 10 * Math.PI * 2); }
+    for (let i = 0; i <= TSEG; i++) for (let j = 0; j <= 10; j++) a[(i * 11 + j) * 3 + 1] = 0.05 * Math.cos(j / 10 * Math.PI * 2);   /* NEW v2: round the tail */
+    tailGeo.setAttribute("rP", new THREE.BufferAttribute(a, 3)); tailGeo.setAttribute("rE", new THREE.BufferAttribute(e, 1)); }
+  const tail = new THREE.Mesh(tailGeo, skin); tail.castShadow = true; tail.frustumCulled = false; G.add(tail);
+  const tailR = knots([[0, 0.075], [0.08, 0.05], [0.4, 0.025], [0.85, 0.012], [1, 0.008]]);
+  const glowTex = rayGlowTex();
+  const tipM = new THREE.MeshBasicMaterial({ color: lin(pal.glow).lerp(new THREE.Color(1, 1, 1), 0.25) });
+  const tipBall = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), tipM); G.add(tipBall);
+  const tipHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: lin(pal.glow), transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending })); tipHalo.scale.setScalar(0.32); G.add(tipHalo);
+  function shapeTail(t) {
+    for (let i = 0; i <= TSEG; i++) { const u = i / TSEG, x = -0.8 - 2.7 * u;
+      TP[i].set(x + 0.08 * u * u * (E.gK), -0.12 * u * u * (1 - E.gK) + E.amp * 0.5 * u * Math.sin(E.ph - 1.2 - u * 3.0) * (1 - 0.7 * E.gK), 0.22 * u * u * Math.sin(t * 0.7 - u * 2.4) * (1 - 0.6 * E.gK)); }
+    fillTube(tailGeo, TP, tailR, 1, 1, true); tipBall.position.copy(TP[TSEG]); tipHalo.position.copy(TP[TSEG]);
+  }
+  shapeTail(0);
+  // ----- Sky Glide effects: a splash ring and droplets on the leap, a faint sparkle trail from each wing tip -----
+  const splashM = new THREE.MeshBasicMaterial({ color: lin(pal.glow).lerp(new THREE.Color(1, 1, 1), 0.5), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const splash = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 64), splashM); splash.rotation.x = -Math.PI / 2; splash.position.y = 0.03; splash.visible = false; root.add(splash);
+  const DN = 40, dropG = new THREE.BufferGeometry(), dropA = new Float32Array(DN * 3), dropS = [];
+  for (let k = 0; k < DN; k++) { const an = k / DN * Math.PI * 2 + Math.random() * 0.3, sp = 1.2 + Math.random() * 1.6; dropS.push([Math.cos(an) * sp, 2.2 + Math.random() * 2.2, Math.sin(an) * sp]); }
+  dropG.setAttribute("position", new THREE.BufferAttribute(dropA, 3));
+  const drops = new THREE.Points(dropG, new THREE.PointsMaterial({ color: lin(pal.glow).lerp(new THREE.Color(1, 1, 1), 0.6), size: 0.09, map: glowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  drops.frustumCulled = false; drops.visible = false; root.add(drops);
+  const TN = 36, trails = [1, -1].map(z => { const g = new THREE.BufferGeometry(), a = new Float32Array(TN * 3), c = new Float32Array(TN * 3); g.setAttribute("position", new THREE.BufferAttribute(a, 3)); g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.12, map: glowTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); pts.frustumCulled = false; pts.visible = false; root.add(pts);
+    return { z, pts, a, c, hist: [] }; });
+  const trailC = lin(pal.glow).lerp(new THREE.Color(1, 1, 1), 0.3), tipV = new V3();
+  // ----- per frame -----
+  const up0 = api.update;
+  api.update = (t, walk, flap, dt, bend = 0, ...rest) => {
+    api.hover = false; api.sit = 0;
+    const r = up0(t, 0, 0, dt, bend, ...rest);
+    api.airBob = 0; api.airPitch = 0;
+    E.night += (((() => { try { return isNight ? 1 : 0; } catch (e) { return 0; } })()) - E.night) * Math.min(1, dt * 3); U.rNight.value = E.night; U.rT.value = t;
+    if (E.gT > 0) E.gT = Math.max(0, E.gT - dt);
+    const p = E.gT > 0 ? 1 - E.gT / E.gLen : 0, on = E.gT > 0 ? 1 : 0;
+    const leap = on * sst(0, 0.2, p), gk = on * sst(0.14, 0.3, p) * (1 - sst(0.8, 0.96, p));
+    E.gK += (gk - E.gK) * Math.min(1, dt * 6);
+    // swimming beat: slow drift standing, stronger swimming, bigger beats flying; a few big beats on the leap, nearly still in the glide
+    const beat = on && p < 0.2 ? 1 : 0;
+    const ampT = (flap ? 0.42 : walk ? 0.32 : 0.17) * (1 - 0.92 * E.gK) + beat * 0.3, omT = (flap ? 2.3 : walk ? 1.9 : 1.15) + beat * 1.6;
+    E.amp += (ampT - E.amp) * Math.min(1, dt * 2.5); E.om += (omT - E.om) * Math.min(1, dt * 2.5); E.ph += dt * E.om;
+    shapeDisc(); shapeTail(t);
+    riders.forEach(q => { q.g.position.y = wave(q.a, q.x); });
+    ceph.forEach((m, i) => { m.rotation.x = 0; m.scale.set(1, 1 + 0.06 * Math.sin(t * 1.3 + i), 1); });
+    // body bob and the glide flight path (leap up, glide far, barely sinking, then swim back)
+    const hy = on ? (1.45 * sst(0, 0.2, p) - 0.3 * sst(0.2, 0.84, p)) * (1 - sst(0.84, 1, p)) : 0, hx = on ? 1.4 * sst(0.08, 0.84, p) * (1 - sst(0.84, 1, p)) : 0;
+    G.position.set(hx, BASEY + hy + 0.05 * Math.sin(E.ph - 0.6) * (1 - E.gK) + 0.03 * Math.sin(t * 0.7), 0);
+    G.rotation.z = (on ? 0.3 * Math.sin(Math.PI * sst(0, 0.26, p)) + 0.05 * gk : 0) + 0.025 * Math.sin(E.ph - 1.2) * (1 - E.gK);
+    G.rotation.x = -bend * 0.22;
+    // splash + droplets on the leap
+    const sp = on ? p / 0.3 : 9; splash.visible = drops.visible = sp < 1;
+    if (splash.visible) { const s = 0.6 + 3.4 * Math.sqrt(sp); splash.scale.set(s, s, 1); splashM.opacity = 0.4 * (1 - sp) * (1 - sp);
+      const tt = sp * 1.5; dropS.forEach((d, k) => { dropA[k * 3] = d[0] * tt; dropA[k * 3 + 1] = Math.max(0, d[1] * tt - 4.9 * tt * tt); dropA[k * 3 + 2] = d[2] * tt; });
+      dropG.attributes.position.needsUpdate = true; drops.material.opacity = 0.85 * (1 - sp); }
+    // wing-tip sparkle trails while gliding
+    G.updateMatrix();
+    trails.forEach(T => { T.pts.visible = on > 0;
+      if (!on) { T.hist.length = 0; return; }
+      tipV.set(xl(0.97) - 0.01, wave(0.97, xl(0.97)), 0.97 * W * T.z).applyMatrix4(G.matrix); T.hist.unshift(tipV.clone()); if (T.hist.length > TN) T.hist.pop();
+      for (let k = 0; k < TN; k++) { const h = T.hist[Math.min(k, T.hist.length - 1)], f = (1 - k / TN) * E.gK; T.a[k * 3] = h.x - k * 0.02; T.a[k * 3 + 1] = h.y; T.a[k * 3 + 2] = h.z; T.c[k * 3] = trailC.r * f; T.c[k * 3 + 1] = trailC.g * f; T.c[k * 3 + 2] = trailC.b * f; }
+      T.pts.geometry.attributes.position.needsUpdate = true; T.pts.geometry.attributes.color.needsUpdate = true; });
+    const pulse = 0.5 + 0.5 * Math.sin(t * 1.6); tipHalo.material.opacity = (0.45 + 0.3 * pulse) * (1 + 0.4 * E.night); tipHalo.scale.setScalar(0.28 + 0.06 * pulse);
+    return r;
+  };
+  api.glidePlay = (sec = 5) => { E.gLen = sec; E.gT = sec; };
+  api.ray = { E, disc, tail, ceph, skin, U };
+  api.update(0, 0, 0, 0.016);
+  return api;
+}
 // addCascade(api, o, pal): the whole dragon (body, head, legs, tail) is one clear blue see-through water skin whose texture
 // keeps scrolling downward like a waterfall, white foam at the feet and chin, mossy stone horns, river stones floating inside,
 // a soft mist with drops falling from the belly, foam pools under the paws and a faint little rainbow in the spray.
@@ -5831,13 +6619,51 @@ SPECIES.push({ name: "Eternix", size: 0.5, rarity: "Legendary", mood: "Friendly"
        "Delicate see-through pearly wings, short curved pearl horns, and a long slender tail with a glowing pearl at the tip",
        "Friendly: it lives deep in the damp moss between the old bones, and the little pearls along its back glow softly"] });
 LEAN.Glidewhisk = [-3, 0, 1]; LEAN.Prismclaw = [-2, 3, 0]; LEAN.Stingdrift = [-2, 1, 1]; LEAN.Spikehorn = [3, 0, -1]; LEAN.Eternix = [6, -2, -1];
+// ----- NEW (Petra 2026-11-14): Orchidra (orchid mantis dragon, Rare), Raydrift (manta ray dragon, Rare), Glimmerwick (firefly dragon, Common) -----
+SPECIES.push({ name: "Raydrift", size: 1.2, rarity: "Rare", home: "Ocean (open water; it leaps out of the waves)", speed: 4, walk: 2, fly: 5,
+  note: "Manta ray dragon",
+  br: "Tide Pulse: a ring of water that pushes monsters away",
+  pal: P("#0d1c46", "#1f3c7c", "#f3f7fb", "#9adcff", "#c6d6ea", "#16295c", "#79cfff", { star: "#d2e8ff", metal: 0 }),
+  sp: { ray: { span: 2.5 }, gentle: true, wings: "none", noMotes: true, horns: "none", back: "none", frill: "none", tail: "none", tailShape: "normal", pattern: "none", glow: 0.6 },
+  ad: ["Sky Glide: it leaps out of the water and glides farther than any water dragon, barely losing height",
+       "Big and gentle, 1.2 times the size of a Pyrrak: a wide diamond body that flows straight into huge wing-fins, and it swims and glides on slow waves of its fins",
+       "Deep navy back with a soft starry speckle, pale blue glowing rims along the fin edges, and a white belly",
+       "Smooth, wet-looking skin with a gentle shimmer, like a real manta ray",
+       "Two curled head fins, calm wide-set eyes, little horns, and a long thin whip tail with a small glowing tip",
+       "Tiny legs tucked under its belly, only for landing. It carries you fast along the sea, and when it jumps, sailors say the sea grew wings"] });
+SPECIES.push({ name: "Glimmerwick", size: 0.7, rarity: "Common", home: "Deep Forest (at dusk, over the ponds)", speed: 3, walk: 3, fly: 3,
+  note: "Firefly dragon",
+  br: "Glow Spark: a little stream of glowing sparks",
+  pal: P("#26311a", "#3a4421", "#7a7646", "#d4ff4a", "#3a3324", "#e6f0d2", "#2e2618", { collar: "#ff8a2c", shellRim: "#d9b85a", metal: 0 }),
+  sp: { glim: true, gentle: true, elytra: true, wings: "beetle", wingScale: 0.95, flapSpeed: 9, horns: "antennae", back: "none", frill: "none", tail: "none", tailShape: "thick", tailLen: 0.62,
+    pattern: "none", girth: 1.2, len: 0.88, neck: 0.7, legLen: 0.74, legThick: 0.92, feet: 0.9, eyes: 1.4, glow: 0.3, head: [0.72, 1.08, 1.1] },
+  ad: ["Flash Burst: its lantern flares in one blinding pulse of light, so nearby monsters can't see for 4 seconds and wander about and miss",
+       "A plump firefly tail whose glowing yellow-green lantern tip pulses slowly, like breathing, and lights up dark caves around you",
+       "Round and a bit smaller than a Pyrrak, with a dark olive back like a soft beetle shell and a warm orange collar behind its head",
+       "Shell wing covers on its back lift open to show see-through shimmering wings that buzz when it flies",
+       "Big dark eyes and two feathery feelers",
+       "At night tiny glowing motes drift around it and it shines brightest. Every Glimmerwick has its own blink pattern, and Hazel is trying to learn them all"] });
+SPECIES.push({ name: "Orchidra", size: 0.7, rarity: "Rare", home: "Green Valley (the flower fields near the village)", speed: 3,
+  note: "Inspired by the orchid mantis, an insect that looks exactly like a flower",
+  br: "Pollen Burst: a sparkly cloud of pink pollen that makes monsters sneeze and miss",
+  pal: P("#f6d2e2", "#fdf5f8", "#fbeef3", "#ff9cc8", "#f08ab8", "#f9c6dc", "#a8f0b4", { skin: "#fdf5f8", rose: "#f0a6c8", blush: "#f39ac2", petal: "#fff3f7", vein: "#ea86b4", petalW: "#fbd3e4", gold: "#ffd79a", metal: 0 }),
+  sp: { orchid: true, gentle: true, wings: "bat", wingScale: 0.9, flapSpeed: 7, tail: "petalfan", tailShape: "normal", tailLen: 0.62, horns: "none", back: "none", frill: "none", pattern: "none",
+    thin: 0.78, girth: 0.82, neck: 0.5, legLen: 1.1, legThick: 0.75, feet: 0.55, eyes: 1.55, glow: 0.6, head: [0.55, 0.95, 1.0] },
+  ad: ["Blossom Ambush: it goes perfectly still and fades into a flower for 6 seconds. Monsters lose track of it, and its first strike out of hiding does double damage",
+       "Two folded grabbing arms, like a real mantis's, tucked under its chest with rows of tiny pink saw-teeth. They snap out faster than you can blink",
+       "Long, thin, jointed legs with a rounded petal on every thigh and a row of little saw-teeth down the back. Standing still, it looks like a cluster of orchids",
+       "Soft, velvety white skin that blushes pink toward the edges, with fine petal veins and no shine",
+       "See-through pink-veined petal wings, a short tail with a petal fan, and petal edges that shimmer pink-gold in the sun",
+       "A small triangular head with big, soft green eyes that glow faintly and two thin curled feelers",
+       "Slim and graceful: 70% the size of a Pyrrak. Defensive: it never starts a fight, but it ends them. World skill: flowers bloom where it lands"] });
+LEAN.Raydrift = [4, -2, 0]; LEAN.Glimmerwick = [0, -1, 1]; LEAN.Orchidra = [4, 2, -1];
 
 
 SPECIES.forEach(s => {
   const o = s.sp || {}, b = s.speed || 3, heavy = (o.girth || 1) >= 1.15 || (o.legThick || 1) >= 1.25;
   if (s.walk == null) s.walk = clamp5(b + ((o.legLen || 1) >= 1.3 ? 1 : 0) + (o.digClaws ? 0.5 : 0) - ((o.wingScale || 1) >= 1.25 || ["soar", "narrow"].includes(o.wings) ? 1 : 0) - (heavy ? 0.5 : 0));
   if (s.fly == null) s.fly = clamp5(b + (["soar", "narrow", "thermal"].includes(o.wings) || (o.wingScale || 1) >= 1.25 ? 1 : 0) - ((o.wingScale || 1) <= 0.85 || ["fin", "flipper"].includes(o.wings) ? 1 : 0) - (heavy ? 0.5 : 0));
-  if (o.wings === "none" && !o.skyRun) s.fly = 0; if (o.swimFly && !s.fly) s.fly = clamp5(b);   // skyRun: a wingless dragon that runs on the air anyway (Vulpyre)
+  if (o.wings === "none" && !o.skyRun) s.fly = 0; if (o.ray && !s.fly) s.fly = 5; if (o.swimFly && !s.fly) s.fly = clamp5(b);   // skyRun: a wingless dragon that runs on the air anyway (Vulpyre)
 });
 // ----- Dragon Skins Update (Petra 2026-11-14): every dragon remodelled: its skin kind (rmSkin), scale size (rmScale), markings (rmMarks), fur, feathers, card lines -----
 { const s = SPECIES.find(s => s.name === "Fernling");   /* NEW remodel (Petra 2026-11-14) */
@@ -6111,11 +6937,11 @@ SPECIES.forEach(s => {
 
 // ----- which land each kind's eggs turn up in most (Lumora: anywhere; secret dragons have their own way) -----
 const HOME_LAND = {
-  "Green Valley": ["Pyrrak", "Lichenwing", "Dawnwing", "Thrumwing", "Plumewyrm"],
-  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Lunaria"],
+  "Green Valley": ["Pyrrak", "Lichenwing", "Dawnwing", "Thrumwing", "Plumewyrm", "Orchidra"],
+  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Lunaria", "Glimmerwick"],
   "Crystal Caves": ["Stonewyrm", "Echowyrm", "Geodrake", "Prismwing", "Glintling"],
   "Desert": ["Dunerunner", "Sunscale", "Miragewyrm", "Scarabyx", "Dunebun", "Spikehorn"],
-  "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake", "Seraphage", "Stingdrift", "Medusel"],
+  "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake", "Seraphage", "Stingdrift", "Medusel", "Raydrift"],
   "Fire Mountain": ["Smoldedrake", "Volcanox", "Ashveil", "Blazequill", "Cinderpup"],
   "Frost Peaks": ["Glacius", "Snowpaw", "Rimefang", "Auroran", "Kindlepaw", "Valkyra"],
   "Sky Islands": ["Tempestra", "Driftail", "Aerolash", "Skyrune", "Rosalind", "Cloudlet"],
@@ -7828,7 +8654,7 @@ const eggLight = new THREE.PointLight(SP(eggKind).pal.glow, 1.5, 12, 2); egg.add
   });
 })();
 function buildDragon(kind, shiny, gear) { const s = SP(kind), pal = shiny && PAL[shiny] ? shinyPal(kind, shiny) : s.pal; return withFur(s, makeDragon(pal, Object.assign({ tier: TIER[s.rarity] }, s.sp, shiny === "Harvest Moon" ? { leaves: true } : {}, gear ? { armor: armorOf(gear) } : {})), pal); }
-function withFur(s, api, pal) { try { const fl = typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]; if (fl) addFur(api, fl.tint && pal && pal !== s.pal ? Object.assign({}, fl, { tint: pal.side, tip: pal.belly }) : fl);   /* a shiny: fixed moss tints take its colours */ if (s.sp.jelly && typeof addJelly === "function") addJelly(api, s.sp.jelly, pal || s.pal); if (s.sp.seraph && typeof addSeraph === "function") addSeraph(api, s.sp.seraph, pal || s.pal); if (s.sp.cascade && typeof addCascade === "function") addCascade(api, s.sp.cascade, pal || s.pal); } catch (e) { console.warn("fur", e); } return api; }
+function withFur(s, api, pal) { try { const fl = typeof FUR_LOOKS !== "undefined" && FUR_LOOKS[s.name]; if (fl) addFur(api, fl.tint && pal && pal !== s.pal ? Object.assign({}, fl, { tint: pal.side, tip: pal.belly }) : fl);   /* a shiny: fixed moss tints take its colours */ if (s.sp.jelly && typeof addJelly === "function") addJelly(api, s.sp.jelly, pal || s.pal); if (s.sp.seraph && typeof addSeraph === "function") addSeraph(api, s.sp.seraph, pal || s.pal); if (s.sp.cascade && typeof addCascade === "function") addCascade(api, s.sp.cascade, pal || s.pal); if (s.sp.ray && typeof addRay === "function") addRay(api, s.sp.ray, pal || s.pal); } catch (e) { console.warn("fur", e); } return api; }
 let dragon = buildDragon(eggKind);
 dragon.root.visible = false; scene.add(dragon.root);
 function setKind(kind, shiny) {
@@ -8135,12 +8961,12 @@ function hazelPet() {
     thermal: "those wings are long AND broad, to ride the hot air rising off the lava. Clever!", tattered: "the ragged wing edges let smoke and ash slip through. Or it just likes the look. I can't tell!",
     leaf: "leaf-shaped wings! In the forest it would look just like a plant.", broad: "big round wings like that are good for twisting between trees.",
     beetle: "it folds its wings under a hard shell! Why? I genuinely have no idea. Amazing.", bat: "classic bat wings. Strong and simple. Some ideas just work!" };
-  if (o.wings === "none") a.push("no wings at all! It never needed to fly where it lives.");
-  else if (W[o.wings]) a.push(W[o.wings]);
+  if (o.wings === "none" && !o.ray) a.push("no wings at all! It never needed to fly where it lives.");
+  else if (W[o.wings] && !o.orchid) a.push(W[o.wings]);
   const T = { thick: "that heavy tail is a club for bashing. Stay behind it, not beside it!", whip: "a long whip tail helps it turn fast, like a rudder.",
     curl: "it curls its tail when it's calm. Gentle dragons do that. Adorable.", droop: "that low tail works like a fish tail when it swims." };
-  if (T[o.tailShape] && o.tail !== "shrimpfan") a.push(T[o.tailShape]);
-  if (o.gentle && !o.glaucus) a.push("round eyes, no fangs. A plant eater! Mostly.");
+  if (T[o.tailShape] && o.tail !== "shrimpfan" && !o.glim) a.push(T[o.tailShape]);
+  if (o.gentle && !o.glaucus && !o.orchid) a.push("round eyes, no fangs. A plant eater! Mostly.");
   if (o.glassWings) a.push("its wings are see-through like glass. I have NO clue how that works. Isn't it wonderful?");
   if (o.aura) a.push("something always swirls around it. I've studied it for weeks. Still no idea why!");
   if (o.cloudlet) a.push("it floats because its fluff is full of warm air! Those tiny wings only steer.");
@@ -8155,6 +8981,9 @@ function hazelPet() {
   if (o.glaucus) a.push("no wings and no legs, and it still gets everywhere! It eats jellyfish and keeps their stings in those finger-fins. Don't poke it. I poked it.");
   if (o.flatBody) a.push("when it gets scared it puffs up all spiky, and if that doesn't work it squirts red stuff from its EYES. I wrote that down. Then I washed my notebook.");
   if (o.eternix) a.push("it curls up in a pearl shell and nothing can hurt it. Freezing, boiling, crushing... they say even the cold between the stars can't stop it!");
+  if (o.orchid) a.push("I walked right past it. I thought it was a bunch of orchids! Then the flowers looked at me. Those folded arms snap out faster than I can blink.");
+  if (o.ray) a.push("it doesn't fly, it glides! It leaps out of the waves and sails along on those huge fins, barely losing height. Sailors say the sea grew wings.");
+  if (o.glim) a.push("watch its lantern at dusk: every Glimmerwick blinks its own pattern. I'm trying to learn them all. I've learned two.");
   if (o.peacock) a.push("real feathers from head to toe! And when that train opens into a fan, monsters just stare at the eyes and freeze.");
   if (o.cascade) a.push("it's made of water. Flowing water! It keeps falling and never runs out. I have measured it. I have no idea how.");
   if (o.emberWings) a.push("those glowing cracks in its wings let the heat out. Like a little chimney!");
@@ -8739,7 +9568,7 @@ function shinyPal(kind, type) {
   const s = SP(kind), sh = PAL[type];
   return Object.assign({}, s.pal, sh, { fin: sh.glow, fur: sh.belly, crystal: sh.horn, wingTip: sh.glow, spots: null, shell: sh.side, crystalTip: sh.glow, hornTip: sh.glow, spikeTip: sh.glow, flame: sh.glow, smoke: sh.wing, glow2: sh.horn, glow3: sh.eye,
     foxMarks: s.pal.foxMarks && sh.top, foxMarks2: s.pal.foxMarks2 && sh.glow, earColor: s.pal.earColor && sh.side, tailFur: s.pal.tailFur && sh.top, tailTip: s.pal.tailTip && sh.belly, earTip: s.pal.earTip && sh.glow, earInner: s.pal.earInner && sh.belly,
-    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow, mothTrim: s.pal.mothTrim && sh.horn, mothTip: s.pal.mothTip && sh.glow, gorget: s.pal.gorget && sh.glow, moon: s.pal.moon && sh.eye, bead: s.pal.bead && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.25).getHexString(), blotch: s.pal.blotch && sh.glow, rib: s.pal.rib && "#" + new THREE.Color(sh.belly).lerp(new THREE.Color(sh.side), 0.5).getHexString(), skull: s.pal.skull && "#" + new THREE.Color(sh.belly).lerp(new THREE.Color(sh.side), 0.5).getHexString(), gem: s.pal.gem && sh.glow, frost: s.pal.frost && sh.horn, gill: s.pal.gill && sh.glow, leafTip: s.pal.leafTip && sh.glow, pearlA: s.pal.pearlA && sh.side, pearlB: s.pal.pearlB && sh.glow, lav: s.pal.lav && sh.top, blush: s.pal.blush && sh.glow, low: s.pal.low && "#" + new THREE.Color(sh.side).lerp(new THREE.Color(sh.belly), 0.35).getHexString(), spkBlotch: s.pal.spkBlotch && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.2).getHexString(), spkEdge: s.pal.spkEdge && sh.belly, spkTip: s.pal.spkTip && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.45).getHexString(), slugUp: s.pal.slugUp && sh.belly, slugDown: s.pal.slugDown && sh.side, ceras: s.pal.ceras && sh.glow, cerasTip: s.pal.cerasTip && sh.top, bands: s.pal.bands && ((a, b) => [a, "#" + new THREE.Color(a).lerp(new THREE.Color(b), 0.4).getHexString(), "#" + new THREE.Color(a).lerp(new THREE.Color(b), 0.7).getHexString(), sh.glow, sh.horn])(sh.side, sh.top), tailDark: s.pal.tailDark && sh.top, moss: s.pal.moss && sh.glow, pebble: s.pal.pebble && sh.wing, mist: s.pal.mist && sh.belly, snout: s.pal.snout && sh.side, stripe: s.pal.stripe && (s.sp.wings === "glide" ? sh.wing : s.sp.glaucus ? sh.top : sh.glow), crystals: s.pal.crystals && [sh.glow, sh.horn, sh.eye], tuft: s.pal.tuft && sh.belly, tuftBand: s.pal.tuftBand && sh.top, cap: s.pal.cap && sh.glow, capSpot: s.pal.capSpot && sh.belly, gills: s.pal.gills && sh.belly });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
+    foxBody: s.pal.foxBody && sh.glow, foxTip: s.pal.foxTip && sh.glow, socks: s.pal.socks && sh.glow, foxFire: s.pal.foxFire && sh.glow, mothTrim: s.pal.mothTrim && sh.horn, mothTip: s.pal.mothTip && sh.glow, gorget: s.pal.gorget && sh.glow, moon: s.pal.moon && sh.eye, skin: s.pal.skin && "#" + new THREE.Color(sh.side).lerp(new THREE.Color(sh.belly), 0.4).getHexString(), rose: s.pal.rose && "#" + new THREE.Color(sh.glow).lerp(new THREE.Color(sh.side), 0.5).getHexString(), petal: s.pal.petal && "#" + new THREE.Color(sh.belly).lerp(new THREE.Color(sh.side), 0.35).getHexString(), vein: s.pal.vein && "#" + new THREE.Color(sh.horn).lerp(new THREE.Color(sh.top), 0.4).getHexString(), petalW: s.pal.petalW && "#" + new THREE.Color(sh.glow).lerp(new THREE.Color(sh.belly), 0.4).getHexString(), gold: s.pal.gold && sh.horn, collar: s.pal.collar && "#" + new THREE.Color(sh.side).lerp(new THREE.Color(sh.glow), 0.5).getHexString(), shellRim: s.pal.shellRim && sh.belly, star: s.pal.star && sh.horn, bead: s.pal.bead && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.25).getHexString(), blotch: s.pal.blotch && sh.glow, rib: s.pal.rib && "#" + new THREE.Color(sh.belly).lerp(new THREE.Color(sh.side), 0.5).getHexString(), skull: s.pal.skull && "#" + new THREE.Color(sh.belly).lerp(new THREE.Color(sh.side), 0.5).getHexString(), gem: s.pal.gem && sh.glow, frost: s.pal.frost && sh.horn, gill: s.pal.gill && sh.glow, leafTip: s.pal.leafTip && sh.glow, pearlA: s.pal.pearlA && sh.side, pearlB: s.pal.pearlB && sh.glow, lav: s.pal.lav && sh.top, blush: s.pal.blush && sh.glow, low: s.pal.low && "#" + new THREE.Color(sh.side).lerp(new THREE.Color(sh.belly), 0.35).getHexString(), spkBlotch: s.pal.spkBlotch && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.2).getHexString(), spkEdge: s.pal.spkEdge && sh.belly, spkTip: s.pal.spkTip && "#" + new THREE.Color(sh.top).lerp(new THREE.Color("#000000"), 0.45).getHexString(), slugUp: s.pal.slugUp && sh.belly, slugDown: s.pal.slugDown && sh.side, ceras: s.pal.ceras && sh.glow, cerasTip: s.pal.cerasTip && sh.top, bands: s.pal.bands && ((a, b) => [a, "#" + new THREE.Color(a).lerp(new THREE.Color(b), 0.4).getHexString(), "#" + new THREE.Color(a).lerp(new THREE.Color(b), 0.7).getHexString(), sh.glow, sh.horn])(sh.side, sh.top), tailDark: s.pal.tailDark && sh.top, moss: s.pal.moss && sh.glow, pebble: s.pal.pebble && sh.wing, mist: s.pal.mist && sh.belly, snout: s.pal.snout && sh.side, stripe: s.pal.stripe && (s.sp.wings === "glide" ? sh.wing : s.sp.glaucus ? sh.top : sh.glow), crystals: s.pal.crystals && [sh.glow, sh.horn, sh.eye], tuft: s.pal.tuft && sh.belly, tuftBand: s.pal.tuftBand && sh.top, cap: s.pal.cap && sh.glow, capSpot: s.pal.capSpot && sh.belly, gills: s.pal.gills && sh.belly });   // shiny Vulpyre: every marking takes the shiny colour (Petra)   // shiny Vulpyre: markings, ears and tail change too
 }
 const statsAt = (kind, lv) => { const st = SP(kind).stats, L = lv - 1; return { hp: st.hp + st.grow.hp * L, claw: st.claw.map(v => v + st.grow.claw * L), breath: st.breath.map(v => v + st.grow.breath * L) }; };
 const rnd = ([a, b]) => a + Math.floor(Math.random() * (b - a + 1));
@@ -13734,6 +14563,9 @@ const BREATH = {
   Stingdrift:  { n: "Sting Spray",      t: "shot", k: 5, spread: 0.18, size: 0.28, speed: 28, burn: 1, mult: 1.0, col: "#6fdcff" },   // a spray of stinging blue droplets that keep stinging
   Spikehorn:   { n: "Sand Puff",        t: "cone", R: 12, ang: 0.8, blind: 1.5, mult: 0.95, col: "#e8c27a" },   // a blast of hot sand: monsters can't see to attack for a moment
   Eternix:     { n: "Pearl Beam",       t: "beam", R: 26, mult: 1.15, col: "#bfe0ff" },   // a beam of shimmering light
+  Orchidra:    { n: "Pollen Burst",     t: "cloud", r: 5, blind: 1.5, mult: 0.9, col: "#ffb8dc" },   /* a sparkly cloud of pink pollen: monsters sneeze and miss */
+  Raydrift:    { n: "Tide Pulse",       t: "ring", r: 11, knock: 9, mult: 0.95, col: "#9adcff" },   /* a ring of water that pushes monsters away */
+  Glimmerwick: { n: "Glow Spark",       t: "shot", k: 3, spread: 0.14, size: 0.3, speed: 30, mult: 0.9, col: "#d4ff4a" },   /* a little stream of glowing sparks */
   Vulpyre:     { n: "Foxfire",          t: "shot", k: 3, boom: 4, size: 0.7, speed: 15, burn: 1, mult: 1.5, col: "#ff8a3a" },
   Sludgeling:  { n: "Goo Glob",         t: "lob",  boom: 4, burn: 1, mult: 0.9, col: "#8ad83a" },
   Toxitail:    { n: "Sting Shot",       t: "shot", k: 1, speed: 30, size: 0.35, burn: 1, mult: 1.4, col: "#b8ff4a" },
@@ -15189,7 +16021,8 @@ const WD_MOOD = { Pyrrak: "defensive", Thrumwing: "defensive", Plumewyrm: "defen
   Ashveil: "defensive", Cinderpup: "friendly", Miragewyrm: "aggressive", Dunebun: "shy", Spikehorn: "defensive", Abyssar: "aggressive", Medusel: "defensive", Seraphage: "shy",
   Stingdrift: "defensive", Driftfin: "friendly", Prismclaw: "aggressive", Rimefang: "aggressive", Kindlepaw: "friendly", Valkyra: "defensive", Tempestra: "aggressive",
   Rosalind: "friendly", Cloudlet: "friendly", Lanternfen: "shy", Velvette: "shy", Gloamhorn: "defensive", Glidewhisk: "shy", Vulpyre: "shy", Puffshroom: "defensive",
-  Coilwyrm: "shy", Burrowdrake: "shy", Cascadra: "defensive", Glintling: "defensive", Ribcrawler: "aggressive", Gravemaw: "aggressive", Veinfang: "aggressive", Eternix: "friendly", Lumora: "friendly" };
+  Coilwyrm: "shy", Burrowdrake: "shy", Cascadra: "defensive", Glintling: "defensive", Ribcrawler: "aggressive", Gravemaw: "aggressive", Veinfang: "aggressive", Eternix: "friendly", Lumora: "friendly",
+  Orchidra: "defensive", Raydrift: "friendly", Glimmerwick: "friendly" };
 const WD_TURNS = { Seraphage: "aggressive" };   // shy until a fight starts, then aggressive
 // ---- who lives where (never secret, boss or event dragons; Lumora roams anywhere at night from day 7) ----
 const wdOk = s => !!s && !EVENT_KIND(s) && (TIER[s.rarity] || 0) < 6 && s.name !== "Lumora";
@@ -17362,6 +18195,9 @@ const AB = {
   Stingdrift:  { n: "Stolen Sting", t: "Guard", fx: "buff", thorns: 8, stingT: 8, col: "#6fdcff" },   // its finger-fins light up for 8 s: monsters that touch it, hit it or get hit by it are stung (no jellyfish needed: always available)
   Spikehorn:   { n: "Eye Squirt", t: "Fight", fx: "cone", r: 12, fear: 5, squirt: 1, col: "#d8202e" },   // a red spray from its eyes: monsters in front run away for 5 s
   Eternix:     { n: "Tun Shell", t: "Guard", fx: "buff", inv: 4, tun: 4, col: "#bfe0ff" },   // curls up in a glowing pearl shell: nothing can hurt it for 4 s
+  Orchidra:    { n: "Blossom Ambush", t: "Fight", fx: "buff", hide: 6, dmgMul: 2, t2: 6, ambush: 6, col: "#ff9cc8" },   /* goes still and fades into a flower for 6 s: monsters lose track of it, and its hits do double damage */
+  Raydrift:    { n: "Sky Glide", t: "Move", fx: "dash", d: 80, up: 14, hover: 0.6, invT: 1.5, skyGlide: 5, col: "#9adcff" },   /* leaps out of the water and glides far, barely losing height */
+  Glimmerwick: { n: "Flash Burst", t: "Fight", fx: "ring", r: 12, fear: 4, flash: 1, col: "#d4ff4a" },   /* one blinding pulse of light: nearby monsters can't see for 4 s and wander off */
   Vulpyre:     { n: "Spirit Fire", t: "Heal", fx: "buff", regen: 0.035, t2: 10, flames: 1, col: "#ff6a2a" },
   Crestwyrm:   { n: "Champion's Roar", t: "Guard", fx: "buff", half: 10, roar: 1, col: "#ffd24a" },
   Quantum:     { n: "Blink", t: "Move", fx: "tp", d: 22, col: "#a05aff" },
@@ -17478,6 +18314,9 @@ function abUse(two) {
   if (a.t === "Fight" && !canFight()) return;
   ABL.cd[i] = abCd(a);
   if (a.punch && dragon.punch) dragon.punch();   // Rainbow Punch: Prismclaw's claw snaps out
+  if (a.ambush && dragon.ambushPlay) dragon.ambushPlay(a.ambush);   /* Blossom Ambush: Orchidra fades into a flower, then strikes */
+  if (a.skyGlide && dragon.glidePlay) dragon.glidePlay(a.skyGlide);   /* Sky Glide: Raydrift leaps and glides */
+  if (a.flash && dragon.flashPlay) dragon.flashPlay();   /* Flash Burst: Glimmerwick's lantern flares */
   if (a.squirt && dragon.eyeSquirt) dragon.eyeSquirt();   // Eye Squirt: Spikehorn's red spray
   if (a.stingT && dragon.startSting) dragon.startSting(a.stingT);   // Stolen Sting: Stingdrift's finger-fins light up
   if (a.tun && dragon.tunPlay) dragon.tunPlay(a.tun);   // Tun Shell: Eternix closes into its pearl shell
@@ -17713,7 +18552,7 @@ function abArenaDesc(a) {
 }
 async function abArena(two) {
   const A = run.me, D = run.foe, a = abOf(pet.kind, two), dName = `${shownName(foe)}'s ${foe.k}`, k = abArenaKind(a);
-  A.abUsed = A.abUsed || [0, 0]; A.abUsed[two ? 1 : 0] = 1; fx.me.lunge = 1; await sleep(320); if (a.fan) ABL.fanT = a.fan;   /* the looks play in the arena too: */ if (a.squirt && dragon.eyeSquirt) dragon.eyeSquirt(); if (a.stingT && dragon.startSting) dragon.startSting(a.stingT); if (a.tun && dragon.tunPlay) dragon.tunPlay(a.tun);   // Hundred Eyes opens the fan in the arena too
+  A.abUsed = A.abUsed || [0, 0]; A.abUsed[two ? 1 : 0] = 1; fx.me.lunge = 1; await sleep(320); if (a.fan) ABL.fanT = a.fan;   /* the looks play in the arena too: */ if (a.ambush && dragon.ambushPlay) dragon.ambushPlay(a.ambush); if (a.skyGlide && dragon.glidePlay) dragon.glidePlay(a.skyGlide); if (a.flash && dragon.flashPlay) dragon.flashPlay(); if (a.squirt && dragon.eyeSquirt) dragon.eyeSquirt(); if (a.stingT && dragon.startSting) dragon.startSting(a.stingT); if (a.tun && dragon.tunPlay) dragon.tunPlay(a.tun);   // Hundred Eyes opens the fan in the arena too
   const me = spotMe().clone().add(new V(0, 1.6, 0)), them = spotFoe().clone().add(new V(0, 1.6, 0));
   let txt = `${pet.name} uses <b>${a.n}</b>! `;
   if (k === "heal" || k === "stunheal") { const add = Math.min(A.max - A.hp, Math.round(A.max * (k === "stunheal" ? 0.2 : a.heal || 0.45))); A.hp += add; burst(me, a.col); txt += `<b>+${add} HP</b>. `; if (k === "stunheal") { D.stun = true; txt += `${dName} is dazzled!`; } }
