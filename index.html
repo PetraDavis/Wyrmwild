@@ -8981,6 +8981,12 @@ const TIPS = [
   "Walk around with your baby dragon so it can grow up.",
   "Look up at night. Something might be looking back...",
   "Every dragon can wear its own outfit. Try the wardrobe at your nest!",
+  "The portal next to your nest leads to your own den. Burrow Bess sells furniture for it.",
+  "Let your dragons out in your den: they nap, play and come over for pets.",
+  "Every season brings different dragons. Winter is the best time for frost dragons!",
+  "On day 2 of every season the village holds a festival with a special prize.",
+  "Cook fish at your den's campfire. Koi Pie makes your dragon stronger!",
+  "A wild dragon guarding a nest? Feed her a fish, or wait until she goes hunting...",
 ];
 let tipI = Math.floor(Math.random() * TIPS.length);
 const showTip = () => { $("tip").innerHTML = `<b>Tip:</b> ${TIPS[tipI % TIPS.length]}`; };
@@ -9078,13 +9084,15 @@ function showPane(which, msg) {
       <dt><kbd>H</kbd></dt><dd>Open your potion bag (buy potions at Wren's shop in the village)</dd>
       <dt><kbd>P</kbd></dt><dd>Multiplayer: host or join a friend's game (duel, trade, fight monsters together)</dd>
       <dt><kbd>T</kbd></dt><dd>Chat in multiplayer</dd>
-      <dt><kbd>F</kbd></dt><dd>Use your dragon's world skill (Burn, Smash, Freeze, Gust, Wash or Grow) to open secret spots</dd>
+      <dt><kbd>F</kbd></dt><dd>Use your dragon's world skill (Burn, Smash, Freeze, Gust, Wash or Grow) to open secret spots. In your den: open the furniture box</dd>
+      <dt><kbd>G</kbd> / <kbd>Z</kbd> <kbd>X</kbd></dt><dd>In your den: move a piece of furniture / turn it</dd>
       <dt>Mouse</dt><dd>Click the game to look around. <kbd>Esc</kbd> or <kbd>M</kbd> frees the mouse</dd>
       <dt>Left click</dt><dd>Claw attack (while riding)</dd>
       <dt>Right click</dt><dd>Breath attack (needs a few seconds to recharge)</dd>
       <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></dt><dd>Special moves your dragon learns at levels 5, 10, 15 and 20: Tail Whip, Mighty Roar, Power Blast and Second Wind</dd>
       <dt><kbd>A</kbd><kbd>A</kbd> / <kbd>D</kbd><kbd>D</kbd></dt><dd>Double-tap to dodge. A red flash means an attack is coming!</dd></dl>
-      <p>Your game saves by itself. Visit your nest to heal, swap dragons and dress them up.</p>`;
+      <p>Your game saves by itself. Visit your nest to heal, swap dragons and dress them up. The portal next to the nest takes you to your own den: decorate it, let your dragons out, and cook fish at the campfire.</p>
+      <p>Each season lasts 3 days and brings different dragons and special moons. On day 2 of every season the village holds a festival (ask Mayor Tilda).</p>`;
   } else if (which === "set") {
     body.innerHTML = `<h3>Settings</h3>
       <label class="setRow"><span>Music</span><input type="range" id="sMusic" min="0" max="1" step="0.05" value="${SET.music}"></label>
@@ -9461,7 +9469,7 @@ function frameBody() {
       else if (pet.small) toast(`It's a tiny ${KN(eggKind)}!`, "Small dragons stay little forever. Too small to ride, but so cute");
       else toast(`It's ${/^[AEIOU]/.test(SP(eggKind).rarity) ? "an" : "a"} ${SP(eggKind).rarity} ${KN(eggKind)}!`, SP(eggKind).home);
     }
-    if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${KN(eggKind)}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
+    if (hatchT > 4.4 && state === "hatching") { state = "name"; goal("Give your new dragon a name"); if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${KN(eggKind)}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
     prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : wdFeedTarget() ? `Press <kbd>E</kbd> to feed your ${FISH.basket[wdBestFish()]} ${starTxt(fishStars(FISH.basket[wdBestFish()]))} to the wild ${wdFeedTarget().wd.k}` : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
@@ -21047,6 +21055,27 @@ function wnestAct() {
     const N = wnestNear(); if (N) { const m = N.mom, here = m && !m.dead && Math.hypot(m.x - N.x, m.z - N.z) < 22;
       prompt(N.eggs <= 0 ? "The nest is empty" : here ? `Press <kbd>E</kbd> to reach for an egg (the mother ${N.k} is watching!)` : `Press <kbd>E</kbd> to sneak an egg out of the ${N.k} nest`); }
     return r; }; }
+
+/* ================= NEXT STEPS (polish 2026-11-15): after the village, the goal line suggests things a new player hasn't tried yet ================= */
+const NEXT_STEPS = [
+  [() => !DEN.got.visited, () => "Next: step through the portal next to your nest to see your den"],
+  [() => !QST.done, () => "Next: get a job from Gorran's quest board in the village"],
+  [() => !DEN.got.fished, () => "Next: go fishing. Face the pond and press E"],
+  [() => !pen.length && !bag.length, () => "Next: find another egg out in the lands"],
+  [() => !arena.entries, () => "Next: try the arena next to the village"]];
+const NEXT_OK = t => /^(Explore with |Meet the villagers|Next: )/.test(t);
+let nextT = 5;
+function nextTick(dt) {
+  if ((nextT -= dt) > 0) return; nextT = 4;
+  if (!started || !(state === "grown" || state === "ride") || !seen.Village || !NEXT_OK(goalEl.textContent)) return;
+  if (/^Meet the villagers/.test(goalEl.textContent) && landNow === "Village") return;   /* let them meet people first */
+  const st = NEXT_STEPS.find(([need]) => need());
+  const t = st ? st[1]() : `Explore with ${pet.name}. Press R to ride`;
+  if (goalEl.textContent !== t) goal(t);
+}
+{ const _de = denEnter; denEnter = function (view) { if (!view) DEN.got.visited = 1; return _de.apply(this, arguments); };
+  const _fc2 = fishCatch; fishCatch = function () { const n = FISH.basket.length, r = _fc2.apply(this, arguments); if (FISH.basket.length > n) DEN.got.fished = 1; return r; };
+  const _uf5 = updateFish; updateFish = function (dt) { const r = _uf5.apply(this, arguments); nextTick(dt); return r; }; }
 
 /* ================= COOKING (Petra 2026-11-15): cook fish at your den's campfire into treats ================= */
 const TREATS = [
