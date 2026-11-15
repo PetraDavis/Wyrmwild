@@ -9455,7 +9455,7 @@ function frameBody() {
     }
     if (hatchT > 4.4 && state === "hatching") { state = "name"; if (document.exitPointerLock) document.exitPointerLock(); $("nameKind").textContent = `A ${pet.small ? "tiny" : "baby"} ${KN(eggKind)}. What will you name it?`; nameBox.hidden = false; nameInput.value = ""; setTimeout(() => nameInput.focus(), 50); }
   } else if (state === "baby" || state === "grown") {
-    prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : wdFeedTarget() ? `Press <kbd>E</kbd> to feed a fish to the wild ${wdFeedTarget().wd.k}` : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
+    prompt(uiOpen ? "" : wildNear() ? "Press <kbd>E</kbd> to pick up the egg" : wdFeedTarget() ? `Press <kbd>E</kbd> to feed your ${FISH.basket[wdBestFish()]} ${starTxt(fishStars(FISH.basket[wdBestFish()]))} to the wild ${wdFeedTarget().wd.k}` : state === "grown" && near(me.x, me.z, pet.x, pet.z, 4.5) ? `Press <kbd>R</kbd> to ride ${pet.name}` : near(me.x, me.z, 0, 0, 5) && (bag.length || pen.length) ? "Press <kbd>E</kbd> to open your nest" : "");
   } else if (state === "ride") {
     prompt(pet.fly ? "" : (keys.Space ? "" : "Press <kbd>Space</kbd> to take off · <kbd>R</kbd> to get off"));
   }
@@ -10051,7 +10051,7 @@ function nestMenu() {
     ${SHN.glim ? `<div class="sec"><div><b>Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : ""}
     <div class="sec"><div><b>Accessories</b><br><small>${pet.acc && Object.keys(pet.acc).length ? "Wearing: " + Object.values(pet.acc).join(", ") : "Nothing on yet"}</small></div><button data-act="dress">Dress up</button></div>
     <div class="sec"><div><b>Dragon Book</b><br><small>Every kind of dragon you've hatched (or press B anywhere)</small></div><button data-act="book">Open</button></div>
-    ${FISH.basket.length ? `<h4>Fish basket (${FISH.basket.length}/10)</h4>` + FISH.basket.map((n, i) => { const f = fishInfo(n); return `<div class="sec"><div><b>${n}</b><br><small>+${f[2]} HP · +${f[3]} XP</small></div><button data-act="fish" data-i="${i}">Feed</button></div>`; }).join("") : ""}
+    ${FISH.basket.length ? `<h4>Fish basket (${FISH.basket.length}/10)</h4>` + FISH.basket.map((n, i) => { const f = fishInfo(n); return `<div class="sec"><div><b>${n}</b> <span style="color:#ffc845">${starTxt(fishStars(n))}</span><br><small>+${f[2]} HP · +${f[3]} XP</small></div><button data-act="fish" data-i="${i}">Feed</button></div>`; }).join("") : ""}
     <h4>Backpack (${bag.length}/${BAG_MAX})</h4>${eggs}<h4>Pen (${penUsed()}/${PEN_MAX})</h4>${pens}`);
   const ok = state === "grown" || (state === "baby" && pet.small), full = penUsed() + (pet.small ? 0.25 : 1) > PEN_MAX;
   [...menuEl.querySelectorAll("[data-act]")].forEach(b => { if (b.dataset.act !== "book" && b.dataset.act !== "fish" && b.dataset.act !== "drop" && b.dataset.act !== "free" && (!ok || (b.dataset.act === "hatch" && full) || (b.dataset.act === "dress" && state !== "grown"))) b.disabled = true; });
@@ -16108,7 +16108,7 @@ function updateBosses(dt) {
   if (b || !here) return;
   // the Dread Drake hunts at night
   BOSS.ddT -= dt;
-  if (BOSS.ddT <= 0 && isNight && state === "ride" && landNow !== "Village" && landNow !== "Crystal Caves" && ownsEpic()) {
+  if (BOSS.ddT <= 0 && !BOSS.dd && isNight && state === "ride" && landNow !== "Village" && landNow !== "Crystal Caves" && ownsEpic()) {
     BOSS.ddT = 420 + Math.random() * 300;
     spawnBoss("Dread Drake", 55, 14); BOSS.was = "Dread Drake";
     toast("A huge shadow blots out the stars...", "THE DREAD DRAKE! It has caught your dragon's scent!");
@@ -16139,7 +16139,7 @@ MOVES["Dread Drake"] = {
       const w = addWild("Quantum", landNow, p); w.ev = true;
       toast("The Dread Drake is beaten!", "It dropped a strange dark egg... ??? (and 300 coins)");
       setTimeout(() => toast("Before it vanished, the Dread Drake looked up at the Sky Islands...", "...and shivered."), 6000);
-    } else toast("The Dread Drake is beaten again!", "+300 coins. It'll be back...");
+    } else toast("The Dread Drake is beaten again!", "+300 coins");
     writeSave(); return true;
   },
 };
@@ -16605,8 +16605,8 @@ function wdFeedTarget() {
 }
 function wdFeedAct(roll) {
   const m = wdFeedTarget(); if (!m) return false;
-  const w = m.wd, k = w.k, fish = FISH.basket.shift(); w.fed = true; m.face = Math.atan2(me.z - m.z, me.x - m.x); burstAt(m.x, m.y + m.tall * 0.6, m.z, "#ff8ab0");
-  const lucky = (roll === undefined ? Math.random() : roll) < (WD_FEED[w.mood0] || 0.1);
+  const w = m.wd, k = w.k, fish = FISH.basket.splice(wdBestFish(), 1)[0], fs = fishStars(fish); w.fed = true; m.face = Math.atan2(me.z - m.z, me.x - m.x); burstAt(m.x, m.y + m.tall * 0.6, m.z, "#ff8ab0");
+  const lucky = (roll === undefined ? Math.random() : roll) < Math.min(0.9, (WD_FEED[w.mood0] || 0.1) * FISH_TRUST[fs]);   /* rarer fish = more trust */
   if (lucky) {
     if (bag.length < BAG_MAX) { bag.push(k); toast(`The wild ${k} gobbles up the ${fish}!`, `It nudges something toward you... a ${k} egg! It's in your backpack`); }
     else { const p = new V(m.x + Math.cos(m.face) * 2, 0, m.z + Math.sin(m.face) * 2); p.y = groundAt(p.x, p.z, m.y + 2); addWild(k, landNow, p).ev = true; toast(`The wild ${k} gobbles up the ${fish}!`, `It leaves a ${k} egg on the ground for you (your backpack is full)`); }
@@ -17240,6 +17240,10 @@ const FISH_KINDS = {   // name, chance weight, HP healed, XP
   Ice:   [["Ice Trout", 40, 16, 4], ["Frostfin", 25, 24, 6], ["Glacier Char", 10, 40, 12], ["Aurora Eel", 3, 70, 28]],
 };
 const FISH_ODD = ["an old boot", "a tangle of seaweed", "a message in a bottle", "a shiny pearl"];
+const fishStars = n => { const f = fishInfo(n); if (!f) return 1; return f[1] >= 35 ? 1 : f[1] >= 20 ? 2 : f[1] >= 10 ? 3 : 4; };   /* rarer fish = more stars */
+const starTxt = k => "★".repeat(k) + "☆".repeat(4 - k);
+const FISH_TRUST = [1, 1, 1.6, 2.4, 3.5];   /* how much more a wild dragon trusts you, by the fish's stars */
+const wdBestFish = () => FISH.basket.reduce((b, n, i) => fishStars(n) > fishStars(FISH.basket[b]) ? i : b, 0);   /* you always offer your best fish */
 const fishInfo = n => { for (const k in FISH_KINDS) { const f = FISH_KINDS[k].find(q => q[0] === n); if (f) return f; } return null; };
 function fishSpot() {   // the water right in front of you, if there is any
   for (const r of [4, 5.5, 7]) {
@@ -17286,7 +17290,7 @@ function fishCatch() {
   for (const q of list) { r -= q[1]; if (r < 0) { f = q; break; } }
   if (FISH.basket.length >= 10) { toast(`You caught a ${f[0]}!`, "Your basket is full (10 fish), so you let it go. Feed some to your dragon at the nest"); return; }
   FISH.basket.push(f[0]); FISH.caught = (FISH.caught || 0) + 1;
-  toast(`You caught a ${f[0]}!`, `${f[1] <= 6 ? "A rare one! " : ""}Into the basket (${FISH.basket.length}/10). Feed it to your dragon at the nest`);
+  toast(`You caught a ${f[0]}! ${starTxt(fishStars(f[0]))}`, `${f[1] <= 6 ? "A rare one! " : ""}Into the basket (${FISH.basket.length}/10). Feed it to your dragon at the nest`);
   writeSave();
 }
 function fishFeed(i) {   // from the nest menu
