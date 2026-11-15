@@ -20939,6 +20939,115 @@ function seaTint() {
     const B = M.userData.seaBase; M.color.copy(B.c).multiply(new THREE.Color(T4[k]));
     if (M.emissive && B.e) M.emissive.copy(B.e).add(new THREE.Color(T4[k + 1])); });
 }
+
+
+/* ================= NESTS IN THE WILD (Petra 2026-11-15) =================
+   Once the wild dragons are home, now and then one builds a nest with 1-3 eggs of its own kind. The mother guards it.
+   - Feed her a fish: she trusts you twice as easily as other wild dragons, and gives you an egg from the nest.
+   - Ask her for one (E at the nest): a friendly mother may let you; a shy one flees; a defensive or aggressive one roars and shoves you away.
+   - Or sneak an egg while she's off hunting. If she comes back while you're still close, she's furious (and attacks riders). */
+var WNEST = { n: null, t: 150, shoveT: 0 };
+const WNEST_GAP = [240, 420];   /* seconds between nests */
+function wnestBuild(N) {
+  const g = new THREE.Group(); g.position.set(N.x, N.y, N.z); scene.add(g); N.g = g;
+  const tw = denL("#7a5a3a"), tw2 = denL("#5e4128");
+  for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, m = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 5), i % 2 ? tw : tw2); m.position.set(Math.cos(a) * 1.25, 0.28 + (i % 3) * 0.08, Math.sin(a) * 1.25); m.rotation.set(Math.PI / 2, 0, a + 0.6); m.castShadow = true; g.add(m); }
+  const bed = new THREE.Mesh(new THREE.CircleGeometry(1.2, 18), denL("#b8944a")); bed.rotation.x = -Math.PI / 2; bed.position.y = 0.12; g.add(bed);
+  const col = new THREE.Color(SP(N.k).pal.glow).convertSRGBToLinear(), sh = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 14, 14, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  sh.position.y = 7.2; g.add(sh); N.beam = sh;   /* a faint glow so you can spot the nest from a distance */
+  N.eggM = [];
+  for (let i = 0; i < N.eggs; i++) { const e = makeEgg(SP(N.k).pal, SP(N.k).rarity, false); e.scale.multiplyScalar(0.62); const a = i / Math.max(1, N.eggs) * Math.PI * 2 + 0.4, r = N.eggs > 1 ? 0.45 : 0; e.position.set(Math.cos(a) * r, 0.5, Math.sin(a) * r); g.add(e); N.eggM.push(e); }
+}
+function wnestShowEggs(N) { N.eggM.forEach((e, i) => { e.visible = i < N.eggs; }); }
+function wnestRemove() {
+  const N = WNEST.n; if (!N) return;
+  if (N.g) scene.remove(N.g); if (N.mom && !N.mom.dead && mons.includes(N.mom)) removeMonster(N.mom);
+  WNEST.n = null; WNEST.t = WNEST_GAP[0] + Math.random() * (WNEST_GAP[1] - WNEST_GAP[0]);
+}
+function wnestMom(N) {   /* the mother appears at (or flies back to) her nest */
+  const a = Math.random() * 6.283, p = new V(N.x + Math.cos(a) * 3, 0, N.z + Math.sin(a) * 3); p.y = groundAt(p.x, p.z, N.y + 3);
+  const m = wdSpawn(N.k, N.land, p); if (!m) return null;
+  m.wd.hx = N.x; m.wd.hz = N.z; m.wd.nest = N; m.wd.mood = m.wd.mood0 = N.mood; m.home.set(N.x, N.y, N.z); N.mom = m; return m;
+}
+function wnestSpawn() {
+  const land = landNow; if (!wdBack(land) || !(WD_POOL[land] || []).length) return false;
+  let k = null; for (let i = 0; i < 6 && !k; i++) { const c = wdPick(WD_POOL[land]); if (c && !(WATER_KINDS.has(c) || c === "Medusel") && c !== "Lumora") k = c; }
+  if (!k) return false;
+  let p = null; for (let i = 0; i < 6 && !p; i++) { const q = wdSpot(k, land); if (q && waterTop(q.x, q.z) === -Infinity && wildOk(q.x, q.z, 3) && Math.hypot(q.x - me.x, q.z - me.z) > 30) p = q; }
+  if (!p) return false;
+  const y = groundAt(p.x, p.z, p.y + 3), N = { k, land, x: p.x, y, z: p.z, eggs: 1 + Math.floor(Math.random() * 3), mood: WD_mood(k), mom: null, away: 0, home: 70 + Math.random() * 40, stolen: false, took: 0, emptyT: 0 };
+  wnestBuild(N); WNEST.n = N; wnestMom(N);
+  toast(`A wild ${k} is guarding a nest nearby!`, "Look for a nest of twigs with eggs in it. The mother won't like you getting close...");
+  return true;
+}
+function wnestTick(dt) {
+  if (!started || DEN.in || state === "arena" || (typeof mpGuest === "function" && mpGuest())) return;
+  const N = WNEST.n;
+  if (!N) { if (wdDay() >= 1 && hasDragon() && !uiOpen && (WNEST.t -= dt) <= 0) { WNEST.t = 30; wnestSpawn(); } return; }
+  const d = Math.hypot(me.x - N.x, me.z - N.z);
+  if (landNow !== N.land && d > 120 || d > 300) return wnestRemove();
+  if (N.mom && (N.mom.dead || !mons.includes(N.mom))) { if (N.mom.dead) { N.mom = null; N.eggs = N.eggs; N.away = 9999; } else N.mom = null; }
+  // the mother's day: guard the nest, go hunting, come back
+  if (N.mom) {
+    const m = N.mom; if (!m.aggro && Math.hypot(m.x - N.x, m.z - N.z) > 14) { m.wd.tx = N.x + (Math.random() - 0.5) * 4; m.wd.tz = N.z + (Math.random() - 0.5) * 4; }
+    if (!m.aggro && (N.home -= dt) <= 0 && N.eggs > 0) {
+      removeMonster(m); N.mom = null; N.away = 35 + Math.random() * 20; burstAt(N.x, N.y + 3, N.z, "#d8d0c0");
+      if (d < 70) toast(`The mother ${N.k} flies off to hunt`, "The nest is unguarded... for now");
+    }
+  } else if (N.away < 9000 && (N.away -= dt) <= 0) {
+    const m = wnestMom(N); N.home = 70 + Math.random() * 40;
+    if (m && N.stolen && d < 30) {
+      m.wd.mood = "aggressive"; m.wd.prov = 30; m.wd.fed = true; N.mood = "aggressive";
+      toast(`The mother ${N.k} is back... and she's FURIOUS!`, "Eggs are missing from her nest! Get away, or fight her if you're riding");
+      if (state !== "ride" && d < 6) wnestShove(m);
+    } else if (m && d < 70) toast(`The mother ${N.k} is back at her nest`, N.stolen ? "Lucky! She didn't see you" : "");
+    N.stolen = false;
+  }
+  if (N.eggs <= 0 && (N.emptyT += dt) > 25) { if (N.mom && !N.mom.aggro) toast(`The ${N.k} leaves its empty nest`, ""); return wnestRemove(); }
+  if (WNEST.shoveT > 0) WNEST.shoveT -= dt;
+}
+function wnestShove(m) {   /* a roar and a big push away from the nest */
+  const N = WNEST.n, a = Math.atan2(me.z - N.z, me.x - N.x); m.face = a; burstAt(m.x, m.y + m.tall * 0.7, m.z, "#ff5a3a");
+  for (let i = 0; i < 12; i++) { moveCircle(me, Math.cos(a) * 0.6, Math.sin(a) * 0.6, 0.4); }
+  me.y = Math.max(me.y, groundAt(me.x, me.z, me.y + 3)); WNEST.shoveT = 20;
+}
+function wnestNear() { const N = WNEST.n; if (!N || DEN.in || !(state === "grown" || state === "baby") || uiOpen) return null; return Math.hypot(me.x - N.x, me.z - N.z) < 3.2 && Math.abs(me.y - N.y) < 4 ? N : null; }
+function wnestAct() {
+  const N = wnestNear(); if (!N) return false;
+  if (N.eggs <= 0) { toast("The nest is empty", ""); return true; }
+  if (bag.length >= BAG_MAX) { toast("Your backpack is full", "Make room for an egg first"); return true; }
+  const m = N.mom, here = m && !m.dead && Math.hypot(m.x - N.x, m.z - N.z) < 22;
+  const take = msg => { N.eggs--; N.took++; bag.push(N.k); wnestShowEggs(N); burstAt(N.x, N.y + 0.8, N.z, SP(N.k).pal.glow); toast(`You got a ${N.k} egg!`, msg); showCoins(); writeSave(); };
+  if (!here) { N.stolen = true; take("You sneaked it out of the nest. Better go before the mother comes back!"); return true; }
+  if (WNEST.shoveT > 0 || m.wd.mood === "aggressive" || m.wd.mood === "defensive") {
+    m.wd.prov = Math.max(m.wd.prov, 15); wnestShove(m);
+    toast(`The mother ${N.k} ROARS and shoves you away!`, m.wd.mood === "aggressive" ? "She'll attack if she sees you riding nearby" : "Try feeding her a fish, or wait until she goes hunting");
+    return true;
+  }
+  if (m.wd.mood === "shy") {   /* a shy mother panics and flies off, leaving the eggs */
+    removeMonster(m); N.mom = null; N.away = 40 + Math.random() * 20; N.stolen = true; burstAt(N.x, N.y + 3, N.z, "#d8d0c0");
+    take("The shy mother panicked and flew off! She'll be back soon..."); return true;
+  }
+  if (!m.wd.askT && Math.random() < 0.35) { take(`The friendly mother watches you... then nudges an egg your way`); m.wd.askT = 1; return true; }
+  m.wd.askT = 1; m.face = Math.atan2(me.z - m.z, me.x - m.x);
+  toast(`The mother ${N.k} growls softly and curls around her eggs`, "Not yet. Maybe a fish would help her trust you");
+  return true;
+}
+{ const _wf4 = wdFeedAct; wdFeedAct = function (roll) {
+    if (wnestNear()) return wnestAct();
+    const t = typeof wdFeedTarget === "function" ? wdFeedTarget() : null, N = t && t.wd && t.wd.nest;
+    if (N && WNEST.n === N) {   /* a nesting mother trusts you twice as easily, and the egg comes out of her nest */
+      if (N.eggs <= 0) { const r = _wf4.call(this, 1); return r; }
+      const before = bag.length, r = _wf4.call(this, roll === undefined ? Math.random() * 0.5 : roll);
+      if (t.wd.gaveEgg) { N.eggs--; wnestShowEggs(N); if (bag.length === before) N.eggs = Math.max(0, N.eggs); }
+      return r;
+    }
+    return _wf4.apply(this, arguments); };
+  const _uf4 = updateFish; updateFish = function (dt) { const r = _uf4.apply(this, arguments); wnestTick(dt);
+    const N = wnestNear(); if (N) { const m = N.mom, here = m && !m.dead && Math.hypot(m.x - N.x, m.z - N.z) < 22;
+      prompt(N.eggs <= 0 ? "The nest is empty" : here ? `Press <kbd>E</kbd> to reach for an egg (the mother ${N.k} is watching!)` : `Press <kbd>E</kbd> to sneak an egg out of the ${N.k} nest`); }
+    return r; }; }
+
 /* ================= COOKING (Petra 2026-11-15): cook fish at your den's campfire into treats ================= */
 const TREATS = [
   { id: "grill", name: "Grilled Fish", need: { stars: 1, n: 1 }, col: "#e8a05a", desc: "Heals 50 HP and gives 6 XP", heal: 50, xp: 6 },
