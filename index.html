@@ -1188,6 +1188,15 @@ function paint(p) {
       });
       c.restore();
     });
+} else if (pat === "widow") {   // Silkfang (Petra 2026-11-15): black widow marks: a red hourglass on the back and one on the belly, a line of red spots toward the tail
+    const red = String(p.glow).toLowerCase() === "#ff1414" ? "#e00006" : p.glow;   // normal Silkfang: deep red; shinies use their own glow colour
+    const hour = (c, x, y, w, h) => { c.beginPath(); c.moveTo(x - w, y - h); c.lineTo(x + w, y - h); c.lineTo(x + w * 0.12, y); c.lineTo(x + w, y + h); c.lineTo(x - w, y + h); c.lineTo(x - w * 0.12, y); c.closePath(); c.fill(); };
+    const hourX = (c, x, y, w, h) => { c.beginPath(); c.moveTo(x - h, y - w); c.lineTo(x - h, y + w); c.lineTo(x, y + w * 0.18); c.lineTo(x + h, y + w); c.lineTo(x + h, y - w); c.lineTo(x, y - w * 0.18); c.closePath(); c.lineJoin = "round"; c.lineWidth = 7; c.strokeStyle = c.fillStyle; c.stroke(); c.fill(); };   // rounded corners (Petra)   // the hourglass lying along the body (pinched in the middle, wide at front and back)
+    [[g, 0, 1], [e, 14, 1], [e, 4, 1]].forEach(([c, blur, al]) => { c.save(); c.globalAlpha = al; c.fillStyle = c.shadowColor = red; c.shadowBlur = blur;
+      hourX(c, 548, H * 0.25, 13, 36);        // on the back, over the hips
+      hourX(c, 520, H * 0.75, 15, 42);        // on the belly
+      [[480, 7], [446, 6], [414, 5], [384, 4.5]].forEach(([x, rr]) => { c.beginPath(); c.arc(x, H * 0.25, rr, 0, Math.PI * 2); c.fill(); });   // spots trailing down the tail
+      c.restore(); });
   } else if (pat === "eclipse") {   // thin lines of sunlight along the spine and flanks, like light leaking round the moon
     e.shadowBlur = 14; [[0.25, 4], [0.06, 2], [0.44, 2]].forEach(([v, w]) => { e.fillRect(40, v * H - w / 2, W - 80, w); });
     for (let x = 120; x < 900; x += 70) { e.beginPath(); e.arc(x, 0.25 * H, 5, 0, Math.PI * 2); e.fill(); }
@@ -1300,7 +1309,7 @@ function paint(p) {
   ec.strokeStyle = "rgba(0,0,0,0.18)"; ec.lineWidth = 2;
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; ec.beginPath(); ec.moveTo(r + Math.cos(a) * 18, r + Math.sin(a) * 18); ec.lineTo(r + Math.cos(a) * 52, r + Math.sin(a) * 52); ec.stroke(); }
   ec.fillStyle = o.blind ? "rgba(255,255,255,0.35)" : "#0b0503"; ec.beginPath();   // blind: a cloudy eye with no pupil
-  if (o.blind) ec.ellipse(r, r, 30, 30, 0, 0, Math.PI * 2); else ec.ellipse(r, r, o.eyes > 1.3 ? 15 : o.gentle ? 10 : 7, 40, 0, 0, Math.PI * 2);   // always reptile slit pupils (Petra); dark-dwellers and friendly dragons just have wider slits
+  if (o.blind) ec.ellipse(r, r, 30, 30, 0, 0, Math.PI * 2); else if (o.noPupil) {} else ec.ellipse(r, r, o.eyes > 1.3 ? 15 : o.gentle ? 10 : 7, 40, 0, 0, Math.PI * 2);   // always reptile slit pupils (Petra); dark-dwellers and friendly dragons just have wider slits
   ec.fill();
   ec.fillStyle = "rgba(255,255,255,0.9)"; ec.beginPath(); ec.arc(r - 18, r - 20, 9, 0, Math.PI * 2); ec.fill();
   ec.beginPath(); ec.arc(r + 14, r + 18, 4, 0, Math.PI * 2); ec.fill();
@@ -1628,6 +1637,10 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
     const lidL = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.1, 28, 10, 0, Math.PI * 2, Math.PI - lo, lo), M.top); lidL.rotation.z = -0.1; if (!o.pandaMask) ball.add(lidL); if (o.pandaMask) { ball.material = M.pEye = M.pEye || new THREE.MeshStandardMaterial({ color: new THREE.Color('#1a0e0a').convertSRGBToLinear(), roughness: 0.15, metalness: 0 }); ball.scale.set(1, 1, 1); const gl = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); gl.position.set(eyeR * 0.75, eyeR * 0.45, eyeR * 0.45); ball.add(gl); }
     if (o.gentle && !o.pandaMask) head.add(staticTube([new V(0.36, 0.17 + 0.03 * (E - 1), 0.15 * z), new V(0.25, 0.24 + 0.05 * (E - 1), 0.21 * z), new V(0.1, 0.21, 0.2 * z)], [[0, 0.012], [0.5, 0.028], [1, 0.015]], M.top, 12, 10));   // soft raised brow
     else if (!o.pandaMask) head.add(staticTube([new V(0.38, 0.12 + 0.03 * (E - 1), 0.13 * z), new V(0.24, 0.2 + 0.05 * (E - 1), 0.2 * z), new V(0.06, 0.2, 0.2 * z)], [[0, 0.02], [0.5, 0.05], [1, 0.03]], M.top, 12, 10));   // low angry brow
+    if (o.sideEyes) {   // Silkfang (Petra 2026-11-15): three smaller glowing eyes in a little curve behind and above each big eye
+      M.sideEye = M.sideEye || new THREE.MeshStandardMaterial({ color: new THREE.Color("#b00008").convertSRGBToLinear(), emissive: new THREE.Color(p.eye).convertSRGBToLinear(), emissiveIntensity: 0.3, roughness: 0.1, metalness: 0.2 });
+      [[0.305, 0.035, 0.031], [0.235, 0.012, 0.034], [0.165, 0.035, 0.029]].forEach(([x, y, rr]) => { const e = new THREE.Mesh(new THREE.SphereGeometry(rr, 16, 12), M.eye); e.rotation.y = z > 0 ? -1.2 : 1.2; e.userData.sideEye = { x, y, z, rr }; head.add(e); });
+    }
     const H = o.horns;
     if (H === "swept") {
       head.add(staticTube([new V(-0.02, 0.18, 0.14 * z), new V(-0.4, 0.34, 0.24 * z), new V(-0.72, 0.62, 0.3 * z), new V(-0.82, 0.86, 0.3 * z)], [[0, 0.075], [0.5, 0.045], [1, 0.004]], M.horn, 24, 12));
@@ -1654,6 +1667,8 @@ const sn = x => 0.1 + (x - 0.1) * SX;   // stretch or squash the snout
       head.add(staticTube([new V(0.0, 0.18, 0.12 * z), new V(-0.38, 0.42, 0.2 * z), new V(-0.78, 0.68, 0.26 * z)], [[0, 0.065], [0.5, 0.04], [1, 0.003]], M.horn, 18, 10));
       head.add(staticTube([new V(-0.08, 0.04, 0.2 * z), new V(-0.34, 0.12, 0.3 * z), new V(-0.56, 0.24, 0.36 * z)], [[0, 0.04], [1, 0.003]], M.horn, 12, 8));
       head.add(staticTube([new V(0.3, 0.17, 0.1 * z), new V(0.18, 0.25, 0.13 * z), new V(0.04, 0.3, 0.15 * z)], [[0, 0.02], [1, 0.002]], M.horn, 8, 6));   // little brow spikes
+    } else if (H === "fang") {   // Silkfang (Petra 2026-11-15): big horns shaped like spider fangs: thick at the head, sweeping up and back, then hooking down to a sharp point
+      head.add(staticTube([new V(0.0, 0.18, 0.12 * z), new V(-0.32, 0.4, 0.17 * z), new V(-0.66, 0.62, 0.22 * z)], [[0, 0.08], [0.5, 0.05], [1, 0.003]], M.horn, 20, 12));   // straight, long and sharp (Petra didn't like the curves)
     } else if (H === "long") {   // long straight horns swept far back (wind racers)
       head.add(staticTube([new V(-0.02, 0.18, 0.12 * z), new V(-0.6, 0.3, 0.16 * z), new V(-1.15, 0.38, 0.18 * z)], [[0, 0.06], [1, 0.004]], M.horn, 20, 10));
     }
@@ -2403,6 +2418,63 @@ function glideWing(pivot, g, zs) {
   [mT, mB].forEach(m => { m.userData.furWing = true; m.castShadow = true; m.frustumCulled = false; dragon.add(m); });   // the same fur as the body grows on both faces (Petra: no texture rift between flap and body)
   glideFlaps.push({ zs, geoT, geoB, pos });
 }
+// ---------- NEW (Petra 2026-11-15): Silkfang v2: each wing is a fan of jointed spider legs, with a silk thread running through every joint like the rings of a web ----------
+const silkWings = [];
+function silkWing(pivot, g, zs) {
+  M.band = M.top;   // Petra 2026-11-15: no yellow joints, they're the same black as the legs
+  M.silk = M.silk || new THREE.MeshBasicMaterial({ color: new THREE.Color(p.silk || "#eef2ff").convertSRGBToLinear(), transparent: true, opacity: 0.85 });
+  M.dew = M.dew || new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffffff").convertSRGBToLinear(), transparent: true, opacity: 0.9 });
+  const S = new V(0, 0, 0), W = new V(0.05, 0.55, 0.5);   // short shoulder: the spider legs grow out of a knuckle just off the back
+  g.add(staticTube([S, new V(0.02, 0.3, 0.25), W], [[0, 0.1], [1, 0.08]], M.top, 12, 12));
+  const kn = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), M.band); kn.position.copy(W); g.add(kn);
+  // five legs fanning from the front of the wing to the back; each bends up at the first joint and arcs out and down to a fine point
+  const TIPS = [new V(0.15, 1.75, 2.35), new V(-0.55, 1.45, 2.85), new V(-1.25, 1.0, 2.85), new V(-1.8, 0.5, 2.3), new V(-2.0, 0.05, 1.45)];
+  const legsJ = TIPS.map((tp, i) => {
+    const d = tp.clone().sub(W), up = new V(0, 1, 0);
+    const J1 = W.clone().addScaledVector(d, 0.3).addScaledVector(up, 0.45 - i * 0.04);   // first joint pokes up high, like a spider's knee
+    const J2 = W.clone().addScaledVector(d, 0.62).addScaledVector(up, 0.32 - i * 0.03);
+    const J3 = W.clone().addScaledVector(d, 0.85).addScaledVector(up, 0.12);
+    const pts = [W, J1, J2, J3, tp], R = [0.048, 0.04, 0.032, 0.022, 0.004];
+    for (let k = 0; k < 4; k++) g.add(staticTube([pts[k], pts[k].clone().lerp(pts[k + 1], 0.5).add(new V(0, 0.03, 0)), pts[k + 1]], [[0, R[k]], [1, R[k + 1] + (k < 3 ? 0.008 : 0)]], M.top, 12, 10));
+    [J1, J2, J3].forEach((q, k) => { const j = new THREE.Mesh(new THREE.SphereGeometry([0.075, 0.064, 0.05][k], 14, 10), M.band); j.position.copy(q); g.add(j); });   // knuckle joints, black like the legs
+    for (let k = 0; k < 3; k++) { const a = pts[k + 1], b = pts[k + 2]; for (let h = 1; h <= 2; h++) { const q = a.clone().lerp(b, h / 3), hr = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.08, 4), M.top); hr.position.copy(q); hr.rotation.set(0, 0, (h % 2 ? 0.6 : -0.6)); g.add(hr); } }   // a few fine bristles, like spider leg hairs
+    return pts;
+  });
+  // the silk: one thread through each ring of joints (J1, J2, J3) and one through the tips, sagging a little toward the shoulder between legs like a real web
+  const threads = [];
+  for (let k = 1; k <= 4; k++) {
+    const line = [];
+    for (let i = 0; i < legsJ.length; i++) {
+      const a = legsJ[i][k]; line.push(a);
+      if (i < legsJ.length - 1) { const b = legsJ[i + 1][k], m = a.clone().lerp(b, 0.5); m.lerp(W, 0.08 + k * 0.015); line.push(m); }
+    }
+    threads.push(line);
+  }
+  // one extra thread between each pair of joint rings, so it reads as a web and not a ladder
+  for (let k = 1; k <= 3; k++) { const line = []; for (let i = 0; i < legsJ.length; i++) { const a = legsJ[i][k].clone().lerp(legsJ[i][k + 1], 0.5); line.push(a); if (i < legsJ.length - 1) { const b = legsJ[i + 1][k].clone().lerp(legsJ[i + 1][k + 1], 0.5), m = a.clone().lerp(b, 0.5).lerp(W, 0.1); line.push(m); } } threads.push(line); }
+  // and the anchor lines: from the first ring back down to the shoulder and the body, like the guy lines that hold a web up
+  threads.push([legsJ[0][1], W]);
+  const dews = [];
+  threads.forEach((line, n) => {
+    const t = staticTube(line, [[0, 0.007], [1, 0.007]], M.silk, line.length * 6, 4); t.castShadow = false; g.add(t);
+    if (line.length > 2) for (let i = 1; i < line.length - 1; i += 2) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), M.dew); d.position.copy(line[i]).add(new V(0, -0.02, 0)); g.add(d); dews.push({ d, ph: n * 1.7 + i }); }   // dew drops hanging on the threads
+  });
+  g.traverse(m => { if (m.isMesh && m.material !== M.silk && m.material !== M.dew) m.castShadow = true; });
+  silkWings.push({ dews });
+  const lead = Math.max(...TIPS.map(q => Math.atan2(q.y, q.z)));
+  wings.push({ pivot, zs, up: Math.max(0.15, 1.4 - lead), y0: pivot.position.y });
+}
+function updSilk(t) {
+  if (o.sideEyes && !head.userData.eyesSet) {   // set each little eye into the skin: shoot a ray in from the side and sink the eye half into the surface it hits
+    head.userData.eyesSet = true; head.updateMatrixWorld(true);
+    const skin = []; head.traverse(m => { if (m.isMesh && m.material === M.top) skin.push(m); });
+    const rc = new THREE.Raycaster();
+    head.children.forEach(e => { const d = e.userData.sideEye; if (!d) return;
+      const a = head.localToWorld(new V(d.x, d.y, d.z * 0.7)), b = head.localToWorld(new V(d.x, d.y, 0));
+      rc.set(a, b.clone().sub(a).normalize()); const h = rc.intersectObjects(skin, false)[0];
+      const q = h ? head.worldToLocal(h.point.clone()) : new V(d.x, d.y, d.z * 0.2); q.z -= Math.sign(d.z) * d.rr * 0.45; e.position.copy(q); });
+  }
+  silkWings.forEach(w => w.dews.forEach(q => { const k = 0.5 + 0.5 * Math.sin(t * 2.3 + q.ph); q.d.scale.setScalar(0.7 + 0.6 * k); q.d.material.opacity = 0.9; })); if (M.silk) M.silk.opacity = 0.7 + 0.15 * Math.sin(t * 1.1); }
 function wing(zs) {
   const pivot = new THREE.Group();
   const f = at(0.6);
@@ -2413,6 +2485,7 @@ function wing(zs) {
   if (type === "moth") return mothWing(pivot, g, zs);
   if (type === "poodle") return poodleWing(pivot, g, zs);
   if (type === "hummer") return hummerWing(pivot, g, zs);
+  if (type === "silk") return silkWing(pivot, g, zs);   /* NEW Silkfang: spider-leg wings strung with silk */
   if (type === "glide") return glideWing(pivot, g, zs);   // NEW Glidewhisk: furry skin flaps instead of wings
   if (type === "peacock") return peacockWing(pivot, g, zs);
   if (type === "swan") return swanWing(pivot, g, zs);
@@ -2694,6 +2767,10 @@ if (o.tail === "flame" || o.tail === "smoke") {
   if (T === "ribbon") { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), M.fin); f.rotation.z = -Math.PI / 2; f.scale.set(0.45, 1.8, 1); f.userData.finRays = true; tailTip.add(f); }
   if (T === "club") { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), M.top); c.position.x = 0.15; tailTip.add(c); for (let i = 0; i < 6; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), M.horn); const a = i / 6 * Math.PI * 2; sp.position.set(0.15, Math.cos(a) * 0.27, Math.sin(a) * 0.27); sp.rotation.x = a; tailTip.add(sp); } }
   if (T === "leaf") { const f = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), M.fin); f.rotation.z = -Math.PI / 2; f.scale.set(0.9, 1.0, 1); tailTip.add(f); }
+  if (T === "spinner") {   // Silkfang: silk spinners at the tail tip: a rounded tip with three short nozzles
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), M.top); b.scale.set(1.5, 1, 1); b.position.x = 0.12; tailTip.add(b);
+    [[0, 0.05], [0.05, -0.04], [-0.05, -0.04]].forEach(([zz, yy]) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.04, 0.14, 10), M.top); c.rotation.z = -Math.PI / 2; c.position.set(0.36, yy, zz); tailTip.add(c); const t = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), M.silk || (M.silk = new THREE.MeshBasicMaterial({ color: new THREE.Color(p.silk || "#eef2ff").convertSRGBToLinear(), transparent: true, opacity: 0.85 }))); t.position.set(0.43, yy, zz); tailTip.add(t); });
+  }
   if (T === "spike") { const c = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 10), M.horn); c.rotation.z = -Math.PI / 2; c.position.x = 0.28; tailTip.add(c); }
   if (T === "crystal") [[0.25, 0, 0, 0], [0.12, 0.12, 0.08, 0.6], [0.12, -0.1, -0.08, -0.6]].forEach(([x, y, z, a]) => { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), M.crystal); c.scale.set(2.6, 0.9, 0.9); c.position.set(x, y, z); c.rotation.z = a; tailTip.add(c); });
   if (T === "tuft") for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M.fur); c.position.set(0.1 + Math.random() * 0.25, (Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.22); tailTip.add(c); }
@@ -2981,6 +3058,7 @@ function update(t, walk, flap, dt, bend = 0) {
   if (o.eternix && o._etx && o._etx.built) eterStep(t, dt);   // NEW Eternix: pearls, tail orb, Tun Shell
   if (o.swimLegs && !flap) legs.forEach((g, i) => { const sw = Math.sin(t * (3 + 5 * walk) + i * 1.7) * (0.12 + 0.3 * walk); g.rotation.z = (i < 2 ? -1.35 : -1.2) + sw; if (g.userData.knee) g.userData.knee.rotation.z = i < 2 ? 0.15 : 0.5; if (g.userData.ankle) g.userData.ankle.rotation.z = (i < 2 ? 0.9 : 0.6) - sw * 0.5; });   // NEW (2026-11-14): Driftfin swims level, legs tucked back and paddling
   if (o._setPh) o._setPh(1);
+  updSilk(t);   /* NEW Silkfang: dew drops twinkle, little eyes set into the face */
   if (o.glim && o._gw && o._gw.built) glimStep(t, dt);   /* NEW Glimmerwick: lantern, motes, Flash Burst */
   if (o.orchid && o._or && o._or.built) orchidStep(t, dt, walk, flap);
   if (o._setPh) o._setPh(0);   /* NEW Orchidra: arms, Blossom Ambush */
@@ -6801,6 +6879,26 @@ SPECIES.push({ name: "Orchidra", size: 0.7, rarity: "Rare", home: "Green Valley 
        "See-through pink-veined petal wings, a short tail with a petal fan, and petal edges that shimmer pink-gold in the sun",
        "A small triangular head with big, soft green eyes that glow faintly and two thin curled feelers",
        "Slim and graceful: 70% the size of a Pyrrak. Defensive: it never starts a fight, but it ends them. World skill: flowers bloom where it lands"] });
+// ----- NEW (Petra 2026-11-15): Silkfang v2, the black widow dragon (Rare, Deep Forest, Shy) -----
+SPECIES.push({ name: "Silkfang", rarity: "Rare", home: "Deep Forest (webs high in the giant trees)", speed: 3,
+  note: "Inspired by the black widow spider",
+  br: "Web Snare: shoots a sticky web that holds monsters in place for a few seconds",
+  pal: P("#141216", "#141216", "#1c191e", "#ff1414", "#2a2428", "#141216", "#ff1a1a", { silk: "#eef2ff", horn: "#1e1a1e", flame: "#ff3a2a", metal: 0.02 }),
+  sp: { gentle: true, tier: 3, wings: "silk", wingScale: 1.05, tail: "spinner", horns: "fang", digClaws: true, back: "none", frill: "none", pattern: "widow", glow: 1.15, eyes: 1.2, noPupil: true, sideEyes: 3,
+    thin: 0.95, girth: 1.0, len: 1.0, neck: 0.9, noMotes: true },
+  ad: ["Glossy black like a black widow, with a red hourglass on its back and another on its belly, and red spots down to its tail",
+       "Glowing red eyes with no pupils, and three small red eyes beside each big one",
+       "A normal dragon body with four legs, so it doesn't look like a spider",
+       "Each wing is a fan of five long jointed spider legs",
+       "A silk thread runs through every joint, so the wings look like a spider web",
+       "Long, straight, sharp horns like spider fangs",
+       "Deep Forest adaptations: long hooked claws grip tree bark so it can climb straight up the giant trunks",
+       "Silk spinners on the tip of its tail make the silk for its wings and its Web Snare",
+       "Black skin hides it in the dark canopy at night; the red marks warn monsters to stay away",
+       "The fine hairs on its wing legs feel the tiniest shake in the web, so it knows when something is caught",
+       "Special ability, Widow's Drop: it shoots a silk line up, hangs from it, then drops straight down onto a monster for a big surprise hit",
+       "Temperament: Shy. A wild one slips away into the trees unless you corner it"] });
+LEAN.Silkfang = [0, 1, 0];
 LEAN.Raydrift = [4, -2, 0]; LEAN.Glimmerwick = [0, -1, 1]; LEAN.Orchidra = [4, 2, -1];
 
 
@@ -7088,7 +7186,7 @@ SPECIES.forEach(s => {
 // ----- which land each kind's eggs turn up in most (Lumora: anywhere; secret dragons have their own way) -----
 const HOME_LAND = {
   "Green Valley": ["Pyrrak", "Lichenwing", "Dawnwing", "Thrumwing", "Plumewyrm", "Orchidra"],
-  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Lunaria", "Glimmerwick"],
+  "Deep Forest": ["Fernling", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Lunaria", "Glimmerwick", "Silkfang"],
   "Crystal Caves": ["Stonewyrm", "Echowyrm", "Geodrake", "Prismwing", "Glintling"],
   "Desert": ["Dunerunner", "Sunscale", "Miragewyrm", "Scarabyx", "Dunebun", "Spikehorn"],
   "Ocean": ["Aquawyrm", "Gillwing", "Pearlhorn", "Abyssar", "Bergdrake", "Seraphage", "Stingdrift", "Medusel", "Raydrift"],
@@ -14753,6 +14851,7 @@ const BREATH = {
   Eternix:     { n: "Pearl Beam",       t: "beam", R: 26, mult: 1.15, col: "#bfe0ff" },   // a beam of shimmering light
   Orchidra:    { n: "Pollen Burst",     t: "cloud", r: 5, blind: 1.5, mult: 0.9, col: "#ffb8dc" },   /* a sparkly cloud of pink pollen: monsters sneeze and miss */
   Raydrift:    { n: "Tide Pulse",       t: "ring", r: 11, knock: 9, mult: 0.95, col: "#9adcff" },   /* a ring of water that pushes monsters away */
+  Silkfang:    { n: "Web Snare",        t: "shot", k: 1, size: 0.6, speed: 26, blind: 3, slow: 4, mult: 0.9, col: "#eef2ff" },   /* a sticky web: the monster it hits is stuck (can't attack for 3 s, barely moves for 4 s) */
   Glimmerwick: { n: "Glow Spark",       t: "shot", k: 3, spread: 0.14, size: 0.3, speed: 30, mult: 0.9, col: "#d4ff4a" },   /* a little stream of glowing sparks */
   Vulpyre:     { n: "Foxfire",          t: "shot", k: 3, boom: 4, size: 0.7, speed: 15, burn: 1, mult: 1.5, col: "#ff8a3a" },
   Sludgeling:  { n: "Goo Glob",         t: "lob",  boom: 4, burn: 1, mult: 0.9, col: "#8ad83a" },
@@ -16225,7 +16324,7 @@ const WD_MOOD = { Pyrrak: "defensive", Thrumwing: "defensive", Plumewyrm: "defen
   Stingdrift: "defensive", Driftfin: "friendly", Prismclaw: "aggressive", Rimefang: "aggressive", Kindlepaw: "friendly", Valkyra: "defensive", Tempestra: "aggressive",
   Rosalind: "friendly", Cloudlet: "friendly", Lanternfen: "shy", Velvette: "shy", Gloamhorn: "defensive", Glidewhisk: "shy", Vulpyre: "shy", Puffshroom: "defensive",
   Coilwyrm: "shy", Burrowdrake: "shy", Cascadra: "defensive", Glintling: "defensive", Ribcrawler: "aggressive", Gravemaw: "aggressive", Veinfang: "aggressive", Eternix: "friendly", Lumora: "friendly",
-  Orchidra: "defensive", Raydrift: "friendly", Glimmerwick: "friendly" };
+  Orchidra: "defensive", Raydrift: "friendly", Glimmerwick: "friendly", Silkfang: "shy" };
 const WD_TURNS = { Seraphage: "aggressive" };   // shy until a fight starts, then aggressive
 // ---- who lives where (never secret, boss or event dragons; Lumora roams anywhere at night from day 7) ----
 const wdOk = s => !!s && !EVENT_KIND(s) && (TIER[s.rarity] || 0) < 6 && s.name !== "Lumora";
@@ -18789,6 +18888,7 @@ const AB = {
   Eternix:     { n: "Tun Shell", t: "Guard", fx: "buff", inv: 4, tun: 4, col: "#bfe0ff" },   // curls up in a glowing pearl shell: nothing can hurt it for 4 s
   Orchidra:    { n: "Blossom Ambush", t: "Fight", fx: "buff", hide: 6, dmgMul: 2, t2: 6, ambush: 6, col: "#ff9cc8" },   /* goes still and fades into a flower for 6 s: monsters lose track of it, and its hits do double damage */
   Raydrift:    { n: "Sky Glide", t: "Move", fx: "dash", d: 80, up: 14, hover: 0.6, invT: 1.5, skyGlide: 5, col: "#9adcff" },   /* leaps out of the water and glides far, barely losing height */
+  Silkfang:    { n: "Widow's Drop", t: "Fight", fx: "bite", dmg: 2.2, hold: 2, drop: 1, col: "#ff1414" },   /* hangs from a silk line, then drops straight onto a monster: a big surprise hit, and it is stuck in silk for 2 s */
   Glimmerwick: { n: "Flash Burst", t: "Fight", fx: "ring", r: 12, fear: 4, flash: 1, col: "#d4ff4a" },   /* one blinding pulse of light: nearby monsters can't see for 4 s and wander off */
   Vulpyre:     { n: "Spirit Fire", t: "Heal", fx: "buff", regen: 0.035, t2: 10, flames: 1, col: "#ff6a2a" },
   Crestwyrm:   { n: "Champion's Roar", t: "Guard", fx: "buff", half: 10, roar: 1, col: "#ffd24a" },
@@ -18943,6 +19043,7 @@ function abUse(two) {
     let best = null, bd = 1e9; abLive().forEach(m => { const dx = m.x - mid.x, dz = m.z - mid.z, d = Math.hypot(dx, dz) - m.rad; if (d > 9) return; const dot = (dx * f.x + dz * f.z) / Math.max(0.01, Math.hypot(dx, dz)); if (dot < 0.2 && d > 2) return; if (d < bd) { bd = d; best = m; } });
     if (!best) { msg = "Nothing close enough to bite"; ABL.cd[i] = 2; }
     else { const hp0 = best.hp; abHitMon(best, a, a.dmg, "claw"); if (a.twice && !best.dead) setTimeout(() => { if (!best.dead) abHitMon(best, a, a.dmg * 0.8, "claw"); }, 250);
+      if (a.drop) { msg = `${pet.name} drops on a silk line, straight onto the ${best.kind}!`; for (let k = 0; k < 8; k++) burstAt(best.x, best.y + best.tall + k * 0.9, best.z, "#eef2ff"); }   /* NEW Silkfang: Widow's Drop */
       abEffect(best, a, mid); if (a.drain) { const got = Math.max(0, hp0 - Math.max(0, best.hp)); pet.hp = Math.min(petMaxHp(), petHp() + got); msg = `+${got} HP for ${pet.name}`; }
       for (let k = 0; k < 6; k++) burstAt(best.x + (Math.random() - 0.5) * 2, best.y + best.tall * 0.6, best.z + (Math.random() - 0.5) * 2, a.col); }
     if (best && a.rainbow) for (let k = 0; k < 10; k++) burstAt(best.x + (Math.random() - 0.5) * 3, best.y + best.tall * 0.6 + (Math.random() - 0.5) * 2, best.z + (Math.random() - 0.5) * 3, ["#ff5a5a", "#ffd25a", "#5aff7a", "#5ab0ff", "#c05aff"][k % 5]);   // Rainbow Punch
