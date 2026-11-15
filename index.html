@@ -8781,7 +8781,7 @@ const HOME_BOOST = { Common: 5, Uncommon: 5, Rare: 3, Epic: 1.5, Legendary: 1 };
 function rollKind(land) {
   const pool = SPECIES.filter(s => EGG_ODDS[s.rarity] && !EVENT_KIND(s)), n = r => pool.filter(s => s.rarity === r).length;
   let moonK = 1; try { moonK = isNight && (evOn("super") || evOn("blue") || evOn("harvest")) ? 3 : 1; } catch (e) {}
-  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && (s.land === land || s.alsoLand === land) ? HOME_BOOST[s.rarity] : 1) * (s.nightEgg ? (isNight ? moonK : 0) : 1);   // night kinds (Lunaria): eggs only at night, 3x on bright moon nights
+  const w = s => EGG_ODDS[s.rarity] / n(s.rarity) * (land && (s.land === land || s.alsoLand === land) ? HOME_BOOST[s.rarity] : 1) * (s.nightEgg ? (isNight ? moonK : 0) : 1) * seaEggK(s);   // night kinds (Lunaria): eggs only at night, 3x on bright moon nights
   let r = Math.random() * pool.reduce((t, s) => t + w(s), 0);
   for (const s of pool) { r -= w(s); if (r <= 0) return s.name; }
   return "Pyrrak";
@@ -15086,7 +15086,7 @@ function startEvent(id, land, t) {
   const e = EVT[id]; if (!e) return;
   if (mpGuest() && !EVS.hostSays) return;   // in a friend's game, only the host's world has events
   EVS.cur = id; EVS.land = land !== undefined ? land : evPickLand(e); EVS.eggs = {};
-  EVS.fox = id === "harvest" && Math.random() < 0.2 ? 40 + Math.random() * 150 : 0;   // the Autumn Spirit only comes on some Harvest Moons EVS.eggT = 15 + Math.random() * 15; EVS.bigT = 12;
+  EVS.fox = id === "harvest" && Math.random() < (seaAutumn() ? 0.85 : 0.2) ? 40 + Math.random() * 150 : 0;   // the Autumn Spirit only comes on some Harvest Moons EVS.eggT = 15 + Math.random() * 15; EVS.bigT = 12;
   EVS.t = t !== undefined ? t : e.len ? (Array.isArray(e.len) ? e.len[0] + Math.random() * (e.len[1] - e.len[0]) : e.len) : Infinity;
   if (id === "wind") EVS.windA = Math.random() * 6.283;
   epSet(e.parts || (e.leaves ? "leaves" : null), e.pc || "#e0661a");
@@ -15181,7 +15181,7 @@ function updateEvents(dt) {
     const e = EVT[EVS.cur];
     if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
     if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
-      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < 0.095 ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : r < 0.18 ? "star" : r < 0.21 ? "aurora" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
+      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < (seaAutumn() ? 0.14 : 0.095) ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : r < 0.18 ? "star" : r < 0.21 ? "aurora" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
   }
   if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
   else if (hasDragon() && state !== "arena") {
@@ -17673,6 +17673,7 @@ function mpMsg(o) {
     case "dmove": mpDuelMove(from, o); break;
     case "dres": mpDuelPlay(o); break;
     case "dquit": if (MP.duel && MP.duel.peer === from) mpDuelEnd(MP.duel.me, `${mpName(from)} gave up. You win!`); break;
+    case "sea": if (MP.role === "guest" && from === 0) SEA.host = o.d | 0; break;   /* the host's season */
     case "denreq": denGotReq(from); break;   /* visiting a friend's den */
     case "dend": denGotData(from, o); break;
     case "denpet": toast(`${mpName(from)} pet ${String(o.n || "your dragon").slice(0, 14)}!`, "Your dragon liked that"); break;
@@ -20498,13 +20499,14 @@ function furnBuild(id, extra) {
 }
 
 /* ---------- save ---------- */
-function denSave() { return { s: DEN.size, w: DEN.w, f: DEN.f, l: DEN.l, own: DEN.own, inv: DEN.inv, it: DEN.items, tr: DEN.treats, got: DEN.got, f4: DEN.fish4 ? 1 : 0, sea: DEN.seaRaw }; }
+function denSave() { return { s: DEN.size, w: DEN.w, f: DEN.f, l: DEN.l, own: DEN.own, inv: DEN.inv, it: DEN.items, tr: DEN.treats, got: DEN.got, f4: DEN.fish4 ? 1 : 0, sea: typeof seaSave === "function" && typeof SEA !== "undefined" && SEA ? seaSave() : DEN.seaRaw }; }
 function denLoad(d) {
   DEN.size = Math.max(0, Math.min(3, d.s | 0)); DEN.w = d.w | 0; DEN.f = d.f | 0; DEN.l = d.l | 0;
   DEN.own = d.own && Array.isArray(d.own.w) ? d.own : { w: [0], f: [0], l: [0] };
   DEN.inv = d.inv && typeof d.inv === "object" ? d.inv : {}; DEN.items = Array.isArray(d.it) ? d.it.filter(a => Array.isArray(a) && FURN[a[0]]) : []; DEN.treats = d.tr && typeof d.tr === "object" ? d.tr : {};
   DEN.got = d.got || {}; DEN.fish4 = !!d.f4; DEN.seaRaw = d.sea || null; if (d.sea && typeof seaLoad === "function") seaLoad(d.sea);
-  if (!DEN.got.start) { DEN.got.start = 1; DEN.inv.strawbed = (DEN.inv.strawbed | 0) + 1; DEN.inv.campfire = (DEN.inv.campfire | 0) + 1; DEN.inv.lantern = (DEN.inv.lantern | 0) + 2; }   /* everyone starts with a bed, a campfire and two lanterns */
+  if (!DEN.got.start) { DEN.got.start = 1; if (DEN.items.length) { DEN.inv.strawbed = (DEN.inv.strawbed | 0) + 1; DEN.inv.campfire = (DEN.inv.campfire | 0) + 1; DEN.inv.lantern = (DEN.inv.lantern | 0) + 2; }
+    else DEN.items.push(["strawbed", -5, -1.5, 0], ["campfire", 3.5, 1.5, 0], ["lantern", -6.5, 3.5, 0], ["lantern", 6.5, -3, 0]); }   /* everyone starts with a bed, a campfire and two lanterns, already set up */
 }
 denLoad({});
 
@@ -20861,6 +20863,110 @@ const DEN_GATE = { x: -3.6, z: 1.8 };
 const denAtGate = () => !DEN.in && Math.hypot(me.x - DEN_GATE.x, me.z - DEN_GATE.z) < 2.4 && me.y < nestGroup.position.y + 4;
 { const _wf2 = wdFeedAct; wdFeedAct = function () { if (denAtGate() && (state === "grown" || state === "baby")) { denEnter(); return true; } return _wf2.apply(this, arguments); };
   const _uf2 = updateFish; updateFish = function (dt) { const r = _uf2.apply(this, arguments); if (denAtGate() && !uiOpen && (state === "grown" || state === "baby")) prompt("Press <kbd>E</kbd> to step through the portal into your den"); return r; }; }
+
+
+/* ================= SEASONS (Petra 2026-11-15): spring, summer, autumn, winter, three game days each ================= */
+var SEA = { d: 0, lastDT: null, host: null, sendT: 0, foxT: 0, wasNight: null, shown: null };
+const SEASONS = [["Spring", "🌸"], ["Summer", "☀️"], ["Autumn", "🍂"], ["Winter", "❄️"]], SEA_DAYS = 3;
+function seaDay() { return SEA.host != null ? SEA.host : SEA.d; }
+function seaIdx() { return Math.floor(seaDay() / SEA_DAYS) % 4; }
+function seaName() { return SEASONS[seaIdx()][0]; }
+function seaAutumn() { return typeof SEA !== "undefined" && !!SEA && seaName() === "Autumn"; }   /* safe to call before this code has run */
+function seaSave() { return { d: SEA.d }; }
+function seaLoad(d) { SEA.d = Math.max(0, d.d | 0); }
+// which eggs are easier to find in each season
+const SEA_EGGS = {
+  Winter: { Kindlepaw: 4, Seraphage: 4, land: { "Frost Peaks": 1.8 } },
+  Spring: { Petalwyrm: 2.5, Orchidra: 2.5, Thrumwing: 2.5, Fernling: 2, land: { "Green Valley": 1.4 } },
+  Summer: { land: { "Desert": 1.5, "Fire Mountain": 1.5, "Ocean": 1.4, "Coral Reef": 1.4 } },
+  Autumn: { land: { "Autumn Woods": 2 } } };
+function seaEggK(s) { if (typeof SEA === "undefined" || !SEA) return 1; const E = SEA_EGGS[seaName()]; if (!E) return 1; return (E[s.name] || 1) * ((E.land && (E.land[s.land] || E.land[s.alsoLand])) || 1); }
+const seaEl = document.createElement("p"); seaEl.className = "pet"; seaEl.id = "season"; { const w = document.getElementById("where"); if (w) w.insertBefore(seaEl, document.getElementById("goal")); }
+// falling snow / leaves / petals around the camera, outdoors only
+const SEA_N = 1000, seaPos = new Float32Array(SEA_N * 3), seaGeo = new THREE.BufferGeometry(); seaGeo.setAttribute("position", new THREE.BufferAttribute(seaPos, 3));
+const seaPts = new THREE.Points(seaGeo, new THREE.PointsMaterial({ map: dotTex(), size: 0.3, transparent: true, depthWrite: false, color: "#ffffff" })); seaPts.frustumCulled = false; seaPts.visible = false; scene.add(seaPts);
+const SEA_PART = { Winter: ["#ffffff", 0.45, -2.2], Autumn: ["#e8782a", 0.6, -1.1], Spring: ["#ffb8d8", 0.4, -0.7] };
+const SEA_NO_SNOW = ["Desert", "Fire Mountain", "Crystal Caves", "Bone Caves", "Coral Reef"];
+const SEA_LEAFY = ["Green Valley", "Deep Forest", "Autumn Woods", "Hydra Valley", "Village", "Misty Swamp", "Blightwood"];
+function seaPartOn() {
+  if (DEN.in || state === "arena" || !started || (typeof epMode !== "undefined" && epMode)) return null;
+  const s = seaName(); if (s === "Winter" && !SEA_NO_SNOW.includes(landNow)) return s;
+  if ((s === "Autumn" || s === "Spring") && SEA_LEAFY.includes(landNow)) return s; return null;
+}
+let seaMode = null;
+function seaTick(dt) {
+  // count the days (sunrises), like the dragons' comeback does
+  if (SEA.lastDT !== null && dayTime < SEA.lastDT - 0.5) { SEA.d++; if (SEA.d % SEA_DAYS === 0 && SEA.host == null) { const s = seaName(); setTimeout(() => toast(`${SEASONS[seaIdx()][1]} ${s} is here!`, ({ Spring: "Flowers are out, and flower dragons lay more eggs", Summer: "Hot days: desert, fire and sea dragons lay more eggs", Autumn: "Leaves are falling... and on Harvest Moons, something stirs in the Autumn Woods", Winter: "Snow everywhere! Kindlepaws and Seraphages are much easier to find" })[s]), 5000); } }
+  SEA.lastDT = dayTime;
+  if (typeof MP !== "undefined" && mpOn()) { if (MP.role === "host" && (SEA.sendT -= dt) <= 0) { SEA.sendT = 10; mpSend({ t: "sea", d: SEA.d }); } } else SEA.host = null;
+  const s = seaName(), day = seaDay() % SEA_DAYS + 1, txt = `${SEASONS[seaIdx()][1]} ${s} · day ${day} of ${SEA_DAYS}`;
+  if (SEA.shown !== txt) { SEA.shown = txt; seaEl.textContent = txt; seaTint(); }
+  if (!seaGrass && (SEA.tintT = (SEA.tintT || 0) - dt) <= 0) { SEA.tintT = 5; seaTint(); }   /* the grass is made a little later */
+  // particles
+  const m = seaPartOn(); if (m !== seaMode) { seaMode = m; seaPts.visible = !!m; if (m) { const [c, sz] = SEA_PART[m]; seaPts.material.color.set(c); seaPts.material.size = sz; for (let i = 0; i < SEA_N; i++) seaReset(i, true); } }
+  if (seaMode) { const fallV = SEA_PART[seaMode][2], c = camera.position;
+    for (let i = 0; i < SEA_N; i++) { const k = i * 3; seaPos[k] += Math.sin(T * 0.7 + i) * dt * (seaMode === "Winter" ? 0.8 : 1.6); seaPos[k + 1] += fallV * dt; seaPos[k + 2] += Math.cos(T * 0.6 + i * 1.3) * dt * 0.6;
+      if (seaPos[k + 1] < c.y - 14 || Math.abs(seaPos[k] - c.x) > 30 || Math.abs(seaPos[k + 2] - c.z) > 30) seaReset(i, false); }
+    seaGeo.attributes.position.needsUpdate = true; }
+  // autumn: sometimes a Vulpyre egg turns up in the Autumn Woods, even without a Harvest Moon
+  if (isNight !== SEA.wasNight) { SEA.wasNight = isNight; if (isNight && s === "Autumn" && !(typeof mpGuest === "function" && mpGuest()) && hasDragon() && EVS.cur !== "harvest" && Math.random() < 0.1) SEA.foxT = 40 + Math.random() * 150; }
+  if (SEA.foxT > 0 && isNight && !DEN.in) { SEA.foxT -= dt; if (SEA.foxT <= 0) { SEA.foxT = 0; try { if (evSpawnEgg("Autumn Woods", null, true, "Vulpyre") && landNow === "Autumn Woods") toast("A warm glow flickers between the autumn trees...", "Something with many tails just ran past"); } catch (e) {} } }
+}
+function seaReset(i, any) { const k = i * 3, c = camera.position; seaPos[k] = c.x + (Math.random() - 0.5) * 56; seaPos[k + 2] = c.z + (Math.random() - 0.5) * 56; seaPos[k + 1] = c.y + (any ? (Math.random() - 0.4) * 28 : 14); }
+// the land itself changes colour a little with the seasons
+let seaTerrain = null, seaGrass = null;
+const SEA_TINT = { Spring: ["#ffffff", "#000000", "#f4fff0", "#000000"], Summer: ["#fff4d0", "#000000", "#fff0c0", "#000000"],
+  Autumn: ["#e8b070", "#1c0e00", "#f0a850", "#140800"], Winter: ["#e8eef6", "#3a4250", "#c8d8dc", "#4a5462"] };   /* [ground colour, ground glow, grass colour, grass glow] */
+function seaTint() {
+  if (!seaTerrain || !seaGrass) scene.traverse(m => { if (!m.isMesh || !m.geometry) return;
+    if (!seaTerrain && m.geometry.type === "PlaneGeometry" && m.geometry.parameters && m.geometry.parameters.width === 2140) seaTerrain = m;
+    if (!seaGrass && m.isInstancedMesh && m.material && m.material.customProgramCacheKey && m.material.customProgramCacheKey() === "wwgfx-grass") seaGrass = m; });
+  const T4 = SEA_TINT[seaName()];
+  [[seaTerrain, 0], [seaGrass, 2]].forEach(([mesh, k]) => { if (!mesh || !mesh.material) return; const M = mesh.material;
+    if (!M.userData.seaBase) M.userData.seaBase = { c: M.color.clone(), e: M.emissive ? M.emissive.clone() : null };
+    const B = M.userData.seaBase; M.color.copy(B.c).multiply(new THREE.Color(T4[k]));
+    if (M.emissive && B.e) M.emissive.copy(B.e).add(new THREE.Color(T4[k + 1])); });
+}
+/* ================= COOKING (Petra 2026-11-15): cook fish at your den's campfire into treats ================= */
+const TREATS = [
+  { id: "grill", name: "Grilled Fish", need: { stars: 1, n: 1 }, col: "#e8a05a", desc: "Heals 50 HP and gives 6 XP", heal: 50, xp: 6 },
+  { id: "skewer", name: "Fish Skewers", need: { stars: 2, n: 1 }, col: "#d8783a", desc: "Heals 80 HP and gives 12 XP", heal: 80, xp: 12 },
+  { id: "stew", name: "Hearty Fish Stew", need: { stars: 1, n: 2 }, col: "#b8784a", desc: "Heals all the way and toughens scales (takes half damage, 2 minutes)", heal: 9999, xp: 10, fx: ["iron", 120] },
+  { id: "spicy", name: "Spicy Snapper", need: { fish: ["Sunscale Snapper", "Pufferfish", "Mirage Minnow"] }, col: "#e84a2a", desc: "Your dragon flies 40% faster for 2 minutes", heal: 30, xp: 8, fx: ["swift", 120] },
+  { id: "koi", name: "Koi Pie", need: { fish: ["Golden Koi"] }, col: "#f2b830", desc: "Heals all the way, gives 50 XP, and claws and breath hit 50% harder for 2 minutes", heal: 9999, xp: 50, fx: ["str", 120] },
+  { id: "rings", name: "Glow Squid Rings", need: { fish: ["Glow Squid"] }, col: "#7ad8ff", desc: "Heals all the way and breath recharges twice as fast for 2 minutes", heal: 9999, xp: 25, fx: ["fire", 120] },
+  { id: "chowder", name: "Frost Chowder", need: { fish: ["Aurora Eel", "Glacier Char", "Frostfin"] }, col: "#bfe0ff", desc: "Heals all the way, gives 30 XP and toughens scales for 2 minutes", heal: 9999, xp: 30, fx: ["iron", 120] } ];
+const treatOf = id => TREATS.find(t => t.id === id);
+function cookUses(t) {   /* which basket fish this recipe would use (indexes), or null */
+  const B = FISH.basket, N = t.need;
+  if (N.fish) { const i = B.findIndex(n => N.fish.includes(n)); return i >= 0 ? [i] : null; }
+  const ok = B.map((n, i) => [n, i]).filter(([n]) => fishStars(n) >= N.stars).sort((a, b) => fishStars(a[0]) - fishStars(b[0]));
+  return ok.length >= N.n ? ok.slice(0, N.n).map(q => q[1]) : null;
+}
+function cookMenu(msg) {
+  const rows = TREATS.map((t, i) => { const u = cookUses(t), need = t.need.fish ? t.need.fish.join(" or ") : `${t.need.n} fish with ${t.need.stars}+ star${t.need.stars > 1 ? "s" : ""}`;
+    return `<div class="sec"><div><b style="color:${t.col}">${t.name}</b>${DEN.treats[t.id] ? ` · you have ${DEN.treats[t.id]}` : ""}<br><small>${t.desc}. Needs: ${need}</small></div><button data-act="cook" data-i="${i}" ${u ? "" : "disabled"}>${u ? "Cook" : "No fish"}</button></div>`; }).join("");
+  openMenu("Campfire", `${msg ? `<p class="say">${msg}</p>` : ""}<p>Fish basket: ${FISH.basket.length ? FISH.basket.map(n => `${n} <span style="color:#ffc845">${"★".repeat(fishStars(n))}</span>`).join(", ") : "empty. Go fishing first!"}</p>
+    <p><small>Treats go in your potion bag. Press <kbd>H</kbd> anywhere to feed one to your dragon.</small></p>${rows}`, () => lockMouse());
+  menuAct = (a, i) => { const t = TREATS[i]; if (a !== "cook" || !t) return; const u = cookUses(t); if (!u) return;
+    u.sort((p, q) => q - p).forEach(k => FISH.basket.splice(k, 1)); DEN.treats[t.id] = (DEN.treats[t.id] | 0) + 1; writeSave();
+    const f = denNearItem(3, "campfire"); if (f >= 0) { const it = DEN.items[f]; burstAt(DEN.o.x + it[1], DEN.o.y + 1.2, DEN.o.z + it[2], t.col); }
+    cookMenu(pickOf([`Sizzle sizzle... ${t.name}! It smells amazing.`, `${t.name}, done! Your dragon is already drooling.`, `You cooked ${t.name}. Careful, it's hot!`])); };
+}
+function treatEat(id) {
+  const t = treatOf(id); if (!t || !(DEN.treats[id] > 0)) return ""; if (!hasDragon()) return "You need a dragon to feed that to.";
+  DEN.treats[id]--; if (!DEN.treats[id]) delete DEN.treats[id];
+  pet.hp = Math.min(petMaxHp(), petHp() + t.heal); const up = state === "grown" || state === "ride" ? addXp(t.xp) : 0; if (t.fx) POT.fx[t.fx[0]] = Math.max(POT.fx[t.fx[0]] || 0, t.fx[1]);
+  burstAt(pet.x, pet.y + 1.5, pet.z, t.col); writeSave();
+  return `${pet.name} gobbles up the ${t.name}! HP ${petHp()} / ${petMaxHp()}${t.xp ? ` · +${t.xp} XP` : ""}${up ? " · LEVEL UP!" : ""}`;
+}
+{ const _pb = potionBag; potionBag = function (msg) {
+    _pb.apply(this, arguments);
+    const ids = Object.keys(DEN.treats).filter(k => DEN.treats[k] > 0 && treatOf(k)); if (!ids.length) return;
+    const body = $("menuBody"); body.insertAdjacentHTML("beforeend", `<h4>Cooked treats</h4>` + ids.map(k => { const t = treatOf(k); return `<div class="sec"><div><b style="color:${t.col}">${t.name}</b> · you have ${DEN.treats[k]}<br><small>${t.desc}</small></div><button data-act="treat" data-i="${TREATS.indexOf(t)}">Feed</button></div>`; }).join(""));
+    const p = body.querySelector("p"); if (p && /No potions yet/.test(p.textContent)) p.textContent = "No potions yet. Wren's potion shop in the village sells them.";
+    const ma = menuAct; menuAct = (a, i) => { if (a === "treat") return potionBag(treatEat(TREATS[i].id)); return ma(a, i); };
+  }; }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 window.__ww.debugComeback = (n, o) => wdDebug(n, o);   /* hidden test hook: "Shadow Wyrm beaten, day n" */
