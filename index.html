@@ -17646,7 +17646,7 @@ function mpMsg(o) {
     case "dquit": if (MP.duel && MP.duel.peer === from) mpDuelEnd(MP.duel.me, `${mpName(from)} gave up. You win!`); break;
     case "brask": breedGotAsk(from, o); break;   /* DRAGON BREEDING with a friend */
     case "bryes": breedGotYes(from, o); break;
-    case "brno": if (BR_ASK && BR_ASK.peer === from) BR_ASK = null; toast(`${mpEsc(mpName(from))} said no`, brEsc(String(o.why || "").slice(0, 60))); break;
+    case "brno": if (BR_ASK && BR_ASK.peer === from) BR_ASK = null; toast(`${mpEsc(mpName(from))} can't breed right now`, brEsc(String(o.why || "").slice(0, 60))); if (!menuEl.hidden && $("menuTitle").textContent === "Grandpa Orrin") breedMenu(null, `${mpEsc(mpName(from))} said: ${brEsc(String(o.why || "no").slice(0, 60))}`); break;
     case "bregg": breedGotEgg(from, o); break;
     case "toff": mpTradeOffer(from, o); break;
     case "tready": mpTradeReady(from, o); break;
@@ -19867,7 +19867,7 @@ const ORRIN_RULES = ["Body shape and markings come together from one parent. Col
 let BR_UI = { a: "", b: "", bless: false, part: "body", from: "a" }, BR_ASK = null, BR_IN = null, BR_WAIT = null, BR_NPC = null;
 function breedCands() {
   const L = [];
-  if (state === "grown" && !pet.small && breedOk(pet.kind)) L.push({ id: "me", name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, rest: pet.rest || 0 });
+  if ((state === "grown" || state === "ride") && !pet.small && breedOk(pet.kind)) L.push({ id: "me", name: pet.name, kind: pet.kind, shiny: pet.shiny || null, level: pet.level || 1, rest: pet.rest || 0 });
   pen.forEach((d, i) => { if (!d.small && breedOk(d.kind)) L.push({ id: "p" + i, name: d.name, kind: d.kind, shiny: d.shiny || null, level: d.level || 1, rest: d.rest || 0, d }); });
   return L;
 }
@@ -19877,6 +19877,17 @@ function breedSeed() { for (let i = 0; i < 50; i++) { const s = (Math.random() *
 function breedFriends() {
   if (typeof MP === "undefined" || !mpOn()) return [];
   return [...MP.players.values()].filter(p => p.st && p.st.k && !p.st.ar && Math.hypot(p.st.x - me.x, p.st.z - me.z) < 30);
+}
+function breedFriendBtns(C, fr) {   /* multiplayer: always show the friend option; say why when it can't be used yet */
+  if (typeof MP === "undefined" || !mpOn()) return "";
+  const all = [...MP.players.values()];
+  if (!all.length) return `<button disabled>Breed with a friend's dragon: nobody else is in your game</button>`;
+  return all.map(p => {
+    const nm = brEsc(p.name || "your friend");
+    if (fr.includes(p) && C.length >= 1) return `<button data-act="friend" data-i="${p.id}">Breed the first parent with ${nm}'s ${brEsc(p.st.n || "dragon")} (2 eggs, one each)</button>`;
+    const why = C.length < 1 ? "you need a grown dragon of your own" : !p.st ? `waiting to hear from ${nm}` : !p.st.k ? `${nm} needs their grown dragon out` : p.st.ar ? `${nm} is in the arena` : `${nm} needs to come closer (within 30 m)`;
+    return `<button disabled>Breed with ${nm}'s dragon: ${why}</button>`;
+  }).join("") + `<button data-act="again">Check again</button>`;
 }
 function breedMenu(n, msg) {
   if (n) BR_NPC = n;
@@ -19896,7 +19907,7 @@ function breedMenu(n, msg) {
   openMenu("Grandpa Orrin", `<p class="who">Dragon keeper</p><p class="say">“${msg || ORRIN_SAY[Math.floor(Math.random() * ORRIN_SAY.length)]}”</p>
     <p>You have <b>${coins}</b> coins. Backpack ${bag.length}/${BAG_MAX}.</p>${body}
     <div class="choices">${C.length >= 2 ? `<button data-act="breed" id="brGo">Breed (${cost} coins)</button>` : ""}
-    ${C.length >= 1 ? fr.map(p => `<button data-act="friend" data-i="${p.id}">Breed the first parent with ${brEsc(p.name)}'s ${brEsc(p.st.n || "dragon")} (2 eggs, one each)</button>`).join("") : ""}
+    ${breedFriendBtns(C, fr)}
     <button data-act="bye">Goodbye</button></div>
     <p><small>The egg goes in your backpack; hatch it at your nest. Both parents stay yours and rest for 30 minutes after.</small></p>`, () => lockMouse());
   const sync = () => { const a = $("brA"), b = $("brB"), bl = $("brBless"); if (a) BR_UI.a = a.value; if (b) BR_UI.b = b.value; if (bl) { BR_UI.bless = bl.checked; $("brBlessRow").hidden = !bl.checked; }
@@ -19939,7 +19950,7 @@ function breedResult(key, extra) {
 
 /* ---------- multiplayer: your dragon with a friend's partner dragon, two sibling eggs (one each) ---------- */
 function breedAskFriend(id) {
-  const C = breedCands(), A = C.find(c => c.id === BR_UI.a), p = MP.players.get(id);
+  const C = breedCands(), A = C.find(c => c.id === BR_UI.a) || C[0], p = MP.players.get(id);   /* one dragon = no picker, so use it */
   const why = breedCheck(A, null, 600); if (why) return breedMenu(null, why);
   if (!p || !p.st || !p.st.k || Math.hypot(p.st.x - me.x, p.st.z - me.z) > 30) return breedMenu(null, "Your friend needs to be right here with their dragon.");
   BR_ASK = { peer: id, a: A.id, t: T }; mpSend({ t: "brask", name: A.name, kind: A.kind, sh: A.shiny || null, bred: bredWire(A.kind), lv: A.level }, id);
@@ -19948,10 +19959,11 @@ function breedAskFriend(id) {
 }
 function breedGotAsk(from, o) {
   if (o.bred) bredRemote(o.kind, o.bred);
-  const busy = !menuEl.hidden || uiOpen || MP.duel || MP.trade || state !== "grown";
-  const why = busy ? "They're busy right now" : pet.small || !breedOk(pet.kind) ? "Their dragon can't breed" : restLeft(pet) > 0 ? "Their dragon is resting" : bag.length >= BAG_MAX ? "Their backpack is full" : "";
+  const busy = run || state === "arena" || MP.duel || MP.trade || !nameBox.hidden;   /* only a fight, a trade or naming blocks it; an open menu gets replaced */
+  const why = busy ? "They're busy right now" : state !== "grown" && state !== "ride" ? "Their grown dragon isn't out" : pet.small || !breedOk(pet.kind) ? "Their dragon can't breed" : restLeft(pet) > 0 ? "Their dragon is resting" : bag.length >= BAG_MAX ? "Their backpack is full" : "";
   if (why) { mpSend({ t: "brno", why }, from); return; }
-  BR_IN = { from };
+  BR_IN = { from }; if (!menuEl.hidden) { menuEl._onClose = null; menuEl.hidden = true; }
+  toast(`${brEsc(mpName(from))} wants to breed dragons!`, "Say yes or no on the screen");
   openMenu("Breed with a friend?", `<p class="say">${brEsc(mpName(from))} wants to breed their ${brEsc(String(o.name || "dragon").slice(0, 14))} the ${brEsc(KN(o.kind))} with your ${brEsc(pet.name)}.</p>
     <p>Grandpa Orrin will set two eggs: one for you, one for them. They pay. ${brEsc(pet.name)} rests for 30 minutes after.</p>
     <div class="choices"><button data-act="yes">Yes, let's breed!</button><button data-act="no">No thanks</button></div>`, () => { if (BR_IN) { mpSend({ t: "brno", why: "Maybe later" }, BR_IN.from); BR_IN = null; } lockMouse(); });
