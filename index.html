@@ -15181,7 +15181,7 @@ function updateEvents(dt) {
     const e = EVT[EVS.cur];
     if (e && (isNight ? e.day : e.night)) endEvent();                    // moon events end at sunrise, the eclipse at dusk
     if (isNight && hasDragon()) { const r = Math.random();   // a new night: maybe a moon event or a meteor shower
-      const id = r < 0.035 ? "red" : r < 0.06 ? "blue" : r < (seaAutumn() ? 0.14 : 0.095) ? "harvest" : r < 0.135 ? "meteor" : r < 0.16 ? "super" : r < 0.18 ? "star" : r < 0.21 ? "aurora" : null; if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
+      const id = seaMoon(r); if (id) { if (EVS.cur) endEvent(true); startEvent(id); } }   // rare (Petra 2026-11-10): about 1 night in 7
   }
   if (EVS.cur) { EVS.t -= dt; if (EVS.t <= 0) endEvent(); }
   else if (hasDragon() && state !== "arena") {
@@ -20875,12 +20875,23 @@ function seaAutumn() { return typeof SEA !== "undefined" && !!SEA && seaName() =
 function seaSave() { return { d: SEA.d }; }
 function seaLoad(d) { SEA.d = Math.max(0, d.d | 0); }
 // which eggs are easier to find in each season
+/* which eggs are easier to find in each season (Petra 2026-11-15): winter snow + frost dragons, spring plant dragons, summer sky dragons (clear skies), autumn the Autumn Woods */
+const SEA_GROUP = {
+  frost: ["Glacius", "Snowpaw", "Rimefang", "Auroran", "Bergdrake", "Whiteout"],
+  plant: ["Fernling", "Lichenwing", "Thornwyrm", "Jadewyrm", "Petalwyrm", "Rootwyrm", "Orchidra", "Thrumwing", "Bramblehydra", "Lunaria"],
+  sky: ["Driftail", "Aerolash", "Skyrune", "Tempestra", "Dawnwing"] };
 const SEA_EGGS = {
-  Winter: { Kindlepaw: 4, Seraphage: 4, land: { "Frost Peaks": 1.8 } },
-  Spring: { Petalwyrm: 2.5, Orchidra: 2.5, Thrumwing: 2.5, Fernling: 2, land: { "Green Valley": 1.4 } },
-  Summer: { land: { "Desert": 1.5, "Fire Mountain": 1.5, "Ocean": 1.4, "Coral Reef": 1.4 } },
+  Winter: { Kindlepaw: 4, Seraphage: 4, group: ["frost", 2.5], land: { "Frost Peaks": 1.5 } },
+  Spring: { group: ["plant", 2.5], land: { "Green Valley": 1.3, "Deep Forest": 1.3 } },
+  Summer: { group: ["sky", 2.5], land: { "Sky Islands": 1.5 } },
   Autumn: { land: { "Autumn Woods": 2 } } };
-function seaEggK(s) { if (typeof SEA === "undefined" || !SEA) return 1; const E = SEA_EGGS[seaName()]; if (!E) return 1; return (E[s.name] || 1) * ((E.land && (E.land[s.land] || E.land[s.alsoLand])) || 1); }
+/* special moons: blue moons come more in winter, super moons in spring, blood (red) moons in summer, Harvest Moons in autumn */
+function seaMoon(r) {
+  const s = typeof SEA !== "undefined" && SEA ? seaName() : "";
+  const W = [["red", 0.035 * (s === "Summer" ? 2 : 1)], ["blue", 0.025 * (s === "Winter" ? 2 : 1)], ["harvest", 0.035 * (s === "Autumn" ? 2.3 : 1)], ["meteor", 0.04], ["super", 0.025 * (s === "Spring" ? 2 : 1)], ["star", 0.02], ["aurora", 0.03]];
+  let a = 0; for (const [id, w] of W) { a += w; if (r < a) return id; } return null;
+}
+function seaEggK(s) { if (typeof SEA === "undefined" || !SEA) return 1; const E = SEA_EGGS[seaName()]; if (!E) return 1; return (E[s.name] || 1) * (E.group && SEA_GROUP[E.group[0]].includes(s.name) ? E.group[1] : 1) * ((E.land && (E.land[s.land] || E.land[s.alsoLand])) || 1); }
 const seaEl = document.createElement("p"); seaEl.className = "pet"; seaEl.id = "season"; { const w = document.getElementById("where"); if (w) w.insertBefore(seaEl, document.getElementById("goal")); }
 // falling snow / leaves / petals around the camera, outdoors only
 const SEA_N = 1000, seaPos = new Float32Array(SEA_N * 3), seaGeo = new THREE.BufferGeometry(); seaGeo.setAttribute("position", new THREE.BufferAttribute(seaPos, 3));
@@ -20896,7 +20907,7 @@ function seaPartOn() {
 let seaMode = null;
 function seaTick(dt) {
   // count the days (sunrises), like the dragons' comeback does
-  if (SEA.lastDT !== null && dayTime < SEA.lastDT - 0.5) { SEA.d++; if (SEA.d % SEA_DAYS === 0 && SEA.host == null) { const s = seaName(); setTimeout(() => toast(`${SEASONS[seaIdx()][1]} ${s} is here!`, ({ Spring: "Flowers are out, and flower dragons lay more eggs", Summer: "Hot days: desert, fire and sea dragons lay more eggs", Autumn: "Leaves are falling... and on Harvest Moons, something stirs in the Autumn Woods", Winter: "Snow everywhere! Kindlepaws and Seraphages are much easier to find" })[s]), 5000); } }
+  if (SEA.lastDT !== null && dayTime < SEA.lastDT - 0.5) { SEA.d++; if (SEA.d % SEA_DAYS === 0 && SEA.host == null) { const s = seaName(); setTimeout(() => toast(`${SEASONS[seaIdx()][1]} ${s} is here!`, ({ Spring: "Flowers are out: plant dragons lay more eggs, and Super Moons come more often", Summer: "Clear skies: sky dragons lay more eggs, and blood moons come more often", Autumn: "Leaves are falling... Harvest Moons come more often, and something stirs in the Autumn Woods", Winter: "Snow everywhere! Snow and frost dragons, Kindlepaws and Seraphages are easier to find, and blue moons come more often" })[s]), 5000); } }
   SEA.lastDT = dayTime;
   if (typeof MP !== "undefined" && mpOn()) { if (MP.role === "host" && (SEA.sendT -= dt) <= 0) { SEA.sendT = 10; mpSend({ t: "sea", d: SEA.d }); } } else SEA.host = null;
   const s = seaName(), day = seaDay() % SEA_DAYS + 1, txt = `${SEASONS[seaIdx()][1]} ${s} · day ${day} of ${SEA_DAYS}`;
