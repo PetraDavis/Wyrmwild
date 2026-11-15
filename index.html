@@ -9232,6 +9232,7 @@ function npcDialog(n, say) {
     else if (a === "topic") {
       const t = tps[i];
       if (t.fn === "denShop") return denShop(n);
+      if (t.fn === "festTalk") return npcDialog(n, festTalk());
       if (t.fn === "books") return bookShelf(n);
       if (t.fn === "breed") return breedMenu(n);
       if (t.fn === "wdTalk") return npcDialog(n, wdTalk(n));
@@ -20978,6 +20979,168 @@ function treatEat(id) {
     const p = body.querySelector("p"); if (p && /No potions yet/.test(p.textContent)) p.textContent = "No potions yet. Wren's potion shop in the village sells them.";
     const ma = menuAct; menuAct = (a, i) => { if (a === "treat") return potionBag(treatEat(TREATS[i].id)); return ma(a, i); };
   }; }
+
+
+/* ================= VILLAGE FESTIVALS (Petra 2026-11-15): one on day 2 of every season =================
+   Spring Flower Fair (find 8 festival flowers), Summer Sky Parade (fly through 10 golden rings over the village),
+   Autumn Harvest Feast (find 8 pumpkins), Winter Lantern Festival (light 8 lanterns; at night lit lanterns float up).
+   The village gets flags and stalls. Finishing gives coins and (the first time) a den decoration you can't buy. */
+var FEST = { key: null, got: [], won: {}, items: [], deco: null, sky: null, t: 0, shownKey: null };
+const FESTS = {
+  Spring: { id: "flowers", name: "Spring Flower Fair", emoji: "🌸", n: 8, coins: 300, prize: "flowerArch", flag: ["#f2a8c8", "#f2e27a", "#ffffff", "#a8d8f2"],
+    how: "Find the 8 glowing festival flowers hidden around the valley near the village. Walk up to one and press E.",
+    done: "You found every festival flower!" },
+  Summer: { id: "rings", name: "Summer Sky Parade", emoji: "🪁", n: 10, coins: 400, prize: "kite", flag: ["#f2c84a", "#4aa8f2", "#f25a5a", "#ffffff"],
+    how: "Ride your dragon and fly through the 10 golden rings floating over the village.",
+    done: "You flew through every parade ring!" },
+  Autumn: { id: "pumpkins", name: "Harvest Feast", emoji: "🎃", n: 8, coins: 300, prize: "jackol", flag: ["#e8782a", "#b8322a", "#f2c84a", "#7a4a2a"],
+    how: "Find the 8 pumpkins hidden in the fields around the village. Walk up to one and press E.",
+    done: "You found every harvest pumpkin!" },
+  Winter: { id: "lanterns", name: "Lantern Festival", emoji: "🏮", n: 8, coins: 300, prize: "festLantern", flag: ["#e83a3a", "#f2c84a", "#ffffff", "#5ab0f2"],
+    how: "Walk to the 8 lanterns around the edge of the village and press E so your dragon lights them. At night, lit lanterns float up into the sky.",
+    done: "Every lantern is lit!" } };
+function festNow() { if (typeof SEA === "undefined" || !SEA) return null; return seaDay() % SEA_DAYS === 1 ? FESTS[seaName()] : null; }
+function festKey() { return seaName() + Math.floor(seaDay() / (SEA_DAYS * 4)); }
+function festNext() { const d = seaDay(), k = d % (SEA_DAYS * 4), next = Math.floor(k / SEA_DAYS) * SEA_DAYS + 1; const days = next >= k ? next - k : next + SEA_DAYS - k; return { f: FESTS[SEASONS[(seaIdx() + (next >= k ? 0 : 1)) % 4][0]], days }; }
+
+/* ---- the prizes: den decorations you can only win at a festival ---- */
+Object.assign(FURN, { flowerArch: ["Flower Arch", 0, "Trophy", 0], kite: ["Parade Kite", 0, "Trophy", 0, null, true], jackol: ["Jack-o'-lantern", 0, "Trophy", 0.5], festLantern: ["Festival Lantern", 0, "Trophy", 0.3] });
+Object.assign(TROPHY_HOW, { flowerArch: "Finish the Spring Flower Fair", kite: "Finish the Summer Sky Parade", jackol: "Finish the Harvest Feast", festLantern: "Finish the Lantern Festival" });
+{ const _fb = furnBuild; furnBuild = function (id, extra) {
+    if (!["flowerArch", "kite", "jackol", "festLantern"].includes(id)) return _fb.apply(this, arguments);
+    const g = new THREE.Group(), L = denL, M = (geo, mat, x, y, z) => denMesh(g, geo, mat, x, y, z);
+    if (id === "flowerArch") { const w = L("#7a5232"); [-1.3, 1.3].forEach(x => M(new THREE.CylinderGeometry(0.1, 0.12, 2.4, 8), w, x, 1.2, 0));
+      M(new THREE.TorusGeometry(1.3, 0.1, 6, 20, Math.PI), w, 0, 2.4, 0);
+      for (let i = 0; i <= 14; i++) { const a = i / 14 * Math.PI; M(new THREE.SphereGeometry(0.17, 8, 6), L(["#f2a8c8", "#f2e27a", "#ffffff", "#c88af2"][i % 4]), Math.cos(a) * 1.3, 2.4 + Math.sin(a) * 1.3, 0.05); }
+      for (let i = 0; i < 6; i++) M(new THREE.SphereGeometry(0.15, 8, 6), L("#4e9a3a"), (i % 2 ? 1.3 : -1.3) + (Math.random() - 0.5) * 0.2, 0.5 + i * 0.3, 0.1); }
+    if (id === "kite") { const k = M(new THREE.CircleGeometry(0.9, 4), L("#f2c84a"), 0, 0.2, 0.05); k.scale.set(0.75, 1.1, 1); k.material.side = THREE.DoubleSide;
+      const k2 = M(new THREE.CircleGeometry(0.45, 4), L("#e83a3a"), 0, 0.2, 0.07); k2.scale.set(0.75, 1.1, 1);
+      M(new THREE.BoxGeometry(0.04, 1.9, 0.03), L("#5a3a22"), 0, 0.2, 0.09); M(new THREE.BoxGeometry(1.3, 0.04, 0.03), L("#5a3a22"), 0, 0.35, 0.09);
+      for (let i = 0; i < 4; i++) M(new THREE.ConeGeometry(0.1, 0.2, 3), L(["#4aa8f2", "#f25a5a"][i % 2]), Math.sin(i * 1.3) * 0.2, -0.9 - i * 0.35, 0.06).rotation.z = Math.PI / 2; }
+    if (id === "jackol") { const p = M(new THREE.SphereGeometry(0.55, 16, 10), denE("#e8782a", 0.15), 0, 0.45, 0); p.scale.set(1.15, 0.85, 1.15);
+      for (let i = 0; i < 6; i++) { const r = M(new THREE.SphereGeometry(0.56, 10, 8), L("#d06a22"), 0, 0.45, 0); r.scale.set(0.25, 0.86, 1.1); r.rotation.y = i / 6 * Math.PI; }
+      M(new THREE.CylinderGeometry(0.06, 0.09, 0.3, 6), L("#4e7a2a"), 0, 0.98, 0); const fc = denE("#ffd060", 1.4);
+      [-0.2, 0.2].forEach(x => M(new THREE.ConeGeometry(0.1, 0.16, 3), fc, x, 0.58, 0.6).rotation.x = Math.PI / 2);
+      const mo = M(new THREE.BoxGeometry(0.4, 0.08, 0.05), fc, 0, 0.32, 0.6); mo.rotation.z = 0.05; }
+    if (id === "festLantern") { M(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), L("#4e3420"), 0, 1.1, 0); M(new THREE.CylinderGeometry(0.4, 0.5, 0.1, 10), L("#4e3420"), 0, 0.05, 0);
+      M(new THREE.BoxGeometry(0.6, 0.05, 0.05), L("#4e3420"), 0.25, 2.15, 0); const lt = M(new THREE.SphereGeometry(0.32, 12, 10), denE("#ff4a3a", 1.0), 0.5, 1.75, 0); lt.scale.set(1, 1.25, 1);
+      [-1, 1].forEach(s => M(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), L("#f2c84a"), 0.5, 1.75 + s * 0.38, 0)); }
+    g.userData.id = id; return g; }; }
+
+/* ---- save: rides along with the den ---- */
+{ const _ds = denSave, _dl = denLoad;
+  denSave = function () { const d = _ds.apply(this, arguments); d.fest = { k: FEST.key, g: FEST.got.slice(), w: FEST.won }; return d; };
+  denLoad = function (d) { _dl.apply(this, arguments); const f = (d && d.fest) || {}; FEST.key = typeof f.k === "string" ? f.k : null; FEST.got = Array.isArray(f.g) ? f.g.filter(i => typeof i === "number") : []; FEST.won = f.w && typeof f.w === "object" ? f.w : {}; }; }
+
+/* ---- village decorations: flag strings round the plaza and four striped stalls ---- */
+function festDeco(F) {
+  if (FEST.deco) { scene.remove(FEST.deco); FEST.deco = null; }
+  const g = new THREE.Group(); g.position.set(VIL.x, 0, VIL.z); scene.add(g); FEST.deco = g;
+  const pole = denL("#7a5232"), P = [];
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + 0.2, r = 15, x = Math.cos(a) * r, z = Math.sin(a) * r, y = height(VIL.x + x, VIL.z + z); P.push([x, y + 4.2, z]);
+    denMesh(g, new THREE.CylinderGeometry(0.1, 0.12, 4.4, 6), pole, x, y + 2.2, z); }
+  const fm = F.flag.map(c => { const m = denL(c); m.side = THREE.DoubleSide; return m; }), tri = new THREE.BufferGeometry(); tri.setAttribute("position", new THREE.Float32BufferAttribute([-0.22, 0, 0, 0.22, 0, 0, 0, -0.5, 0], 3)); tri.computeVertexNormals();
+  for (let i = 0; i < 8; i++) { const A = P[i], B = P[(i + 1) % 8], n = 9;
+    for (let k = 1; k < n; k++) { const t = k / n, x = A[0] + (B[0] - A[0]) * t, z = A[2] + (B[2] - A[2]) * t, y = A[1] + (B[1] - A[1]) * t - Math.sin(t * Math.PI) * 0.9;
+      const m = new THREE.Mesh(tri, fm[k % fm.length]); m.position.set(x, y, z); m.rotation.y = -Math.atan2(B[2] - A[2], B[0] - A[0]); g.add(m); } }
+  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4, r = 22, x = Math.cos(a) * r, z = Math.sin(a) * r, y = height(VIL.x + x, VIL.z + z), s = new THREE.Group(); s.position.set(x, y, z); s.rotation.y = -a + Math.PI / 2; g.add(s);
+    denMesh(s, new THREE.BoxGeometry(2.6, 1.0, 1.2), denL("#9a6a44"), 0, 0.5, 0); [-1.2, 1.2].forEach(px => denMesh(s, new THREE.CylinderGeometry(0.06, 0.06, 2.4, 6), pole, px, 1.2, -0.5));
+    for (let k = 0; k < 6; k++) { const st = denMesh(s, new THREE.BoxGeometry(0.46, 0.08, 1.6), denL(k % 2 ? "#ffffff" : F.flag[i % F.flag.length]), -1.15 + k * 0.46, 2.45, -0.1); st.rotation.x = 0.25; }
+    blockers.push({ x: VIL.x + x, z: VIL.z + z, r: 1.4, fest: true }); }
+}
+function festUndeco() { FEST.built = null; if (FEST.deco) { scene.remove(FEST.deco); FEST.deco = null; } for (let i = blockers.length - 1; i >= 0; i--) if (blockers[i].fest) blockers.splice(i, 1); festClearItems(); }
+
+/* ---- the things to find / fly through / light ---- */
+function festClearItems() { FEST.items.forEach(it => it.g && scene.remove(it.g)); FEST.items = []; if (FEST.sky) FEST.sky.visible = false; }
+function festSpot(i, n, near) {   /* a spot on dry ground around the village, not too far away */
+  let s = (FEST.seed + i * 7919) % 2147483647 || 1; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 400; k++) { const a = (i / n + rnd() * 0.12) * Math.PI * 2, d = VIL.r + 12 + rnd() * near, x = VIL.x + Math.cos(a) * d, z = VIL.z + Math.sin(a) * d;
+    if (waterTop(x, z) > -Infinity || !wildOk(x, z, 2.5) || nearArena(x, z, 6)) continue; const y = height(x, z); if (y > 30 || Math.abs(height(x + 1, z) - y) > 0.8) continue; return { x, y, z }; }
+  const a = i / n * Math.PI * 2; return { x: VIL.x + Math.cos(a) * (VIL.r + 8), y: height(VIL.x + Math.cos(a) * (VIL.r + 8), VIL.z + Math.sin(a) * (VIL.r + 8)), z: VIL.z + Math.sin(a) * (VIL.r + 8) };
+}
+function festMakeItems(F) {
+  festClearItems(); FEST.seed = [...FEST.key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 2147483647, 7);
+  for (let i = 0; i < F.n; i++) {
+    const g = new THREE.Group(), done = FEST.got.includes(i); let p;
+    if (F.id === "flowers") { p = festSpot(i, F.n, 110); denMesh(g, new THREE.CylinderGeometry(0.04, 0.05, 0.8, 5), denL("#4e9a3a"), 0, 0.4, 0);
+      for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; denMesh(g, new THREE.SphereGeometry(0.16, 8, 6), denE(["#f2a8c8", "#c88af2", "#f2e27a"][i % 3], 0.9), Math.cos(a) * 0.2, 0.85, Math.sin(a) * 0.2); }
+      denMesh(g, new THREE.SphereGeometry(0.12, 8, 6), denE("#fff6a0", 1.3), 0, 0.88, 0); }
+    if (F.id === "pumpkins") { p = festSpot(i, F.n, 90); const pm = denMesh(g, new THREE.SphereGeometry(0.6, 14, 10), denE("#e8782a", 0.25), 0, 0.45, 0); pm.scale.set(1.15, 0.8, 1.15);
+      for (let k = 0; k < 5; k++) { const r = denMesh(g, new THREE.SphereGeometry(0.61, 10, 8), denL("#d06a22"), 0, 0.45, 0); r.scale.set(0.25, 0.81, 1.1); r.rotation.y = k / 5 * Math.PI; }
+      denMesh(g, new THREE.CylinderGeometry(0.06, 0.09, 0.3, 6), denL("#4e7a2a"), 0, 0.95, 0); }
+    if (F.id === "lanterns") { const a = i / F.n * Math.PI * 2 + 0.35, x = VIL.x + Math.cos(a) * (VIL.r + 4), z = VIL.z + Math.sin(a) * (VIL.r + 4); p = { x, y: height(x, z), z };
+      denMesh(g, new THREE.CylinderGeometry(0.08, 0.1, 2.6, 6), denL("#4e3420"), 0, 1.3, 0); denMesh(g, new THREE.BoxGeometry(0.7, 0.06, 0.06), denL("#4e3420"), 0.3, 2.55, 0);
+      const lt = denMesh(g, new THREE.SphereGeometry(0.34, 12, 10), done ? denE("#ff5a3a", 1.2) : denL("#8a3a32"), 0.6, 2.1, 0); lt.scale.set(1, 1.25, 1); g.userData.lamp = lt;
+      if (done) { const pl = new THREE.PointLight(new THREE.Color("#ff9a5a"), 0.8, 12, 1.5); pl.position.set(0.6, 2.1, 0); g.add(pl); } }
+    if (F.id === "rings") { const a = i / F.n * Math.PI * 2, x = VIL.x + Math.cos(a) * 42, z = VIL.z + Math.sin(a) * 42; p = { x, y: Math.max(height(x, z), 2) + 22 + (i % 3) * 7, z };
+      const r = denMesh(g, new THREE.TorusGeometry(3.4, 0.32, 10, 32), denE(done ? "#7a7a6a" : "#f2c84a", done ? 0.1 : 1.0), 0, 0, 0); r.castShadow = false; g.rotation.y = -a; g.userData.ring = r; }
+    g.position.set(p.x, p.y, p.z); g.visible = F.id === "lanterns" || F.id === "rings" || !done; scene.add(g);
+    FEST.items.push({ i, g, x: p.x, y: p.y, z: p.z, done });
+  }
+}
+function festGet(it, F) {
+  if (it.done) return; it.done = true; FEST.got.push(it.i);
+  if (F.id === "flowers" || F.id === "pumpkins") { it.g.visible = false; burstAt(it.x, it.y + 0.8, it.z, F.id === "flowers" ? "#f2a8c8" : "#e8782a"); }
+  if (F.id === "lanterns") { it.g.userData.lamp.material = denE("#ff5a3a", 1.2); const pl = new THREE.PointLight(new THREE.Color("#ff9a5a"), 0.8, 12, 1.5); pl.position.set(0.6, 2.1, 0); it.g.add(pl); burstAt(it.x + 0.6, it.y + 2.1, it.z, "#ffb050"); }
+  if (F.id === "rings") { it.g.userData.ring.material = denE("#7a7a6a", 0.1); burstAt(it.x, it.y, it.z, "#f2c84a"); }
+  const n = FEST.got.length;
+  if (n >= F.n) festWin(F); else toast(`${F.emoji} ${n} / ${F.n}`, F.id === "rings" ? "Keep flying!" : F.id === "lanterns" ? "Your dragon lights it with a puff of fire" : "Keep looking!");
+  writeSave();
+}
+function festWin(F) {
+  const first = !DEN.got["fest_" + F.prize]; coins += F.coins; showCoins();
+  if (first) { DEN.got["fest_" + F.prize] = 1; DEN.inv[F.prize] = (DEN.inv[F.prize] | 0) + 1; }
+  FEST.won[FEST.key] = 1;
+  for (let k = 0; k < 6; k++) setTimeout(() => burstAt(me.x + (Math.random() - 0.5) * 4, me.y + 3 + Math.random() * 2, me.z + (Math.random() - 0.5) * 4, F.flag[k % F.flag.length]), k * 150);
+  toast(`${F.emoji} ${F.done}`, `+${F.coins} coins${first ? ` and a ${FURN[F.prize][0]} for your den!` : ""}`);
+}
+
+/* ---- each frame ---- */
+function festTick(dt) {
+  if (!started) return;
+  const F = festNow(), key = F ? festKey() : null;
+  if (!F) { if (FEST.deco) festUndeco(); return; }
+  if (FEST.key !== key) { FEST.key = key; FEST.got = []; }
+  if (!FEST.deco || FEST.built !== key) { festUndeco(); FEST.built = key; festDeco(F); festMakeItems(F); }
+  if (FEST.shownKey !== key) { FEST.shownKey = key; setTimeout(() => toast(`${F.emoji} The ${F.name} is today!`, FEST.won[key] ? "You already finished it this year" : F.how), 6500); }
+  const won = !!FEST.won[key];
+  // fly through the rings
+  if (F.id === "rings" && !won && state === "ride" && pet.fly) for (const it of FEST.items) if (!it.done && Math.hypot(pet.x - it.x, pet.y + 1 - it.y, pet.z - it.z) < 3.6) festGet(it, F);
+  // gentle bob / spin
+  FEST.items.forEach(it => { if (F.id === "rings") { if (!it.done) it.g.userData.ring.material.emissiveIntensity = 0.8 + 0.3 * Math.sin(T * 3 + it.i); }
+    else if (F.id !== "lanterns") it.g.rotation.y = T * 0.6 + it.i; });
+  // winter: lit lanterns send sky lanterns up at night
+  if (F.id === "lanterns") festSky(dt);
+}
+function festSky(dt) {
+  const lit = FEST.items.filter(it => it.done), on = isNight && lit.length > 0 && !DEN.in;
+  if (!FEST.sky) { const N = 160, pos = new Float32Array(N * 3), g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    FEST.sky = new THREE.Points(g, new THREE.PointsMaterial({ map: dotTex(), size: 1.1, transparent: true, depthWrite: false, color: "#ffa050" })); FEST.sky.frustumCulled = false; FEST.sky.userData.n = N; scene.add(FEST.sky); FEST.skyAge = new Float32Array(N).fill(-1); }
+  FEST.sky.visible = on; if (!on) return;
+  const P = FEST.sky.geometry.attributes.position.array, N = FEST.sky.userData.n, want = Math.min(N, lit.length * 20);
+  for (let i = 0; i < N; i++) { const k = i * 3;
+    if (FEST.skyAge[i] < 0) { if (i < want && Math.random() < dt * 0.6) { const it = lit[i % lit.length]; P[k] = it.x + 0.6 + (Math.random() - 0.5); P[k + 1] = it.y + 2.4; P[k + 2] = it.z + (Math.random() - 0.5); FEST.skyAge[i] = 0; } else { P[k + 1] = -999; } continue; }
+    FEST.skyAge[i] += dt; P[k] += Math.sin(T * 0.4 + i) * dt * 0.6; P[k + 1] += dt * (1.2 + (i % 5) * 0.15); P[k + 2] += Math.cos(T * 0.3 + i) * dt * 0.6;
+    if (FEST.skyAge[i] > 60) FEST.skyAge[i] = -1; }
+  FEST.sky.geometry.attributes.position.needsUpdate = true;
+}
+function festNear() {
+  const F = festNow(); if (!F || F.id === "rings" || FEST.won[FEST.key] || DEN.in || state === "ride") return null;
+  return FEST.items.find(it => !it.done && Math.hypot(me.x - it.x, me.z - it.z) < (F.id === "lanterns" ? 2.6 : 2.2) && Math.abs(me.y - it.y) < 4) || null;
+}
+{ const _wf3 = wdFeedAct; wdFeedAct = function () { const it = festNear(); if (it) { const F = festNow(); if (F.id === "lanterns" && !hasDragon()) { toast("You need a dragon to light it", "A dragon's fire lights festival lanterns"); return true; } festGet(it, F); return true; } return _wf3.apply(this, arguments); };
+  const _uf3 = updateFish; updateFish = function (dt) { const r = _uf3.apply(this, arguments); festTick(dt);
+    const it = !uiOpen && festNear(); if (it) { const F = festNow(); prompt(F.id === "flowers" ? "Press <kbd>E</kbd> to pick the festival flower" : F.id === "pumpkins" ? "Press <kbd>E</kbd> to pick up the pumpkin" : "Press <kbd>E</kbd> so your dragon lights the lantern"); }
+    else if (!uiOpen && state === "ride" && festNow() && festNow().id === "rings" && !FEST.won[FEST.key] && Math.hypot(me.x - VIL.x, me.z - VIL.z) < 80 && !promptEl.innerHTML.includes("<kbd>")) prompt(`🪁 Parade rings: ${FEST.got.length} / 10 · fly through the golden rings`);
+    return r; }; }
+
+/* ---- Mayor Tilda talks about the festivals ---- */
+function festTalk() {
+  const F = festNow();
+  if (F) { const won = FEST.won[FEST.key]; return won ? `Thank you for joining the ${F.name}! Isn't the bunting lovely? I picked every colour myself.` : `It's the ${F.name}! ${F.how} You've done ${FEST.got.length} of ${F.n}. There's a prize at the end!`; }
+  const nx = festNext(); return `The next festival is the ${nx.f.name}, in ${nx.days === 1 ? "1 day" : nx.days + " days"}. ${nx.f.how} I'm planning the bunting already!`;
+}
+npcs.forEach(n => { if (n.name === "Mayor Tilda" && n.topics && !n.topics.some(t => t.fn === "festTalk")) n.topics.unshift({ label: "What's the next festival?", fn: "festTalk" }); });
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 window.__ww.debugComeback = (n, o) => wdDebug(n, o);   /* hidden test hook: "Shadow Wyrm beaten, day n" */
