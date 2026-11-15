@@ -8908,7 +8908,7 @@ function writeSave() {
   const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, bred: bredOf(pet.kind), rest: pet.rest || 0, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, big: !!pet.big, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(), req: reqSave(),
-    bred: bredSaveMap(), breedSt: breedSave(),
+    bred: bredSaveMap(), breedSt: breedSave(), kids: kidSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
@@ -8931,6 +8931,7 @@ function applySave(d) {
   if (d.skill) skillLoad(d.skill);
   if (d.fish) fishLoad(d.fish);
   if (d.req) reqLoad(d.req);
+  kidLoad(d.kids || {});   /* egg gifts: baby dragons that follow the kids */
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => typeof k === "string" && (SPECIES.some(s => s.name === k.replace(/[*!].*$/, "")) || !!BRED_SP[k.replace(/[*!].*$/, "")])));
@@ -9207,9 +9208,13 @@ const HAZEL_BOOKS = [
   { t: "Lands of the World: The Bone Caves", p: ["Lands of the World: The Bone Caves, by Professor Hazel. Deep under the old crypts there are caves full of bones, and the dragons that live there are the strangest I have ever met. I went down with three lanterns. I came back up with one. I do not want to talk about the other two.", "Chapter 1: The Caves. Long, dark tunnels with walls made of old bones and crumbling stone. Ribs as big as doorways arch over the paths. Old gravestones lean this way and that, and drips of water echo for a very long time. There is no sunlight at all. Not even a little.", "Chapter 2: Bone Cave Bodies. Living in the dark has changed these dragons. Some have huge eyes that catch the tiniest bit of light. Some barely use their eyes and feel or hear their way instead. Many glow, so they can see, or be seen by friends, or lure in dinner. And almost all of them are the colour of bone, dust or darkness, so they disappear into the caves.", "Chapter 3: Ribcrawler. A whole dragon skeleton that walks. No skin, no scales, just a bony spine, a rib cage you can see straight through, a skull with two pale glowing eyes, and bare wing bones with a ghostly wisp of skin between them. It skitters along walls and ceilings on long hooked claws, and its bones glow faintly so other Ribcrawlers can find it in the dark. Curled up on a pile of bones, it IS part of the pile. I picked one up once, thinking it was a bone. It rattled at me. I put it down.", "Chapter 4: Gravemaw. A big, heavy digger with crooked gravestone plates along its back. When it pushes up through an old crypt floor, it looks like just another row of graves. Its eyes are tiny, but long whiskers feel the tunnel walls, and its enormous jaw crunches old bones for the minerals inside. It breathes Grave Dust, a choking cloud. Hold your breath. I did not. I coughed for a week.", "Chapter 5: Wraithwing. You can see right through it, like a ghost, and its pale wings slowly fade away to nothing, then come back. Its cloudy eyes are almost blind, but its big ear fins can hear a bat's wingbeat across the whole cave. It flies without a sound, then lets out a Wail that sends its echo bouncing off the walls. Monsters run from it. So did I. Just a little.", "Chapter 6: Lichcrown. It looks half skeleton, with bone-white ribs and a pale bony skull, and it lives in the deepest tomb of all. A crown of bone horns glows with green soul-fire, like a lantern, and the same green fire burns in its eye sockets so it can see in total darkness. Glowing cave moths flutter up to its crown, and it snaps them up. Its Soul Flame breath sticks and keeps burning. Do not stand downwind.", "Chapter 7: Veinfang. Small, slim and quick, with deep crimson scales, long fangs, sharp bone-white horns, and two glowing arteries down its sides. Every vein flares with each heartbeat. Ba-dum. Ba-dum. You hear it before you see it. Its warm blood keeps it going in the coldest tunnels, it sleeps hanging upside down from the cave roof like a bat, and its Life Drain breath heals it a little every time it hits. It is not the red-moon dragon. They look nothing alike up close. I checked. Very carefully.", "Chapter 8: Eternix. Deep in the damp moss between the old bones lives the smallest Legendary dragon I know of, and the toughest. Eternix has soft, smooth pearly skin with an icy blue shimmer, delicate see-through wings, short curved pearl horns and a long slender tail with a glowing pearl at the tip, and a row of little pearls glows along its back. When something attacks it, it wraps its wings and tail around itself and closes into a glowing pearl shell that nothing can hurt. They say it can survive freezing, boiling and crushing, even the cold of outer space. I believe it. My lantern went out right next to it, and it did not even blink.", "Chapter 9: Dinner in the Dark. Nothing grows in the Bone Caves, so what do these dragons eat? Cave beetles, cave moths, blind cave fish from the black pools, and the minerals in old bones. It sounds horrible. The dragons seem very happy with it.", "Chapter 10: Cave Monsters. Bats hang from every ceiling, beetles click in the bone piles, and things rattle in the dark that I never quite got a look at. Some of the bones are not as still as they should be. I counted them twice to be sure.", "Chapter 11: Bone Cave Advice. Bring more lanterns than you think you need. Then bring one more. Keep your dragon close, listen for rattles, and never, ever lean on a gravestone that is breathing."] },
   { t: "A Tamer's First Guide", p: ["A Tamer's First Guide, by Professor Hazel. For every new tamer who has just found an egg, and for every old tamer who has forgotten what that felt like. Read it slowly. Your dragon is not going anywhere. Well. It might fly off for a bit. It will come back.", "Chapter 1: The Egg. A dragon egg is warm, a little heavy, and glows softly so its mother can find it. Carry it gently and take it home to your nest. Eggs hatch best at home, where it is safe and quiet.", "Chapter 2: Hatching Day. When the egg starts to rock and crack, stay close. The very first thing a baby dragon sees is the face it will trust forever. I have been the first face for many dragons. Most of them still try to sit on my lap. Some of them are now bigger than my house.", "Chapter 3: Names. Give your dragon a good name, one you will not mind shouting across a valley. I once named a Pyrrak 'Sir Wigglesworth the Third'. Calling him for dinner took a very long time.", "Chapter 4: Growing Up. Babies grow quickly. Soon your dragon will be big enough to carry you. Climb on, hold tight, and let it walk first. Flying comes after. Not every dragon can fly, and that is fine. Some swim, some dig, some run, and a very few run right up into the sky.", "Chapter 5: Strength. Every kind of dragon is different. Some are tough and can take a lot of hits. Some have strong claws. Some have powerful breath. Some are fast. Dragons grow stronger as they gain experience, and the rarer kinds seem to grow stronger faster. Nobody knows why. I suspect showing off.", "Chapter 6: Hurt Dragons. If your dragon gets hurt, take it home to its nest to rest. Never push a tired dragon into another fight. A dragon will try its very best for you, even when it should not. That is why you have to be the sensible one.", "Chapter 7: The Lands. The world is much bigger than Green Valley. Past the mountains there are lands of fire, ice, sand, crystal, forest and sea, and past those, even stranger lands. Each land has its own dragons and its own monsters. I have written a book about every one of them. They are on this shelf. You are welcome.", "Chapter 8: The Most Important Rule. Be kind to your dragon. Feed it, talk to it, scratch it behind the horns. It remembers everything. A dragon that loves you will follow you anywhere, even into a volcano. Please do not take it into a volcano."] },
 ];
+const npcSay = l => typeof l === "function" ? l() : l;   /* a line can be a function (live gossip, e.g. where Shen is now); null = skip it */
 function npcNext(n) {
-  if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
-  n.talks++; return n.lines[n.deck.pop()];
+  for (let k = 0; k < 60; k++) {
+    if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
+    const s = npcSay(n.lines[n.deck.pop()]); if (s) { n.talks++; return s; }
+  }
+  n.talks++; return "...";
 }
 function npcDialog(n, say) {
   const tps = n.topics, ch = [["Chat", "chat", 0], ...tps.map((t, i) => [t.label, "topic", i]), ["Goodbye", "bye", 0]];
@@ -9229,7 +9234,9 @@ function npcDialog(n, say) {
       if (t.fn === "potions") return potionMenu(n);
       if (t.fn === "hazelStats") return npcDialog(n, hazelStats());
       if (t.fn === "hazelPet") return npcDialog(n, hazelPet() || (pet.kind ? "Your dragon is still an egg! Hatch it and I'll tell you everything I know." : "You don't have a dragon yet! Find an egg first. Then come back and I'll study it. Gently."));
-      const pool = t.say || t.lines.map(k => n.lines[k]);
+      if (t.fn === "roseShen") return npcDialog(n, roseShen());
+      if (t.fn === "kidEgg") return kidGiftMenu(n);
+      const pool = t.say || t.lines.map(k => npcSay(n.lines[k]));
       npcDialog(n, pool[Math.floor(Math.random() * pool.length)]);
     }
   };
@@ -9261,10 +9268,10 @@ function talkTo() {
   if (ql) { if (n.topics) npcDialog(n, ql); else { talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : ""); $("talkLine").textContent = ql.replace(/<[^>]+>/g, ""); $("talk").hidden = false; } return true; }
   if (n.arena) { arenaMenu(); return true; }
   if (n.topics) { npcDialog(n, (n.hazel && hazelWow()) || (n.hazel && Math.random() < 0.4 ? (hazelPet() || npcNext(n)) : npcNext(n))); return true; }
-  if (!n.deck.length) { n.deck = n.lines.map((_, i) => i); for (let i = n.deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [n.deck[i], n.deck[j]] = [n.deck[j], n.deck[i]]; } }
   talking = n; $("talkName").innerHTML = n.name + (n.title ? `<small>${n.title}</small>` : "");
   const pl = n.hazel && Math.random() < 0.4 ? hazelPet() : null;
-  $("talkLine").textContent = pl || n.lines[n.deck.pop()]; $("talk").hidden = false; n.talks++;
+  if (pl) n.talks++;
+  $("talkLine").textContent = pl || npcNext(n); $("talk").hidden = false;
   return true;
 }
 function updateNpcs(dt) {
@@ -15374,7 +15381,7 @@ const SHEN_ITEMS = [
 ];
 const SHINY_KINDS = ["Silver", "Gold", "Purple & blue", "Neon"];
 const rollShiny = () => { const r = Math.random() * 100; return r < 40 ? "Silver" : r < 70 ? "Gold" : r < 90 ? "Purple & blue" : "Neon"; };   // Petra's odds: Neon rarest
-const shenSave = () => { const o = Object.assign({}, SHN); delete o.here; delete o.polish; if (o.map) o.map = { x: o.map.x, y: o.map.y, z: o.map.z, land: o.map.land }; o.jail = Math.round(o.jail); return o; };
+const shenSave = () => { const o = Object.assign({}, SHN); delete o.here; delete o.polish; delete o.at; if (o.map) o.map = { x: o.map.x, y: o.map.y, z: o.map.z, land: o.map.land }; o.jail = Math.round(o.jail); return o; };
 function shenLoad(d) { Object.assign(SHN, d, { here: null, polish: null }); if (SHN.map) shenMapMark(); }
 
 // ---- what he looks like: a hooded figure with yellow eyes, a rug of goods and a lantern ----
@@ -15450,7 +15457,9 @@ const SAY = {
 const pickOf = a => a[Math.floor(Math.random() * a.length)];
 function shenTalk() {
   if (SHN.map && state !== "ride" && Math.hypot(SHN.map.x - me.x, SHN.map.z - me.z) < 2.6) { digMap(); return true; }
+  if (hideNear()) return hideTalk();
   if (!shenNear()) return false;
+  SHN.at = "road";
   if (SHN.met && Math.random() < 0.25 + (SHN.cursed ? 0.25 : 0)) { coins -= Math.min(coins, (2 + Math.floor(Math.random() * 5)) * (SHN.cursed ? 2 : 1)); showCoins(); }   // shh
   SHN.met = true;
   shenShop(pickOf(SHN.told ? SAY.mad : SAY.hi), SHN.owed);
@@ -15459,17 +15468,19 @@ function shenTalk() {
 function shenList() {
   const L = SHEN_ITEMS.map(([n, p, w]) => [n, p * (SHN.told ? 2 : 1), w]);
   if (SHN.buys >= 10) L.push(["Glimmer Pack x5", 250 * (SHN.told ? 2 : 1), "Five Glimmer Stones. For my best customer"]);
+  if (SHN.at === "road") L.push([SHEN_ROAD[0], SHEN_ROAD[1] * (SHN.told ? 2 : 1), SHEN_ROAD[2]]);   /* road deal: only when you meet him travelling */
   return L;
 }
 function shenShop(say, free) {
   const L = shenList();
   const rows = L.map(([n, p, w], i) => {
-    const sold = n === "Moldy Egg" && SHN.moldy;
-    return `<div class="sec"><div><b>${n}</b> · ${sold ? "sold out" : free ? "FREE" : p + " coins"}<br><small>${w}</small></div><button data-act="buy" data-i="${i}" ${sold ? "disabled" : ""}>${free ? "Take" : "Buy"}</button></div>`;
+    const sold = (n === "Moldy Egg" && SHN.moldy) || (n === SHEN_ROAD[0] && (!SHN.here || SHN.here.deal));
+    return `<div class="sec"><div><b>${n === SHEN_ROAD[0] ? "Road deal: " + n : n}</b> · ${sold ? "sold out" : free ? "FREE" : p + " coins"}<br><small>${w}</small></div><button data-act="buy" data-i="${i}" ${sold ? "disabled" : ""}>${free ? "Take" : "Buy"}</button></div>`;
   }).join("");
   const glim = SHN.glim ? `<div class="sec"><div><b>Your Glimmer Stones: ${SHN.glim}</b><br><small>Use 1 for a random shiny, or 5 to pick the colour</small></div><button data-act="glim">Use</button></div>` : "";
-  openMenu("Shady Shen", `<p class="who">A hooded stranger with yellow eyes</p><p class="say">${say}</p>
-    ${free ? `<p class="good">Psst... you didn't tell the officer about me. Pick one thing. Free.</p>` : `<p>You have <b>${coins}</b> coins.</p>`}${glim}${rows}${breedSellRows()}`, () => { toast("Shady Shen", pickOf(SAY.bye)); lockMouse(); });
+  const home = SHN.at === "hide";
+  openMenu("Shady Shen", `<p class="who">${home ? "At his hideout, under a patched tarp. A lantern swings." : "A hooded stranger with yellow eyes"}</p><p class="say">${say}</p>${!home ? `<p><small>Only on the road today: one ${SHEN_ROAD[0]}. Don't ask.</small></p>` : ""}
+    ${free ? `<p class="good">Psst... you didn't tell the officer about me. Pick one thing. Free.</p>` : `<p>You have <b>${coins}</b> coins.</p>`}${glim}${rows}${breedSellRows()}`, () => { toast("Shady Shen", pickOf(home ? SAYH.bye : SAY.bye)); lockMouse(); });
   menuAct = (a, i) => { if (a === "sellb") return breedSell(i); if (a === "glim") return glimMenu(); if (a === "buy") shenBuy(i, free); };
 }
 function shenBuy(i, free) {
@@ -15477,12 +15488,14 @@ function shenBuy(i, free) {
   const again = msg => shenShop(msg, free);
   if (coins < p) return again(`That's ${p} coins, friend. Come back richer.`);
   if (n === "Moldy Egg" && SHN.moldy) return again("All gone. Heh. Should've bought more when you had the chance.");
-  const egg = ["Mystery Egg", "Moldy Egg", "Shiny Egg"].includes(n);
+  if (n === SHEN_ROAD[0] && (!SHN.here || SHN.here.deal)) return again("Only had the one. Road deals don't wait, friend.");
+  const egg = ["Mystery Egg", "Moldy Egg", "Shiny Egg", SHEN_ROAD[0]].includes(n);
   if (egg && bag.length >= BAG_MAX) return again("No room in your backpack for an egg.");
   if (n === "Egg Swap" && !bag.length) return again("You have no eggs to swap.");
   if ((n === "Golden Coin" && SHN.cursed) || (n === "Speed Saddle" && SHN.saddle)) return again("You already have one. One is plenty. Heh.");
   if ((n === "Power Fruit" || n === "Shiny Polish") && state !== "grown") return again("Your dragon needs to be grown up for that.");
   coins -= p; showCoins();
+  if (n === SHEN_ROAD[0] && SHN.here) SHN.here.deal = true;
   if (!free && SHN.bought && n !== "Moldy Egg" && Math.random() < 0.1) { writeSave(); return again(`<b>Huh?</b> ${pickOf(SAY.fake)}`); }   // fakes: never explained
   SHN.bought = true; SHN.owed = false; SHN.buys++;
   let msg = shenGive(n);
@@ -15512,6 +15525,7 @@ function shenGive(n, box) {
     case "Shiny Polish": { const real = SHN.polish ? SHN.polish.real : pet.shiny; let t = rollShiny(); setKind(pet.kind, t); SHN.polish = { real, t: 120 + Math.random() * 90 };
       return `${pet.name} sparkles! So shiny. Totally real. Heh heh.`; }
     case "Moldy Egg": SHN.moldy = true; bag.push(randomKind(Math.random() < 0.8 ? "Epic" : "Legendary")); showCoins(); return "A Moldy Egg. Ew. It's probably rotten. No refunds. Heh.";
+    case "Caravan Egg": bag.push(Math.random() < 0.25 ? randomKind("Common") : randomKind(Math.random() < 0.75 ? "Rare" : "Epic")); showCoins(); return "A Caravan Egg! Still warm from the sand. It's in your backpack. Don't tell anyone where you got it.";   /* shh: 1 in 4 is just a Common */
     case "Shiny Egg": bag.push("Dustmite"); showCoins(); return "A Shiny Egg! Super rare. Totally worth it. Heh heh heh.";
   }
   return "";
@@ -20034,6 +20048,322 @@ function orrinCorner(home, rot) {   /* the straw nest and Biscuit (an ancient, f
     zs.forEach((s, i) => { const k = (t * 0.22 + i / 3) % 1; s.position.set(bis.root.position.x + 0.3 * Math.sin(t + i), home.y + 1.3 + k * 1.6, bis.root.position.z + 0.2 * k); s.scale.setScalar(0.25 + k * 0.35); s.material.opacity = Math.sin(k * Math.PI) * 0.8; });
   });
   return { g, biscuit: bis };
+}
+
+/* ================= SHADY SHEN'S HIDEOUT in the Desert + village gossip (Petra 2026-11-14) =================
+   He hides from Officer Brick in a little canyon nook against a red mesa in the Desert: a patched lean-to, a lantern, crates,
+   a rug and a few things that "fell off a caravan". He is ALWAYS there (unless Brick has him locked up: then there's a note).
+   He still travels too: SHN.roam is the land he's wandering in now (null = resting at home). When you meet him on the road he
+   has one extra "road deal" (a Caravan Egg) that the hideout never sells. Villagers gossip about where he was seen, and
+   Baker Rose gossips about everything. RULE: no NPC ever names or hints at the secret dragons. */
+const SHEN_ROAD = ["Caravan Egg", 90, "Fell off a desert caravan. Rare or better. Probably"];
+const SAYH = {
+  hi: ["You found my little place. Don't tell the big helmet.", "Shh. Officer Brick has ears like a fox. A fox in a helmet.", "Welcome to the real shop. Wipe your feet. On the sand. Which is everywhere.",
+    "Nobody comes out here. That's the whole point.", "Sand gets in everything. Free sand with every purchase.", "Came all the way out here? You must REALLY like bargains.", "Mind the crates. Some of them bite. Kidding. Mostly."],
+  mad: ["You again. If Brick shows up, I'm a cactus.", "Snitches pay double out here. Sand tax.", "I've got my eye on you. Both eyes. Yellow ones."],
+  bye: ["Close the flap on your way out.", "You were never here.", "Don't follow your own footprints back. Brick reads footprints."],
+};
+const SHEN_ROAM_LANDS = WILD_LANDS.filter(l => !["Desert", "Sky Islands", "Crystal Caves", "Ocean"].includes(l));
+SHN.roam = pickOf(SHEN_ROAM_LANDS); SHN.roamT = 300; SHN.hide = false;   /* defaults; a save overwrites them (old saves just keep these) */
+const shenLand = () => SHN.jail > 0 ? "jail" : SHN.here ? SHN.here.land : SHN.roam;   /* "jail", a land, or null (at home in the sand) */
+const theLand = l => (l === "Fire Mountain" || l === "Blightwood" ? "" : "the ") + l;
+
+/* ---- where the hideout goes: a U-shaped nook against a mesa, away from the oasis, the titan bones and the pass ---- */
+const HIDE = (() => {
+  const D = DESERT, OA = D.oasis, tb = window.__titanBones || [D.x, D.z];
+  for (const [lo, hi] of [[6, 11], [5, 12], [4, 13]]) {
+    let best = null;
+    for (let d = 55; d <= 128; d += 2.5) for (let a = 0; a < 6.283; a += 2 / d) {
+      const x = D.x + Math.cos(a) * d, z = D.z + Math.sin(a) * d;
+      if (mesaAt(x, z) > 0.005 || Math.hypot(x - OA.x, z - OA.z) < 55 || Math.hypot(x - tb[0], z - tb[1]) < 62 || passW(D, x, z) > 0.01) continue;
+      let n = 0, ox = 0, oz = 0, close = 0;
+      for (let k = 0; k < 16; k++) { const b = k / 16 * 6.283, c = Math.cos(b), s = Math.sin(b);
+        if (Math.max(mesaAt(x + c * 6.5, z + s * 6.5), mesaAt(x + c * 9, z + s * 9)) > 0.8) n++; else { ox += c; oz += s; }
+        if (mesaAt(x + c * 4.2, z + s * 4.2) > 0.2) close++; }
+      if (close || n < lo || n > hi || blockers.some(b => Math.hypot(b.x - x, b.z - z) < b.r + 10)) continue;
+      const sc = n - Math.abs(d - 95) * 0.02;
+      if (!best || sc > best.sc) best = { x, z, sc, walls: n, open: Math.atan2(oz, ox) };
+    }
+    if (best) return best;
+  }
+  return { x: D.x + 70, z: D.z, open: 0, walls: 0 };
+})();
+HIDE.y = height(HIDE.x, HIDE.z);
+/* ---- the hideout itself (local +x faces out of the nook, toward the open side) ---- */
+(function buildHide() {
+  const lin = h => new THREE.Color(h).convertSRGBToLinear(), lam = c => new THREE.MeshLambertMaterial({ color: lin(c) });
+  const g = new THREE.Group(), r = -HIDE.open; g.position.set(HIDE.x, HIDE.y, HIDE.z); g.rotation.y = r; scene.add(g); HIDE.g = g;
+  const toW = (lx, lz) => [HIDE.x + Math.cos(r) * lx + Math.sin(r) * lz, HIDE.z - Math.sin(r) * lx + Math.cos(r) * lz];
+  const block = (lx, lz, rr) => { const [x, z] = toW(lx, lz); blockers.push({ x, z, r: rr }); };
+  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  const wood = lam("#5a3e24"), canvasM = new THREE.MeshLambertMaterial({ color: lin("#c8a878"), side: THREE.DoubleSide }), crateA = lam("#8a6a3a"), crateB = lam("#6a4a2a"), stone = lam("#c88a5a");
+  /* the lean-to: four poles and a sloping patched canvas roof, high at the front */
+  [[1.5, 1.9, 2.6], [1.5, -1.9, 2.6], [-1.7, 1.9, 1.4], [-1.7, -1.9, 1.4]].forEach(([x, z, h]) => { add(new THREE.CylinderGeometry(0.07, 0.08, h, 6), wood, x, h / 2, z); block(x, z, 0.25); });
+  const len = Math.hypot(3.2, 1.2), tilt = Math.atan2(1.2, 3.2);
+  const roof = add(new THREE.BoxGeometry(len + 0.5, 0.05, 4.4), canvasM, -0.1, 2.05, 0, 0, 0, tilt);
+  [["#5a7a8a", -0.9, 1.1, 0.9, 0.8], ["#a84a3a", 0.6, -1.2, 0.8, 0.9], ["#c8a050", 0.9, 0.7, 0.6, 0.6], ["#4a6a3a", -0.4, -0.3, 0.7, 0.5]].forEach(([c, u, w, a, b]) => {
+    const pt = new THREE.Mesh(new THREE.BoxGeometry(a, 0.02, b), lam(c)); pt.position.set(u, 0.04, w); roof.add(pt); });   /* patches */
+  const flap = add(new THREE.BoxGeometry(0.04, 0.7, 4.4), canvasM, 1.6, 2.35, 0); flap.rotation.z = -0.15;   /* front valance */
+  /* a dark hanging cloth at the back and one side */
+  add(new THREE.BoxGeometry(0.05, 1.35, 3.8), lam("#3a2a4a"), -1.72, 0.72, 0);
+  add(new THREE.BoxGeometry(2.6, 1.6, 0.05), lam("#6a3a2a"), -0.3, 0.85, -1.95, 0, 0, -0.1);
+  /* rug with a border */
+  add(new THREE.BoxGeometry(3.2, 0.03, 2.8), lam("#d8b060"), 0.2, 0.02, 0);
+  add(new THREE.BoxGeometry(2.9, 0.04, 2.5), lam("#7a2a3a"), 0.2, 0.03, 0);
+  add(new THREE.BoxGeometry(1.2, 0.045, 0.9), lam("#3a5a8a"), 0.3, 0.035, 0);
+  /* crates, barrels and sacks of "goods" */
+  const crate = (x, y, z, s, m, ry) => { add(new THREE.BoxGeometry(s, s, s), m, x, y + s / 2, z, 0, ry, 0); };
+  crate(-1.2, 0, 1.35, 0.8, crateA, 0.2); crate(-1.15, 0.8, 1.3, 0.55, crateB, -0.3); crate(-0.3, 0, 1.55, 0.6, crateB, 0.5); block(-1.0, 1.4, 0.7);
+  crate(-1.25, 0, -1.3, 0.7, crateB, -0.2); block(-1.2, -1.3, 0.55);
+  const barrel = (x, z) => { add(new THREE.CylinderGeometry(0.32, 0.36, 0.9, 10), lam("#7a5030"), x, 0.45, z); add(new THREE.TorusGeometry(0.34, 0.03, 4, 12), lam("#3a3a3a"), x, 0.7, z, Math.PI / 2); block(x, z, 0.45); };
+  barrel(2.5, 1.9); barrel(2.9, 1.3);
+  const sackM = lam("#b8a070");
+  [[-0.5, -1.4], [-0.1, -1.55], [-0.35, -1.0]].forEach(([x, z], i) => { const s = add(new THREE.SphereGeometry(0.3, 10, 7), sackM, x, 0.24, z); s.scale.set(1, 0.8 + i * 0.1, 1); });
+  /* a half-open chest that glints, and a jar of something glowing purple (hidden goods...) */
+  add(new THREE.BoxGeometry(0.7, 0.4, 0.5), lam("#6a3a1a"), -1.2, 0.2, -0.45); block(-1.2, -0.45, 0.4);
+  add(new THREE.BoxGeometry(0.62, 0.06, 0.42), new THREE.MeshStandardMaterial({ color: lin("#ffd23a"), emissive: lin("#c89a20"), emissiveIntensity: 0.6, metalness: 0.6, roughness: 0.35 }), -1.2, 0.41, -0.45);
+  add(new THREE.BoxGeometry(0.7, 0.06, 0.5), lam("#6a3a1a"), -1.45, 0.62, -0.45, 0, 0, 1.1);
+  const jarM = new THREE.MeshStandardMaterial({ color: lin("#c87aff"), emissive: lin("#8a3aff"), emissiveIntensity: 0.9 });
+  add(new THREE.SphereGeometry(0.16, 10, 8), jarM, -1.15, 1.55, 1.25); add(new THREE.SphereGeometry(0.11, 10, 8), jarM, -0.3, 0.7, 1.55);
+  /* the lantern hangs from the front pole */
+  add(new THREE.CylinderGeometry(0.012, 0.012, 0.35, 4), lam("#2a2a2a"), 1.5, 2.15, 1.55);
+  add(new THREE.BoxGeometry(0.2, 0.28, 0.2), new THREE.MeshStandardMaterial({ color: lin("#ffcf7a"), emissive: lin("#ff9a2a"), emissiveIntensity: 1.2 }), 1.5, 1.85, 1.55);
+  add(new THREE.ConeGeometry(0.16, 0.12, 4), lam("#2a2a2a"), 1.5, 2.04, 1.55, 0, Math.PI / 4);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex(), color: lin("#ffb050"), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.setScalar(2.4); glow.position.set(1.5, 1.85, 1.55); g.add(glow); HIDE.glow = glow;
+  /* a hand-painted sign */
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 96; const cx = cv.getContext("2d");
+  cx.fillStyle = "#c8a878"; cx.fillRect(0, 0, 256, 96); cx.fillStyle = "#3a2010"; cx.font = "bold 34px Georgia, serif"; cx.textAlign = "center"; cx.fillText("NO OFFICERS", 128, 44); cx.font = "24px Georgia, serif"; cx.fillText("(no refunds)", 128, 80);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
+  add(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 5), wood, 2.4, 0.65, -1.6);
+  const sign = add(new THREE.BoxGeometry(0.04, 0.42, 1.1), [wood, wood, wood, wood, new THREE.MeshLambertMaterial({ map: tex }), new THREE.MeshLambertMaterial({ map: tex })], 2.4, 1.2, -1.6, 0, Math.PI / 2 + 0.5, 0.05);
+  sign.rotation.set(0, -0.5, 0.05); block(2.4, -1.6, 0.2);
+  /* the note he leaves when Brick has him locked up */
+  const cv2 = document.createElement("canvas"); cv2.width = 128; cv2.height = 160; const c2 = cv2.getContext("2d");
+  c2.fillStyle = "#f4ecd8"; c2.fillRect(0, 0, 128, 160); c2.fillStyle = "#2a2a3a"; c2.font = "bold 22px Georgia, serif"; c2.textAlign = "center"; c2.fillText("CLOSED", 64, 40); c2.font = "16px Georgia, serif";
+  ["Away on", "business.", "NOT in jail.", "  - S"].forEach((t, i) => c2.fillText(t, 64, 72 + i * 22));
+  const t2 = new THREE.CanvasTexture(cv2); t2.encoding = THREE.sRGBEncoding;
+  HIDE.note = add(new THREE.PlaneGeometry(0.4, 0.5), new THREE.MeshBasicMaterial({ map: t2, side: THREE.DoubleSide }), 1.58, 1.15, -1.9, 0, Math.PI / 2, 0.08);
+  /* boulders on the open side keep it tucked out of sight */
+  [[4.6, 2.6, 1.7], [4.2, -2.9, 1.3], [5.4, -0.9, 0.9], [3.6, 3.9, 1.0], [1.2, 3.8, 1.2], [1.0, -3.9, 1.1], [6.0, 1.2, 0.7]].forEach(([x, z, k]) => { const b = add(new THREE.DodecahedronGeometry(1, 0), stone, x, k * 0.45, z, x, z, 0); b.scale.set(k * 1.25, k * 0.95, k); block(x, z, k * 1.1); });
+  /* Shen himself: same look as on the road, standing on his rug */
+  const s = makeShen(); scene.remove(s.g); s.g.remove(s.person.g); const pg = s.person.g; pg.position.set(-0.3, 0.03, 0.15); g.add(pg); HIDE.shen = pg;
+  pg.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  block(-0.4, 0.15, 0.35);
+  HIDE.shenW = toW(-0.3, 0.15);
+})();
+const hideNear = () => SHN.jail <= 0 && state !== "ride" && !uiOpen && Math.hypot(HIDE.shenW[0] - me.x, HIDE.shenW[1] - me.z) < 3.4;
+const hideNoteNear = () => SHN.jail > 0 && state !== "ride" && !uiOpen && Math.hypot(HIDE.x - me.x, HIDE.z - me.z) < 4.5;
+function hideTalk() {
+  SHN.at = "hide";
+  if (SHN.met && Math.random() < 0.25 + (SHN.cursed ? 0.25 : 0)) { coins -= Math.min(coins, (2 + Math.floor(Math.random() * 5)) * (SHN.cursed ? 2 : 1)); showCoins(); }   /* shh: same old tricks at home */
+  const first = !SHN.hide; SHN.met = true; SHN.hide = true;
+  shenShop(first ? "Wha- how did you find this place?! ...Fine. Fine! Now that you're here, you might as well buy something. You can always find me here. Just don't bring the helmet." : pickOf(SHN.told ? SAYH.mad : SAYH.hi), SHN.owed);
+  writeSave(); return true;
+}
+{ const st = shenTalk; shenTalk = () => {   /* the jail note */
+    if (hideNoteNear() && !(SHN.map && Math.hypot(SHN.map.x - me.x, SHN.map.z - me.z) < 2.6)) {
+      openMenu("A note on the pole", `<p class="say">"CLOSED. Away on business. NOT in jail. Definitely not in jail. Don't touch the crates. - S"</p><p><small>The lantern is out. The crates are nailed shut.</small></p>`, () => lockMouse()); return true; }
+    return st(); }; }
+/* travelling: he wanders from land to land; you meet him most often in the land he's roaming, never on the road in the Desert (he's at home there) */
+{ const ss = shenShow; shenShow = () => {
+    if (landNow === "Desert") return false;
+    if (landNow !== SHN.roam && Math.random() > 0.12) return false;
+    const ok = ss(); if (ok) SHN.roam = landNow; return ok; }; }
+{ const us = updateShen; updateShen = dt => {
+    us(dt); if (!started || !HIDE.g) return;
+    if (SHN.here) SHN.roam = SHN.here.land;
+    else if ((SHN.roamT -= dt) <= 0) { SHN.roamT = 240 + Math.random() * 240; SHN.roam = Math.random() < 0.2 ? null : pickOf(SHEN_ROAM_LANDS); }
+    const d = Math.hypot(HIDE.x - me.x, HIDE.z - me.z), on = d < 320; HIDE.g.visible = on; if (!on) return;
+    const jail = SHN.jail > 0; HIDE.shen.visible = !jail; HIDE.note.visible = jail; HIDE.glow.visible = !jail;
+    HIDE.glow.material.opacity = 0.75 + Math.sin(T * 7) * 0.08 + Math.sin(T * 2.3) * 0.1;
+    if (!jail) HIDE.shen.rotation.y = angLerp(HIDE.shen.rotation.y, -Math.atan2(me.z - HIDE.shenW[1], me.x - HIDE.shenW[0]) - HIDE.g.rotation.y, Math.min(1, dt * 2));
+    if (hideNear()) prompt(`Press <kbd>E</kbd> to talk to ${SHN.hide ? "Shady Shen" : "the hooded stranger"}`);
+    else if (hideNoteNear()) prompt("Press <kbd>E</kbd> to read the note");
+  }; }
+
+/* ---- gossip: where Shen was seen (one live line each for some villagers) ---- */
+const GOSSIP_SHEN = {
+  "Farmer Bo": () => { const l = shenLand(); return l === "jail" ? "Heard Brick locked up that hooded fella. Good. He sold me a 'magic' seed once. Grew a rock." : l ? `Saw a hooded fella with yellow eyes skulking round ${theLand(l)} with a big sack. I kept my hat on and walked the other way.` : "Haven't seen that hooded fella on the roads lately. My cousin says he's got a place out in the sand somewhere. Can't think why anyone'd live out there."; },
+  "Little Pip": () => { const l = shenLand(); return l === "jail" ? "The yellow-eyes man is in the lock-up. I took him a cookie. Don't tell Officer Brick." : l ? `I saw the yellow-eyes man in ${theLand(l)}! He winked at me and a coin came out of my ear. Then it went into HIS pocket.` : "Nettle says the yellow-eyes man has a hidey-hole out in the sand, in the shade where it's not so hot. I want a hidey-hole!"; },
+  "Officer Brick": () => { const l = shenLand(); return l === "jail" ? "That shady merchant is behind bars. The village is safe. From him. Not from Pip." : l ? `Latest report: that shady merchant was spotted in ${theLand(l)}. By the time I get there he's always gone. ALWAYS.` : "No sign of that shady merchant on the roads. I think he's got a hideout. Out in the sand somewhere. The sand is VERY big."; },
+  "Odo": () => { const l = shenLand(); return l && l !== "jail" ? `A traveller told me the hooded merchant was in ${theLand(l)}. I'd put him on a map, but he never stays put.` : "There's a corner of the Desert, tucked in under the red mesas, where I keep finding fresh footprints. They go in and never come out. I didn't follow them. I'm a mapmaker, not a hero."; },
+  "Fen": () => { const l = shenLand(); return l && l !== "jail" ? `Me and Fern saw the yellow-eyes man in ${theLand(l)}! He said if we told anyone he'd turn us into toads. ...Oops.` : null; },
+};
+const GOSSIP_MORE = {
+  "Juno": ["A hooded man bought ten yards of patching cloth from me. Purple and brown. Said it was for 'a tent somewhere sandy'. He paid in buttons."],
+  "Officer Brick": [() => SHN.jail > 0 ? null : "If you know where that merchant hides, you tell me. ...You'd tell me, right?"],
+  "Odo": ["Funny thing: every map of the Desert I sell comes back with a little X scribbled on the red mesas. Not my X. I don't know whose X."],
+};
+/* ---- Baker Rose, the village gossip ---- */
+const ROSE_SHEN = [
+  "Psst! Guess who Bo saw sneaking around LAND this morning? Hood up, big sack, shifty eyes. Shen, that's who!",
+  "Mae says a man in a purple hood tried to sell her a 'genuine' dragon tooth. In LAND! It was a carrot. Painted.",
+  "Don't tell Officer Brick I told you, but Shen's been seen in LAND. Actually, do tell him. No, don't. Oh, I can't decide!",
+  "Fen and Fern swear they saw Shen in LAND. Of course, they also swear they saw a dragon wearing a hat.",
+  "Shen bought a whole loaf from me once and paid with a coin that turned green. He was heading for LAND, the scoundrel."];
+const ROSE_HOME = ["Nobody's seen Shen on the roads today. Odo thinks he has a place out in the sand somewhere. Hot, dusty, full of rocks. Very Shen.",
+  "If I were a sneaky salesman hiding from Brick, I'd hide where nobody wants to go. Somewhere sandy. Somewhere with scorpions. I'm just saying."];
+const ROSE_JAIL = "Shen's locked up! Brick hasn't stopped smiling for three days. It's unsettling.";
+function roseShen() { const l = shenLand(); if (l === "jail") return ROSE_JAIL; if (!l) return pickOf(ROSE_HOME); return pickOf(ROSE_SHEN).replace("LAND", theLand(l)); }
+const ROSE_GOSSIP = [
+  "Mayor Tilda practises her speeches to the ducks. The ducks look bored. I would know, I watch every time.",
+  "Hamm the blacksmith cried at a wedding last week. Whose wedding? Nobody knows. He just walked in.",
+  "Juno has been knitting the same scarf for two years. I think it's for someone special. Or a very long dragon.",
+  "Farmer Bo talks to his cow Daisy about his feelings. Daisy is a very good listener, apparently.",
+  "Mae marks her prices up when it rains. I've seen it with my own eyes! Well, I've heard it with my own ears.",
+  "Odo says his maps are perfect. Then why did he get lost going to the well? Twice?",
+  "Wren's potions smell like socks. She says that means they're working. Hmm.",
+  "Little Pip told me a secret yesterday. I won't tell you what. ...It was about a frog. That's all I'm saying. A very BIG frog.",
+  "Old Nettle came in asking for 'bread that remembers'. I gave her a stale roll. She seemed happy.",
+  "Gorran pretends quests are dangerous so people tip him more. I've never seen him leave the quest hall.",
+  "Officer Brick eats two of my honey buns every morning and says he's 'checking them for clues'.",
+  "Brick has a wall of Shen drawings in his house. They all look like a potato in a hood.",
+  "Brick tried to arrest a scarecrow last week. In his defence, it WAS wearing a purple hood.",
+  "Grandpa Orrin bred a dragon with a mushroom on its head! A mushroom! I'd bake it a pie if it wasn't so strange.",
+  "Orrin says Biscuit is the oldest dragon in the valley. Biscuit snores louder than my oven. I believe it.",
+  "Someone bred an ugly baby at Orrin's yesterday and sold it straight to Shen. Shen paid them in buttons. Nettle must be rubbing off on him.",
+  "Professor Hazel has 400 books and no bookshelf. They're just stacked. Everywhere. She lost a cat in there once.",
+  "Master Orla never smiles. Except when someone loses in the arena. Then she smiles a LOT.",
+  "The arena tamers buy my cookies before every match. Lucky cookies, they call them. The losers come back to complain.",
+  () => CB.day >= 0 ? "Since the Shadow Wyrm went away, a wild dragon landed on my roof and ate a whole tray of muffins. Worth it. It was beautiful." : null,
+  () => CB.day >= 0 ? "Fen swears two wild dragons were fighting over the river. Fern says they were dancing. Those two can't agree on anything." : null,
+  () => CB.day >= 0 ? "Everyone's talking about the dragons coming home. I've started baking extra. Dragons love honey buns, you know." : null];
+npcs.forEach(n => {
+  if (GOSSIP_SHEN[n.name]) n.lines.push(GOSSIP_SHEN[n.name]);
+  if (GOSSIP_MORE[n.name]) n.lines.push(...GOSSIP_MORE[n.name]);
+  if (n.name === "Baker Rose") { n.rose = true; n.lines.push(...ROSE_GOSSIP); n.topics = [{ label: "Any news about Shady Shen?", fn: "roseShen" }]; }
+  n.deck = [];
+});
+{ const nn = npcNext; npcNext = n => n.rose && Math.random() < 1 / 3 ? (n.talks++, roseShen()) : nn(n); }   /* about 1 in 3 of Rose's chats is the live Shen sighting */
+
+/* ================= EGG GIFTS for Fen, Fern and Little Pip (Petra 2026-11-14) =================
+   Talk to one of the kids with an egg in your bag and you can give them one (one egg per kid, ever). It hatches right there
+   and the baby dragon follows its kid round the village from then on. Not a pet of yours: no riding, no fights.
+   Saved as d.kids = { Fen: { k, sh, sm, nm, bred }, ... } (old saves: none given). Each player's own save, never synced. */
+const KID_NAMES = ["Fen", "Fern", "Little Pip"];
+const PIP_PET_NAMES = ["Pebble", "Moss", "Button", "Tumble", "Clover"];
+let KIDS = {};
+const kidBabies = {};   /* name -> { dr, x, z, face, sc, hatch, egg } */
+const KID_LINES = {
+  "Fen": ["I'm saving up for an egg. I have eleven coins and a button. Does Mae take buttons?", "When I get my dragon, it's going to be the fastest. Faster than Fern's. Faster than YOURS.",
+    "I practise taming on Farmer Bo's chickens. They don't listen. Neither does Fern.", "Did you see the wild dragons? I waved at one and it waved back! ...With its tail. Probably.",
+    "Grandpa Orrin let me pet Biscuit! Biscuit sneezed on me. Best day ever.", "I'm going to enter the arena one day. Master Orla said 'not until you're taller'. I'm ALWAYS growing.",
+    "Can I ride your dragon? Just for one second? Half a second?", "Fern says girls make better tamers. That's not true. Is it? Don't answer that."],
+  "Fern": ["I've got a name ready for my first dragon. It's a secret. Okay, it's Sprinkles.", "I drew your dragon! It looks like a potato with wings. That's how I draw everything.",
+    "Professor Hazel let me look at her dragon book. I read the whole thing! Well, the pictures.", "Fen's practising taming on chickens. I'm practising on Fen. It's harder.",
+    "Baker Rose told me a secret about the Mayor. I promised not to tell. ...It's about ducks.", "When the wild dragons came back, I hid under my bed. Then I came out to watch. Then I hid again.",
+    "Do dragons like flowers? I'm making one a flower crown just in case.", "One day I'll have a pink dragon AND a purple one. They'll be best friends. Like me and Fen. Sometimes."],
+  "Little Pip": ["I asked Grandpa Orrin if I could have a baby dragon. He said 'when you can reach the top shelf'. I'm working on it.", "I keep an egg collection! Okay, they're rocks. Egg-shaped rocks. Very egg-shaped.",
+    "Nettle says every dragon picks its tamer. I hope one picks me soon.", "I saw a wild dragon by the river! I didn't scream. Okay, I screamed a little.",
+    "Professor Hazel says I ask too many questions. Is that a question?", "If you ever find an egg you don't need... I'm just saying. I'd take really good care of it.",
+    "I practise riding on the fence. The fence never flies though.", "My best friend is Nettle and my second best friend is your dragon. Don't tell Nettle."],
+};
+/* lines about wanting a dragon: they stop once the kid has one (old ones are swapped in place so saved decks keep their indices) */
+const KID_DREAM = { "Fen": [KID_LINES.Fen[0], KID_LINES.Fen[1]], "Fern": ["When I grow up my dragon will be pink. Very pink.", KID_LINES.Fern[0], KID_LINES.Fern[7]],
+  "Little Pip": ["I'm saving my coins for a dragon egg. I have three coins!", KID_LINES["Little Pip"][0], KID_LINES["Little Pip"][2], KID_LINES["Little Pip"][5]] };
+const KID_AFTER = {
+  "Fen": ["This is Zoom! He's the fastest dragon in the world. He's still learning to walk, but after that, fastest.", "Zoom and I beat Fern to the well! Okay, Fern won. But Zoom came second!",
+    "I'm teaching Zoom to fetch. He fetched Brick's hat. Brick wasn't happy.", "Thank you SO much. When Zoom's big, we're entering the arena. Watch out!"],
+  "Fern": ["Meet Sprinkles! I told you that was the name. She's perfect.", "Sprinkles ate a whole flower crown. I'm making her another one. And one for me.",
+    "Fen's jealous because Sprinkles likes me more than Zoom likes him. It's true.", "I drew you a thank-you picture. It's you and your dragon. You look like potatoes. Cute potatoes."],
+  "Little Pip": ["A real egg?! For ME?! I'm going to cry. I'm not crying. Okay, I'm crying a little.",
+    "I showed NAME to Nettle first! She held it up to the light and said 'Oh, this one's going to be trouble.' Then she smiled the biggest I've ever seen.",
+    "Nettle helped me pick the name. She wanted to call it 'Soup'. We said NAME instead.", "Nettle told NAME a story about when she was young. NAME fell asleep. Nettle said that means it liked it.",
+    "Nettle says NAME has old eyes, whatever that means. I think NAME has nice eyes.", "The grown-ups stopped being mean about Nettle when they saw her with NAME. She's really good with baby dragons. I KNEW it.",
+    "Nettle knitted NAME a tiny scarf. It has holes. NAME loves it.", "Thank you forever. When I'm a real tamer, you'll be the first person I battle. And I'll let you win. Maybe."],
+};
+const KID_ASK = { "Fen": "Is that... an EGG? In your bag? Can I have one? I'll take SUPER good care of it. I'll call it Zoom!",
+  "Fern": "You've got eggs! Can I have one? Please? I already have a name ready. ...It's Sprinkles.",
+  "Little Pip": "Is that a real egg? A REAL one? I'd take really good care of it. Really really really." };
+npcs.forEach(n => {
+  if (!KID_NAMES.includes(n.name)) return;
+  n.kid = true;
+  const dream = KID_DREAM[n.name], wrap = s => dream.includes(s) ? () => KIDS[n.name] ? null : s : s;
+  for (let i = 0; i < n.lines.length; i++) if (typeof n.lines[i] === "string") n.lines[i] = wrap(n.lines[i]);
+  n.lines.push(...KID_LINES[n.name].map(wrap)); n.deck = [];
+  Object.defineProperty(n, "topics", { configurable: true, get() { return started && !KIDS[n.name] && bag.length ? [{ label: "Give an egg", fn: "kidEgg" }] : undefined; } });
+});
+{ const nn = npcNext; npcNext = n => {   /* after the gift: about 2 in 5 chats are about the baby (their own no-repeat deck) */
+    const g = n.kid && KIDS[n.name]; if (!g || Math.random() >= 0.4) return nn(n);
+    const L = KID_AFTER[n.name]; if (!n.adeck || !n.adeck.length) n.adeck = L.map((_, i) => i).sort(() => Math.random() - 0.5);
+    n.talks++; return L[n.adeck.pop()].replace(/NAME/g, g.nm); }; }
+const kidEggLabel = k => { const b = k.replace(/[*!].*$/, ""); return BRED_SP[b] ? "Bred egg" : k.includes("*") ? "Small egg" : k === "Dustmite" || k.includes("!") ? "Shiny egg" : TIER[SP(b).rarity] >= 6 ? "??? egg" : SP(b).rarity + " egg"; };
+function kidGiftMenu(n) {
+  const rows = bag.map((k, i) => `<div class="sec"><div><b>${kidEggLabel(k)}</b></div><button data-act="give" data-i="${i}">Give</button></div>`).join("");
+  openMenu(n.name, `<p class="who">${n.title}</p><p class="say">${KID_ASK[n.name]}</p><p><small>Which egg? ${n.name === "Little Pip" ? "Pip" : n.name} only takes one, so choose well.</small></p>${rows}<div class="choices"><button data-act="back"><kbd>1</kbd> Not now</button></div>`);
+  menuEl._dlg = [["Not now", "back", 0]];
+  menuAct = (a, i) => { if (a === "back") return npcDialog(n, n.name === "Little Pip" ? "Okay... maybe next time? I'll be right here. Being patient. Very patient." : "Aww. Okay. But if you change your mind..."); if (a === "give") kidGive(n, i); };
+}
+function kidGive(n, i) {
+  const k = bag[i]; if (!k || KIDS[n.name]) return;
+  const base = k.replace(/[*!].*$/, "");
+  if (!BRED_SP[base] && TIER[SP(base).rarity] >= 6) return npcDialog(n, "Ooh... this one feels cold. And strange. I think it's meant for a real tamer. Like you!");
+  bag.splice(i, 1);
+  const g = { k: base, sh: k.includes("!") ? (PAL[k.split("!")[1]] ? k.split("!")[1] : rollShiny()) : null, sm: k.includes("*"), nm: n.name === "Fen" ? "Zoom" : n.name === "Fern" ? "Sprinkles" : pickOf(PIP_PET_NAMES) };
+  if (BRED_SP[base]) g.bred = bredOf(base);
+  KIDS[n.name] = g; n.adeck = [];
+  if (n.name === "Fen") { coins += 60; }
+  else if (n.name === "Fern") { coins += 40; }
+  else SHN.luck = 1;
+  showCoins(); closeMenu(); writeSave();
+  kidSpawn(n, true);
+  toast(`${n.name === "Little Pip" ? "Pip" : n.name} holds the egg up...`, "It's wobbling!");
+}
+const KID_THANKS = { "Fen": g => [`It's ${g.nm}!`, `"He's going to be SO fast!" Fen gives you 60 coins`],
+  "Fern": g => [`Meet ${g.nm}!`, `"She's perfect!" Fern gives you a thank-you drawing (you look like potatoes. Cute potatoes) and 40 coins`],
+  "Little Pip": g => [`Pip named it ${g.nm}!`, `"I'm not crying!" Pip gives you a lucky charm: your next egg will be a rare one`] };
+/* the baby: built like any dragon (bred ones from their recipe), baby size, lights off */
+function kidSpawn(n, hatch) {
+  const g = KIDS[n.name]; if (!g) return;
+  const old = kidBabies[n.name]; if (old) { scene.remove(old.dr.root); if (old.egg) scene.remove(old.egg); }
+  let dr; try { dr = buildDragon(g.k, g.sh); } catch (e) { console.warn("[Wyrmwild] kid baby build failed", e); return; }
+  dr.root.traverse(o => { if (o.isLight) o.visible = false; });
+  const sc = (g.sm ? 0.2 : 0.27) * (SP(g.k).size || 1);
+  const b = kidBabies[n.name] = { dr, x: n.x - Math.cos(n.face) * 1.2, z: n.z - Math.sin(n.face) * 1.2, face: n.face, sc, side: n.name === "Fern" ? -0.7 : 0.7, hatch: hatch ? 2.6 : 0, egg: null };
+  scene.add(dr.root); dr.root.scale.setScalar(sc); dr.root.visible = !hatch;
+  if (hatch) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10), new THREE.MeshLambertMaterial({ color: new THREE.Color("#f2e6c8").convertSRGBToLinear(), emissive: new THREE.Color("#5a4a20").convertSRGBToLinear() }));
+    e.scale.set(1, 1.3, 1); b.x = n.x + Math.cos(n.face) * 0.8; b.z = n.z + Math.sin(n.face) * 0.8; e.position.set(b.x, VIL.y + 0.22, b.z); scene.add(e); b.egg = e;
+  }
+}
+function kidsUpdate(dt) {
+  for (const nm of KID_NAMES) {
+    const b = kidBabies[nm]; if (!b) continue;
+    const n = npcs.find(q => q.name === nm); if (!n) continue;
+    const far = Math.hypot(n.x - me.x, n.z - me.z) > 150; b.dr.root.visible = !far && !b.hatch; if (far) continue;
+    if (b.hatch > 0) {
+      b.hatch -= dt; const w = Math.sin(T * 22) * (0.15 + (2.6 - b.hatch) * 0.08); b.egg.rotation.set(w, 0, w * 0.6);
+      if (b.hatch <= 0) { b.hatch = 0; scene.remove(b.egg); b.egg = null; burstAt(b.x, VIL.y + 0.6, b.z, "#ffe8a0"); burstAt(b.x, VIL.y + 0.8, b.z, "#ffffff"); b.dr.root.visible = true;
+        const [t1, t2] = KID_THANKS[nm](KIDS[nm]); toast(t1, t2); }
+      else continue;
+    }
+    /* trot after the kid: a little behind and to one side */
+    const tx = n.x - Math.cos(n.face) * 1.1 - Math.sin(n.face) * b.side, tz = n.z - Math.sin(n.face) * 1.1 + Math.cos(n.face) * b.side;
+    const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
+    if (d > 9) { b.x = tx; b.z = tz; }
+    let walk = 0;
+    if (d > 0.3) { const sp = Math.min(d * 2.2, n.fast ? 4.6 : 2.4) * dt; b.x += dx / d * sp; b.z += dz / d * sp; walk = Math.min(1, sp / dt / 3); b.face = angLerp(b.face, Math.atan2(dz, dx), Math.min(1, dt * 6)); }
+    else if (Math.hypot(me.x - b.x, me.z - b.z) < 5) b.face = angLerp(b.face, Math.atan2(me.z - b.z, me.x - b.x), Math.min(1, dt * 3));
+    const s = SP(KIDS[nm].k).size || 1;
+    b.dr.root.position.set(b.x, VIL.y + (b.dr.bobY || 0) * b.sc + (b.dr.airBob ? b.dr.airBob * s * 0.5 : 0), b.z);
+    b.dr.root.rotation.set(0, -b.face, 0, "YXZ");
+    try { b.dr.update(T, walk, b.dr.airBob ? 0.5 : 0, dt, 0); } catch (e) {}
+  }
+}
+{ const un = updateNpcs; updateNpcs = dt => { un(dt); kidsUpdate(dt); }; }
+const kidSave = () => { const o = {}; for (const k in KIDS) { const g = KIDS[k]; o[k] = { k: g.k, sh: g.sh || null, sm: !!g.sm, nm: g.nm }; if (g.bred || BRED_SP[g.k]) o[k].bred = g.bred || bredOf(g.k); } return o; };
+function kidLoad(d) {
+  for (const nm in kidBabies) { const b = kidBabies[nm]; scene.remove(b.dr.root); if (b.egg) scene.remove(b.egg); delete kidBabies[nm]; }
+  KIDS = {};
+  for (const nm of KID_NAMES) {
+    const g = d && d[nm]; if (!g || typeof g.k !== "string") continue;
+    let k = g.k;
+    if (g.bred && !BRED_SP[k]) k = bredReg(g.bred, k) || k;
+    if (!BRED_SP[k] && !SPECIES.some(s => s.name === k)) continue;
+    KIDS[nm] = { k, sh: g.sh && PAL[g.sh] ? g.sh : null, sm: !!g.sm, nm: typeof g.nm === "string" ? g.nm.slice(0, 14) : (nm === "Fen" ? "Zoom" : nm === "Fern" ? "Sprinkles" : "Pebble"), bred: g.bred };
+    const n = npcs.find(q => q.name === nm); if (n) kidSpawn(n, false);
+  }
 }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
