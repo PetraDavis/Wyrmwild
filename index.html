@@ -16175,7 +16175,7 @@ function bossLoad(d) { BOSS.dd = d.dd || 0; BOSS.sw = !!d.sw; wdLoad(d.cb); }
 const WD_DAYS = [["Green Valley", "Deep Forest"], ["Fire Mountain", "Desert"], ["Ocean", "Coral Reef"], ["Frost Peaks", "Autumn Woods"],
   ["Misty Swamp", "Hydra Valley", "Blightwood"], ["Crystal Caves", "Sky Islands"], ["Bone Caves"]];   // Sky Islands includes the hidden sky shrine
 const WD_LAND_DAY = {}; WD_DAYS.forEach((ls, i) => ls.forEach(l => { WD_LAND_DAY[l] = i + 1; }));
-const CB = { day: -1, lastDT: null, toastT: 0, pend: false };   // day = sunrises since the Shadow Wyrm was beaten (-1 = not beaten yet)
+const CB = { day: -1, lastDT: null, toastT: 0, pend: false, since: 1e9 };   // day = sunrises since the Shadow Wyrm was beaten (-1 = not beaten yet)
 let wdDayMp = () => CB.day;                                            /* multiplayer: the furthest-along player's day (solo: yours) */
 const wdDay = () => wdDayMp();                                         /* the shared world's comeback day */
 const wdBack = land => wdDay() >= (WD_LAND_DAY[land] || 99);
@@ -16234,6 +16234,7 @@ function wdSafe(k) {   // would this wild kind leave the rider alone because of 
 }
 // ---- the monster entry for each wild kind ----
 const WD = { pool: {}, poolN: 0, fps: 60, spawnT: 4, frame: 0, dt: 0.016, growlT: 0, pairT: {}, fights: 0, force: false, slot: 0, log: [], ref: {}, warm: [], warmT: 0, scanT: 0, slowT: 0, dropT: 0, land: null, builds: 0, shared: 0, dropped: 0 };
+const WD_MIN = 3;   /* wild dragons that come even when the game runs slowly */
 const WD_POOL_MAX = 8, WD_LOD1 = 50, WD_LOD2 = 100;
 const wdSp = k => SPECIES.find(s => s.name === k);
 function wdDef(k) {
@@ -16538,7 +16539,7 @@ function updateWildDragons(dt) {
   live.forEach(m => { WD.sph.center.set(m.x, m.y + m.tall * 0.5, m.z); WD.sph.radius = m.tall + m.rad + 1.5; const on = WD.fr.intersectsSphere(WD.sph); m.wd.onScr = on; m.wd.unseen = on ? 0 : m.wd.unseen + dt; });
   // keep it smooth: if the real frame rate stays under ~38 fps, the farthest calm wild dragon leaves (never one you're fighting)
   WD.slowT = WD.fps < 38 && !WD.force ? WD.slowT + dt : 0; WD.dropT -= dt;
-  if (WD.slowT > 2 && WD.dropT <= 0) {
+  if (WD.slowT > 2 && WD.dropT <= 0 && live.length > WD_MIN) {   /* never below the few that always come */
     const calm = live.filter(m => !m.aggro && !m.wd.fight && !m.wd.gone && !m.wd.leave).sort((p, q) => Math.hypot(q.x - me.x, q.z - me.z) - Math.hypot(p.x - me.x, p.z - me.z));
     if (calm.length) { removeMonster(calm[0]); WD.dropped++; } WD.dropT = 4;
   }
@@ -16552,7 +16553,7 @@ function updateWildDragons(dt) {
   WD.spawnT -= dt;
   if (WD.spawnT <= 0 && hasDragon() && state !== "arena" && !uiOpen && !(typeof bossNow === "function" && bossNow())) {
     WD.spawnT = live.length < 2 ? 2 : 4;
-    const ok = WD.force || WD.fps >= 45;   // only spawn while the frame rate is good
+    const ok = WD.force || WD.fps >= 45 || live.length < WD_MIN;   // more only while the frame rate is good, but a few always come (slower computers, hosting)
     if (ok && (wdMpHost() ? live.filter(m => Math.hypot(m.x - me.x, m.z - me.z) < 170) : live).length < wdCap()) wdSpawn();
   }
   // wild dragons meeting each other, and your dragon's growl: checked twice a second (squared distances)
@@ -16609,7 +16610,8 @@ function wdMorning(n) {
 }
 function updateComeback(dt) {
   if (!started) return;
-  if (CB.lastDT !== null && dayTime < CB.lastDT - 0.5 && BOSS.sw && CB.day >= 0) { CB.day++; if (CB.day <= 7) CB.pend = true; if (wdBack(landNow)) wdWarm(landNow); writeSave(); }   // sunrise (and build this land's kinds ahead of time)
+  CB.since += dt;   /* a multiplayer guest's clock can be nudged back over sunrise by the host: count one sunrise per half day at most */
+  if (CB.lastDT !== null && dayTime < CB.lastDT - 0.5 && BOSS.sw && CB.day >= 0 && CB.since > DAY_LEN * 0.5) { CB.since = 0; CB.day++; if (CB.day <= 7) CB.pend = true; if (wdBack(landNow)) wdWarm(landNow); writeSave(); }   // sunrise (and build this land's kinds ahead of time)
   CB.lastDT = dayTime;
   if (CB.pend && !isNight) { CB.pend = false; CB.toastT = 3.6; }   // wait for the "A new day" toast, then name the lands
   if (CB.toastT > 0 && (CB.toastT -= dt) <= 0) wdMorning(CB.day);
