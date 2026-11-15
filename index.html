@@ -8502,6 +8502,7 @@ function makePerson(o) {
   H.nettle = house({ ...at(44, 120), w: 4, d: 4, h: 2.6, roof: "#6a3a9a", wall: "#8a7a6a", rh: 2.6, twist: 0.25 });
   H.c4 = house({ ...at(42, 70), w: 5, d: 4.5, h: 3.2, roof: "#9a3a3a" });
   H.lore = house({ ...at(45, -62), w: 8, d: 6.5, h: 4.4, roof: "#2f7a5a", wall: "#efe6d0", sign: "DRAGONOLOGY", signBg: "#e8f0d8", chimney: true });
+  H.dens = house({ ...at(43, 200), w: 7, d: 6.5, h: 3.4, roof: "#8a5a38", wall: "#c8946a", sign: "DENS", signBg: "#f4e2c8", chimney: true });   /* Burrow Bess's Hearth & Hoard (Petra 2026-11-15) */
   VIL.houses = H;
   // a stone dragon statue outside the dragonology house
   { const d = H.lore.door, sx = d.x + Math.cos(H.lore.rot) * 3.4, sz = d.z - Math.sin(H.lore.rot) * 3.4;
@@ -8663,6 +8664,10 @@ function makePerson(o) {
     { name: "Grandpa Orrin", title: "Dragon Keeper", orrin: true, topics: [{ label: "Breed my dragons", fn: "breed" }, { label: "How does breeding work?", say: ["Body shape and markings come together from one parent. Colours, tail, horns, skin, shine, breath, wings and size: each from one parent or the other.", "If a part won't fit the body, it comes from the other parent. Never a missing horn or a floating wing, not in my nest.", "The baby's as rare as the rarer parent, or one step below. Its strength lands somewhere between the two.", "Bred dragons can be bred again. Their babies get stranger every time. I love it.", "Some dragons won't breed at all. Don't ask me why. Some things aren't meant for a nest.", "A dragon you don't want? Don't let it go free, it's never seen the wild. Shady Shen buys them. Don't tell him I sent you."] }],
       home: new V(H.c4.door.x + Math.cos(H.c4.rot) * 0.6 + Math.sin(H.c4.rot) * 3.2, Y, H.c4.door.z - Math.sin(H.c4.rot) * 0.6 + Math.cos(H.c4.rot) * 3.2), wander: 2, slow: true,
       look: { shirt: "#4f6b3a", pants: "#4a3e30", hair: "#e8e6e0", hairStyle: "short", beard: "#f2f0ea", glasses: true, apron: "#7a5a3a", hunch: true, skin: "#e8c4a0" }, lines: ["Easy now. Two dragons, one egg. Patience does the rest.", "Six hundred coins, and the nest is yours for the night.", "Each egg takes a bit from one parent, a bit from the other. Which bits? Even I can't tell.", "Some come out pretty. Some come out... interesting. All of them are loved.", "A Keeper's Blessing makes one part follow the parent you choose. Fifteen hundred coins. The rest is still luck.", "Let the parents rest a while after. They've earned a nap.", "Bring a friend's dragon, and I'll set two eggs: one for you, one for them.", "Shiny parents sometimes pass on their shine. Only sometimes.", "Biscuit there was my first egg. Sixty years ago. Still snores.", "Shh. Biscuit's dreaming. His tail twitches when he dreams about fish.", "My spectacles? On my nose. Always on my nose. Took me forty years to learn that.", "Every egg in this apron has a name already. I just don't tell the eggs."] },   /* DRAGON BREEDING: the old keeper (Petra 2026-11-14) */
+    { name: "Burrow Bess", title: "Den Builder", topics: [{ label: "Let me see the den shop", fn: "denShop" }, { label: "What's a den?", say: ["Your nest is a portal! Open your nest menu and pick 'Go into your den'. Inside is your very own cave home.", "Buy furniture here and it goes straight to your den. Press F in there to place it. Dragons love a good bed.", "Want more room? I can dig your den out bigger. Bigger dens fit more furniture and more dragons out at once."] }],
+      home: P(H.dens), wander: 4, look: { shirt: "#8a5a38", pants: "#4a3a2a", hair: "#c8642a", hairStyle: "bun", apron: "#d8b47a", tool: "hammer", wide: 1.15 }, lines: [
+      "Dig, dig, dig! Oh, hello there.", "A dragon without a den is like a pie without a crust. Sad and messy.", "I dug my first burrow when I was six. My mum was not happy about the garden.",
+      "Dirt walls keep a den warm in winter and cool in summer. Dirt is the best.", "The glowing crystals? I grow them myself. Don't tell Hamm, he thinks I buy them.", "Training dummies are very popular. Dragons hit them. A lot."] },
   ];
   people.forEach((p, i) => {
     const m = makePerson(p.look); scene.add(m.g);
@@ -8905,10 +8910,10 @@ function writeSave() {
   if (!started) return;
   if (egg.userData.fromBag && (state === "hatching" || state === "name")) return;  // keep the save from before the hatch until it has a name
   const stage = state === "ride" || state === "arena" ? "grown" : (state === "hatching" || state === "name") ? "carry" : state;
-  const d = { v: 1, stage, eggKind, dayTime, me: { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
+  const d = { v: 1, stage, eggKind, dayTime, me: DEN.in ? { x: 3.2, y: height(3.2, 4.2), z: 4.2 } : { x: me.x, y: me.y, z: me.z }, egg: { x: eggSpot.x, y: eggSpot.y, z: eggSpot.z },
     coins, bag, pen, arena, pet: { name: pet.name, kind: pet.kind, bred: bredOf(pet.kind), rest: pet.rest || 0, shiny: (SHN.polish ? SHN.polish.real : pet.shiny) || null, small: !!pet.small, big: !!pet.big, level: pet.level || 1, xp: pet.xp || 0, gear: pet.gear || null, acc: pet.acc || null, age: pet.age, scale: pet.scale, x: pet.x, y: pet.y, z: pet.z }, seen, decks: npcs.map(n => n.deck), wild: wild.map(w => [w.kind, w.land, +w.x.toFixed(1), +w.y.toFixed(2), +w.z.toFixed(1), w.ev ? 1 : 0, w.small ? 1 : 0]), wildWait, dex: DEX,
     shen: shenSave(), quest: questSave(), shop: shopSave(), boss: bossSave(), secret: secSave(), skill: skillSave(), fish: fishSave(), req: reqSave(),
-    bred: bredSaveMap(), breedSt: breedSave(), kids: kidSave(),
+    bred: bredSaveMap(), breedSt: breedSave(), kids: kidSave(), den: denSave(),
     ev: EVS.cur ? { id: EVS.cur, land: EVS.land, t: isFinite(EVS.t) ? Math.round(EVS.t) : -1, eggs: EVS.eggs } : null };
   try { localStorage.setItem(slotKey(SLOT), JSON.stringify(d)); localStorage.setItem("wyrmwild-slot", SLOT); } catch (e) {}
 }
@@ -8931,7 +8936,8 @@ function applySave(d) {
   if (d.skill) skillLoad(d.skill);
   if (d.fish) fishLoad(d.fish);
   if (d.req) reqLoad(d.req);
-  kidLoad(d.kids || {});   /* egg gifts: baby dragons that follow the kids */
+  kidLoad(d.kids || {});
+  denLoad(d.den || {});   /* your den (Petra 2026-11-15) */   /* egg gifts: baby dragons that follow the kids */
   (d.decks || []).forEach((k, i) => { if (npcs[i] && Array.isArray(k)) npcs[i].deck = k; });
   if (typeof d.coins === "number") coins = d.coins;
   if (Array.isArray(d.bag)) bag.push(...d.bag.filter(k => typeof k === "string" && (SPECIES.some(s => s.name === k.replace(/[*!].*$/, "")) || !!BRED_SP[k.replace(/[*!].*$/, "")])));
@@ -9225,6 +9231,7 @@ function npcDialog(n, say) {
     else if (a === "bye") closeMenu();
     else if (a === "topic") {
       const t = tps[i];
+      if (t.fn === "denShop") return denShop(n);
       if (t.fn === "books") return bookShelf(n);
       if (t.fn === "breed") return breedMenu(n);
       if (t.fn === "wdTalk") return npcDialog(n, wdTalk(n));
@@ -9444,7 +9451,7 @@ function frameBody() {
     eggLight.intensity = 1.5 + hatchT * 2;
     if (hatchT > 3.2 && egg.visible) {
       egg.visible = false; burst(egg.position);
-      pet.x = 0; pet.z = 0; pet.face = Math.atan2(me.z, me.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false; pet.big = !pet.small && isNight && evOn("super");
+      const hs = denHatchSpot(); pet.x = hs.x; pet.z = hs.z; pet.face = Math.atan2(me.z - hs.z, me.x - hs.x); pet.scale = 0.45; pet.small = !!pet.smallNext; pet.smallNext = false; pet.big = !pet.small && isNight && evOn("super");
       const evS = BRED_SP[eggKind] ? null : evShiny(), sh = BRED_SP[eggKind] ? (BRED_SP[eggKind].bred.shiny || null) : evS || (typeof pet.shinyNext === "string" && SHINY_KINDS.includes(pet.shinyNext) ? pet.shinyNext : pet.shinyNext || Math.random() < 1 / 50 ? rollShiny() : null); pet.shinyNext = false;   // 1 egg in 50 hatches shiny (Silver 40, Gold 30, Purple & blue 20, Neon 10)
       setKind(eggKind, sh); pet.level = 1; pet.xp = 0; dragon.root.visible = true; if (!DEX.includes(eggKind)) DEX.push(eggKind);
       if (evS) toast(`It's a ${pet.shiny} shiny ${KN(eggKind)}!`, `It hatched under the ${pet.shiny}, so it keeps these colours forever`);
@@ -9562,7 +9569,7 @@ function frameBody() {
   else if (state === "carry") { gx = 0; gz = 0; }
   else if (state === "grown" && !near(me.x, me.z, pet.x, pet.z, 6)) { gx = pet.x; gz = pet.z; }
   else if ((state === "grown" || state === "ride") && !seen.Village) { gx = VIL.x; gz = VIL.z; }
-  arrowEl.hidden = gx === null;
+  arrowEl.hidden = gx === null || DEN.in;
   if (gx !== null) {
     const a = Math.atan2(gz - me.z, gx - me.x) - camYaw;
     arrowSvg.style.transform = `rotate(${a * 180 / Math.PI + 90}deg)`;
@@ -9575,10 +9582,10 @@ function frameBody() {
   skyAnims.forEach(f => f(T));
   // which land are we in?
   const ly = state === "ride" ? pet.y : me.y;
-  const land = inSky(me.x, me.z, ly) ? "Sky Islands" : (LANDS.find(b => basinW(b, me.x, me.z) > 0.15) || {}).name || (((Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 || nearArena(me.x, me.z, 12)) && ly < 40) ? "Village" : (reefW(me.x, me.z) > 0.4 && ly < 60) ? "Coral Reef" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley");
+  const land = DEN.in ? DEN.landName : inSky(me.x, me.z, ly) ? "Sky Islands" : (LANDS.find(b => basinW(b, me.x, me.z) > 0.15) || {}).name || (((Math.hypot(me.x - VIL.x, me.z - VIL.z) < VIL.r + 4 || nearArena(me.x, me.z, 12)) && ly < 40) ? "Village" : (reefW(me.x, me.z) > 0.4 && ly < 60) ? "Coral Reef" : (coast(me.x, me.z) > 0.5 && Math.hypot(me.x, me.z) > 120) ? "Ocean" : "Green Valley");
   if (land !== landNow) {
-    const firstTime = !seen[land]; landNow = land; landEl.textContent = land; seen[land] = true;
-    toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake", "Deep Forest": "Giant trees and glowing mushrooms", "Desert": "Hot sand, tall mesas and a hidden oasis", "Crystal Caves": "Deep under the mountains, lit by glowing crystals", "Bone Caves": "Dark tunnels full of old bones. Listen for rattles...", "Misty Swamp": "Murky pools, twisted trees and thick mist", "Coral Reef": "Shallow warm water full of coral", "Autumn Woods": "Red and gold trees and crunchy leaves", "Blightwood": "Poison pools and twisted dead trees. Careful!", "Hydra Valley": "A hidden green valley between giant cliffs" })[land] || "" : "");
+    const firstTime = !seen[land]; landNow = land; landEl.textContent = land; if (!DEN.in) seen[land] = true;
+    if (!DEN.in) toast(land, firstTime ? ({ "Sky Islands": "Floating land high above the valley", "Village": "Press E near people to talk", "Ocean": "Big water, big waves, big fish", "Fire Mountain": "Hot rocks and rivers of lava", "Frost Peaks": "Snow, ice and a frozen lake", "Deep Forest": "Giant trees and glowing mushrooms", "Desert": "Hot sand, tall mesas and a hidden oasis", "Crystal Caves": "Deep under the mountains, lit by glowing crystals", "Bone Caves": "Dark tunnels full of old bones. Listen for rattles...", "Misty Swamp": "Murky pools, twisted trees and thick mist", "Coral Reef": "Shallow warm water full of coral", "Autumn Woods": "Red and gold trees and crunchy leaves", "Blightwood": "Poison pools and twisted dead trees. Careful!", "Hydra Valley": "A hidden green valley between giant cliffs" })[land] || "" : "");
     if (land === "Village" && firstTime && (state === "grown" || state === "ride")) goal(`Meet the villagers. Press E to talk`);
   }
   updateNpcs(dt);
@@ -9629,12 +9636,14 @@ function frameBody() {
   const cam = new V(focus.x - Math.cos(camYaw) * cd, focus.y + camDist * Math.sin(camPitch), focus.z - Math.sin(camYaw) * cd);
   cam.y = Math.max(cam.y, groundAt(cam.x, cam.z, cam.y) + 0.8);
   camera.position.lerp(cam, Math.min(1, dt * 10));
+  if (DEN.in) denCam();
   // tilting the camera low makes it look up at the sky
   const wantFov = state === "ride" && (pet.dive || pet.speed > 40) ? 68 : 55;
   if (Math.abs(camera.fov - wantFov) > 0.1) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   camera.lookAt(tmp.copy(focus).add(new V(0, Math.max(0, -camPitch) * camDist * 0.9, 0)));
   updateDay(dt, focus);
   hemi.intensity *= 1 - caveDim * 0.7 - boneDim * 0.2; sun.intensity *= 1 - caveDim * 0.92 - boneDim * 0.06;   // the caves are dark, even at noon
+  if (DEN.in) denLight();
   updateEvents(dt);
   underwaterFx(dt);
   skyDome.position.copy(camera.position);
@@ -17664,6 +17673,10 @@ function mpMsg(o) {
     case "dmove": mpDuelMove(from, o); break;
     case "dres": mpDuelPlay(o); break;
     case "dquit": if (MP.duel && MP.duel.peer === from) mpDuelEnd(MP.duel.me, `${mpName(from)} gave up. You win!`); break;
+    case "denreq": denGotReq(from); break;   /* visiting a friend's den */
+    case "dend": denGotData(from, o); break;
+    case "denpet": toast(`${mpName(from)} pet ${String(o.n || "your dragon").slice(0, 14)}!`, "Your dragon liked that"); break;
+    case "denbye": { const p = MP.players.get(from); if (p) p.denIn = false; } break;
     case "brask": breedGotAsk(from, o); break;   /* DRAGON BREEDING with a friend */
     case "bryes": breedGotYes(from, o); break;
     case "brno": if (BR_ASK && BR_ASK.peer === from) BR_ASK = null; toast(`${mpEsc(mpName(from))} can't breed right now`, brEsc(String(o.why || "").slice(0, 60))); if (!menuEl.hidden && $("menuTitle").textContent === "Grandpa Orrin") breedMenu(null, `${mpEsc(mpName(from))} said: ${brEsc(String(o.why || "no").slice(0, 60))}`); break;
@@ -20383,6 +20396,471 @@ function kidLoad(d) {
     const n = npcs.find(q => q.name === nm); if (n) kidSpawn(n, false);
   }
 }
+
+
+/* ================= THE DRAGON DEN (Petra 2026-11-15) =================
+   The nest is a portal to your own den: a warm dirt dome with glowing crystals, far away from the world.
+   Burrow Bess's Hearth & Hoard shop in the village sells furniture, bigger dens and wall/floor/crystal styles.
+   Let your pen dragons out in the den. In multiplayer your den comes with you, and friends can visit it. */
+var DEN = { in: false, mine: true, owner: 0, o: null, g: null, size: 0, w: 0, f: 0, l: 0, own: { w: [0], f: [0], l: [0] }, inv: {}, items: [], treats: {}, got: {}, fish4: false,
+  drs: [], blk: [], meshes: [], place: null, landName: "Your Den", view: null, buildQ: [], buildT: 0, cookT: 0 };
+const DEN_BASE = { x: 3200, z: 3200, y: 0 };
+const DEN_SIZES = [
+  { n: "Burrow", r: 13, h: 8.5, spots: 15, out: 4, price: 0, say: "A snug little burrow. Room for you, your dragon and a few cosy things." },
+  { n: "Cozy Den", r: 19, h: 11.5, spots: 30, out: 8, price: 1000, say: "Twice the room! Space for beds, toys and a proper campfire." },
+  { n: "Grand Den", r: 27, h: 15, spots: 50, out: 12, price: 3000, say: "A big cave home with a little pond in it." },
+  { n: "Dragon Hall", r: 38, h: 24, spots: 80, out: 20, price: 8000, say: "A huge hall with a sky-high ceiling and a skylight. Big enough to fly in!" } ];
+const DEN_WALLS = [["Dirt", "#9a6a44", 0], ["Sandstone", "#d0a874", 200], ["Red Clay", "#b0583e", 250], ["Mossy Earth", "#6e7a44", 300], ["Dark Stone", "#5a5662", 350]];
+const DEN_FLOORS = [["Dirt", "#8a5e3a", 0], ["Straw", "#d4b25e", 150], ["Sand", "#e2cc94", 200], ["Flagstone", "#9a968e", 250], ["Moss", "#5a8a42", 250]];
+const DEN_LIGHTS = [["Amber", "#ffb050", 0], ["Ice Blue", "#7ad0ff", 200], ["Rose", "#ff7ab8", 200], ["Emerald", "#5aff9a", 200], ["Violet", "#b07aff", 250]];
+const denL = c => new THREE.MeshLambertMaterial({ color: new THREE.Color(c).convertSRGBToLinear() });
+const denE = (c, k = 0.9) => { const m = denL(c); m.emissive = new THREE.Color(c).convertSRGBToLinear(); m.emissiveIntensity = k; return m; };
+function denMesh(g, geo, mat, x, y, z) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; }
+function denNoiseTex(base, rep, seed) {   /* a soft speckled earth texture, tinted by the material colour */
+  const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d"); let s = seed || 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  x.fillStyle = "#dcdcdc"; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) { const r = 2 + rnd() * 9, g = 170 + rnd() * 70 | 0; x.fillStyle = `rgba(${g},${g},${g},0.35)`; x.beginPath(); x.arc(rnd() * 256, rnd() * 256, r, 0, 7); x.fill(); }
+  for (let i = 0; i < 9000; i++) { const g = 140 + rnd() * 115 | 0; x.fillStyle = `rgba(${g},${g},${g},0.5)`; x.fillRect(rnd() * 256, rnd() * 256, 2, 2); }
+  if (base === "stone") { x.strokeStyle = "rgba(90,90,90,0.45)"; x.lineWidth = 3; for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) x.strokeRect(k * 64 + (r % 2) * 32, r * 64, 64, 64); }
+  if (base === "straw") { x.strokeStyle = "rgba(120,100,60,0.45)"; x.lineWidth = 2; for (let i = 0; i < 260; i++) { const a = rnd() * 6.28, X = rnd() * 256, Y = rnd() * 256; x.beginPath(); x.moveTo(X, Y); x.lineTo(X + Math.cos(a) * 18, Y + Math.sin(a) * 18); x.stroke(); } }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); return t;
+}
+
+/* ---------- furniture: [name, price, group, blocking radius, what dragons do with it, wall item?] ---------- */
+const FURN = {
+  strawbed: ["Straw Bed", 40, "Cosy", 1.2, "sleep"], rug: ["Moss Rug", 30, "Cosy", 0], cushions: ["Cushion Pile", 60, "Cosy", 1.0, "sleep"], logs: ["Firewood Stack", 25, "Cosy", 0.8],
+  lantern: ["Lantern", 35, "Cosy", 0.3], candles: ["Candles", 20, "Cosy", 0], campfire: ["Campfire", 60, "Cosy", 0.9, "warm"],
+  dbed: ["Dragon Bed", 120, "Dragon stuff", 1.8, "sleep"], rock: ["Scratching Rock", 80, "Dragon stuff", 1.0, "scratch"], trough: ["Water Trough", 70, "Dragon stuff", 1.0, "drink"],
+  bone: ["Chew Bone", 50, "Dragon stuff", 0, "chew"], ball: ["Toy Ball", 40, "Dragon stuff", 0.5, "play"], perch: ["Perch Branch", 150, "Dragon stuff", 0.6, "perch"],
+  dummy: ["Training Dummy", 120, "Dragon stuff", 0.6, "train"],
+  sapling: ["Tree Sapling", 90, "Nature", 0.7], shrooms: ["Glowing Mushrooms", 90, "Nature", 0], flowers: ["Flower Pot", 45, "Nature", 0.4], boulder: ["Mossy Boulder", 60, "Nature", 1.1, "scratch"],
+  hoard: ["Gold Hoard", 400, "Fancy", 1.4, "sleep"], clamp: ["Crystal Lamp", 180, "Fancy", 0.4], fountain: ["Fountain", 500, "Fancy", 1.5, "drink"], chest: ["Treasure Chest", 140, "Fancy", 0.8],
+  banner: ["Banner", 100, "Wall", 0, null, true], shields: ["Painted Shields", 150, "Wall", 0, null, true], skull: ["Monster Skull", 90, "Wall", 0, null, true], hskull: ["Horned Dragon Skull", 220, "Wall", 0, null, true],
+  ddTooth: ["Dread Drake Tooth", 0, "Trophy", 0.5], swScale: ["Shadow Wyrm Scale", 0, "Trophy", 0.6], arenaCup: ["Arena Cup", 0, "Trophy", 0.5], fishPlaque: ["Golden Fish Plaque", 0, "Trophy", 0, null, true] };
+const FURN_GROUPS = ["Cosy", "Dragon stuff", "Nature", "Fancy", "Wall"];
+const TROPHY_HOW = { ddTooth: "Beat the Dread Drake", swScale: "Beat the Shadow Wyrm", arenaCup: "Win a whole arena section", fishPlaque: "Catch a 4-star fish" };
+const SAP_GROW = 20 * 60 * 1000;   /* a sapling grows into a full tree in 20 minutes (even while the game is closed) */
+function treeLeafCol() { if (typeof seaName !== "function") return "#4e9a3a"; return ({ Spring: "#f2a8c8", Summer: "#4e9a3a", Autumn: "#e0782a", Winter: "#e8eef4" })[seaName()]; }
+function furnBuild(id, extra) {
+  const g = new THREE.Group(), L = denL, E = denE, M = (geo, mat, x, y, z) => denMesh(g, geo, mat, x, y, z), wood = L("#7a5232"), dark = L("#4e3420"), straw = L("#d9b562");
+  const light = DEN_LIGHTS[DEN.view ? DEN.view.l : DEN.l][1];
+  switch (id) {
+    case "strawbed": M(new THREE.CylinderGeometry(1.15, 1.25, 0.35, 18), straw, 0, 0.18, 0); M(new THREE.TorusGeometry(1.1, 0.22, 8, 20), L("#b8944a"), 0, 0.38, 0).rotation.x = Math.PI / 2; break;
+    case "rug": { const m = M(new THREE.CircleGeometry(1.6, 24), L("#5a8a42"), 0, 0.03, 0); m.rotation.x = -Math.PI / 2; m.castShadow = false; const r2 = M(new THREE.RingGeometry(1.2, 1.35, 24), L("#3e6a2e"), 0, 0.04, 0); r2.rotation.x = -Math.PI / 2; break; }
+    case "cushions": [["#c8503a", 0, 0], ["#e8b040", 0.7, 0.3], ["#4a7ac8", -0.6, 0.4], ["#8a4ab0", 0.1, -0.6]].forEach(([c, x, z], i) => M(new THREE.SphereGeometry(0.55, 12, 8), L(c), x, 0.3 + (i === 3 ? 0.1 : 0), z).scale.set(1, 0.5, 1)); break;
+    case "logs": for (let i = 0; i < 5; i++) { const m = M(new THREE.CylinderGeometry(0.18, 0.18, 1.4, 8), wood, (i % 3 - 1) * 0.38 + (i > 2 ? 0.19 : 0), 0.18 + (i > 2 ? 0.34 : 0), 0); m.rotation.x = Math.PI / 2; } break;
+    case "lantern": M(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 6), dark, 0, 0.8, 0); M(new THREE.BoxGeometry(0.4, 0.5, 0.4), E("#ffc860", 1.2), 0, 1.75, 0); M(new THREE.ConeGeometry(0.32, 0.25, 4), dark, 0, 2.12, 0).rotation.y = Math.PI / 4; break;
+    case "candles": [[0, 0, 0.5], [0.25, 0.1, 0.35], [-0.2, 0.15, 0.28]].forEach(([x, z, h]) => { M(new THREE.CylinderGeometry(0.07, 0.07, h, 8), L("#f4ecd8"), x, h / 2, z); M(new THREE.SphereGeometry(0.05, 6, 4), E("#ffb040", 1.5), x, h + 0.06, z).scale.set(1, 1.6, 1); }); break;
+    case "campfire": { for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; M(new THREE.DodecahedronGeometry(0.22, 0), L("#8a8680"), Math.cos(a) * 0.75, 0.15, Math.sin(a) * 0.75); }
+      for (let i = 0; i < 4; i++) { const m = M(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6), wood, 0, 0.25, 0); m.rotation.set(1.1, i * 0.8, 0); }
+      const f = M(new THREE.ConeGeometry(0.35, 0.9, 7), E("#ff8a2a", 1.4), 0, 0.6, 0); f.castShadow = false; const f2 = M(new THREE.ConeGeometry(0.2, 0.6, 6), E("#ffe070", 1.6), 0, 0.55, 0); f2.castShadow = false; g.userData.flame = [f, f2]; break; }
+    case "dbed": M(new THREE.CylinderGeometry(1.8, 1.9, 0.4, 24), L("#8a3a3a"), 0, 0.2, 0); M(new THREE.TorusGeometry(1.75, 0.35, 10, 28), L("#c8a050"), 0, 0.45, 0).rotation.x = Math.PI / 2; M(new THREE.CylinderGeometry(1.5, 1.5, 0.1, 24), L("#d84a4a"), 0, 0.44, 0); break;
+    case "rock": M(new THREE.DodecahedronGeometry(0.95, 1), L("#8a8478"), 0, 0.7, 0).scale.set(1, 0.85, 0.9); for (let i = 0; i < 5; i++) M(new THREE.BoxGeometry(0.06, 0.5, 0.04), L("#5a564e"), 0.3 * Math.cos(i), 0.8, 0.86).rotation.z = 0.4; break;
+    case "trough": M(new THREE.BoxGeometry(1.8, 0.6, 0.8), wood, 0, 0.3, 0); const w = M(new THREE.BoxGeometry(1.6, 0.05, 0.6), denE("#4a8ad0", 0.25), 0, 0.56, 0); w.castShadow = false; break;
+    case "bone": M(new THREE.CylinderGeometry(0.1, 0.1, 1.0, 8), L("#f0e8d4"), 0, 0.12, 0).rotation.z = Math.PI / 2; [-1, 1].forEach(s => [-1, 1].forEach(t => M(new THREE.SphereGeometry(0.13, 8, 6), L("#f0e8d4"), s * 0.52, 0.12, t * 0.09))); break;
+    case "ball": { const b = M(new THREE.SphereGeometry(0.45, 16, 12), L("#e84a3a"), 0, 0.45, 0); M(new THREE.TorusGeometry(0.45, 0.06, 6, 20), L("#f8f0d8"), 0, 0.45, 0); g.userData.ball = b; break; }
+    case "perch": M(new THREE.CylinderGeometry(0.16, 0.22, 2.4, 8), wood, 0, 1.2, 0); const br = M(new THREE.CylinderGeometry(0.12, 0.12, 2.2, 8), wood, 0, 2.3, 0); br.rotation.z = Math.PI / 2; M(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 10), dark, 0, 0.1, 0); break;
+    case "dummy": { M(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 6), wood, 0, 0.6, 0); const b = new THREE.Group(); b.position.y = 1.1; g.add(b);
+      denMesh(b, new THREE.CylinderGeometry(0.4, 0.45, 1.1, 10), straw, 0, 0.5, 0); denMesh(b, new THREE.SphereGeometry(0.32, 10, 8), straw, 0, 1.3, 0);
+      denMesh(b, new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16), L("#d83a3a"), 0, 0.55, 0.44).rotation.x = Math.PI / 2; denMesh(b, new THREE.CylinderGeometry(0.15, 0.15, 0.06, 12), L("#f8f0e0"), 0, 0.55, 0.46).rotation.x = Math.PI / 2;
+      const arm = denMesh(b, new THREE.CylinderGeometry(0.06, 0.06, 1.3, 6), wood, 0, 0.85, 0); arm.rotation.z = Math.PI / 2; g.userData.wob = b; break; }
+    case "sapling": { const grow = extra ? Math.min(1, Math.max(0, (Date.now() - extra) / SAP_GROW)) : 0, s = 0.3 + 0.7 * grow;
+      const t = new THREE.Group(); t.scale.setScalar(s); g.add(t); denMesh(t, new THREE.CylinderGeometry(0.18, 0.28, 2.6, 8), L("#6a4a2a"), 0, 1.3, 0);
+      const lc = treeLeafCol(); if (lc !== "#e8eef4" || grow < 0.2) [[0, 3.1, 0, 1.2], [0.7, 2.6, 0.3, 0.8], [-0.6, 2.7, -0.3, 0.85], [0.1, 3.7, 0.2, 0.75]].forEach(([x, y, z, r]) => denMesh(t, new THREE.IcosahedronGeometry(r, 1), L(lc), x, y, z));
+      else [[0.5, 2.8, 0, 0.4], [-0.45, 3.0, 0.2, 0.35]].forEach(([x, y, z, r]) => denMesh(t, new THREE.IcosahedronGeometry(r, 0), L("#f4f8fc"), x, y, z));
+      M(new THREE.CylinderGeometry(0.6, 0.7, 0.25, 12), L("#5a3a22"), 0, 0.12, 0); g.userData.grow = grow; break; }
+    case "shrooms": [[0, 0, 0.5, "#5ad0ff"], [0.4, 0.2, 0.32, "#9a7aff"], [-0.35, 0.25, 0.38, "#5ad0ff"], [0.15, -0.4, 0.25, "#7affd0"]].forEach(([x, z, h, c]) => { M(new THREE.CylinderGeometry(0.05, 0.07, h, 6), L("#f0ecd8"), x, h / 2, z); M(new THREE.SphereGeometry(h * 0.45, 10, 6, 0, 6.283, 0, Math.PI / 2), denE(c, 1.1), x, h, z); }); break;
+    case "flowers": M(new THREE.CylinderGeometry(0.35, 0.28, 0.5, 10), L("#b0583e"), 0, 0.25, 0); ["#f25a7a", "#f2c84a", "#9a6af2", "#f2f2f2"].forEach((c, i) => { const a = i * 1.6; M(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), L("#4a8a3a"), Math.cos(a) * 0.15, 0.7, Math.sin(a) * 0.15); M(new THREE.SphereGeometry(0.11, 8, 6), L(c), Math.cos(a) * 0.15, 0.97, Math.sin(a) * 0.15); }); break;
+    case "boulder": M(new THREE.DodecahedronGeometry(1.1, 1), L("#7a7a70"), 0, 0.75, 0).scale.set(1.1, 0.75, 1); M(new THREE.SphereGeometry(0.8, 10, 6, 0, 6.283, 0, 1.0), L("#5a8a3a"), 0.1, 1.05, 0).scale.set(1.2, 0.5, 1); break;
+    case "hoard": { const gold = denE("#f2c84a", 0.35); M(new THREE.SphereGeometry(1.4, 16, 10, 0, 6.283, 0, Math.PI / 2), gold, 0, 0, 0).scale.set(1, 0.45, 1);
+      for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, r = Math.random() * 1.5; M(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 10), gold, Math.cos(a) * r, 0.05 + Math.max(0, 0.6 - r * 0.4), Math.sin(a) * r).rotation.set(Math.random(), 0, Math.random()); }
+      [["#e83a5a", 0.4, 0.2], ["#3a8ae8", -0.5, 0.3], ["#3ae87a", 0.1, -0.5]].forEach(([c, x, z]) => M(new THREE.OctahedronGeometry(0.16, 0), denE(c, 0.8), x, 0.62, z)); break; }
+    case "clamp": M(new THREE.CylinderGeometry(0.25, 0.35, 0.3, 8), L("#5a5662"), 0, 0.15, 0); M(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), L("#8a8a92"), 0, 0.85, 0); M(new THREE.OctahedronGeometry(0.35, 0), denE(light, 1.5), 0, 1.75, 0).scale.set(0.8, 1.4, 0.8); break;
+    case "fountain": M(new THREE.CylinderGeometry(1.5, 1.6, 0.6, 20), L("#a8a49a"), 0, 0.3, 0); const fw = M(new THREE.CylinderGeometry(1.3, 1.3, 0.05, 20), denE("#5aa8f0", 0.35), 0, 0.58, 0); fw.castShadow = false;
+      M(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 10), L("#a8a49a"), 0, 1.1, 0); M(new THREE.CylinderGeometry(0.6, 0.4, 0.2, 14), L("#a8a49a"), 0, 1.85, 0); g.userData.spout = M(new THREE.SphereGeometry(0.25, 10, 8), denE("#8ad0ff", 0.6), 0, 2.1, 0); break;
+    case "chest": M(new THREE.BoxGeometry(1.2, 0.7, 0.8), wood, 0, 0.35, 0); M(new THREE.CylinderGeometry(0.4, 0.4, 1.2, 12, 1, false, 0, Math.PI), wood, 0, 0.7, 0).rotation.z = Math.PI / 2; M(new THREE.BoxGeometry(1.24, 0.1, 0.84), L("#c8a040"), 0, 0.68, 0); M(new THREE.BoxGeometry(0.16, 0.2, 0.06), L("#c8a040"), 0, 0.62, 0.42); break;
+    case "banner": { M(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), dark, 0, 1.2, 0).rotation.z = Math.PI / 2; const b = M(new THREE.PlaneGeometry(1.3, 2.0), L("#b8322a"), 0, 0.15, 0.04); b.material.side = THREE.DoubleSide;
+      M(new THREE.CircleGeometry(0.35, 16), L("#f2c84a"), 0, 0.35, 0.06); break; }
+    case "shields": [-0.75, 0.75].forEach((x, i) => { M(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 16), L(i ? "#3a6ab8" : "#b8322a"), x, 0, 0.06).rotation.x = Math.PI / 2; M(new THREE.CylinderGeometry(0.15, 0.15, 0.14, 10), L("#c8c4b8"), x, 0, 0.1).rotation.x = Math.PI / 2; });
+      M(new THREE.BoxGeometry(0.08, 1.9, 0.06), L("#c8c4b8"), 0, 0, 0.14).rotation.z = 0.7; M(new THREE.BoxGeometry(0.08, 1.9, 0.06), L("#c8c4b8"), 0, 0, 0.16).rotation.z = -0.7; break;
+    case "skull": { const bone = L("#ece4d0"), hole = L("#2a1e18"); M(new THREE.SphereGeometry(0.5, 14, 10), bone, 0, 0.1, 0.25).scale.set(1, 0.9, 0.9); M(new THREE.BoxGeometry(0.55, 0.3, 0.4), bone, 0, -0.32, 0.38);
+      [-0.18, 0.18].forEach(x => M(new THREE.SphereGeometry(0.13, 8, 6), hole, x, 0.12, 0.66)); M(new THREE.ConeGeometry(0.06, 0.12, 3), hole, 0, -0.08, 0.72).rotation.x = Math.PI;
+      for (let i = -2; i <= 2; i++) M(new THREE.BoxGeometry(0.06, 0.1, 0.05), bone, i * 0.09, -0.5, 0.58); break; }
+    case "hskull": { const bone = L("#ece4d0"), hole = L("#2a1e18"); M(new THREE.SphereGeometry(0.55, 14, 10), bone, 0, 0.2, 0.3).scale.set(1, 0.8, 1); const sn = M(new THREE.BoxGeometry(0.5, 0.35, 1.0), bone, 0, -0.05, 0.85);
+      [-0.22, 0.22].forEach(x => M(new THREE.SphereGeometry(0.12, 8, 6), hole, x, 0.25, 0.75)); for (let i = -2; i <= 2; i++) M(new THREE.ConeGeometry(0.05, 0.18, 4), bone, i * 0.1, -0.3, 1.2).rotation.x = Math.PI;
+      [-1, 1].forEach(s => { const h = M(new THREE.ConeGeometry(0.13, 1.2, 8), L("#d8cbb0"), s * 0.45, 0.75, 0.1); h.rotation.set(-0.5, 0, -s * 0.6); }); sn.castShadow = false; break; }
+    case "ddTooth": M(new THREE.CylinderGeometry(0.35, 0.45, 0.4, 8), L("#4a3a5a"), 0, 0.2, 0); M(new THREE.ConeGeometry(0.22, 1.2, 8), L("#f0e8f8"), 0, 1.0, 0); M(new THREE.TorusGeometry(0.4, 0.04, 6, 16), denE("#a04aff", 0.8), 0, 0.42, 0).rotation.x = Math.PI / 2; break;
+    case "swScale": M(new THREE.BoxGeometry(0.9, 0.3, 0.6), L("#3a3a44"), 0, 0.15, 0); M(new THREE.SphereGeometry(0.5, 12, 8), denE("#2a4a2a", 0.4), 0, 0.85, 0).scale.set(1, 1.2, 0.25); M(new THREE.TorusGeometry(0.42, 0.05, 6, 16), denE("#9aff8a", 0.9), 0, 0.85, 0.12); break;
+    case "arenaCup": { const gold = denE("#f2c84a", 0.4); M(new THREE.CylinderGeometry(0.3, 0.4, 0.2, 10), L("#5a3a22"), 0, 0.1, 0); M(new THREE.CylinderGeometry(0.06, 0.1, 0.5, 8), gold, 0, 0.45, 0); M(new THREE.CylinderGeometry(0.45, 0.2, 0.6, 14, 1, true), gold, 0, 0.95, 0).material.side = THREE.DoubleSide; [-1, 1].forEach(s => M(new THREE.TorusGeometry(0.18, 0.04, 6, 12, Math.PI), gold, s * 0.45, 0.95, 0).rotation.z = s * Math.PI / 2); break; }
+    case "fishPlaque": M(new THREE.BoxGeometry(1.4, 0.9, 0.1), wood, 0, 0, 0.05); const fsh = M(new THREE.SphereGeometry(0.4, 12, 8), denE("#f2a830", 0.4), -0.05, 0, 0.16); fsh.scale.set(1.3, 0.55, 0.25); M(new THREE.ConeGeometry(0.22, 0.35, 3), denE("#f2a830", 0.4), 0.55, 0, 0.16).rotation.z = Math.PI / 2; break;
+  }
+  g.userData.id = id; return g;
+}
+
+/* ---------- save ---------- */
+function denSave() { return { s: DEN.size, w: DEN.w, f: DEN.f, l: DEN.l, own: DEN.own, inv: DEN.inv, it: DEN.items, tr: DEN.treats, got: DEN.got, f4: DEN.fish4 ? 1 : 0, sea: DEN.seaRaw }; }
+function denLoad(d) {
+  DEN.size = Math.max(0, Math.min(3, d.s | 0)); DEN.w = d.w | 0; DEN.f = d.f | 0; DEN.l = d.l | 0;
+  DEN.own = d.own && Array.isArray(d.own.w) ? d.own : { w: [0], f: [0], l: [0] };
+  DEN.inv = d.inv && typeof d.inv === "object" ? d.inv : {}; DEN.items = Array.isArray(d.it) ? d.it.filter(a => Array.isArray(a) && FURN[a[0]]) : []; DEN.treats = d.tr && typeof d.tr === "object" ? d.tr : {};
+  DEN.got = d.got || {}; DEN.fish4 = !!d.f4; DEN.seaRaw = d.sea || null; if (d.sea && typeof seaLoad === "function") seaLoad(d.sea);
+  if (!DEN.got.start) { DEN.got.start = 1; DEN.inv.strawbed = (DEN.inv.strawbed | 0) + 1; DEN.inv.campfire = (DEN.inv.campfire | 0) + 1; DEN.inv.lantern = (DEN.inv.lantern | 0) + 2; }   /* everyone starts with a bed, a campfire and two lanterns */
+}
+denLoad({});
+
+/* ---------- where the den is: each player's den has its own spot, so friends can visit ---------- */
+const denOrigin = id => ({ x: DEN_BASE.x + (id | 0) * 260, y: DEN_BASE.y, z: DEN_BASE.z });
+const denV = () => DEN.view || DEN;   /* the den being shown: yours, or a friend's while you visit */
+const denSz = () => DEN_SIZES[Math.max(0, Math.min(3, denV().size | 0))];
+function denDomeY(d) { const S = denSz(), k = Math.min(1, d / S.r); return DEN.o.y + S.h * Math.sqrt(Math.max(0, 1 - k * k)); }
+
+/* ---------- build the den room ---------- */
+function denBuild() {
+  const V0 = denV(), S = denSz(), O = DEN.o, g = new THREE.Group(); g.position.set(O.x, O.y, O.z); scene.add(g); DEN.g = g; DEN.blk = []; DEN.anim = [];
+  const wallC = DEN_WALLS[V0.w] ? DEN_WALLS[V0.w][1] : DEN_WALLS[0][1], floorC = DEN_FLOORS[V0.f] ? DEN_FLOORS[V0.f][1] : DEN_FLOORS[0][1], lightC = DEN_LIGHTS[V0.l] ? DEN_LIGHTS[V0.l][1] : DEN_LIGHTS[0][1];
+  const fk = DEN_FLOORS[V0.f] ? DEN_FLOORS[V0.f][0] : "Dirt";
+  const floorM = new THREE.MeshLambertMaterial({ color: new THREE.Color(floorC).convertSRGBToLinear(), map: denNoiseTex(fk === "Flagstone" ? "stone" : fk === "Straw" ? "straw" : "dirt", S.r / 3, 11) });
+  const fl = new THREE.Mesh(new THREE.CircleGeometry(S.r + 0.5, 64), floorM); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; g.add(fl);
+  const wallM = new THREE.MeshLambertMaterial({ color: new THREE.Color(wallC).convertSRGBToLinear(), map: denNoiseTex(V0.w === 4 ? "stone" : "dirt", 6, 3), side: THREE.BackSide });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(S.r, 56, 24, 0, Math.PI * 2, 0, Math.PI / 2), wallM); dome.scale.y = S.h / S.r; dome.receiveShadow = true; g.add(dome);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(S.r - 0.2, 0.6, 8, 64), new THREE.MeshLambertMaterial({ color: new THREE.Color(wallC).convertSRGBToLinear().multiplyScalar(0.75) })); rim.rotation.x = Math.PI / 2; rim.position.y = 0.2; g.add(rim);
+  if (S.r >= 38) {   /* Dragon Hall: a skylight of stars/sky at the top, and support ribs */
+    const sk = new THREE.Mesh(new THREE.CircleGeometry(5, 32), denE("#bfe0ff", 0.9)); sk.rotation.x = Math.PI / 2; sk.position.y = S.h - 0.15; g.add(sk);
+    for (let i = 0; i < 8; i++) { const rib = new THREE.Mesh(new THREE.TorusGeometry(S.r - 0.6, 0.35, 6, 40, Math.PI / 2), new THREE.MeshLambertMaterial({ color: new THREE.Color("#5e4128").convertSRGBToLinear() })); rib.scale.y = S.h / S.r; rib.rotation.y = i / 8 * Math.PI * 2; g.add(rib); }
+  }
+  if (S.r >= 27) {   /* Grand Den and up: a little pond */
+    const pd = new THREE.Mesh(new THREE.CircleGeometry(3.2, 32), denE("#3a7ac0", 0.25)); pd.rotation.x = -Math.PI / 2; pd.position.set(-S.r * 0.55, 0.05, -S.r * 0.3); g.add(pd);
+    for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; denMesh(g, new THREE.DodecahedronGeometry(0.4, 0), denL("#8a8680"), pd.position.x + Math.cos(a) * 3.4, 0.2, pd.position.z + Math.sin(a) * 3.4); }
+    DEN.blk.push({ x: pd.position.x, z: pd.position.z, r: 3.0 }); }
+  // glowing crystal clusters round the walls
+  const cm = denE(lightC, 1.25), n = Math.round(6 + S.r * 0.35);
+  for (let i = 0; i < n; i++) { const a = (i + 0.5) / n * Math.PI * 2; if (Math.abs(((a - Math.PI * 1.5) + Math.PI * 3) % (Math.PI * 2) - Math.PI) < 0.35) continue;   /* not in front of the portal */
+    const c = new THREE.Group(), rr = S.r - 1.1; c.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr); g.add(c);
+    for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.35 + Math.random() * 0.3, 0), cm); m.scale.set(0.7, 2.2 + Math.random() * 1.6, 0.7); m.position.set((Math.random() - 0.5) * 0.9, 0.6 + Math.random() * 0.3, (Math.random() - 0.5) * 0.9); m.rotation.set((Math.random() - 0.5) * 0.6, Math.random() * 3, (Math.random() - 0.5) * 0.6); c.add(m); }
+    if (i % 3 === 1) { const up = new THREE.Group(), hy = S.h * 0.55, rw = S.r * Math.sqrt(1 - 0.55 * 0.55) - 0.4; up.position.set(Math.cos(a + 0.4) * rw, hy, Math.sin(a + 0.4) * rw); g.add(up);
+      for (let k = 0; k < 3; k++) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), cm); m.scale.set(0.7, 1.8, 0.7); m.position.set((Math.random() - 0.5) * 0.6, 0, (Math.random() - 0.5) * 0.6); m.rotation.set(1.2 + Math.random() * 0.4, a, 0); up.add(m); } } }
+  const pl = []; for (let i = 0; i < 3; i++) { const p = new THREE.PointLight(new THREE.Color(lightC), 1.1, S.r * 1.8, 1.4); const a = i / 3 * Math.PI * 2 + 0.5; p.position.set(Math.cos(a) * S.r * 0.55, S.h * 0.45, Math.sin(a) * S.r * 0.55); g.add(p); pl.push(p); }
+  const warm = new THREE.PointLight(new THREE.Color("#ffc890"), 0.9, S.r * 2.2, 1.2); warm.position.set(0, S.h * 0.7, 0); g.add(warm); DEN.lights = pl;
+  // the portal back out (south wall) and the den's nest (north)
+  const P = DEN.portal = { x: 0, z: S.r - 2.2 }, pg = new THREE.Group(); pg.position.set(P.x, 0, P.z); g.add(pg);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.22, 10, 32), denE("#8a6ad8", 0.8)); ring.position.y = 1.9; pg.add(ring);
+  const sw = new THREE.Mesh(new THREE.CircleGeometry(1.45, 32), new THREE.MeshBasicMaterial({ map: denSwirlTex(), transparent: true, opacity: 0.9, side: THREE.DoubleSide })); sw.position.y = 1.9; pg.add(sw); DEN.anim.push(t => { sw.rotation.z = -t * 1.6; ring.material.emissiveIntensity = 0.7 + 0.3 * Math.sin(t * 3); });
+  DEN.blk.push({ x: P.x, z: P.z + 0.4, r: 0.4 });
+  const N = DEN.nest = { x: 0, z: -S.r * 0.45 }, ng = new THREE.Group(); ng.position.set(N.x, 0, N.z); g.add(ng);
+  const nr = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.45, 10, 28), denL("#7a5532")); nr.rotation.x = Math.PI / 2; nr.position.y = 0.3; ng.add(nr);
+  const nb = new THREE.Mesh(new THREE.CircleGeometry(1.5, 24), denL("#d9b562")); nb.rotation.x = -Math.PI / 2; nb.position.y = 0.18; ng.add(nb);
+  // furniture
+  DEN.meshes = []; (V0.items || []).forEach((it, i) => denPlaceMesh(it, i));
+}
+function denSwirlTex() {
+  const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"), gr = x.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.4, "rgba(170,130,255,0.9)"); gr.addColorStop(1, "rgba(60,30,140,0.2)"); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+  x.strokeStyle = "rgba(255,255,255,0.7)"; x.lineWidth = 4; for (let k = 0; k < 3; k++) { x.beginPath(); for (let i = 0; i < 60; i++) { const a = i / 60 * 9 + k * 2.09, r = i; x.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } x.stroke(); }
+  return new THREE.CanvasTexture(c);
+}
+function denWallPos(a) { const S = denSz(), hy = Math.min(3.2, S.h * 0.38), rw = S.r * Math.sqrt(1 - (hy / S.h) ** 2) - 0.25; return { x: Math.cos(a) * rw, y: hy, z: Math.sin(a) * rw }; }
+function denPlaceMesh(it, i) {
+  const [id, x, z, rot, extra] = it, F = FURN[id], m = furnBuild(id, extra);
+  if (F[5]) { const a = Math.atan2(z, x), p = denWallPos(a); m.position.set(p.x, p.y, p.z); m.rotation.y = Math.atan2(-p.x, -p.z); }
+  else { m.position.set(x, 0, z); m.rotation.y = rot || 0; if (F[3]) DEN.blk.push({ x, z, r: F[3] * (id === "sapling" ? 0.3 + 0.7 * (m.userData.grow || 0) : 1), i }); }
+  DEN.g.add(m); DEN.meshes[i] = m; return m;
+}
+function denClear() {
+  for (const d of DEN.drs) denDropDr(d); DEN.drs = []; DEN.buildQ = [];
+  if (DEN.place && DEN.place.mesh) DEN.place.mesh.parent && DEN.place.mesh.parent.remove(DEN.place.mesh); DEN.place = null;
+  if (DEN.g) { scene.remove(DEN.g); DEN.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); DEN.g = null; }
+  DEN.meshes = []; DEN.blk = [];
+}
+
+/* ---------- going in and out ---------- */
+function denEnter(view, ownerId) {
+  if (DEN.in) denClear();
+  const wasIn = DEN.in; DEN.view = view || null; DEN.mine = !view; DEN.owner = view ? ownerId : (typeof MP !== "undefined" && mpOn() ? MP.myId : 0);
+  DEN.o = denOrigin(DEN.owner); DEN.in = true; DEN.landName = view ? `${view.name || "A friend"}'s Den` : "Your Den";
+  if (!view) denTrophies();
+  if (typeof closeMenu === "function") { menuEl._onClose = null; closeMenu(); }
+  denBuild();
+  if (!wasIn) { DEN.back = { x: me.x, z: me.z }; }
+  me.x = DEN.o.x + DEN.portal.x; me.z = DEN.o.z + DEN.portal.z - 2.5; me.y = DEN.o.y; me.vy = 0; me.face = -Math.PI / 2; camYaw = -Math.PI / 2; camPitch = 0.3; camDist = Math.min(camDist, 8);
+  pet.x = me.x + 1.8; pet.z = me.z - 1.2; pet.y = DEN.o.y; pet.fly = false; pet.speed = 0; pet.dive = false;
+  if (hasDragon() && !view) pet.hp = petMaxHp();
+  epPts.visible = epLines.visible = false;
+  denQueueDragons();
+  toast(view ? `${DEN.landName}` : "Your den", view ? "Look around and say hi to their dragons. You can't move their things." : `${denSz().n} · Press F for your furniture box, E at the nest for your pen`);
+  if (typeof MP !== "undefined" && mpOn() && !view) denBroadcast();
+}
+function denLeave() {
+  if (!DEN.in) return;
+  if (DEN.place) denCancelPlace();
+  denClear(); DEN.in = false; DEN.view = null;
+  me.x = 3.2; me.z = 4.2; me.y = height(me.x, me.z); me.vy = 0; me.face = Math.atan2(4.2, 3.2); pet.x = me.x + 2; pet.z = me.z + 1.5; pet.y = height(pet.x, pet.z);
+  if (state === "ride") { pet.y = height(pet.x, pet.z); }
+  if (epMode) epSet(epMode, "#" + epPts.material.color.getHexString());
+  toast("Back at the nest", "");
+  writeSave();
+}
+
+/* ---------- your dragons out in the den ---------- */
+function denOutList() { const V0 = denV(); if (V0 !== DEN) return (V0.dr || []).slice(0, denSz().out); return pen.filter(d => d.out).slice(0, denSz().out); }
+function denQueueDragons() { DEN.buildQ = denOutList().slice(); DEN.buildT = 0.4; }
+function denMakeDr(d) {
+  if (d.bred && typeof d.kind === "string") bredRemote(d.kind, d.bred);
+  let dr; try { dr = buildDragon(d.kind, d.shiny || null); } catch (e) { console.warn("den dragon", e); return; }
+  const S = denSz(), a = Math.random() * 6.283, r = Math.random() * S.r * 0.5;
+  const sc = (d.small ? 0.45 : d.big ? 1.3 : 1) * (SP(d.kind).size || 1);
+  dr.root.scale.setScalar(sc); scene.add(dr.root);
+  const o = { d, dr, x: DEN.o.x + Math.cos(a) * r, z: DEN.o.z + Math.sin(a) * r, face: Math.random() * 6.283, sc, mode: "idle", t: 1 + Math.random() * 3, tgt: null, walk: 0, sitK: 0, rad: 0.9 * sc + 0.4 };
+  dr.root.position.set(o.x, DEN.o.y, o.z); DEN.drs.push(o);
+}
+function denDropDr(o) { scene.remove(o.dr.root); }
+function denActs() { const L = []; const V0 = denV(); (V0.items || []).forEach((it, i) => { const F = FURN[it[0]]; if (F && F[4] && !F[5]) L.push({ i, use: F[4], x: DEN.o.x + it[1], z: DEN.o.z + it[2], r: F[3] || 0.6 }); }); return L; }
+function denDrTick(o, dt) {
+  const S = denSz(); o.t -= dt; let walk = 0, wantSit = 0;
+  if (o.mode === "go" && o.tgt) {
+    const dx = o.tgt.x - o.x, dz = o.tgt.z - o.z, d = Math.hypot(dx, dz);
+    if (d < 0.5 + (o.tgt.stop || 0)) { o.mode = o.tgt.use ? o.tgt.use : "idle"; o.t = o.tgt.use ? 6 + Math.random() * 10 : 1 + Math.random() * 3; if (o.tgt.look) o.face = Math.atan2(o.tgt.look.z - o.z, o.tgt.look.x - o.x); }
+    else { const sp = Math.min(2.6, 1.2 + o.sc) * dt; o.face = angLerp(o.face, Math.atan2(dz, dx), Math.min(1, dt * 4)); o.x += Math.cos(o.face) * sp; o.z += Math.sin(o.face) * sp; walk = 0.6; }
+    if (o.t < -12) { o.mode = "idle"; o.t = 1; }
+  } else if (o.t <= 0) {   /* pick something to do: a furniture spot, a wander, or a visit to you */
+    const acts = denActs(), r = Math.random();
+    if (r < 0.55 && acts.length) { const A = acts[Math.floor(Math.random() * acts.length)], a = Math.random() * 6.283, st = A.use === "sleep" ? 0 : A.r + o.rad * 0.8;
+      o.tgt = { x: A.x + Math.cos(a) * st, z: A.z + Math.sin(a) * st, use: A.use, look: { x: A.x, z: A.z }, i: A.i, stop: A.use === "sleep" ? 0 : 0.2 }; o.mode = "go"; o.t = 0; }
+    else if (r < 0.7) { o.tgt = { x: me.x + (Math.random() - 0.5) * 3, z: me.z + (Math.random() - 0.5) * 3, use: "hello", look: { x: me.x, z: me.z }, stop: 1.6 + o.rad }; o.mode = "go"; o.t = 0; }
+    else { const a = Math.random() * 6.283, rr = Math.random() * (S.r - 3); o.tgt = { x: DEN.o.x + Math.cos(a) * rr, z: DEN.o.z + Math.sin(a) * rr }; o.mode = "go"; o.t = 0; }
+  } else {
+    if (o.mode === "sleep" || o.mode === "perch" || o.mode === "warm" || o.mode === "hello" || o.mode === "pet") wantSit = 1;
+    if (o.mode === "train" && o.tgt && (o.hitT = (o.hitT || 0) - dt) <= 0) { o.hitT = 0.9 + Math.random() * 0.6; const m = DEN.meshes[o.tgt.i]; if (m && m.userData.wob) { m.userData.wobV = 1; burstAt(o.tgt.look.x, DEN.o.y + 1.5, o.tgt.look.z, "#f4d890"); } }
+    if (o.mode === "play" && o.tgt) { const m = DEN.meshes[o.tgt.i]; if (m && m.userData.ball) { m.userData.ball.position.x = Math.sin(T * 3 + o.x) * 0.5; m.userData.ball.rotation.z = -T * 4; } walk = 0.3; o.face += Math.sin(T * 2) * dt; }
+    if (o.mode === "scratch" || o.mode === "chew" || o.mode === "drink") walk = 0.15;
+  }
+  // stay inside the dome and out of the furniture
+  const dx = o.x - DEN.o.x, dz = o.z - DEN.o.z, dd = Math.hypot(dx, dz), lim = S.r - 1.4 - o.rad * 0.5; if (dd > lim) { o.x = DEN.o.x + dx / dd * lim; o.z = DEN.o.z + dz / dd * lim; }
+  if (o.mode === "go") for (const b of DEN.blk) { if (o.tgt && b.i === o.tgt.i) continue; const ax = o.x - DEN.o.x - b.x, az = o.z - DEN.o.z - b.z, l = Math.hypot(ax, az), rr = b.r + o.rad * 0.6; if (l < rr && l > 1e-4) { o.x += ax / l * (rr - l); o.z += az / l * (rr - l); } }
+  o.sitK += (wantSit - o.sitK) * Math.min(1, dt * 3);
+  o.dr.sit = o.sitK; o.dr.root.position.set(o.x, DEN.o.y + (o.dr.bobY || 0) * o.sc, o.z); o.dr.root.rotation.set(0, -o.face, o.sitK * (o.dr.sitPitch || 0.38), "YXZ");
+  o.walk = walk; o.dr.update(T, walk, 0, dt, 0);
+}
+
+/* ---------- pressing E in the den ---------- */
+function denNear(x, z, d) { return Math.hypot(me.x - x, me.z - z) < d; }
+function denAct() {
+  if (!DEN.in) return false;
+  if (DEN.place) { denConfirmPlace(); return true; }
+  const O = DEN.o;
+  if (denNear(O.x + DEN.portal.x, O.z + DEN.portal.z, 2.6)) { denLeave(); return true; }
+  for (const o of DEN.drs) if (denNear(o.x, o.z, 1.8 + o.rad)) { denPet(o); return true; }
+  if (!DEN.view && denNear(O.x + DEN.nest.x, O.z + DEN.nest.z, 3) && (state === "grown" || state === "baby")) { nestMenu(); return true; }
+  if (!DEN.view && typeof cookMenu === "function") { const f = denNearItem(2.4, "campfire"); if (f >= 0) { cookMenu(); return true; } }
+  return false;
+}
+function denPet(o) {
+  o.mode = "pet"; o.t = 3; o.face = Math.atan2(me.z - o.z, me.x - o.x);
+  for (let k = 0; k < 3; k++) setTimeout(() => burstAt(o.x, DEN.o.y + 1.4 * o.sc + 0.6, o.z, "#ff7ab0"), k * 180);
+  toast(`${o.d.name || "The dragon"} loves the pets!`, pickOf(["It leans into your hand and rumbles happily", "Its tail thumps the floor", "It closes its eyes and purrs like a giant cat", "It nuzzles you back"]));
+  if (DEN.view && typeof MP !== "undefined" && mpOn()) mpSend({ t: "denpet", n: String(o.d.name || "").slice(0, 14) }, DEN.owner);
+}
+function denNearItem(d, only) { const V0 = denV(); let best = -1, bd = d; (V0.items || []).forEach((it, i) => { if (only && it[0] !== only) return; const F = FURN[it[0]]; let x = it[1], z = it[2]; if (F[5]) { const p = denWallPos(Math.atan2(z, x)); x = p.x; z = p.z; } const dd = Math.hypot(me.x - DEN.o.x - x, me.z - DEN.o.z - z); if (dd < bd) { bd = dd; best = i; } }); return best; }
+
+/* ---------- decorating: F = furniture box, G = move a piece, Z/X = turn, E = put it down ---------- */
+function denBox(msg) {
+  if (!DEN.in || DEN.view) return;
+  const S = denSz(), used = DEN.items.length, ids = Object.keys(FURN).filter(id => DEN.inv[id] > 0);
+  const rows = ids.map(id => `<div class="sec"><div><b>${FURN[id][0]}</b> · you have ${DEN.inv[id]}<br><small>${FURN[id][2] === "Trophy" ? "Trophy: " + TROPHY_HOW[id] : FURN[id][5] ? "Hangs on the wall" : FURN[id][4] ? "Dragons like to " + ({ sleep: "sleep on it", scratch: "scratch on it", drink: "drink from it", chew: "chew on it", play: "play with it", perch: "sit on it", train: "practise on it (no XP)", warm: "warm up by it" })[FURN[id][4]] : id === "sapling" ? "Plant it and it grows into a tree over 20 minutes" : "Decoration"}</small></div><button data-act="place" data-i="${Object.keys(FURN).indexOf(id)}" ${used >= S.spots ? "disabled" : ""}>Place</button></div>`).join("");
+  openMenu("Furniture box", `${msg ? `<p class="say">${msg}</p>` : ""}<p>${S.n}: <b>${used}/${S.spots}</b> furniture spots used.</p>
+    <p><small>Pick something to place. Walk to move it, <kbd>Z</kbd>/<kbd>X</kbd> to turn it, <kbd>E</kbd> to put it down, <kbd>F</kbd> to put it back. Walk up to a placed thing and press <kbd>G</kbd> to move it again.</small></p>
+    ${rows || "<p>Your box is empty. Burrow Bess's Hearth &amp; Hoard in the village sells furniture.</p>"}`, () => lockMouse());
+  menuAct = (a, i) => { if (a !== "place") return; const id = Object.keys(FURN)[i]; if (!(DEN.inv[id] > 0)) return; if (DEN.items.length >= denSz().spots) return denBox("No more room! A bigger den from Burrow Bess has more spots."); closeMenu(); denStartPlace(id, null); };
+}
+function denStartPlace(id, fromIdx, rot, extra) {
+  const m = furnBuild(id, extra); m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.65; o.castShadow = false; } });
+  DEN.g.add(m); DEN.place = { id, mesh: m, rot: rot || me.face * -1 + Math.PI / 2, extra: extra || null, from: fromIdx };
+  if (fromIdx == null) { DEN.inv[id]--; if (!DEN.inv[id]) delete DEN.inv[id]; }
+}
+function denPlaceSpot() {
+  const P = DEN.place, F = FURN[P.id], S = denSz(), reach = 2.4 + (F[3] || 0.5);
+  let x = me.x - DEN.o.x + Math.cos(me.face) * reach, z = me.z - DEN.o.z + Math.sin(me.face) * reach; const d = Math.hypot(x, z), lim = S.r - 1.6 - (F[3] || 0.3);
+  if (d > lim) { x *= lim / d; z *= lim / d; } return { x, z };
+}
+function denPlaceTick() {
+  const P = DEN.place; if (!P) return; const F = FURN[P.id], s = denPlaceSpot();
+  if (F[5]) { const p = denWallPos(Math.atan2(s.z, s.x)); P.mesh.position.set(p.x, p.y, p.z); P.mesh.rotation.y = Math.atan2(-p.x, -p.z); }
+  else { P.mesh.position.set(s.x, 0.02, s.z); P.mesh.rotation.y = P.rot; }
+  prompt(`Placing: <b>${F[0]}</b> · <kbd>E</kbd> put it here · ${F[5] ? "it hangs on the wall you face" : "<kbd>Z</kbd>/<kbd>X</kbd> turn"} · <kbd>F</kbd> put it back in the box`);
+}
+function denConfirmPlace() {
+  const P = DEN.place; if (!P) return; const s = denPlaceSpot(), extra = P.id === "sapling" ? (P.extra || Date.now()) : P.extra, it = [P.id, +s.x.toFixed(2), +s.z.toFixed(2), +P.rot.toFixed(3)]; if (extra) it.push(extra);
+  DEN.g.remove(P.mesh); DEN.place = null;
+  if (P.from != null) DEN.items.splice(P.from, 0, it); else DEN.items.push(it);
+  denRebuildFurniture(); burstAt(DEN.o.x + s.x, DEN.o.y + 0.8, DEN.o.z + s.z, "#f4d890");
+  if (P.id === "sapling" && !P.extra) toast("You planted a sapling!", "It will grow into a tree in about 20 minutes");
+  writeSave(); denBroadcast();
+}
+function denCancelPlace() {
+  const P = DEN.place; if (!P) return; DEN.g.remove(P.mesh); DEN.place = null;
+  DEN.inv[P.id] = (DEN.inv[P.id] | 0) + 1; if (P.from != null) denRebuildFurniture();
+  toast(`${FURN[P.id][0]} is back in your furniture box`, ""); writeSave(); denBroadcast();
+}
+function denPickUp() {
+  const i = denNearItem(2.6); if (i < 0) return false; const it = DEN.items.splice(i, 1)[0]; denRebuildFurniture();
+  denStartPlace(it[0], i, it[3], it[4]); return true;
+}
+function denRebuildFurniture() { DEN.meshes.forEach(m => m && DEN.g.remove(m)); DEN.meshes = []; DEN.blk = DEN.blk.filter(b => b.i === undefined); DEN.items.forEach((it, i) => denPlaceMesh(it, i)); }
+addEventListener("keydown", e => {
+  if (!DEN.in || uiOpen || e.repeat || !started || !nameBox.hidden || state === "ride") return;
+  if (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.code === "KeyF") { if (DEN.place) denCancelPlace(); else if (!DEN.view) denBox(); }
+  if (e.code === "KeyG" && !DEN.place && !DEN.view) denPickUp();
+  if ((e.code === "KeyZ" || e.code === "KeyX") && DEN.place) DEN.place.rot += (e.code === "KeyZ" ? 1 : -1) * Math.PI / 8;
+});
+
+/* ---------- trophies: earned, never bought ---------- */
+function denTrophies() {
+  const give = (id, ok) => { if (ok && !DEN.got[id]) { DEN.got[id] = 1; DEN.inv[id] = (DEN.inv[id] | 0) + 1; toast(`New trophy: ${FURN[id][0]}!`, "It's in your furniture box (press F)"); } };
+  give("ddTooth", BOSS.dd > 0); give("swScale", BOSS.sw); give("arenaCup", arena.won.some(Boolean)); give("fishPlaque", DEN.fish4);
+}
+
+/* ---------- each frame in the den ---------- */
+function denTick(dt) {
+  const S = denSz();
+  DEN.anim.forEach(f => f(T));
+  if (DEN.buildQ.length && (DEN.buildT -= dt) <= 0) { DEN.buildT = 0.35; denMakeDr(DEN.buildQ.shift()); }
+  for (const o of DEN.drs) denDrTick(o, dt);
+  DEN.meshes.forEach(m => { if (!m) return; if (m.userData.wob) { const v = m.userData.wobV || 0; m.userData.wob.rotation.x = Math.sin(T * 14) * v * 0.35; m.userData.wobV = Math.max(0, v - dt * 1.5); }
+    if (m.userData.flame) m.userData.flame.forEach((f, k) => { f.scale.set(1, 0.85 + 0.25 * Math.sin(T * (9 + k * 3)), 1); });
+    if (m.userData.spout) m.userData.spout.position.y = 2.1 + Math.sin(T * 5) * 0.08; });
+  if (DEN.place) denPlaceTick();
+  else if (!uiOpen && state !== "ride") {
+    const O = DEN.o; let p = "";
+    if (denNear(O.x + DEN.portal.x, O.z + DEN.portal.z, 2.6)) p = "Press <kbd>E</kbd> to go back out to the nest";
+    else { const o = DEN.drs.find(q => denNear(q.x, q.z, 1.8 + q.rad)); if (o) p = `Press <kbd>E</kbd> to pet ${o.d.name || "the dragon"}`; }
+    if (!p && !DEN.view && denNear(O.x + DEN.nest.x, O.z + DEN.nest.z, 3) && (state === "grown" || state === "baby")) p = "Press <kbd>E</kbd> to open your nest (pen, eggs, dragons out)";
+    if (!p && !DEN.view && typeof cookMenu === "function" && denNearItem(2.4, "campfire") >= 0) p = "Press <kbd>E</kbd> to cook at the campfire";
+    if (!p && !DEN.view) { const i = denNearItem(2.6); if (i >= 0) p = `<kbd>G</kbd> move the ${FURN[DEN.items[i][0]][0]} · <kbd>F</kbd> furniture box`; }
+    if (p) prompt(p);
+  }
+  // saplings keep growing while you watch
+  if ((DEN.growT = (DEN.growT || 0) - dt) <= 0) { DEN.growT = 20; const V0 = denV(); if ((V0.items || []).some((it, i) => it[0] === "sapling" && DEN.meshes[i] && (DEN.meshes[i].userData.grow || 0) < 1 && Math.min(1, (Date.now() - (it[4] || 0)) / SAP_GROW) - DEN.meshes[i].userData.grow > 0.04)) denRebuildFurniture(); }
+}
+function denCam() {
+  const S = denSz(), O = DEN.o, c = camera.position; let dx = c.x - O.x, dz = c.z - O.z, d = Math.hypot(dx, dz);
+  const lim = S.r - 0.9; if (d > lim) { c.x = O.x + dx / d * lim; c.z = O.z + dz / d * lim; d = lim; }
+  const top = denDomeY(d) - 0.7; if (c.y > top) c.y = top; if (c.y < O.y + 0.5) c.y = O.y + 0.5;
+}
+function denLight() {
+  const c = new THREE.Color(DEN_LIGHTS[denV().l] ? DEN_LIGHTS[denV().l][1] : "#ffb050");
+  sun.intensity = 0.12; hemi.intensity = 0.62; hemi.color.set("#ffe2c0"); hemi.groundColor.set("#5a3a24"); hemi.color.lerp(c, 0.25);
+  scene.fog.color.set("#3a2618"); if (DEN.lights) DEN.lights.forEach((p, i) => { p.intensity = 1.0 + 0.15 * Math.sin(T * 1.3 + i * 2); });
+}
+
+/* ---------- the world holds still while you're in your den (it's far away) ---------- */
+{ const W = (name, f) => f;
+  const _mc = moveCircle; moveCircle = function (o, dx, dz, r) {
+    if (!DEN.in) return _mc.apply(this, arguments);
+    const S = denSz(), O = DEN.o; let nx = o.x + dx, nz = o.z + dz;
+    for (const b of DEN.blk) { const ax = nx - O.x - b.x, az = nz - O.z - b.z, l = Math.hypot(ax, az), rr = b.r + r; if (l < rr) { if (l < 1e-4) { nx = O.x + b.x + rr; continue; } nx = O.x + b.x + ax / l * rr; nz = O.z + b.z + az / l * rr; } }
+    const ax = nx - O.x, az = nz - O.z, l = Math.hypot(ax, az), lim = S.r - 0.8 - r; if (l > lim) { nx = O.x + ax / l * lim; nz = O.z + az / l * lim; }
+    o.x = nx; o.z = nz; };
+  const _ga = groundAt; groundAt = function (x, z, y) { if (DEN.in && Math.hypot(x - DEN.o.x, z - DEN.o.z) < denSz().r + 20) return DEN.o.y; return _ga.apply(this, arguments); };
+  const _ce = ceilingAt; ceilingAt = function (x, z, y) { if (DEN.in && Math.hypot(x - DEN.o.x, z - DEN.o.z) < denSz().r + 20) return denDomeY(Math.hypot(x - DEN.o.x, z - DEN.o.z)) - 1.2; return _ce.apply(this, arguments); };
+  ["updateWild", "updateShen", "updateBosses", "updateLava", "updateDig", "updateSecrets"].forEach(n => { const f = eval(n); eval(`${n} = function () { if (DEN.in) return; return f.apply(this, arguments); }`); });
+  const _um = updateMonsters; updateMonsters = function (dt) { if (DEN.in) return; return _um.apply(this, arguments); };
+  /* wild dragons: a host keeps running them for the guests, as if standing at the nest */
+  const _uc = updateComeback; updateComeback = function (dt) {
+    if (!DEN.in) return _uc.apply(this, arguments);
+    if (!(typeof wdMpHost === "function" && wdMpHost())) return;
+    const keep = { mx: me.x, my: me.y, mz: me.z, px: pet.x, py: pet.y, pz: pet.z, hp: pet.hp, land: landNow, fly: pet.fly };
+    me.x = 0; me.z = -8; me.y = 400; pet.x = 0; pet.z = -8; pet.y = 400; landNow = "Green Valley";
+    const wasIn = DEN.in; DEN.in = false;
+    try { return _uc.apply(this, arguments); } finally { DEN.in = wasIn; me.x = keep.mx; me.y = keep.my; me.z = keep.mz; pet.x = keep.px; pet.y = keep.py; pet.z = keep.pz; pet.hp = keep.hp; landNow = keep.land; pet.fly = keep.fly; }
+  };
+  const _ue = updateEvents; updateEvents = function (dt) { const r = _ue.apply(this, arguments); if (DEN.in) { epPts.visible = false; epLines.visible = false; } return r; };
+  const _uf = updateFish; updateFish = function (dt) { if (typeof seaTick === "function") seaTick(dt); if (DEN.in) return denTick(dt); return _uf.apply(this, arguments); };
+  const _wf = wdFeedAct; wdFeedAct = function () { if (DEN.in) return denAct(); return _wf.apply(this, arguments); };
+  const _fc = fishCatch; fishCatch = function () { const n = FISH.basket.length, r = _fc.apply(this, arguments); if (FISH.basket.length > n && fishStars(FISH.basket[FISH.basket.length - 1]) >= 4) DEN.fish4 = true; return r; };
+  const _he = hatchEgg; hatchEgg = function (kind) { const r = _he.apply(this, arguments); if (DEN.in && !DEN.view) { egg.position.set(DEN.o.x + DEN.nest.x, DEN.o.y + 0.75, DEN.o.z + DEN.nest.z); } return r; };
+  const _nm = nestMenu; nestMenu = function () {
+    _nm.apply(this, arguments);
+    const body = $("menuBody"); if (!body) return;
+    const others = typeof MP !== "undefined" && mpOn() ? [...MP.players.values()] : [];
+    const row = DEN.in ? `<div class="sec"><div><b>Dragons out in the den: ${Math.min(pen.filter(d => d.out).length, denSz().out)}/${denSz().out}</b><br><small>Let your pen dragons walk around and play in here</small></div><button data-act="denout">Choose</button></div>`
+      : `<div class="sec" style="border:2px solid #9a7ad8;border-radius:10px"><div><b>✦ Go into your den</b><br><small>Step through the portal to your own home: decorate it and let your dragons out</small></div><button data-act="denin">Go in</button></div>`
+        + others.map(p => `<div class="sec"><div><b>Visit ${mpEsc(p.name || "your friend")}'s den</b><br><small>Look around and pet their dragons</small></div><button data-act="denvisit" data-i="${p.id}">Visit</button></div>`).join("");
+    body.insertAdjacentHTML("afterbegin", row);
+    const ma = menuAct; menuAct = (a, i) => { if (a === "denin") return denEnter(); if (a === "denvisit") return denAskVisit(i); if (a === "denout") return denOutMenu(); return ma(a, i); };
+  };
+}
+// the hatching dragon appears in the den's nest, not the world's
+function denHatchSpot() { return DEN.in && !DEN.view ? { x: DEN.o.x + DEN.nest.x, z: DEN.o.z + DEN.nest.z } : { x: 0, z: 0 }; }
+
+function denOutMenu(msg) {
+  const cap = denSz().out, n = pen.filter(d => d.out).length;
+  const rows = pen.map((d, i) => `<div class="sec"><div><b>${d.name}</b> · ${d.shiny ? d.shiny + " " : ""}${d.small ? "small " : ""}${KN(d.kind)}</div><button data-act="tog" data-i="${i}" ${!d.out && n >= cap ? "disabled" : ""}>${d.out ? "Back in the pen" : "Let it out"}</button></div>`).join("");
+  openMenu("Dragons out", `${msg ? `<p class="say">${msg}</p>` : ""}<p>Your ${denSz().n} has room for <b>${cap}</b> dragons out at once (${n} out now). A bigger den holds more.</p>
+    <div class="choices"><button data-act="all">Let them all out</button><button data-act="none">Everyone back in</button><button data-act="back">Back to the nest</button></div>${rows || "<p>Your pen is empty.</p>"}`, () => lockMouse());
+  menuAct = (a, i) => {
+    if (a === "back") return nestMenu();
+    if (a === "tog" && pen[i]) { if (!pen[i].out && pen.filter(d => d.out).length >= cap) return denOutMenu("No more room! A bigger den holds more dragons."); pen[i].out = !pen[i].out; }
+    if (a === "all") { let k = pen.filter(d => d.out).length; pen.forEach(d => { if (!d.out && k < cap) { d.out = true; k++; } }); }
+    if (a === "none") pen.forEach(d => { d.out = false; });
+    writeSave(); denSyncDragons(); denOutMenu();
+  };
+}
+function denSyncDragons() {   /* match the dragons walking around to the pen's "out" list */
+  if (!DEN.in || DEN.view) return; const want = denOutList();
+  for (let i = DEN.drs.length - 1; i >= 0; i--) if (!want.includes(DEN.drs[i].d)) { denDropDr(DEN.drs[i]); DEN.drs.splice(i, 1); }
+  DEN.buildQ = want.filter(d => !DEN.drs.some(o => o.d === d)); DEN.buildT = 0.2; denBroadcast();
+}
+
+/* ---------- multiplayer: visiting a friend's den ---------- */
+function denData() { return { name: MP.name, size: DEN.size, w: DEN.w, f: DEN.f, l: DEN.l, items: DEN.items.slice(0, 80), dr: pen.filter(d => d.out).slice(0, denSz().out).map(d => ({ kind: d.kind, shiny: d.shiny || null, name: d.name, small: !!d.small, big: !!d.big, bred: BRED_SP[d.kind] ? bredWire(d.kind) : undefined })) }; }
+function denBroadcast() { /* friends inside my den see my changes */ if (typeof MP === "undefined" || !mpOn() || DEN.view) return; for (const p of MP.players.values()) if (p.denIn) mpSend({ t: "dend", d: denData() }, p.id); }
+function denAskVisit(id) { if (!MP.players.get(id)) return; DEN.ask = id; mpSend({ t: "denreq" }, id); closeMenu(); toast("Knock knock...", `Asking ${mpName(id)} to open their den`); }
+function denGotReq(from) { const p = MP.players.get(from); if (p) p.denIn = true; mpSend({ t: "dend", d: denData() }, from); toast(`${mpName(from)} is visiting your den!`, "They can look around and pet your dragons"); }
+function denGotData(from, o) {
+  const d = o && o.d; if (!d || typeof d !== "object") return;
+  const view = { name: String(d.name || mpName(from)).slice(0, 18), size: Math.max(0, Math.min(3, d.size | 0)), w: d.w | 0, f: d.f | 0, l: d.l | 0, items: (Array.isArray(d.items) ? d.items : []).filter(a => Array.isArray(a) && FURN[a[0]]).slice(0, 80), dr: (Array.isArray(d.dr) ? d.dr : []).slice(0, 20).filter(q => q && typeof q.kind === "string" && (BRED_SP[q.kind] || SPECIES.some(s => s.name === q.kind) || q.bred)) };
+  if (DEN.ask === from && !DEN.in) { DEN.ask = null; denEnter(view, from); }
+  else if (DEN.in && DEN.view && DEN.owner === from) { DEN.view = view; const keep = { x: me.x, z: me.z, px: pet.x, pz: pet.z }; denEnter(view, from); me.x = keep.x; me.z = keep.z; pet.x = keep.px; pet.z = keep.pz; }
+}
+/* tell the owner when a visitor walks out */
+{ const _dl = denLeave; denLeave = function () { const v = DEN.view, o = DEN.owner; _dl.apply(this, arguments); if (v && typeof MP !== "undefined" && mpOn()) mpSend({ t: "denbye" }, o); }; }
+
+/* ---------- the den shop: Burrow Bess's Hearth & Hoard ---------- */
+function denShop(n, tab, msg) {
+  tab = tab || "furn"; const S = DEN_SIZES[DEN.size];
+  const tabs = [["furn", "Furniture"], ["den", "Bigger den"], ["style", "Walls, floor & crystals"]].map(([k, l]) => `<button data-act="tab" data-i="${["furn", "den", "style"].indexOf(k)}" ${k === tab ? "class=\"on\"" : ""}>${l}</button>`).join("");
+  let rows = "";
+  if (tab === "furn") rows = FURN_GROUPS.map(g => `<h4>${g === "Wall" ? "For the walls" : g}</h4>` + Object.keys(FURN).filter(id => FURN[id][2] === g).map(id => { const F = FURN[id], k = Object.keys(FURN).indexOf(id);
+    return `<div class="sec"><div><b>${F[0]}</b> · ${F[1]} coins${DEN.inv[id] ? ` · ${DEN.inv[id]} in your box` : ""}<br><small>${F[4] ? "Dragons like to " + ({ sleep: "sleep on it", scratch: "scratch on it", drink: "drink from it", chew: "chew on it", play: "play with it", perch: "sit on it", train: "practise on it (no XP)", warm: "warm up by it" })[F[4]] : id === "sapling" ? "Plant it in your den and it grows into a tree"  : F[5] ? "Hangs on the wall" : "Decoration"}</small></div><button data-act="buy" data-i="${k}" ${coins < F[1] ? "disabled" : ""}>Buy</button></div>`; }).join("")).join("");
+  if (tab === "den") rows = DEN_SIZES.map((s, i) => `<div class="sec"><div><b>${s.n}</b>${i === DEN.size ? " · <b class=\"good\">your den</b>" : ""} · ${s.price ? s.price + " coins" : "free"}<br><small>${s.say} ${s.spots} furniture spots, ${s.out} dragons out at once.</small></div>${i === DEN.size + 1 ? `<button data-act="up" data-i="${i}" ${coins < s.price ? "disabled" : ""}>Dig it out</button>` : i <= DEN.size ? "<span>✓</span>" : "<span><small>dig the one before first</small></span>"}</div>`).join("");
+  if (tab === "style") { const part = (L, key, label) => `<h4>${label}</h4>` + L.map(([nm, col, pr], i) => { const own = DEN.own[key].includes(i), on = DEN[key] === i, KI = "wfl".indexOf(key);
+      return `<div class="sec"><div><b><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${col};vertical-align:-2px"></span> ${nm}</b>${on ? " · <b class=\"good\">in use</b>" : ""}<br><small>${own ? "Yours" : pr + " coins"}</small></div>${on ? "" : own ? `<button data-act="use" data-i="${KI * 10 + i}">Use it</button>` : `<button data-act="buyst" data-i="${KI * 10 + i}" ${coins < pr ? "disabled" : ""}>Buy</button>`}</div>`; }).join("");
+    rows = part(DEN_WALLS, "w", "Walls") + part(DEN_FLOORS, "f", "Floor") + part(DEN_LIGHTS, "l", "Crystal light"); }
+  openMenu("Hearth & Hoard", `<p class="who">Den Builder</p><p class="say">${msg || pickOf(["Welcome, welcome! Mind the sawdust.", "Every dragon deserves a proper home. And a proper bed. And maybe a gold hoard.", "Dirt walls, warm crystals, a comfy bed. What more could a dragon want? Ah, toys. Toys!"])}</p>
+    <p>You have <b>${coins}</b> coins. Your den: <b>${S.n}</b> (${DEN.items.length}/${S.spots} spots).</p><div class="choices tabs">${tabs}</div>${rows}`, () => lockMouse());
+  menuAct = (a, i) => {
+    let key = null; if (a === "buyst" || a === "use") { key = "wfl"[Math.floor(i / 10)] || null; i = i % 10; }
+    if (a === "tab") return denShop(n, ["furn", "den", "style"][i]);
+    if (a === "buy") { const id = Object.keys(FURN)[i], F = FURN[id]; if (!F || coins < F[1]) return; coins -= F[1]; DEN.inv[id] = (DEN.inv[id] | 0) + 1; showCoins(); writeSave(); return denShop(n, "furn", pickOf([`One ${F[0]}! It's waiting in your furniture box. Press F in your den.`, `${F[0]}, good choice! Your dragons will love it.`, `Here you go. I'll send it straight to your den. Don't ask how. Burrow magic.`])); }
+    if (a === "up") { const s = DEN_SIZES[i]; if (i !== DEN.size + 1 || coins < s.price) return; coins -= s.price; DEN.size = i; showCoins(); writeSave(); return denShop(n, "den", `Done! Your den is now a ${s.n}. Go and have a look!`); }
+    if (a === "buyst" && key) { const L = key === "w" ? DEN_WALLS : key === "f" ? DEN_FLOORS : DEN_LIGHTS; if (!L[i] || coins < L[i][2]) return; coins -= L[i][2]; DEN.own[key].push(i); DEN[key] = i; showCoins(); writeSave(); return denShop(n, "style", `${L[i][0]}! Lovely. It's done already.`); }
+    if (a === "use" && key) { DEN[key] = i; writeSave(); return denShop(n, "style", "Swapped! Fresh as new."); }
+  };
+}
+
+/* ---------- the portal next to the nest out in the world: step in to go to your den ---------- */
+const DEN_GATE = { x: -3.6, z: 1.8 };
+{ const pg = new THREE.Group(); pg.position.set(DEN_GATE.x, 0, DEN_GATE.z); pg.rotation.y = 0.55; nestGroup.add(pg);
+  const st = denL("#8a7a6a"); for (const s of [-1, 1]) denMesh(pg, new THREE.BoxGeometry(0.45, 3.0, 0.45), st, s * 1.35, 1.5, 0);
+  const top = denMesh(pg, new THREE.TorusGeometry(1.35, 0.25, 8, 20, Math.PI), st, 0, 3.0, 0);
+  const ring = denMesh(pg, new THREE.TorusGeometry(1.1, 0.1, 8, 28), denE("#8a6ad8", 0.8), 0, 2.2, 0); ring.castShadow = false;
+  const sw = new THREE.Mesh(new THREE.CircleGeometry(1.05, 28), new THREE.MeshBasicMaterial({ map: denSwirlTex(), transparent: true, opacity: 0.85, side: THREE.DoubleSide })); sw.position.y = 2.2; pg.add(sw);
+  for (let i = 0; i < 3; i++) { const c = denMesh(pg, new THREE.OctahedronGeometry(0.22, 0), denE("#ffb050", 1.2), (i - 1) * 0.5, 3.45 + (i === 1 ? 0.15 : 0), 0); c.scale.y = 1.8; c.castShadow = false; }
+  skyAnims.push(t => { sw.rotation.z = -t * 1.6; ring.material.emissiveIntensity = 0.6 + 0.3 * Math.sin(t * 3); });
+  blockers.push({ x: DEN_GATE.x + Math.cos(0.55) * 1.35, z: DEN_GATE.z - Math.sin(0.55) * 1.35, r: 0.35 }, { x: DEN_GATE.x - Math.cos(0.55) * 1.35, z: DEN_GATE.z + Math.sin(0.55) * 1.35, r: 0.35 }); }
+const denAtGate = () => !DEN.in && Math.hypot(me.x - DEN_GATE.x, me.z - DEN_GATE.z) < 2.4 && me.y < nestGroup.position.y + 4;
+{ const _wf2 = wdFeedAct; wdFeedAct = function () { if (denAtGate() && (state === "grown" || state === "baby")) { denEnter(); return true; } return _wf2.apply(this, arguments); };
+  const _uf2 = updateFish; updateFish = function (dt) { const r = _uf2.apply(this, arguments); if (denAtGate() && !uiOpen && (state === "grown" || state === "baby")) prompt("Press <kbd>E</kbd> to step through the portal into your den"); return r; }; }
 
 window.__ww = { moveCircle, blockers, waterTop, LANDS, ARENA, npcs, get dragon() { return dragon; }, arena, get coins() { return coins; }, set coins(v) { coins = v; showCoins(); }, bag, pen, startRun, arenaMenu, nestMenu, pressKey, get run() { return run; }, me, pet, keys, height, setTime: v => { dayTime = v; }, setState: s => { state = s; }, get state() { return state; }, eggSpot, cam: (v, pt) => { camYaw = v; if (pt !== undefined) camPitch = pt; } };
 window.__ww.debugComeback = (n, o) => wdDebug(n, o);   /* hidden test hook: "Shadow Wyrm beaten, day n" */
